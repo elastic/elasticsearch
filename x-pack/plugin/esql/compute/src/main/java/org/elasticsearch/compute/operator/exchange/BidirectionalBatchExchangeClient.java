@@ -86,8 +86,6 @@ public final class BidirectionalBatchExchangeClient implements Releasable {
     /**
      * Create a new BidirectionalBatchExchangeClient.
      *
-     * @param clientToServerId exchange ID for client-to-server direction
-     * @param serverToClientId exchange ID for server-to-client direction
      * @param sessionId session ID for the driver
      * @param clusterName cluster name
      * @param exchangeService  the exchange service
@@ -102,8 +100,6 @@ public final class BidirectionalBatchExchangeClient implements Releasable {
      * @throws Exception if initialization fails
      */
     public BidirectionalBatchExchangeClient(
-        String clientToServerId,
-        String serverToClientId,
         String sessionId,
         String clusterName,
         ExchangeService exchangeService,
@@ -116,9 +112,9 @@ public final class BidirectionalBatchExchangeClient implements Releasable {
         DriverContext driverContext,
         ThreadContext threadContext
     ) throws Exception {
-        this.clientToServerId = clientToServerId;
-        this.serverToClientId = serverToClientId;
         this.sessionId = sessionId;
+        this.clientToServerId = sessionId + "clientToServer";
+        this.serverToClientId = sessionId + "serverToClient";
         this.clusterName = clusterName;
         this.exchangeService = exchangeService;
         this.executor = executor;

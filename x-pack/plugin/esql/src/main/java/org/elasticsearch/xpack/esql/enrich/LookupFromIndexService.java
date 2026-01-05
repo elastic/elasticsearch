@@ -79,11 +79,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
     private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
-    /**
-     * Switch between new streaming implementation and base class implementation.
-     */
-    protected static boolean USE_STREAMING_LOOKUP = true;
-
     private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
 
@@ -127,7 +122,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.matchFields,
             request.source,
             request.rightPreJoinPlan,
-            request.joinOnConditions
+            request.joinOnConditions,
+            request.streamingSessionId
         );
     }
 
@@ -187,6 +183,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
+        private final String streamingSessionId;
 
         Request(
             String sessionId,
@@ -197,12 +194,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             Source source,
             PhysicalPlan rightPreJoinPlan,
-            Expression joinOnConditions
+            Expression joinOnConditions,
+            String streamingSessionId
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
+            this.streamingSessionId = streamingSessionId;
         }
     }
 
@@ -213,10 +212,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             "esql_lookup_join_on_many_fields"
         );
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
+        private static final TransportVersion ESQL_LOOKUP_STREAMING_SESSION_ID = TransportVersion.fromName(
+            "esql_lookup_streaming_session_id"
+        );
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
+        private final String streamingSessionId;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -230,12 +233,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<MatchConfig> matchFields,
             Source source,
             PhysicalPlan rightPreJoinPlan,
-            Expression joinOnConditions
+            Expression joinOnConditions,
+            String streamingSessionId
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
+            this.streamingSessionId = streamingSessionId;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -285,6 +290,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
+            String streamingSessionId = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+                streamingSessionId = in.readOptionalString();
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -295,7 +304,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 matchFields,
                 source,
                 rightPreJoinPlan,
-                joinOnConditions
+                joinOnConditions,
+                streamingSessionId
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -307,6 +317,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         public List<MatchConfig> getMatchFields() {
             return matchFields;
+        }
+
+        public String getStreamingSessionId() {
+            return streamingSessionId;
         }
 
         @Override
@@ -352,6 +366,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 if (joinOnConditions != null) {
                     throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
                 }
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+                out.writeOptionalString(streamingSessionId);
             }
         }
 
@@ -427,7 +444,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     @Override
     protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
-        if (USE_STREAMING_LOOKUP) {
+        if (request.getStreamingSessionId() != null) {
             doLookupStreaming(request, task, listener);
         } else {
             super.doLookup(request, task, listener);

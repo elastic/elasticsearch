@@ -482,7 +482,8 @@ public class LookupExecutionMapperTests extends ESTestCase {
             extractFields,
             Source.EMPTY,
             null,
-            null
+            null,
+            null // streamingSessionId - not used in this test
         );
         LookupFromIndexService.TransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
 

@@ -62,7 +62,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     private static final long TEST_TIMEOUT_SECONDS = 30;
 
     /**
-     * Timeout for giant batch processing test (2 minutes).
+     * Timeout for giant batch processing test
      * This test processes a large amount of batches and needs a longer timeout.
      */
     private static final long GIANT_BATCH_TEST_TIMEOUT_SECONDS = 120;
@@ -183,11 +183,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Set up batch exchange status listener
             PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
 
+            // Generate unique session ID for this test
+            String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
+
             // Set up client on main thread
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture);
+            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
 
             // Start server thread, wait for initialization, and connect client
-            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS);
+            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
 
             // Log number of batches to send
             logger.info("[TEST] Number of batches to send: {}", numBatches);
@@ -244,11 +247,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Set up batch exchange status listener
             PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
 
+            // Generate unique session ID for this test
+            String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
+
             // Set up client on main thread
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture);
+            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
 
             // Start server thread, wait for initialization, and connect client
-            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS);
+            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
 
             // Log number of batches to send
             logger.info("[TEST] Number of batches to send: 1 (marker batch)");
@@ -307,11 +313,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Set up batch exchange status listener
             PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
 
+            // Generate unique session ID for this test
+            String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
+
             // Set up client on main thread
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture);
+            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
 
             // Start server thread, wait for initialization, and connect client
-            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS);
+            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
 
             // Log number of batches to send
             logger.info("[TEST] Number of batches to send: {}", numBatches);
@@ -503,16 +512,15 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     private BidirectionalBatchExchangeClient setupClient(
         TestInfrastructure infra,
         ThreadPool threadPool,
-        ActionListener<Void> batchExchangeStatusListener
+        ActionListener<Void> batchExchangeStatusListener,
+        String sessionId
     ) throws Exception {
-        logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient");
+        logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}", sessionId);
         Task mockTask = mock(Task.class);
         logger.info("[TEST-CLIENT] Creating client driver context");
         DriverContext driverContext = driverContext();
         BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
-            infra.clientToServerId(),
-            infra.serverToClientId(),
-            "test-session",
+            sessionId,
             "test-cluster",
             infra.clientExchangeService(),
             threadPool.executor("esql"),
@@ -573,11 +581,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         // Set up batch exchange status listener
         PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
 
+        // Generate unique session ID for this test
+        String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
+
         // Initialize client on main thread
-        BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture);
+        BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
 
         // Start server thread, wait for initialization, and connect client
-        Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, timeoutSeconds);
+        Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, timeoutSeconds, sessionId);
 
         // Log number of batches to send
         logger.info("[TEST] Number of batches to send: {}", numBatches);
@@ -740,13 +751,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         ThreadPool threadPool,
         AtomicReference<Exception> serverException,
         BidirectionalBatchExchangeClient client,
-        long timeoutSeconds
+        long timeoutSeconds,
+        String sessionId
     ) throws InterruptedException {
         // Create latch to synchronize server initialization
         CountDownLatch serverInitializedLatch = new CountDownLatch(1);
 
         // Start server thread FIRST - it will initialize and create sink handler
-        Thread serverThread = createServerThread(infra, threadPool, serverException, timeoutSeconds, serverInitializedLatch);
+        Thread serverThread = createServerThread(infra, threadPool, serverException, timeoutSeconds, serverInitializedLatch, sessionId);
         serverThread.start();
 
         // Wait for server to initialize (create sink handler) BEFORE client connects
@@ -815,9 +827,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         MockTransportService clientTransportService,
         MockTransportService serverTransportService,
         ExchangeService clientExchangeService,
-        ExchangeService serverExchangeService,
-        String clientToServerId,
-        String serverToClientId
+        ExchangeService serverExchangeService
     ) {}
 
     /**
@@ -838,20 +848,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         ExchangeService serverExchangeService = new ExchangeService(Settings.EMPTY, threadPool, "esql", blockFactory);
         serverExchangeService.registerTransportHandler(serverTransportService);
 
-        // Shared exchange IDs - use UUID to ensure uniqueness across tests
-        String testId = UUID.randomUUID().toString().substring(0, 8);
-        String clientToServerId = "test-client-to-server-" + testId;
-        String serverToClientId = "test-server-to-client-" + testId;
-        logger.info("[TEST] Exchange IDs: clientToServerId={}, serverToClientId={}", clientToServerId, serverToClientId);
-
-        return new TestInfrastructure(
-            clientTransportService,
-            serverTransportService,
-            clientExchangeService,
-            serverExchangeService,
-            clientToServerId,
-            serverToClientId
-        );
+        return new TestInfrastructure(clientTransportService, serverTransportService, clientExchangeService, serverExchangeService);
     }
 
     /**
@@ -945,17 +942,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         TestInfrastructure infra,
         ThreadPool threadPool,
         AtomicReference<Exception> serverException,
-        CountDownLatch serverInitializedLatch
-    ) {
-        return createServerThread(infra, threadPool, serverException, TEST_TIMEOUT_SECONDS, serverInitializedLatch);
-    }
-
-    private Thread createServerThread(
-        TestInfrastructure infra,
-        ThreadPool threadPool,
-        AtomicReference<Exception> serverException,
         long driverTimeoutSeconds,
-        CountDownLatch serverInitializedLatch
+        CountDownLatch serverInitializedLatch,
+        String sessionId
     ) {
         return new Thread(() -> {
             try {
@@ -963,7 +952,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 // Then the server will Reply with an acknowledgment and that it is ready to receive data.
                 // Here, for testing purposes, we skip those steps and use the method signature to pass parameters directly.
                 // And the serverInitializedLatch tells the main thread when the server is ready for the client to connect.
-                logger.info("[TEST-SERVER] Creating BidirectionalBatchExchangeServer");
+                logger.info("[TEST-SERVER] Creating BidirectionalBatchExchangeServer with sessionId={}", sessionId);
                 Task mockTask = mock(Task.class);
 
                 // Create operators for server (server creates its own operators)
@@ -973,9 +962,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 EvalOperator addOneOperator = createAddOneOperator(driverContext);
 
                 BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
-                    infra.clientToServerId(),
-                    infra.serverToClientId(),
-                    "test-session",
+                    sessionId,
                     infra.serverExchangeService(),
                     threadPool.executor("esql"),
                     10,

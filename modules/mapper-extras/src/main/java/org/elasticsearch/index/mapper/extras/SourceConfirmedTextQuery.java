@@ -24,7 +24,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -79,7 +78,7 @@ public final class SourceConfirmedTextQuery extends Query {
         } else if (query instanceof MultiPhrasePrefixQuery) {
             return approximate((MultiPhrasePrefixQuery) query);
         } else {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
     }
 

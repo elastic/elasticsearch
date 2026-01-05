@@ -10,18 +10,22 @@ package org.elasticsearch.xpack.esql.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
@@ -53,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -77,6 +82,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -97,6 +103,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -145,6 +152,7 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
+        Map.entry(DATE_RANGE, ToDateRange::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
@@ -649,11 +657,15 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateTimeToLong(String dateTime) {
-        return DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
+        return dateTimeToLong(dateTime, DEFAULT_DATE_TIME_FORMATTER);
     }
 
     public static long dateTimeToLong(String dateTime, DateFormatter formatter) {
-        return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+        try {
+            return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
     }
 
     public static long dateNanosToLong(String dateNano) {
@@ -661,8 +673,12 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
-        Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
-        return DateUtils.toLong(parsed);
+        try {
+            Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+            return DateUtils.toLong(parsed);
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
     }
 
     public static String dateWithTypeToString(long dateTime, DataType type) {
@@ -689,6 +705,20 @@ public class EsqlDataTypeConverter {
 
     public static String nanoTimeToString(long dateTime, DateFormatter formatter) {
         return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
+    }
+
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s) {
+        var ss = s.split("\\.\\.");
+        assert ss.length == 2 : "can't parse range: " + s;
+        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0]), dateTimeToLong(ss[1]) - 1);
+    }
+
+    public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {
+        return dateRangeToString(range.from(), range.to());
+    }
+
+    public static String dateRangeToString(long from, long to) {
+        return dateTimeToString(from) + ".." + dateTimeToString(to);
     }
 
     public static BytesRef numericBooleanToString(Object field) {
@@ -843,6 +873,47 @@ public class EsqlDataTypeConverter {
 
     public static String tDigestToString(TDigestHolder digest) {
         return digest.toString();
+    }
+
+    public static String histogramBlockToString(BytesRefBlock histogramBlock, int index) {
+        // TODO: should we be creating a new bytesref here?
+        return histogramToString(histogramBlock.getBytesRef(index, new BytesRef()));
+    }
+
+    public static String histogramToString(BytesRef histogram) {
+        if (histogram.length > ByteSizeUnit.MB.toBytes(2)) {
+            throw new IllegalArgumentException("Histogram length is greater than 2MB");
+        }
+        // TODO: reuse the nearly identical code from HistogramFieldMapper
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            ByteArrayStreamInput streamInput = new ByteArrayStreamInput();
+
+            // write values field
+            builder.startArray("values");
+            streamInput.reset(histogram.bytes, histogram.offset, histogram.length);
+            while (streamInput.available() > 0) {
+                long count = streamInput.readVLong();
+                double value = Double.longBitsToDouble(streamInput.readLong());
+                builder.value(value);
+            }
+            builder.endArray();
+
+            // write counts field
+            builder.startArray("counts");
+            streamInput.reset(histogram.bytes, histogram.offset, histogram.length);
+            while (streamInput.available() > 0) {
+                long count = streamInput.readVLong();
+                double value = Double.longBitsToDouble(streamInput.readLong());
+                builder.value(count);
+            }
+            builder.endArray();
+            builder.endObject();
+
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering histogram", e);
+        }
     }
 
     public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {

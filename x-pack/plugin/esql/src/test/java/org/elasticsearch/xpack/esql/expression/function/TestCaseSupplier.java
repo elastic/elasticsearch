@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -60,9 +61,12 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -874,6 +878,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryDateRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<LongRangeBlockBuilder.LongRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                dateRangeCases(),
+                expectedType,
+                v -> expectedValue.apply((LongRangeBlockBuilder.LongRange) v),
+                warnings
+            );
+        }
+    }
+
     public static void forUnaryExponentialHistogram(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -889,6 +912,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             v -> expectedValue.apply((ExponentialHistogram) v),
             warnings
         );
+    }
+
+    public static void forUnaryHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
     }
 
     private static void unaryNumeric(
@@ -1539,6 +1572,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static List<TypedDataSupplier> dateRangeCases() {
+        return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
+    }
+
+    static LongRangeBlockBuilder.LongRange randomDateRange() {
+        var from = randomMillisUpToYear9999();
+        var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+        return new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
     /**
      * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
      */
@@ -1549,6 +1592,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 EsqlTestUtils::randomExponentialHistogram,
                 DataType.EXPONENTIAL_HISTOGRAM
             )
+        );
+    }
+
+    public static List<TypedDataSupplier> histogramCases() {
+        return List.of(
+            new TypedDataSupplier("<random histogram>", EsqlTestUtils::randomHistogram, DataType.HISTOGRAM),
+            new TypedDataSupplier("<empty histogram>", () -> new BytesRef(""), DataType.HISTOGRAM)
         );
     }
 

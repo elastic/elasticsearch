@@ -1,0 +1,5 @@
+pr: 139113
+summary: "[ES|QL]: Update Vector Similarity To Support BFLOAT16"
+area: "ES|QL"
+type: bug
+issues: []

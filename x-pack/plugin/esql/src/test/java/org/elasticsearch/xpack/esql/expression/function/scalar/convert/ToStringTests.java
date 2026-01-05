@@ -186,6 +186,20 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
             List.of()
         );
+        TestCaseSupplier.forUnaryDateRange(
+            suppliers,
+            "ToStringFromDateRangeEvaluator[field=" + read + "]",
+            DataType.KEYWORD,
+            dr -> new BytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryHistogram(
+            suppliers,
+            "ToStringFromHistogramEvaluator[histogram=" + read + "]",
+            DataType.KEYWORD,
+            h -> new BytesRef(EsqlDataTypeConverter.histogramToString(h)),
+            List.of()
+        );
 
         suppliers.addAll(casesForDate("2020-02-03T10:12:14Z", "Z", "2020-02-03T10:12:14.000Z"));
         suppliers.addAll(casesForDate("2020-02-03T10:12:14+01:00", "Europe/Madrid", "2020-02-03T10:12:14.000+01:00"));

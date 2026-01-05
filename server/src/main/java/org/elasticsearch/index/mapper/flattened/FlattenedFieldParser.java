@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -23,8 +22,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A helper class for {@link FlattenedFieldMapper} parses a JSON object
@@ -61,20 +58,17 @@ class FlattenedFieldParser {
         this.nullValue = nullValue;
     }
 
-    public List<IndexableField> parse(final DocumentParserContext documentParserContext) throws IOException {
+    public void parse(final DocumentParserContext documentParserContext) throws IOException {
         XContentParser parser = documentParserContext.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         ContentPath path = new ContentPath();
-        List<IndexableField> fields = new ArrayList<>();
 
         var context = new Context(parser, documentParserContext);
-        parseObject(context, path, fields);
-
-        return fields;
+        parseObject(context, path);
     }
 
-    private void parseObject(Context context, ContentPath path, List<IndexableField> fields) throws IOException {
+    private void parseObject(Context context, ContentPath path) throws IOException {
         String currentName = null;
         XContentParser parser = context.parser();
         while (true) {
@@ -87,43 +81,37 @@ class FlattenedFieldParser {
                 currentName = parser.currentName();
             } else {
                 assert currentName != null;
-                parseFieldValue(context, token, path, currentName, fields);
+                parseFieldValue(context, token, path, currentName);
             }
         }
     }
 
-    private void parseArray(Context context, ContentPath path, String currentName, List<IndexableField> fields) throws IOException {
+    private void parseArray(Context context, ContentPath path, String currentName) throws IOException {
         XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
                 return;
             }
-            parseFieldValue(context, token, path, currentName, fields);
+            parseFieldValue(context, token, path, currentName);
         }
     }
 
-    private void parseFieldValue(
-        Context context,
-        XContentParser.Token token,
-        ContentPath path,
-        String currentName,
-        List<IndexableField> fields
-    ) throws IOException {
+    private void parseFieldValue(Context context, XContentParser.Token token, ContentPath path, String currentName) throws IOException {
         XContentParser parser = context.parser();
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
-            parseObject(context, path, fields);
+            parseObject(context, path);
             path.remove();
         } else if (token == XContentParser.Token.START_ARRAY) {
-            parseArray(context, path, currentName, fields);
+            parseArray(context, path, currentName);
         } else if (token.isValue()) {
             String value = parser.text();
-            addField(context, path, currentName, value, fields);
+            addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             if (nullValue != null) {
-                addField(context, path, currentName, nullValue, fields);
+                addField(context, path, currentName, nullValue);
             }
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
@@ -132,7 +120,7 @@ class FlattenedFieldParser {
         }
     }
 
-    private void addField(Context context, ContentPath path, String currentName, String value, List<IndexableField> fields) {
+    private void addField(Context context, ContentPath path, String currentName, String value) {
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
             throw new IllegalArgumentException(
@@ -145,7 +133,7 @@ class FlattenedFieldParser {
 
         if (value.length() > ignoreAbove) {
             if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
-                fields.add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
+                context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
             }
             return;
         }
@@ -169,13 +157,13 @@ class FlattenedFieldParser {
         }
         BytesRef bytesValue = new BytesRef(value);
         if (fieldType.indexType().hasTerms()) {
-            fields.add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
-            fields.add(new StringField(keyedFieldFullPath, bytesKeyedValue, Field.Store.NO));
+            context.documentParserContext.doc().add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
+            context.documentParserContext.doc().add(new StringField(keyedFieldFullPath, bytesKeyedValue, Field.Store.NO));
         }
 
         if (fieldType.hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
-            fields.add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
+            context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+            context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
 
             if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
                 return;

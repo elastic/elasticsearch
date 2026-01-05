@@ -50,7 +50,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
 
         IndexableField field1 = fields.get(0);
@@ -75,7 +76,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);
@@ -92,7 +94,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);
@@ -110,7 +113,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
 
         IndexableField field1 = fields.get(0);
@@ -136,7 +140,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(6, fields.size());
 
         IndexableField field1 = fields.get(0);
@@ -173,7 +178,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(6, fields.size());
 
         IndexableField field1 = fields.get(0);
@@ -214,7 +220,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
 
         IndexableField field1 = fields.get(0);
@@ -251,7 +258,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(6, fields.size());
 
         IndexableField field1 = fields.get(0);
@@ -323,7 +331,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = configuredParser.parse(context);
+        configuredParser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
     }
 
@@ -341,7 +350,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = configuredParser.parse(context);
+        configuredParser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(0, fields.size());
     }
 
@@ -349,7 +359,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         String input = "{ \"key\": null}";
 
         TestDocumentParserContext fieldsContext = new TestDocumentParserContext(createXContentParser(input));
-        List<IndexableField> fields = parser.parse(fieldsContext);
+        parser.parse(fieldsContext);
+        List<IndexableField> fields = fieldsContext.doc().getFields();
         assertEquals(0, fields.size());
 
         MappedFieldType fieldType = new FakeFieldType("field");
@@ -364,7 +375,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));
-        fields = configuredParser.parse(configuredContext);
+        configuredParser.parse(configuredContext);
+        fields = configuredContext.doc().getFields();
         assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);
@@ -389,7 +401,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertEquals(0, fields.size());
     }
 
@@ -410,7 +423,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = parser.parse(context);
+        parser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
         assertTrue(fields.size() > 4);
     }
 

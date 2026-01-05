@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -889,8 +888,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
-            List<IndexableField> fields = fieldParser.parse(context);
-            context.doc().addAll(fields);
+            fieldParser.parse(context);
         } finally {
             context.path().setWithinLeafObject(false);
         }

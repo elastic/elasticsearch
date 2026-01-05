@@ -644,12 +644,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
-                expectErrorWithLineNumber(
-                    command + " *,\"-foo\"::data",
-                    "*,-foo::data",
-                    lineNumber,
-                    "mismatched input '::' expecting {"
-                );
+                expectErrorWithLineNumber(command + " *,\"-foo\"::data", "*,-foo::data", lineNumber, "mismatched input '::' expecting {");
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::data\"",
                     " cluster:\"foo::data\"",
@@ -866,12 +861,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "-index",
                     "must not start with '_', '-', or '+'"
                 );
-                expectErrorWithLineNumber(
-                    command,
-                    "indexpattern, \"--index\"::data",
-                    "line 1:29: ",
-                    "mismatched input '::' expecting {"
-                );
+                expectErrorWithLineNumber(command, "indexpattern, \"--index\"::data", "line 1:29: ", "mismatched input '::' expecting {");
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"indexpattern, --index::data\"",
@@ -2708,14 +2698,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
-        expectError(
-            "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {"
-        );
-        expectError(
-            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {"
-        );
+        expectError("from test | WHERE \"field\":\"value\"", "line 1:26: mismatched input ':' expecting {");
+        expectError("from test | WHERE CONCAT(\"field\", 1):\"value\"", "line 1:37: mismatched input ':' expecting {");
     }
 
     public void testMatchFunctionFieldCasting() {

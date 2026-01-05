@@ -180,8 +180,7 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     void expectError(String query, List<QueryParam> params, String errorMessage) {
-        expectError(query, params, containsString(errorMessage)
-        );
+        expectError(query, params, containsString(errorMessage));
     }
 
     void expectError(String query, List<QueryParam> params, Matcher<String> errorMessage) {

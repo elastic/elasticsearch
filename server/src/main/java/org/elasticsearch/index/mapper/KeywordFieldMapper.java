@@ -16,7 +16,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -105,7 +104,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -114,7 +112,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
-import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -1375,18 +1372,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-
-            var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getByKey(fieldType().name());
-            var countField = (NumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
-            if (field == null) {
-                field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldType().name(), new TreeSet<>());
-                context.doc().addWithKey(fieldType().name(), field);
-                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
-                context.doc().addWithKey(countField.name(), countField);
-            }
-
-            field.add(binaryValue);
-            countField.setLongValue(field.count());
+            MultiValuedBinaryDocValuesField.SeparateCount.addToFieldInDoc(context.doc(), fieldType().name(), binaryValue);
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)

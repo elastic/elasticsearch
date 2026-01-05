@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
@@ -125,6 +127,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         public String countFieldName() {
             return name() + COUNT_FIELD_SUFFIX;
+        }
+
+        public static void addToFieldInDoc(LuceneDocument doc, String fieldName, BytesRef binaryValue) {
+            var field = (SeparateCount) doc.getByKey(fieldName);
+            var countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
+            if (field == null) {
+                field = new SeparateCount(fieldName, new TreeSet<>());
+                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
+                doc.addWithKey(field.name(), field);
+                doc.addWithKey(countField.name(), countField);
+            }
+
+            field.add(binaryValue);
+            countField.setLongValue(field.count());
         }
     }
 }

@@ -2,7 +2,7 @@
 # Sends an ES|QL query to localhost:9200 and prints row count and duration (ms)
 
 ES_URL="http://localhost:9200/_query"
-QUERY='TS metrics-hostmetricsreceiver.otel-default | STATS avg = AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(5m) | STATS SUM(avg) by host.name | LIMIT 10000'
+QUERY='TS metrics-hostmetricsreceiver.otel-default | STATS avg = AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(5m)'
 
 for i in {1..30}; do
   start_ms=$(gdate +%s%3N)

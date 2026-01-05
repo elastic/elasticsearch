@@ -131,6 +131,7 @@ public class LongSwissHashBenchmark {
                 for (int i = 0; i < size; i++) {
                     out[i] = seed | ((long) i & 0xFFFF); // all share same high bits
                 }
+                break;
             default:
                 throw new IllegalArgumentException("unknown distribution: " + dist);
         }

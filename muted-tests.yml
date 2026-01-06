@@ -258,9 +258,6 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
-  issue: https://github.com/elastic/elasticsearch/issues/137823
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
@@ -336,12 +333,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139740
-- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139741
 - class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/139826

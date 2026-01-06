@@ -15,11 +15,11 @@ echo "--- Looking for index version changes"
 index_versions_main=$(curl -s "https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
 index_versions_local=$(grep "def([0-9_]*," "../../server/src/main/java/org/elasticsearch/index/IndexVersions.java")
 
-count=0
-while ((count++)); IFS= read -r version; do
-  version=$(echo "${version}" | sed 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
-  if ! echo "${index_versions_main}" | grep -q "${version}"; then
-      echo "Changes to index version [$(echo ${version:33} | cut -d' ' -f1)] missing from main branch."
+while IFS= read -r version; do
+  version_trimmed=$(echo "${version}" | sed 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+  if ! echo "${index_versions_main}" | grep -q "${version_trimmed}"; then
+      #echo "Failed: ${index_versions_main}"
+      echo "Changes to index version [$(echo ${version_trimmed:33} | cut -d' ' -f1)] missing from main branch."
       echo "Index version changes must first be merged to main before being backported."
       exit 1
   fi

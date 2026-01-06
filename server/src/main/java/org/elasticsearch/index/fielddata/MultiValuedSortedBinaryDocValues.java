@@ -42,18 +42,15 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         return from(leafReader, valuesFieldName, values);
     }
 
-    public static MultiValuedSortedBinaryDocValues from(
-        LeafReader leafReader,
-        String valuesFieldName,
-        BinaryDocValues values
-    ) throws IOException {
+    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
+        throws IOException {
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
             DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
-            Sparsity sparsity  = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
+            Sparsity sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
             ValueMode valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
             return new SeparateCounts(values, counts, sparsity, valueMode);
         }

@@ -74,7 +74,7 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     @Override
     protected TDigestArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
         assert subBlocks.size() == 5;
-        return new  TDigestArrayBlock(
+        return new TDigestArrayBlock(
             (BytesRefBlock) subBlocks.get(0),
             (DoubleBlock) subBlocks.get(1),
             (DoubleBlock) subBlocks.get(2),

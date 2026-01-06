@@ -74,7 +74,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         List<Block> modifiedBlocks = new ArrayList<>(getSubBlocks().size());
         boolean success = false;
         try {
-            for  (Block block : getSubBlocks()) {
+            for (Block block : getSubBlocks()) {
                 modifiedBlocks.add(operation.apply(block));
             }
             success = true;

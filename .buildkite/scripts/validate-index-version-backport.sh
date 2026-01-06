@@ -17,7 +17,7 @@ index_versions_local=$(grep "def([0-9_]*," "${WORKSPACE}/server/src/main/java/or
 
 while IFS= read -r version; do
   version_trimmed=$(echo "${version}" | sed 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
-  if ! (/bin/echo "${index_versions_main}" || true) | grep -q "${version_trimmed}"; then
+  if ! (echo "${index_versions_main}" || true) | grep -q "${version_trimmed}"; then
     echo "Changes to index version [$(echo ${version_trimmed:33} | cut -d' ' -f1)] missing from main branch."
     echo "Index version changes must first be merged to main before being backported."
     exit 1

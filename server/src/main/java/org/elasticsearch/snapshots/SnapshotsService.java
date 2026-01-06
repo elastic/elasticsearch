@@ -3116,7 +3116,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var projectMetadata = state.metadata().getProject(task.snapshot.getProjectId());
                         final var repoMeta = RepositoriesMetadata.get(projectMetadata).repository(task.snapshot.getRepository());
                         if (RepositoriesService.isReadOnly(repoMeta.settings())) {
-                            taskContext.onFailure(new RepositoryException(repoMeta.name(), "repository is readonly"));
+                            taskContext.onFailure(new IllegalArgumentException("[" + repoMeta.name() + "] repository is readonly"));
                             continue;
                         }
 

@@ -107,7 +107,7 @@ public class ParsedDocument {
             // _id terms over tombstones also work as if a regular _id field was present.
             var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
             var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
-            var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid);
+            int routingHash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
 
             if (useDocValuesSkipper) {
                 document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
@@ -116,7 +116,10 @@ public class ParsedDocument {
                 document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
                 document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
             }
-            var field = new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, routingHash);
+            var field = new SortedDocValuesField(
+                TimeSeriesRoutingHashFieldMapper.NAME,
+                Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
+            );
             document.add(field);
 
         } else {

@@ -381,7 +381,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }

@@ -60,7 +60,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
         indexVersion = randomBoolean()
             ? IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.TSID_CREATED_DURING_ROUTING)
-            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
+            : IndexVersionUtils.randomVersionBetween(IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);

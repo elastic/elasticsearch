@@ -174,14 +174,26 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             eisGatewayUrl,
             threadPool,
-            logger,
-            createNoopApplierFactory()
+            logger
         );
 
         try (var sender = senderFactory.createSender()) {
-            var responseData = getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
+            String responseJson = """
+                {
+                    "models": [
+                        {
+                          "model_name": "model-a",
+                          "task_types": ["embed/text/sparse", "chat"]
+                        },
+                        {
+                          "model_name": "model-b",
+                          "task_types": ["embed/text/dense"]
+                        }
+                    ]
+                }
+                """;
 
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);

@@ -339,7 +339,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
         final ReleasableBytesReference releasable1;
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
@@ -374,7 +374,7 @@ public class InboundDecoderTests extends ESTestCase {
             throw new AssertionError(e);
         }
 
-        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
         try {
             InboundDecoder.checkVersionCompatibility(invalid);
             fail();

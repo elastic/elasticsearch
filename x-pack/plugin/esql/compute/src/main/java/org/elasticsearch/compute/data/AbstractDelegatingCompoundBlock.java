@@ -16,7 +16,7 @@ import java.util.function.Function;
 /**
  * Abstract base class for block types that are implemented by delegating to several concrete sub blocks.
  */
-public abstract class AbstractDelegatingCompoundBlock extends AbstractNonThreadSafeRefCounted implements Block {
+public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends AbstractNonThreadSafeRefCounted implements Block {
 
     /**
      * @return a list of the sub-blocks composing this compound block.  The order of the list should match the order
@@ -36,7 +36,7 @@ public abstract class AbstractDelegatingCompoundBlock extends AbstractNonThreadS
         getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 
-    private Block applyOperationToSubBlocks(Function<Block, Block> operation) {
+    private T applyOperationToSubBlocks(Function<Block, Block> operation) {
         List<Block> modifiedBlocks = new ArrayList<>(getSubBlocks().size());
         boolean success = false;
         try {
@@ -49,21 +49,21 @@ public abstract class AbstractDelegatingCompoundBlock extends AbstractNonThreadS
                 Releasables.close(getSubBlocks());
             }
         }
-        return buildFromSubBlocks(modifiedBlocks);
+        return (T) buildFromSubBlocks(modifiedBlocks);
     }
 
     @Override
-    public Block filter(int... positions) {
+    public T filter(int... positions) {
         return applyOperationToSubBlocks(block -> block.filter(positions));
     }
 
     @Override
-    public Block keepMask(BooleanVector mask) {
+    public T keepMask(BooleanVector mask) {
         return applyOperationToSubBlocks(block -> block.keepMask(mask));
     }
 
     @Override
-    public Block deepCopy(BlockFactory blockFactory) {
+    public T deepCopy(BlockFactory blockFactory) {
         return applyOperationToSubBlocks(block -> block.deepCopy(blockFactory));
     }
 

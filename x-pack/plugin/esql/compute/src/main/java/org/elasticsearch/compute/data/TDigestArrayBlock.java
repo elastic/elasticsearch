@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.util.List;
 
-public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock implements TDigestBlock {
+public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDigestBlock> implements TDigestBlock {
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
     private final DoubleBlock sums;

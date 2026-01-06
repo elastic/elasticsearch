@@ -20,7 +20,7 @@ import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import java.io.IOException;
 import java.util.List;
 
-final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock implements ExponentialHistogramBlock {
+final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock> implements ExponentialHistogramBlock {
 
     // Exponential histograms consist of several components that we store in separate blocks
     // due to (a) better compression in the field mapper for disk storage and (b) faster computations if only one sub-component is needed

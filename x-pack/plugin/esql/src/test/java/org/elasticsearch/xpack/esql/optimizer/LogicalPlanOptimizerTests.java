@@ -10783,4 +10783,172 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
     }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[x{r}#3, y{r}#5, z{r}#7],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=4]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=6]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionBasic() {
+        var plan = plan("""
+            ROW x = 4, y = 2, z = x + y
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#4, b{r}#7, c{r}#11, d{r}#15],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=20]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=30]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionMultipleRefs() {
+        var plan = plan("""
+            ROW a = 10, b = a * 2, c = a + b, d = b - a
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[x{r}#51, y{r}#53, z{r}#57, w{r}#62],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=25]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=12]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionComplexExpr() {
+        var plan = plan("""
+            ROW x = 5, y = 3, z = x * y + 10, w = z / (x - y)
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z", "w")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#64, b{r}#66, c{r}#70, d{r}#73],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=6]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionWithFunctions() {
+        var plan = plan("""
+            ROW a = 10, b = 3, c = ROUND(a / b, 2), d = c * 2
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#75, b{r}#77, c{r}#79, result{r}#85],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=4]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=18]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionNestedArithmetic() {
+        var plan = plan("""
+            ROW a = 2, b = 3, c = 4, result = (a + b) * c - a
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "result")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[x{r}#17, y{r}#19, z{r}#23],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * ConstantNullBlock[positions=1], ConstantNullBlock[positions=1]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionWithNull() {
+        var plan = plan("""
+            ROW x = 10, y = null, z = x + y
+            """);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#25, b{r}#28, c{r}#31, d{r}#34, e{r}#37],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=4]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionChained() {
+        var plan = plan("""
+            ROW a = 1, b = a + 1, c = b + 1, d = c + 1, e = d + 1
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d", "e")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#39, b{r}#41, is_greater{r}#45, is_equal{r}#49],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=20]],
+     * BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]],
+     * BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionBoolean() {
+        var plan = plan("""
+            ROW a = 10, b = 20, is_greater = b > a, is_equal = a == b
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "is_greater", "is_equal")));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[b{r}#89, a{r}#91],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionShadowing() {
+        var plan = plan("""
+            ROW a = 1, b = 2, a = 3
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("b", "a")));
+    }
+
 }

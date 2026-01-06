@@ -47,12 +47,12 @@ public final class AnalyzerRules {
         // transformUp (post-order) - that is first children and then the node
         // but with a twist; only if the tree is not resolved or analyzed
         public final LogicalPlan apply(LogicalPlan plan, P context) {
-            return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t, context));
+            return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved(t) && t.resolved() ? t : rule(t, context));
         }
 
         protected abstract LogicalPlan rule(SubPlan plan, P context);
 
-        protected boolean skipResolved() {
+        protected boolean skipResolved(SubPlan plan) {
             return true;
         }
     }

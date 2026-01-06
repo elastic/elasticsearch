@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -499,6 +500,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        /**
+         * Override skipResolved to always process Row nodes, even when they are already resolved.
+         * <p>
+         * When all Row fields are literals (e.g., {@code ROW a = 1, b = 2, a = 3}), the Row node
+         * is resolved immediately after parsing since all expressions are resolved literals.
+         * However, we still need the Analyzer to:
+         * <ul>
+         *   <li>Handle duplicate field names (remove earlier definitions when later ones shadow them)</li>
+         *   <li>Resolve field references in later fields that refer to earlier ones
+         *       (e.g., {@code ROW x = 4, z = x + 1})</li>
+         * </ul>
+         * <p>
+         * In contrast, when Row contains field references (e.g., {@code ROW x = 4, z = x + y}),
+         * the Row is unresolved due to UnresolvedAttributes, so it would be processed anyway.
+         * This override ensures consistent handling for both cases.
+         */
+        @Override
+        protected boolean skipResolved(LogicalPlan plan) {
+            return plan instanceof Row == false;
+        }
+
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -529,6 +552,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Row row -> resolveRow(row);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
         }
@@ -1183,6 +1207,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+        }
+
+        /**
+         * Resolve Row fields, allowing later fields to reference earlier ones.
+         * Unlike resolveEval, Row fields are typically literals, so we directly substitute
+         * the literal expressions instead of creating attribute references.
+         * <p>
+         * For example:
+         * <pre>
+         * ROW x = 4, y = 2, z = x + y
+         * - x is resolved as literal 4
+         * - y is resolved as literal 2
+         * - z is resolved by substituting x with 4 and y with 2, resulting in 4 + 2
+         * </pre>
+         * <p>
+         * Field shadowing is supported:
+         * <pre>
+         * ROW x = 5, y = x * 2, x = y + 1
+         * - First x = 5 is defined
+         * - y = x * 2 resolves to y = 5 * 2 = 10
+         * - Second x = y + 1 resolves to x = 10 + 1 = 11
+         * - Final output: y = 10, x = 11 (first x is removed)
+         * </pre>
+         */
+        private LogicalPlan resolveRow(Row row) {
+            // Build a mapping from field names to their expressions for substitution
+            Map<String, Expression> fieldExpressions = new HashMap<>();
+            List<Alias> newFields = new ArrayList<>();
+            boolean changed = false;
+
+            for (Alias field : row.fields()) {
+                // Resolve unresolved attributes by substituting them with previously defined field expressions.
+                // If a matching field is found, replace the attribute with its expression; otherwise, keep it unresolved.
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> fieldExpressions.getOrDefault(ua.name(), ua));
+
+                changed |= result != field;
+
+                // Handle field shadowing: if a field with the same name already exists, remove it
+                // This ensures only the last definition of a field appears in the output
+                if (result.resolved()) {
+                    boolean removed = newFields.removeIf(existing -> existing.name().equals(result.name()));
+                    changed |= removed;
+
+                    // Store the field's child expression for future substitutions
+                    // If there's a duplicate name, the later one overrides
+                    fieldExpressions.put(result.name(), result.child());
+                }
+
+                newFields.add(result);
+            }
+            return changed ? new Row(row.source(), newFields) : row;
         }
 
         /**

@@ -171,11 +171,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var logger = mock(Logger.class);
         doThrow(exceptionToThrow).when(logger).debug(anyString());
 
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
-            eisGatewayUrl,
-            threadPool,
-            logger
-        );
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
 
         try (var sender = senderFactory.createSender()) {
             String responseJson = """

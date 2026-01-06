@@ -84,11 +84,6 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     @Override
-    protected void closeInternal() {
-        Releasables.close(getSubBlocks());
-    }
-
-    @Override
     public Vector asVector() {
         return null;
     }

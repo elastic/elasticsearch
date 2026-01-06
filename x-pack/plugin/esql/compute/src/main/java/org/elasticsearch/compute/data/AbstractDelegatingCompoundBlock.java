@@ -42,6 +42,16 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
+    protected void closeInternal() {
+        Releasables.close(getSubBlocks());
+    }
+
+    @Override
+    public T deepCopy(BlockFactory blockFactory) {
+        return applyOperationToSubBlocks(block -> block.deepCopy(blockFactory));
+    }
+
+    @Override
     public T filter(int... positions) {
         return applyOperationToSubBlocks(block -> block.filter(positions));
     }
@@ -49,11 +59,6 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     @Override
     public T keepMask(BooleanVector mask) {
         return applyOperationToSubBlocks(block -> block.keepMask(mask));
-    }
-
-    @Override
-    public T deepCopy(BlockFactory blockFactory) {
-        return applyOperationToSubBlocks(block -> block.deepCopy(blockFactory));
     }
 
     @Override

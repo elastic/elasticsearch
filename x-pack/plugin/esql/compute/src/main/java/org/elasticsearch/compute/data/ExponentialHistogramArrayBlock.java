@@ -249,11 +249,6 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     }
 
     @Override
-    protected void closeInternal() {
-        Releasables.close(getSubBlocks());
-    }
-
-    @Override
     public Vector asVector() {
         return null;
     }

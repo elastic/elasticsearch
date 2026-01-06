@@ -20,7 +20,9 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCompoundBlock<AggregateMetricDoubleBlock> implements AggregateMetricDoubleBlock {
+public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCompoundBlock<AggregateMetricDoubleBlock>
+    implements
+        AggregateMetricDoubleBlock {
     public static final TransportVersion WRITE_TYPED_BLOCK = TransportVersion.fromName("aggregate_metric_double_typed_block");
 
     private final DoubleBlock minBlock;
@@ -66,11 +68,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
         blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = sumBlock;
         blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = countBlock;
         return new CompositeBlock(blocks);
-    }
-
-    @Override
-    protected void closeInternal() {
-        Releasables.close(minBlock, maxBlock, sumBlock, countBlock);
     }
 
     @Override

@@ -12,12 +12,14 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class Metrics {
-    public Metrics(Map<? extends Class<? extends PluggableMetrics<?>>,? extends Supplier<?>> delta) {
+    private Metrics(Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data) {
+        this.data = data;
     }
 
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject {
@@ -25,14 +27,8 @@ public class Metrics {
         T snapshot();
     }
 
-    private class MapHolder<T extends PluggableMetrics<T>> {
 
-        public T get(Class<T> type) {
-            return map.get(type);
-        }
-    }
-
-    private Map<Class<? extends PluggableMetrics<?>>, ? extends PluggableMetrics<?>> data;
+    private Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data;
 
 
     public <T extends PluggableMetrics<T>> T metrics(Class<T> type) {
@@ -43,8 +39,20 @@ public class Metrics {
     }
 
     public Supplier<Metrics> delta() {
-        Map<? extends Class<? extends PluggableMetrics<?>>, ? extends Supplier<? extends PluggableMetrics<?>>> delta = data.entrySet().stream().map(e -> Tuple.tuple(e.getKey(), e.getValue().delta())).collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+        Map<? extends Class<? extends PluggableMetrics<?>>, Supplier<? extends PluggableMetrics<?>>> delta = data.entrySet().stream().map(e -> Tuple.tuple(e.getKey(), e.getValue().delta())).collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
 
-        return () -> new Metrics(delta.entrySet().stream().map(e-> Tuple.tuple(e.getKey(), e.getValue().get())).collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2)))
+        return () -> new Metrics(delta.entrySet().stream().map(e-> Tuple.tuple(e.getKey(), e.getValue().get())).collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2)));
+    }
+
+    public static class Builder {
+        private final Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data = new HashMap<>();
+
+        public <T extends PluggableMetrics<T>> void add(Class<T> type, T metrics) {
+            data.put(type, metrics);
+        }
+
+        public Metrics build() {
+            return new Metrics(Map.copyOf(data));
+        }
     }
 }

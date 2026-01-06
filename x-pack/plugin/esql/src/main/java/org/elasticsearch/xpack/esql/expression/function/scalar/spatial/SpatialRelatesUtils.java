@@ -94,6 +94,9 @@ public class SpatialRelatesUtils {
      * The reason for generating an array instead of a single component is for multi-shape support with ST_CONTAINS.
      */
     static Component2D[] asLuceneComponent2Ds(BinarySpatialFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (geometry == null) {
+            return null;
+        }
         if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LuceneComponent2DUtils.createLatLonComponents(luceneGeometries);

@@ -27,6 +27,7 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -45,6 +46,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * This is the primary class for supporting the function ST_CONTAINS.
@@ -76,7 +78,7 @@ public class SpatialContains extends SpatialRelatesFunction {
      * We override the normal behaviour for CONTAINS because we need to test each component separately.
      * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
      */
-    static final class SpatialRelationsContains extends SpatialRelations {
+    protected static final class SpatialRelationsContains extends SpatialRelations {
 
         SpatialRelationsContains(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
             super(ShapeField.QueryRelation.CONTAINS, spatialCoordinateType, encoder, shapeIndexer);
@@ -215,8 +217,27 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    protected SpatialRelations getSpatialRelations() {
+    protected SpatialRelationsContains getSpatialRelations() {
         return crsType() == SpatialCrsType.GEO ? GEO : CARTESIAN;
+    }
+
+    /**
+     * Contains needs to evaluate each component of the right geometry separately,
+     * so we override the fold method from the parent SpatialRelatesFunction.
+     */
+    @Override
+    public Object fold(FoldContext ctx) {
+        try {
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
+            Geometry rightGeom = makeGeometryFromLiteral(ctx, right());
+            Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
+            if (docValueReader == null || components == null) {
+                return null;
+            }
+            return getSpatialRelations().geometryRelatesGeometries(docValueReader, components);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
+        }
     }
 
     @Override

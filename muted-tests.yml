@@ -500,9 +500,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
-  method: testReindexWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/139806
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test140CgroupOsStatsAreAvailable
   issue: https://github.com/elastic/elasticsearch/issues/131372

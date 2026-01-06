@@ -490,8 +490,8 @@ public class LocalExecutionPlanner {
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, TSID_DATA_TYPE ->
-                    TopNEncoder.DEFAULT_UNSORTABLE;
+                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
+                    TSID_DATA_TYPE, DATE_RANGE -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
@@ -940,7 +940,7 @@ public class LocalExecutionPlanner {
     /**
      * Immutable physical operation.
      */
-    public static class PhysicalOperation implements Describable {
+    public static class PhysicalOperation {
         final SourceOperatorFactory sourceOperatorFactory;
         final List<OperatorFactory> intermediateOperatorFactories;
         final SinkOperatorFactory sinkOperatorFactory;
@@ -1008,17 +1008,32 @@ public class LocalExecutionPlanner {
             return sinkOperatorFactory.get(driverContext);
         }
 
-        @Override
-        public String describe() {
-            return Stream.concat(
-                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
-                Stream.of(sinkOperatorFactory)
-            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
+        public Supplier<String> longDescription() {
+            return new LongDescription(sourceOperatorFactory, intermediateOperatorFactories, sinkOperatorFactory);
         }
 
         @Override
         public String toString() {
-            return describe();
+            return longDescription().get();
+        }
+    }
+
+    /**
+     * Closure that builds the description. This is a subset of {@link PhysicalOperation}
+     * that we pass to {@link Driver} that does not contain the quite large
+     * {@link PhysicalOperation#layout} member.
+     */
+    private record LongDescription(
+        SourceOperatorFactory sourceOperatorFactory,
+        List<OperatorFactory> intermediateOperatorFactories,
+        SinkOperatorFactory sinkOperatorFactory
+    ) implements Supplier<String> {
+        @Override
+        public String get() {
+            return Stream.concat(
+                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
+                Stream.of(sinkOperatorFactory)
+            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
         }
     }
 
@@ -1125,7 +1140,7 @@ public class LocalExecutionPlanner {
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,
-                    physicalOperation::describe,
+                    physicalOperation.longDescription(),
                     source,
                     operators,
                     sink,
@@ -1141,7 +1156,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public String describe() {
-            return physicalOperation.describe();
+            return physicalOperation.toString();
         }
     }
 

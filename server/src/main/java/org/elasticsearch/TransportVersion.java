@@ -10,7 +10,6 @@
 package org.elasticsearch;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
-import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -65,7 +64,7 @@ import java.util.stream.Collectors;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
+public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements Comparable<TransportVersion> {
 
     /**
      * Constructs an unnamed transport version.
@@ -276,7 +275,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
     public static boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(VersionsHolder.MINIMUM_COMPATIBLE);
+        return version.id >= VersionsHolder.MINIMUM_COMPATIBLE.id;
     }
 
     /**
@@ -335,7 +334,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
         TransportVersion bestSoFar = VersionsHolder.ZERO;
         for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
-            if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
+            if (knownVersion.id > bestSoFar.id && knownVersion.id < this.id) {
                 bestSoFar = knownVersion;
             }
         }
@@ -349,8 +348,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     /**
      * Returns {@code true} if this version is a patch version at or after {@code version}.
      */
-    private boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+    public boolean isPatchFrom(TransportVersion version) {
+        return id >= version.id && id < version.id + 100 - (version.id % 100);
     }
 
     /**
@@ -391,7 +390,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * }
      */
     public boolean supports(TransportVersion version) {
-        if (onOrAfter(version)) {
+        if (id >= version.id) {
             return true;
         }
         TransportVersion nextPatchVersion = version.nextPatchVersion;
@@ -427,6 +426,11 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     @Override
     public String toString() {
         return Integer.toString(id);
+    }
+
+    @Override
+    public int compareTo(TransportVersion tv) {
+        return Integer.compare(id(), tv.id());
     }
 
     /**

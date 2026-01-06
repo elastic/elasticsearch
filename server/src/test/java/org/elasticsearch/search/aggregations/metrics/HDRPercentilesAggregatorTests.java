@@ -15,10 +15,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -54,7 +54,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, hdr -> {
             assertEquals(0L, hdr.getState().getTotalCount());
@@ -90,7 +90,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, hdr -> {
@@ -166,7 +166,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testInvalidNegativeNumber() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            testCase(new MatchAllDocsQuery(), iw -> {
+            testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField("number", 60)));
                 iw.addDocument(singleton(new NumericDocValuesField("number", 40)));
                 iw.addDocument(singleton(new NumericDocValuesField("number", -20)));

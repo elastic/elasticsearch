@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -992,6 +993,27 @@ public class BytesStreamsTests extends ESTestCase {
         public void writeDoubleArray(double[] values) throws IOException {
             output.writeDoubleArray(values);
             counting.writeDoubleArray(values);
+            assertThat((long) output.size(), equalTo(counting.size()));
+        }
+
+        @Override
+        public void writeString(String str) throws IOException {
+            output.writeString(str);
+            counting.writeString(str);
+            assertThat((long) output.size(), equalTo(counting.size()));
+        }
+
+        @Override
+        public void writeOptionalString(@Nullable String str) throws IOException {
+            output.writeOptionalString(str);
+            counting.writeOptionalString(str);
+            assertThat((long) output.size(), equalTo(counting.size()));
+        }
+
+        @Override
+        public void writeGenericString(String value) throws IOException {
+            output.writeGenericString(value);
+            counting.writeGenericString(value);
             assertThat((long) output.size(), equalTo(counting.size()));
         }
 

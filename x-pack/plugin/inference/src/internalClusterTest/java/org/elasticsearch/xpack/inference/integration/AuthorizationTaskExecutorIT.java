@@ -75,12 +75,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         chatCompletionResponseBody = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl).responseJson();
     }
 
     @Before
     public void createComponents() {
+        // Adding an empty response to ensure that the initial authorization polling request does not fail
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
     }
@@ -195,7 +196,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     static List<UnparsedModel> getEisEndpoints(ModelRegistry modelRegistry) {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
-        modelRegistry.getAllModels(false, listener);
+        modelRegistry.getAllModels(true, listener);
 
         var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
         return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();

@@ -44,7 +44,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -64,8 +63,6 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static java.util.Comparator.naturalOrder;
-import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
@@ -152,14 +149,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    private void testRandomTopN(boolean asc, DriverContext context) {
-        int limit = randomIntBetween(1, 20);
-        List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
-        Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
-        List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-        List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
-        assertThat(outputValues, equalTo(expectedValues));
-    }
+    protected abstract void testRandomTopN(boolean asc, DriverContext context);
 
     protected List<Long> topNLong(
         DriverContext driverContext,
@@ -173,7 +163,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             inputValues.stream().map(v -> tuple(v, 0L)).toList(),
             limit,
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst))
+            List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst)),
+            groupKeys()
         ).stream().map(Tuple::v1).toList();
     }
 
@@ -341,7 +332,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                 values,
                 5,
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, false))
+                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, false)),
+                groupKeys()
             ),
             equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
         );
@@ -351,7 +343,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                 values,
                 5,
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, true), new TopNOperator.SortOrder(1, true, false))
+                List.of(new TopNOperator.SortOrder(0, true, true), new TopNOperator.SortOrder(1, true, false)),
+                groupKeys()
             ),
             equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
         );
@@ -361,7 +354,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                 values,
                 5,
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true))
+                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true)),
+                groupKeys()
             ),
             equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
         );
@@ -540,12 +534,13 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         };
     }
 
-    private List<Tuple<Long, Long>> topNTwoLongColumns(
+    protected List<Tuple<Long, Long>> topNTwoLongColumns(
         DriverContext driverContext,
         List<Tuple<Long, Long>> values,
         int limit,
         List<TopNEncoder> encoder,
-        List<TopNOperator.SortOrder> sortOrders
+        List<TopNOperator.SortOrder> sortOrders,
+        List<Integer> groupKeys
     ) {
         var page = topNTwoColumns(
             driverContext,
@@ -553,7 +548,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             AlwaysReferencedIndexedByShardId.INSTANCE,
             limit,
             encoder,
-            sortOrders
+            sortOrders,
+            groupKeys
         );
         return pageToTuples(
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
@@ -568,7 +564,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         IndexedByShardId<? extends RefCounted> shardRefCounters,
         int limit,
         List<TopNEncoder> encoder,
-        List<TopNOperator.SortOrder> sortOrders
+        List<TopNOperator.SortOrder> sortOrders,
+        List<Integer> groupKeys
     ) {
         var pages = new ArrayList<Page>();
         try (
@@ -583,7 +580,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                         sourceOperator.elementTypes(),
                         encoder,
                         sortOrders,
-                        groupKeys(),
+                        groupKeys,
                         randomPageSize()
                     )
                 ),
@@ -1413,7 +1410,8 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             shardRefCounters,
             limit,
             List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(1, true, false))
+            List.of(new TopNOperator.SortOrder(1, true, false)),
+            groupKeys()
         );
         refCountedList.forEach(RefCounted::decRef);
 

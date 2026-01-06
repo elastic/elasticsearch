@@ -22,11 +22,14 @@ import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.hamcrest.Matchers.both;
@@ -39,6 +42,16 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
     @Override
     protected List<Integer> groupKeys() {
         return List.of();
+    }
+
+    @Override
+    protected void testRandomTopN(boolean asc, DriverContext context) {
+        int limit = randomIntBetween(1, 20);
+        List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
+        Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
+        List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
+        List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
+        assertThat(outputValues, equalTo(expectedValues));
     }
 
     @Override

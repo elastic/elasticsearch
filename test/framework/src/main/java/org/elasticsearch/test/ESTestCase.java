@@ -1299,10 +1299,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates a valid random identifier such as node id or index name
+     * @return a valid random identifier, appropriate for use as a node name, index name, repository name or similar.
+     * @see #randomIdentifier(String) randomIdentifier(String) which allows to add a prefix.
      */
     public static String randomIdentifier() {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * @return a valid random identifier with the given prefix. Makes debugging tests easier if you use {@code randomIdentifier("index-")}
+     * for indices and {@code randomIdentifier("repository-")} and so on, keeping the identifiers visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomIdentifier(String prefix) {
+        return prefix + randomIdentifier();
     }
 
     /**

@@ -453,6 +453,24 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             SnapshotsInfoService snapshotsInfoService,
             ShardRoutingRoleStrategy shardRoutingRoleStrategy
         ) {
+            this(
+                allocationDeciders,
+                gatewayAllocator,
+                shardsAllocator,
+                clusterInfoService,
+                snapshotsInfoService,
+                shardRoutingRoleStrategy
+            );
+        }
+
+        public MockAllocationService(
+            AllocationDeciders allocationDeciders,
+            GatewayAllocator gatewayAllocator,
+            ShardsAllocator shardsAllocator,
+            ClusterInfoService clusterInfoService,
+            SnapshotsInfoService snapshotsInfoService,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ) {
             super(
                 allocationDeciders,
                 gatewayAllocator,

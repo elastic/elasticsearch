@@ -262,7 +262,7 @@ public final class ExchangeSourceHandler {
                 fetchExecutor.execute(new ActionRunnable<>(refs.acquire()) {
                     @Override
                     protected void doRun() {
-                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, listener);
+                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, this.listener);
                         fetcher.fetchPage();
                     }
 
@@ -272,7 +272,7 @@ public final class ExchangeSourceHandler {
                             aborted = true;
                         }
                         buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
-                        remoteSink.close(listener);
+                        remoteSink.close(this.listener);
                     }
                 });
             }

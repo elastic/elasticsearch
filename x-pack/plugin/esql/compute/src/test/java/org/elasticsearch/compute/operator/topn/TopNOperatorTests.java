@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -31,7 +30,6 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleDocLongBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -49,19 +47,15 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
-import org.hamcrest.Matcher;
 
-import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -94,15 +88,12 @@ import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class TopNOperatorTests extends OperatorTestCase {
-    private final int pageSize = randomPageSize();
+    protected final int pageSize = randomPageSize();
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
     private static final List<String> VERSIONS = List.of(
         "1",
@@ -143,112 +134,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         "1.2.3-rc1"
     );
 
-    @Override
-    protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
-        return new TopNOperator.TopNOperatorFactory(
-            4,
-            List.of(LONG),
-            List.of(DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, true, false)),
-            groupKeys(),
-            pageSize
-        );
-    }
-
     protected abstract List<Integer> groupKeys();
-
-    @Override
-    protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo(
-            "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
-        );
-    }
-
-    @Override
-    protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo(
-            "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
-        );
-    }
-
-    @Override
-    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceLongBlockSourceOperator(
-            blockFactory,
-            LongStream.range(0, size).map(l -> ESTestCase.randomLong()),
-            between(1, size * 2)
-        );
-    }
-
-    @Override
-    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        for (int i = 0; i < results.size() - 1; i++) {
-            assertThat(results.get(i).getPositionCount(), equalTo(pageSize));
-        }
-        assertThat(results.get(results.size() - 1).getPositionCount(), lessThanOrEqualTo(pageSize));
-        long[] topN = input.stream()
-            .flatMapToLong(
-                page -> IntStream.range(0, page.getPositionCount())
-                    .filter(p -> false == page.getBlock(0).isNull(p))
-                    .mapToLong(p -> ((LongBlock) page.getBlock(0)).getLong(p))
-            )
-            .sorted()
-            .limit(4)
-            .toArray();
-        assertThat(
-            results.stream()
-                .flatMapToLong(page -> IntStream.range(0, page.getPositionCount()).mapToLong(i -> page.<LongBlock>getBlock(0).getLong(i)))
-                .toArray(),
-            equalTo(topN)
-        );
-    }
-
-    public void testRamBytesUsed() {
-        RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
-            @Override
-            public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-                if (o instanceof ElementType) {
-                    return 0; // shared
-                }
-                if (o instanceof TopNEncoder) {
-                    return 0; // shared
-                }
-                if (o instanceof CircuitBreaker) {
-                    return 0; // shared
-                }
-                if (o instanceof BlockFactory) {
-                    return 0; // shard
-                }
-                return super.accumulateObject(o, shallowSize, fieldValues, queue);
-            }
-        };
-        int topCount = 10_000;
-        // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
-        long underCount = 200;
-        DriverContext context = driverContext();
-        try (
-            TopNOperator op = new TopNOperator.TopNOperatorFactory(
-                topCount,
-                List.of(LONG),
-                List.of(DEFAULT_UNSORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false)),
-                pageSize
-            ).get(context)
-        ) {
-            long actualEmpty = RamUsageTester.ramUsed(op, acc);
-            assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
-            // But when we fill it then we're quite close
-            for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
-                op.addInput(p);
-            }
-            long actualFull = RamUsageTester.ramUsed(op, acc);
-            assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
-
-            // TODO empty it again and check.
-        }
-    }
 
     public void testRandomTopN() {
         for (boolean asc : List.of(true, false)) {
@@ -275,31 +161,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         assertThat(outputValues, equalTo(expectedValues));
     }
 
-    public void testBasicTopN() {
-        List<Long> values = Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L);
-        assertThat(topNLong(values, 1, true, false), equalTo(Arrays.asList(1L)));
-        assertThat(topNLong(values, 1, false, false), equalTo(Arrays.asList(100L)));
-        assertThat(topNLong(values, 2, true, false), equalTo(Arrays.asList(1L, 2L)));
-        assertThat(topNLong(values, 2, false, false), equalTo(Arrays.asList(100L, 20L)));
-        assertThat(topNLong(values, 3, true, false), equalTo(Arrays.asList(1L, 2L, 4L)));
-        assertThat(topNLong(values, 3, false, false), equalTo(Arrays.asList(100L, 20L, 10L)));
-        assertThat(topNLong(values, 4, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L)));
-        assertThat(topNLong(values, 4, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L)));
-        assertThat(topNLong(values, 100, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L, null, null)));
-        assertThat(topNLong(values, 100, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null)));
-        assertThat(topNLong(values, 1, true, true), equalTo(Arrays.asList(new Long[] { null })));
-        assertThat(topNLong(values, 1, false, true), equalTo(Arrays.asList(new Long[] { null })));
-        assertThat(topNLong(values, 2, true, true), equalTo(Arrays.asList(null, null)));
-        assertThat(topNLong(values, 2, false, true), equalTo(Arrays.asList(null, null)));
-        assertThat(topNLong(values, 3, true, true), equalTo(Arrays.asList(null, null, 1L)));
-        assertThat(topNLong(values, 3, false, true), equalTo(Arrays.asList(null, null, 100L)));
-        assertThat(topNLong(values, 4, true, true), equalTo(Arrays.asList(null, null, 1L, 2L)));
-        assertThat(topNLong(values, 4, false, true), equalTo(Arrays.asList(null, null, 100L, 20L)));
-        assertThat(topNLong(values, 100, true, true), equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L)));
-        assertThat(topNLong(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
-    }
-
-    private List<Long> topNLong(
+    protected List<Long> topNLong(
         DriverContext driverContext,
         List<Long> inputValues,
         int limit,
@@ -317,10 +179,6 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
 
     private static TupleLongLongBlockSourceOperator longLongSourceOperator(DriverContext driverContext, List<Tuple<Long, Long>> values) {
         return new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000));
-    }
-
-    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
-        return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
     }
 
     public void testCompareInts() {
@@ -697,13 +555,11 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             encoder,
             sortOrders
         );
-        var result = pageToTuples(
+        return pageToTuples(
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
             page
         );
-        assertThat(result, hasSize(Math.min(limit, values.size())));
-        return result;
     }
 
     private <T, S> List<Page> topNTwoColumns(
@@ -727,7 +583,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                         sourceOperator.elementTypes(),
                         encoder,
                         sortOrders,
-                        List.of(),
+                        groupKeys(),
                         randomPageSize()
                     )
                 ),

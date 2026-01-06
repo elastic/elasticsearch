@@ -161,6 +161,7 @@ public class TopNOperator implements Operator, Accountable {
                 + encoders
                 + ", sortOrders="
                 + sortOrders
+                + (groupKeys.isEmpty() ? "" : ", groupKeys=" + groupKeys)
                 + "]";
         }
     }
@@ -173,6 +174,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
+    private final List<Integer> groupKeys;
 
     private TopNQueue inputQueue;
     private Row spare;
@@ -220,6 +222,7 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
+        this.groupKeys = groupKeys;
         this.processor = groupKeys.isEmpty() ? new UngroupedTopNProcessor() : new GroupedTopNProcessor(groupKeys);
         this.inputQueue = processor.queue(breaker, topCount);
     }
@@ -468,7 +471,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
-        .shallowSizeOfInstance(List.class) * 3;
+        .shallowSizeOfInstance(List.class) * 4;
 
     @Override
     public long ramBytesUsed() {
@@ -480,7 +483,9 @@ public class TopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * elementTypes.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
+        size += RamUsageEstimator.alignObjectSize(arrHeader + ref * groupKeys.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
+        size += groupKeys.size() * RamUsageEstimator.sizeOf(42);
         if (inputQueue != null) {
             size += inputQueue.ramBytesUsed();
         }
@@ -511,6 +516,7 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
+            + (groupKeys.isEmpty() ? "" : ", groupKeys=" + groupKeys)
             + "]";
     }
 }

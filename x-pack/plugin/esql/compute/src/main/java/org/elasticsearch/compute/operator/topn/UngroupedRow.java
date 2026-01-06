@@ -99,7 +99,10 @@ final class UngroupedRow implements Row {
     @Override
     public void close() {
         clearRefCounters();
-        Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values, bytesOrder);
+        breaker.addWithoutBreaking(-SHALLOW_SIZE);
+        Releasables.closeExpectNoException(keys);
+        Releasables.closeExpectNoException(bytesOrder);
+        Releasables.closeExpectNoException(values);
     }
 
     public void clearRefCounters() {

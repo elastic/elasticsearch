@@ -113,7 +113,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.HEADERS,
                     headers,
@@ -165,7 +165,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -214,7 +214,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -263,7 +263,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -314,7 +314,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -357,7 +357,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             () -> CustomServiceSettings.fromMap(
                 new HashMap<>(
                     Map.of(
-                        CustomServiceSettings.URL,
+                        ServiceFields.URL,
                         url,
                         CustomServiceSettings.REQUEST,
                         requestContentString,
@@ -400,7 +400,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -458,7 +458,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.HEADERS,
                     headersWithNulls,
@@ -510,7 +510,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 dims,
                 ServiceFields.MAX_INPUT_TOKENS,
                 maxInputTokens,
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", 1)),
@@ -557,7 +557,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 dims,
                 ServiceFields.MAX_INPUT_TOKENS,
                 maxInputTokens,
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 QueryParameters.QUERY_PARAMETERS,
                 List.of(List.of("key", 1)),
@@ -595,7 +595,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -627,7 +627,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -665,7 +665,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -708,7 +708,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -748,7 +748,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),

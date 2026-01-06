@@ -293,6 +293,24 @@ public class VerifierTests extends ESTestCase {
             error("from test* | rename multi_typed as x", analyzer)
         );
 
+        // Verify that UnsupportedAttribute can pass through KEEP (Project) unchanged without error.
+        // This is valid because the field is just being projected, not used in operations.
+        query("from test* | keep unsupported", analyzer);
+        query("from test* | keep multi_typed", analyzer);
+
+        // Verify that renaming UnsupportedAttribute fails even after passing through KEEP.
+        // This validates the fix for EsqlProject consolidation: the rename check runs unconditionally,
+        // not gated by Project.expressionsResolved() which treats UnsupportedAttribute as resolved.
+        assertEquals(
+            "1:40: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | keep unsupported | rename unsupported as x", analyzer)
+        );
+        assertEquals(
+            "1:40: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | keep multi_typed | rename multi_typed as x", analyzer)
+        );
+
         assertEquals(
             "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
             error("from test* | sort unsupported asc", analyzer)

@@ -8345,7 +8345,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * <pre>{@code
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
-     *   |_EsqlProject[[..., long_noidx{f}#23, salary{f}#19]]
+     *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>

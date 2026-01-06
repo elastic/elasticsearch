@@ -380,6 +380,10 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A wrapper around FloatVectorValues that ensures that the bulk scoring path uses the single scoring method.
+     * Used to test that the single and bulk scoring paths return the same scores.
+     */
     private static final class SingleFloatVectorValues extends FloatVectorValues {
 
         private final FloatVectorValues in;

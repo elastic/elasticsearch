@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.EOFException;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.stream.AbstractStreamTests.randomString;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -302,6 +304,42 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertEquals("RecyclerBytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
 
         out.close();
+    }
+
+    public void testString() throws IOException {
+        final var s = randomString();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.setTransportVersion(TransportVersionUtils.randomVersion());
+            out.writeString(s);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+                assertEquals(s, in.readString());
+            }
+        }
+    }
+
+    public void testOptionalString() throws IOException {
+        final var s = randomBoolean() ? null : randomString();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.setTransportVersion(TransportVersionUtils.randomVersion());
+            out.writeOptionalString(s);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+                assertEquals(s, in.readOptionalString());
+            }
+        }
+    }
+
+    public void testGenericString() throws IOException {
+        final var s = randomString();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.setTransportVersion(TransportVersionUtils.randomVersion());
+            out.writeGenericValue(s);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+                assertEquals(s, in.readGenericValue());
+            }
+        }
     }
 
     public void testSimpleStreams() throws Exception {

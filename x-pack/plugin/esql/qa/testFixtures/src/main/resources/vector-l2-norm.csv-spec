@@ -217,3 +217,52 @@ old lace        | 417.2313537597656
 corn silk       | 414.87469482421875
 linen           | 412.5215148925781
 ;
+
+similarityWithFork
+required_capability: vector_similarity_functions_pushdown
+required_capability: fork_v9
+
+from colors
+| fork (where primary == true) (where primary == false)
+| eval similarity = v_l2_norm(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+ 
+color:text | similarity:double
+red        | 441.6729431152344
+maroon     | 382.6669616699219
+crimson    | 376.36419677734375
+orange     | 371.68536376953125
+gold       | 362.8360595703125
+black      | 360.62445068359375
+magenta    | 360.62445068359375
+yellow     | 360.62445068359375
+firebrick  | 359.67486572265625
+tomato     | 351.0227966308594
+;
+
+similarityWithSubqueries
+required_capability: vector_similarity_functions_pushdown
+required_capability: subquery_in_from_command
+
+from (from colors | where primary == true), (from colors | where primary == false)
+| eval similarity = v_l2_norm(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+ 
+color:text | similarity:double
+red        | 441.6729431152344
+maroon     | 382.6669616699219
+crimson    | 376.36419677734375
+orange     | 371.68536376953125
+gold       | 362.8360595703125
+black      | 360.62445068359375
+magenta    | 360.62445068359375
+yellow     | 360.62445068359375
+firebrick  | 359.67486572265625
+tomato     | 351.0227966308594
+;

@@ -19,6 +19,6 @@ public class StYSerializationTests extends AbstractExpressionSerializationTests<
 
     @Override
     protected StY mutateInstance(StY instance) throws IOException {
-        return new StY(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+        return new StY(instance.source(), randomValueOtherThan(instance.spatialField(), AbstractExpressionSerializationTests::randomChild));
     }
 }

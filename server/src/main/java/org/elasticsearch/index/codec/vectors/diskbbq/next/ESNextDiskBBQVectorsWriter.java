@@ -293,7 +293,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
         String quantizedVectorsTempName = null;
-        boolean success = false;
         try (
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
@@ -333,11 +332,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     writeQuantizedValue(quantizedVectorsTemp, binary, zeroResult);
                 }
             }
-            success = true;
-        } finally {
-            if (success == false && quantizedVectorsTempName != null) {
+        } catch (Throwable t) {
+            if (quantizedVectorsTempName != null) {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
             }
+            throw t;
         }
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {

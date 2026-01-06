@@ -198,6 +198,27 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
 
         @Override
+        protected void bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.squareDistance7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                var squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                float adjustedDistance = squareDistance * scoreCorrectionConstant;
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, 1 / (1f + adjustedDistance));
+            }
+        }
+
+        @Override
         public EuclideanSupplier copy() {
             return new EuclideanSupplier(input.clone(), values, scoreCorrectionConstant);
         }

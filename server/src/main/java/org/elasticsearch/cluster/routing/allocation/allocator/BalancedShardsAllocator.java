@@ -861,7 +861,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardMoved = true;
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
-                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                    logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
                 }
             }
 

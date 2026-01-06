@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,13 +125,22 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         THROTTLE,
         YES;
 
-        private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(
-            "allocation_decision_not_preferred"
-        );
+        // visible for testing
+        static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName("allocation_decision_not_preferred");
 
         public static Type readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+            if (in.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
                 return in.readEnum(Type.class);
+            } else if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                int i = in.readVInt();
+                // the order of THROTTLE and NOT_PREFERRED was swapped
+                return switch (i) {
+                    case 0 -> NO;
+                    case 1 -> THROTTLE;
+                    case 2 -> NOT_PREFERRED;
+                    case 3 -> YES;
+                    default -> throw new IllegalArgumentException("No type for integer [" + i + "]");
+                };
             } else {
                 int i = in.readVInt();
                 return switch (i) {
@@ -151,8 +161,15 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+            if (out.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
                 out.writeEnum(this);
+            } else if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                // the order of THROTTLE and NOT_PREFERRED was swapped
+                out.writeVInt(switch (this) {
+                    case NOT_PREFERRED -> 2;
+                    case THROTTLE -> 1;
+                    default -> this.ordinal();
+                });
             } else {
                 out.writeVInt(switch (this) {
                     case NO -> 0;

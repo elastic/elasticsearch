@@ -147,7 +147,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -179,6 +178,10 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomProjectIdOrDefault;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotResiliencyTestHelper {
@@ -294,7 +297,7 @@ public class SnapshotResiliencyTestHelper {
         protected TestClusterNode newNode(String nodeName, DiscoveryNodeRole role, TransportInterceptorFactory transportInterceptorFactory)
             throws IOException {
             final var testClusterNode = newNode(
-                DiscoveryNodeUtils.builder(ESTestCase.randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build(),
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build(),
                 tempDir,
                 deterministicTaskQueue,
                 this,
@@ -335,7 +338,7 @@ public class SnapshotResiliencyTestHelper {
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
                 .toList();
-            return masterNodes.isEmpty() ? Optional.empty() : Optional.of(ESTestCase.randomFrom(masterNodes));
+            return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }
 
         public void stopNode(TestClusterNode node) {
@@ -357,7 +360,7 @@ public class SnapshotResiliencyTestHelper {
                 }
                 return true;
             }).sorted(Comparator.comparing(n -> n.node.getName())).toList();
-            return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(ESTestCase.randomFrom(dataNodes));
+            return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(randomFrom(dataNodes));
         }
 
         public void disconnectNode(TestClusterNode node) {
@@ -644,7 +647,7 @@ public class SnapshotResiliencyTestHelper {
                 emptyMap(),
                 emptyMap(),
                 () -> 1L,
-                TestProjectResolvers.singleProject(ESTestCase.randomProjectIdOrDefault())
+                TestProjectResolvers.singleProject(randomProjectIdOrDefault())
             );
 
             final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
@@ -1310,10 +1313,7 @@ public class SnapshotResiliencyTestHelper {
         }
 
         private void scheduleSoon(Runnable runnable) {
-            deterministicTaskQueue.scheduleAt(
-                deterministicTaskQueue.getCurrentTimeMillis() + ESTestCase.randomLongBetween(0, 100L),
-                runnable
-            );
+            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
         }
     }
 }

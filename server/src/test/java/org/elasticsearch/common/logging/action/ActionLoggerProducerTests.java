@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.logging.action;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
@@ -32,18 +31,13 @@ public class ActionLoggerProducerTests extends ESTestCase {
             public ESLogMessage produce(ActionLoggerContext ctx, SlowLogFields additionalFields) {
                 return produceCommon(ctx, additionalFields);
             }
-
-            @Override
-            public Level logLevel(ActionLoggerContext ctx) {
-                return Level.INFO;
-            }
         };
     }
 
     private static ActionLoggerContext makeSuccessContext() {
         ActionLoggerContext context = mock(ActionLoggerContext.class);
         when(context.getType()).thenReturn("testType");
-        when(context.getTaskId()).thenReturn("test_task");
+        when(context.getOpaqueId()).thenReturn("test_task");
         when(context.getTookInNanos()).thenReturn(1_000_000L);
         when(context.isSuccess()).thenReturn(true);
         return context;
@@ -52,7 +46,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     private static ActionLoggerContext makeFailContext() {
         ActionLoggerContext context = mock(ActionLoggerContext.class);
         when(context.getType()).thenReturn("failType");
-        when(context.getTaskId()).thenReturn("test_task2");
+        when(context.getOpaqueId()).thenReturn("test_task2");
         when(context.getTookInNanos()).thenReturn(1_000L);
         when(context.isSuccess()).thenReturn(false);
         when(context.getErrorType()).thenReturn("SomeError");
@@ -69,7 +63,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     public void testSuccess() {
         ESLogMessage message = producer.produce(makeSuccessContext(), makeFields());
 
-        assertEquals("test_task", message.get("task_id"));
+        assertEquals("test_task", message.get("x_opaque_id"));
         assertEquals("1000000", message.get("took"));
         assertEquals(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L)), message.get("took_millis"));
         assertEquals("true", message.get("success"));
@@ -82,7 +76,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     public void testProduceCommonFailure() {
         ESLogMessage message = producer.produce(makeFailContext(), makeFields());
 
-        assertEquals("test_task2", message.get("task_id"));
+        assertEquals("test_task2", message.get("x_opaque_id"));
         assertEquals("1000", message.get("took"));
         assertEquals(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L)), message.get("took_millis"));
         assertEquals("false", message.get("success"));

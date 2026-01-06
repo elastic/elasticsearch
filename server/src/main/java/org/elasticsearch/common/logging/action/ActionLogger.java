@@ -18,6 +18,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
@@ -32,6 +35,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
     private final SlowLogFields additionalFields;
     private boolean enabled = false;
     private long threshold = -1;
+    private Level logLevel = Level.INFO;
 
     public static final String ACTION_LOGGER_SETTINGS_PREFIX = "elasticsearch.actionlog.";
     public static final Setting.AffixSetting<Boolean> SEARCH_ACTION_LOGGER_ENABLED = Setting.affixKeySetting(
@@ -46,6 +50,12 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<Level> SEARCH_ACTION_LOGGER_LEVEL = Setting.affixKeySetting(
+        ACTION_LOGGER_SETTINGS_PREFIX,
+        "log_level",
+        key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
+
     public ActionLogger(
         String name,
         ClusterSettings settings,
@@ -56,12 +66,17 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         this.producer = producer;
         this.writer = writer;
         this.additionalFields = slowLogFieldProvider.create();
-        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_ENABLED, (k, v) -> { if (name.equals(k)) enabled = v; }, (k, v) -> {});
-        settings.addAffixUpdateConsumer(
-            SEARCH_ACTION_LOGGER_THRESHOLD,
-            (k, v) -> { if (name.equals(k)) threshold = v.nanos(); },
-            (k, v) -> {}
-        );
+        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
+        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
+        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {
+            if (v.isMoreSpecificThan(Level.ERROR)) {
+                throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
+            }
+        });
+    }
+
+    private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {
+        return (k, v) -> { if (name.equals(k)) updater.accept(v); };
     }
 
     // Accessible for tests
@@ -69,7 +84,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         if (enabled == false || (threshold > -1 && context.getTookInNanos() < threshold)) {
             return;
         }
-        Level level = producer.logLevel(context);
+        Level level = producer.logLevel(context, logLevel);
         if (level.equals(Level.OFF)) {
             return;
         }

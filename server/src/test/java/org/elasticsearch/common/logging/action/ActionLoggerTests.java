@@ -73,12 +73,13 @@ public class ActionLoggerTests extends ESTestCase {
         var level = randomLogLevel();
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.logLevel(context)).thenReturn(level);
+        when(producer.logLevel(context, Level.INFO)).thenReturn(level);
         when(producer.produce(context, slowLogFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
         verify(writer).write(level, randomMessage);
+        verify(producer).logLevel(context, Level.INFO);
     }
 
     public void testLogActionBelowThreshold() {
@@ -97,25 +98,25 @@ public class ActionLoggerTests extends ESTestCase {
         var level = randomLogLevel();
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.logLevel(context)).thenReturn(level);
+        when(producer.logLevel(context, Level.INFO)).thenReturn(level);
         when(producer.produce(context, slowLogFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
         verify(writer).write(level, randomMessage);
-        verify(producer).logLevel(context);
+        verify(producer).logLevel(context, Level.INFO);
     }
 
     public void testLogActionLevelOff() {
         enableLogger();
         TestContext context = new TestContext(100);
 
-        when(producer.logLevel(context)).thenReturn(Level.OFF);
+        when(producer.logLevel(context, Level.INFO)).thenReturn(Level.OFF);
 
         actionLogger.logAction(context);
 
         verifyNoInteractions(writer);
-        verify(producer).logLevel(context);
+        verify(producer).logLevel(context, Level.INFO);
     }
 
     @SuppressWarnings("unchecked")
@@ -137,7 +138,7 @@ public class ActionLoggerTests extends ESTestCase {
         );
     }
 
-    // Setting threshold includes enabling since there's no point to have it on disabled logger
+    // Setting the threshold includes enabling since there's no point to have it on disabled logger
     private void setThreshold(TimeValue threshold) {
         clusterSettings.applySettings(
             Settings.builder()

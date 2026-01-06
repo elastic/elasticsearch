@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql.logging;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.index.SlowLogFields;
@@ -20,10 +19,5 @@ public class EqlLogProducer implements ActionLoggerProducer<EqlLogContext> {
     public ESLogMessage produce(EqlLogContext context, SlowLogFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
-    }
-
-    @Override
-    public Level logLevel(EqlLogContext context) {
-        return Level.INFO;
     }
 }

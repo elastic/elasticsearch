@@ -25,11 +25,16 @@ import java.util.concurrent.TimeUnit;
 public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
     ESLogMessage produce(Context context, SlowLogFields additionalFields);
 
-    Level logLevel(Context context);
+    default Level logLevel(Context context, Level defaultLevel) {
+        return defaultLevel;
+    }
 
+    /**
+     * Produces a {@link ESLogMessage} with common fields.
+     */
     default ESLogMessage produceCommon(Context context, SlowLogFields additionalFields) {
         var fields = new HashMap<String, Object>(additionalFields.queryFields());
-        fields.put("task_id", context.getTaskId());
+        fields.put("x_opaque_id", context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
         fields.put("took", tookInNanos);
         fields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));

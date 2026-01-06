@@ -674,6 +674,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
         ActionLogger.SEARCH_ACTION_LOGGER_ENABLED,
-        ActionLogger.SEARCH_ACTION_LOGGER_THRESHOLD
+        ActionLogger.SEARCH_ACTION_LOGGER_THRESHOLD,
+        ActionLogger.SEARCH_ACTION_LOGGER_LEVEL
     );
 }

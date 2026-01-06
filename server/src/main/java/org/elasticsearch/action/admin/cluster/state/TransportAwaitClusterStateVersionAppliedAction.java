@@ -113,25 +113,29 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             @Override
             public void onNewClusterState(ClusterState state) {
                 // The listener is notified directly from the task in case of cancellation.
-                if (cancellableTask.isCancelled()) {
-                    return;
+                if (cancellableTask.isCancelled() == false) {
+                    listener.onResponse(new NodeResponse(clusterService.localNode()));
                 }
-
-                listener.onResponse(new NodeResponse(clusterService.localNode()));
             }
 
             @Override
             public void onClusterServiceClose() {
-                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                // The listener is notified directly from the task in case of cancellation.
+                if (cancellableTask.isCancelled() == false) {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
             }
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                listener.onFailure(
-                    new ElasticsearchTimeoutException(
-                        "timed out waiting for cluster state version [" + request.clusterStateVersion + "] to be applied"
-                    )
-                );
+                // The listener is notified directly from the task in case of cancellation.
+                if (cancellableTask.isCancelled() == false) {
+                    listener.onFailure(
+                        new ElasticsearchTimeoutException(
+                            "timed out waiting for cluster state version [" + request.clusterStateVersion + "] to be applied"
+                        )
+                    );
+                }
             }
         };
 

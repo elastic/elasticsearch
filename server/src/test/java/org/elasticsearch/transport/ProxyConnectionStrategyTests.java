@@ -58,9 +58,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-    private final Settings settings = Settings.builder().put(modeKey, "proxy").build();
+    private final String proxyAddressKey = ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias)
+        .getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "proxy").put(proxyAddressKey, "localhost:8080").build();
     private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
-        RemoteClusterSettings.toConfig("cluster", settings),
+        RemoteClusterSettings.toConfig(clusterAlias, settings),
         TransportSettings.DEFAULT_PROFILE
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -247,7 +249,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (MockTransportService transport1 = startTransport("incompatible-node", incompatibleVersion, incompatibleTransportVersion)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
@@ -737,9 +742,15 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         String proxyAddress,
         String proxyServerName
     ) {
-        return new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
-            .proxyAddress(proxyAddress)
-            .serverName(proxyServerName)
-            .build();
+        final var builder = new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(
+            maxNumConnections
+        );
+        if (proxyAddress != null && proxyAddress.isEmpty() == false) {
+            builder.proxyAddress(proxyAddress);
+        }
+        if (proxyServerName != null && proxyServerName.isEmpty() == false) {
+            builder.serverName(proxyServerName);
+        }
+        return builder.build();
     }
 }

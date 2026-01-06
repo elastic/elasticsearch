@@ -10,7 +10,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -57,11 +56,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.canMatch = in.readBoolean();
         this.originVersion = in.getTransportVersion();
         this.indexMappingHash = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.indexMode = IndexMode.readFrom(in);
-        } else {
-            this.indexMode = IndexMode.STANDARD;
-        }
+        this.indexMode = IndexMode.readFrom(in);
     }
 
     @Override
@@ -70,9 +65,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         out.writeMap(responseMap, StreamOutput::writeWriteable);
         out.writeBoolean(canMatch);
         out.writeOptionalString(indexMappingHash);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            IndexMode.writeTo(indexMode, out);
-        }
+        IndexMode.writeTo(indexMode, out);
     }
 
     private record CompressedGroup(String[] indices, IndexMode indexMode, String mappingHash, int[] fields) {}
@@ -91,10 +84,9 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
         throws IOException {
         final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
-        final boolean readIndexMode = input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
         for (int i = 0; i < groups; i++) {
             final String[] indices = input.readStringArray();
-            final IndexMode indexMode = readIndexMode ? IndexMode.readFrom(input) : IndexMode.STANDARD;
+            final IndexMode indexMode = IndexMode.readFrom(input);
             final String mappingHash = input.readString();
             compressedGroups[i] = new CompressedGroup(indices, indexMode, mappingHash, input.readIntArray());
         }
@@ -156,9 +148,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
-            if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                IndexMode.writeTo(first.indexMode, o);
-            }
+            IndexMode.writeTo(first.indexMode, o);
             o.writeString(first.indexMappingHash);
             o.writeVInt(first.responseMap.size());
             for (IndexFieldCapabilities ifc : first.responseMap.values()) {

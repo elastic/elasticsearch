@@ -11,11 +11,11 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -90,7 +90,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, boxplot -> {
@@ -103,7 +103,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
@@ -120,7 +120,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));

@@ -7,20 +7,31 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class CompletionExec extends InferenceExec {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "CompletionExec",
+        CompletionExec::new
+    );
 
     private final Expression prompt;
     private final Attribute targetField;
@@ -30,6 +41,28 @@ public class CompletionExec extends InferenceExec {
         super(source, child, inferenceId);
         this.prompt = prompt;
         this.targetField = targetField;
+    }
+
+    public CompletionExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Attribute.class)
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeNamedWriteable(prompt);
+        out.writeNamedWriteable(targetField);
     }
 
     public Expression prompt() {

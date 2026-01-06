@@ -351,6 +351,8 @@ public class IndexNameExpressionResolver {
                             + " indices without one being designated as a write index"
                     );
                 }
+            } else if (ia.getType() == Type.VIEW) {
+                throw new IllegalArgumentException("an ESQL view [" + ia.getName() + "] may not be the target of an index operation");
             }
             SystemResourceAccess.checkSystemIndexAccess(context, threadContext, ia.getWriteIndex());
             return ia;
@@ -417,7 +419,7 @@ public class IndexNameExpressionResolver {
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
 
             // Validate base expression
-            validateResourceExpression(context, baseExpression, expressions);
+            validateResourceExpression(context, isExclusion, baseExpression, expressions);
 
             // Check if it's wildcard
             boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
@@ -449,15 +451,23 @@ public class IndexNameExpressionResolver {
         return resources;
     }
 
+    public static InvalidIndexNameException invalidExpression() {
+        return new InvalidIndexNameException("", "expression cannot be empty");
+    }
+
+    public static InvalidIndexNameException invalidExclusion() {
+        return new InvalidIndexNameException("", "exclusion cannot be empty");
+    }
+
     /**
      * Validates the requested expression by performing the following checks:
      * - Ensure it's not empty
      * - Ensure it doesn't start with `_`
      * - Ensure it's not a remote expression unless the allow unavailable targets is enabled.
      */
-    private static void validateResourceExpression(Context context, String current, String[] expressions) {
+    private static void validateResourceExpression(Context context, boolean isExclusion, String current, String[] expressions) {
         if (Strings.isEmpty(current)) {
-            throw notFoundException(current);
+            throw isExclusion ? invalidExclusion() : invalidExpression();
         }
         // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
         // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
@@ -602,6 +612,10 @@ public class IndexNameExpressionResolver {
         for (ResolvedExpression expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
+            if (indexAbstraction.getType() == Type.VIEW) {
+                // A view should not resolve to any concrete indices, go to the next one.
+                continue;
+            }
             if (context.isResolveToWriteIndex()) {
                 if (shouldIncludeRegularIndices(context.getOptions(), expression.selector())) {
                     Index writeIndex = indexAbstraction.getWriteIndex();
@@ -1298,6 +1312,9 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
+            } else if (indexAbstraction != null && indexAbstraction.getType() == Type.VIEW) {
+                // currently there is nothing to resolve for a view in regard to search routing, so skip it
+                continue;
             } else {
                 // Index
                 assert resolvedExpression.selector() == null || IndexComponentSelector.DATA.equals(resolvedExpression.selector())
@@ -1709,6 +1726,7 @@ public class IndexNameExpressionResolver {
                 .getIndicesLookup()
                 .values()
                 .stream()
+                .filter(ia -> ia.getType() != Type.VIEW)
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
                 .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
                 .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()))
@@ -1802,6 +1820,9 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
+            if (indexAbstraction.getType() == Type.VIEW) {
+                return false;
+            }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
                 return false;
             }
@@ -1853,6 +1874,9 @@ public class IndexNameExpressionResolver {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
+            } else if (indexAbstraction.getType() == Type.VIEW) {
+                // a view cannot expand to any indices, return an empty set
+                return Set.of();
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {

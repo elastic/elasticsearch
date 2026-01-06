@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.datastreams.lifecycle;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -185,9 +184,7 @@ public class GetDataStreamLifecycleAction {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                    out.writeBoolean(isInternalDataStream);
-                }
+                out.writeBoolean(isInternalDataStream);
             }
 
             @Override
@@ -264,9 +261,7 @@ public class GetDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
-            }
+            out.writeOptionalWriteable(globalRetention);
         }
 
         @Override

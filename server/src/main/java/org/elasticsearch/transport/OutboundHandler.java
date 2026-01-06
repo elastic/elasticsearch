@@ -462,8 +462,8 @@ public final class OutboundHandler {
     }
 
     private boolean assertValidTransportVersion(TransportVersion transportVersion) {
-        assert this.version.before(TransportVersion.minimumCompatible()) // running an incompatible-version test
-            || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        assert this.version.id() < TransportVersion.minimumCompatible().id() // running an incompatible-version test
+            || this.version.id() >= transportVersion.id() : this.version + " vs " + transportVersion;
         return true;
     }
 

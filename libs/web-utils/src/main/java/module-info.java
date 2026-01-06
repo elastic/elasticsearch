@@ -9,5 +9,6 @@
 
 module org.elasticsearch.web {
     requires org.elasticsearch.base;
+
     exports org.elasticsearch.web;
 }

@@ -88,7 +88,6 @@ public class UriPartsProcessor extends AbstractProcessor {
         return UriParts.parse(urlString);
     }
 
-
     @Override
     public String getType() {
         return TYPE;

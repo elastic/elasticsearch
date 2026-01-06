@@ -929,13 +929,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
-            final ShardRouting shardToRelocate = clusterStateResponse.getState()
-                .routingTable()
-                .allShards(index)
-                .stream()
-                .filter(ShardRouting::primary)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("no primary shard found"));
+            final ShardRouting shardToRelocate = clusterStateResponse.getState().routingTable().allShards(index).get(0);
+            ;
             final TestClusterNodes.TestClusterNode currentPrimaryNode = testClusterNodes.nodeById(shardToRelocate.currentNodeId());
             final TestClusterNodes.TestClusterNode otherNode = testClusterNodes.randomDataNodeSafe(currentPrimaryNode.node().getName());
             scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));

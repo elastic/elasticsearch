@@ -239,7 +239,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         containsString("[test-repo] Failed to execute cluster state update [set pending repository generation")
                     );
                     assertThat(
-                        asInstanceOf(RepositoryException.class, e.getCause()).getMessage(),
+                        asInstanceOf(IllegalArgumentException.class, e.getCause()).getMessage(),
                         containsString("[test-repo] repository is readonly, cannot update root blob")
                     );
                     l.onResponse(null);

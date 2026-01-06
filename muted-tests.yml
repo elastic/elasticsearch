@@ -315,12 +315,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/138764
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139527

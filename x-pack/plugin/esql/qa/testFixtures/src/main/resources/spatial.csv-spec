@@ -1872,27 +1872,6 @@ count:l
 0
 ;
 
-pointLiteralMvSlice
-ROW point = MV_SLICE(["POINT(0 0)"], 0, 0)::geo_point
-| EVAL distance = st_distance(point, point)
-;
-
-point:geo_point | distance:double
-POINT(0 0)      | 0.0
-;
-
-pointLiteralMvSliceInvalid
-ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
-| EVAL distance = st_distance(point, point)
-;
-
-warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
-
-point:geo_point | distance:double
-null            | null
-;
-
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 
@@ -2029,6 +2008,152 @@ FROM airports
 
 count:long | points:integer
 129        | 129
+;
+
+###############################################
+# Tests for bug with literals that evaluate to null
+# (due to inner geometry parsing errors)
+# in ST_DISTANCE, ST_INTERSECTS, ST_DISJOINT, ST_CONTAINS
+# Reported in https://github.com/elastic/elasticsearch/issues/138594
+#
+
+airportsDistanceGreaterThanInvalidPoint3
+required_capability: geo_null_literals_folding
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT(MV_SLICE(["POINT(-28.6359 153.5906)"], 0, 0)), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(MV_SLICE([\"POINT(-28.6359 153.5906)\"], 0, 0))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+distancePointsLiteralMvSlice
+required_capability: st_distance
+
+ROW point = MV_SLICE(["POINT(0 0)"], 0, 0)::geo_point
+| EVAL distance = ST_DISTANCE(point, point)
+;
+
+point:geo_point | distance:double
+POINT(0 0)      | 0.0
+;
+
+distancePointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL distance = ST_DISTANCE(point, point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | distance:double
+null            | null
+;
+
+airportsIntersectsInvalidShapeLiteralMvSlice
+required_capability: geo_null_literals_folding
+
+FROM airports
+| WHERE ST_INTERSECTS(TO_GEOSHAPE(MV_SLICE(["POINT(-28.6359 153.5906)"], 0, 0)), location)
+| STATS count = COUNT()
+;
+
+warning:Line 2:23: evaluation of [TO_GEOSHAPE(MV_SLICE([\"POINT(-28.6359 153.5906)\"], 0, 0))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:23: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsEvalIntersectsInvalidShapeLiteralMvSlice
+required_capability: geo_null_literals_folding
+
+FROM airports
+| EVAL intersects = ST_INTERSECTS(TO_GEOSHAPE(MV_SLICE(["POINT(-28.6359 153.5906)"], 0, 0)), location)
+| STATS count = COUNT() BY intersects
+;
+
+warning:Line 2:35: evaluation of [TO_GEOSHAPE(MV_SLICE([\"POINT(-28.6359 153.5906)\"], 0, 0))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:35: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l | intersects:boolean
+891     | null
+;
+
+intersectsPointsLiteralMvSlice
+required_capability: st_intersects
+
+ROW point = MV_SLICE(["POINT(0 0)"], 0, 0)::geo_point
+| EVAL intersects = ST_INTERSECTS(point, point)
+;
+
+point:geo_point | intersects:boolean
+POINT(0 0)      | true
+;
+
+intersectsPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL intersects = ST_INTERSECTS(point, point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | intersects:boolean
+null            | null
+;
+
+disjointPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL disjoint = ST_DISJOINT(point, point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | disjoint:boolean
+null            | null
+;
+
+containsPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL contains = ST_CONTAINS(point, point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | contains:boolean
+null            | null
+;
+
+withinPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL within = ST_WITHIN(point, point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | within:boolean
+null            | null
 ;
 
 ###############################################

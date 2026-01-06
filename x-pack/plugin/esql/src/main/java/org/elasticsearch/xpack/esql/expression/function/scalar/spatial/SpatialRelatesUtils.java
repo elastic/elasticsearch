@@ -64,6 +64,9 @@ public class SpatialRelatesUtils {
 
     /** Converts a {@link Geometry} into a {@link Component2D}. */
     static Component2D asLuceneComponent2D(BinarySpatialFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (geometry == null) {
+            return null;
+        }
         if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LatLonGeometry.create(luceneGeometries);
@@ -127,6 +130,9 @@ public class SpatialRelatesUtils {
     /** Converts a {@link Geometry} into a {@link GeometryDocValueReader} */
     static GeometryDocValueReader asGeometryDocValueReader(CoordinateEncoder encoder, ShapeIndexer shapeIndexer, Geometry geometry)
         throws IOException {
+        if (geometry == null) {
+            return null;
+        }
         GeometryDocValueReader reader = new GeometryDocValueReader();
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         if (geometry instanceof Circle) {

@@ -27,7 +27,6 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,7 +45,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * This is the primary class for supporting the function ST_CONTAINS.
@@ -217,17 +215,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
-            Geometry rightGeom = makeGeometryFromLiteral(ctx, right());
-            Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
-            return (crsType() == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometries(docValueReader, components)
-                : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
-        }
+    protected SpatialRelations getSpatialRelations() {
+        return (crsType() == SpatialCrsType.GEO) ? GEO : CARTESIAN;
     }
 
     @Override

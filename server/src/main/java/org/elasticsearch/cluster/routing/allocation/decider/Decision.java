@@ -166,8 +166,8 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             } else if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
                 // the order of THROTTLE and NOT_PREFERRED was swapped
                 out.writeVInt(switch (this) {
-                    case NOT_PREFERRED -> THROTTLE.ordinal();
-                    case THROTTLE -> NOT_PREFERRED.ordinal();
+                    case NOT_PREFERRED -> 2;
+                    case THROTTLE -> 1;
                     default -> this.ordinal();
                 });
             } else {

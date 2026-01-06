@@ -63,6 +63,11 @@ public class TransportVersionUtils {
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    public static TransportVersion randomVersionBetween(@Nullable TransportVersion minVersion, @Nullable TransportVersion maxVersion) {
+        return randomVersionBetween(random(), minVersion, maxVersion);
+    }
+
+    /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static TransportVersion randomVersionBetween(
         Random random,
         @Nullable TransportVersion minVersion,

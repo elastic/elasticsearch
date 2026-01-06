@@ -258,9 +258,6 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
-  issue: https://github.com/elastic/elasticsearch/issues/137823
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
@@ -366,15 +363,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
-  method: testResolvesDateMath
-  issue: https://github.com/elastic/elasticsearch/issues/140105
-- class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
-  method: testLocalDateMathExpression
-  issue: https://github.com/elastic/elasticsearch/issues/140106
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testTimeseriesDefaultLimitIs1B
+  issue: https://github.com/elastic/elasticsearch/issues/140224
 
 # Examples:
 #

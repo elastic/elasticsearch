@@ -1575,10 +1575,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         if (randomBoolean()) {
-            settings.put(
-                SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
-            );
+            settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()));
         }
         request.settings(settings.build());
         IllegalArgumentException error = expectThrows(

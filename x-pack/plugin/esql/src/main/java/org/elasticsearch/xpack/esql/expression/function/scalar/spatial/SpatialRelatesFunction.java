@@ -90,6 +90,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     /** Spatial relates functions always use Lucene GeometryDocValueReader and Component2D instead of geometries */
+    @Override
     protected Object fold(Geometry leftGeom, Geometry rightGeom) {
         throw new UnsupportedOperationException("spatial relation [" + this.queryRelation() + "] does not support geometry folding");
     }

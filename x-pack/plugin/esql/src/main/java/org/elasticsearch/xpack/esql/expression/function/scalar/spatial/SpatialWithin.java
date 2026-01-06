@@ -129,7 +129,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
 
     @Override
     protected SpatialRelations getSpatialRelations() {
-        return (crsType() == SpatialCrsType.GEO) ? GEO : CARTESIAN;
+        return crsType() == SpatialCrsType.GEO ? GEO : CARTESIAN;
     }
 
     @Override

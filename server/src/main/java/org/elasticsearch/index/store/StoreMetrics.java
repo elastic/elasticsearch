@@ -9,7 +9,12 @@
 
 package org.elasticsearch.index.store;
 
-public class StoreMetrics {
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.function.Supplier;
+
+public class StoreMetrics implements Metrics.PluggableMetrics<StoreMetrics> {
     public static final MetricHolder<StoreMetrics> NOOP_HOLDER = MetricHolder.noop(new StoreMetrics() {
         @Override
         public void addBytesRead(long amount) {}
@@ -17,17 +22,40 @@ public class StoreMetrics {
 
     private long bytesRead;
 
+    public StoreMetrics(long bytesRead) {
+        this.bytesRead = bytesRead;
+    }
+
+    public StoreMetrics() {
+
+    }
+
     public long getBytesRead() {
         return bytesRead;
     }
 
     public StoreMetrics snapshot() {
-        StoreMetrics metrics = new StoreMetrics();
-        metrics.bytesRead = bytesRead;
-        return metrics;
+        return new StoreMetrics(bytesRead);
+    }
+
+    public Supplier<StoreMetrics> delta() {
+        StoreMetrics snapshot = snapshot();
+
+        return () -> snapshot().minus(snapshot);
+    }
+
+    private StoreMetrics minus(StoreMetrics snapshot) {
+        return new StoreMetrics(bytesRead - snapshot.bytesRead);
     }
 
     public void addBytesRead(long amount) {
         bytesRead += amount;
+    }
+
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("bytesRead", bytesRead);
+        return builder;
     }
 }

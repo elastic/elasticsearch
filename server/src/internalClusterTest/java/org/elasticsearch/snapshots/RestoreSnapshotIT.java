@@ -1033,11 +1033,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testExplainUnassigableDuringRestore() {
-        final String repoName = randomIdentifier("repo-");
+        final String repoName = randomRepoName();
         createRepository(repoName, FsRepository.TYPE);
-        final String indexName = randomIdentifier("index-");
+        final String indexName = randomIndexName();
         createIndexWithContent(indexName);
-        final String snapshotName = randomIdentifier("snapshot-");
+        final String snapshotName = randomSnapshotName();
         createSnapshot(repoName, snapshotName, List.of(indexName));
         assertAcked(indicesAdmin().prepareDelete(indexName));
 

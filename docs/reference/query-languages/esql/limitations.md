@@ -51,6 +51,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]
@@ -279,7 +280,7 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 
 ## Kibana limitations [esql-limitations-kibana]
 
-* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
+* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/try-esql.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.

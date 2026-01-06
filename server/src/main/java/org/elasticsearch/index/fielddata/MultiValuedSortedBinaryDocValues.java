@@ -39,23 +39,23 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.
         // Whether counts is null allows us to determine which multivalued format was used.
-
-        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
-        DocValuesSkipper countsSkipper = counts != null ? leafReader.getDocValuesSkipper(countsFieldName) : null;
-        return from(leafReader.maxDoc(), values, counts, countsSkipper);
+        return from(leafReader, valuesFieldName, values);
     }
 
     public static MultiValuedSortedBinaryDocValues from(
-        int maxDoc,
-        BinaryDocValues values,
-        NumericDocValues counts,
-        DocValuesSkipper countsSkipper
+        LeafReader leafReader,
+        String valuesFieldName,
+        BinaryDocValues values
     ) throws IOException {
+        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
-            return new SeparateCounts(maxDoc, values, counts, countsSkipper);
+            DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
+            Sparsity sparsity  = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
+            ValueMode valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
+            return new SeparateCounts(values, counts, sparsity, valueMode);
         }
     }
 
@@ -109,15 +109,15 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      * If a binary value contains multiple values, payload is of the form: [length of value 1][value 1][length of value 2][value 2]...
      */
     private static class SeparateCounts extends MultiValuedSortedBinaryDocValues {
-        private final int maxDoc;
         private final NumericDocValues counts;
-        private final DocValuesSkipper countsSkipper;
+        private final Sparsity sparsity;
+        private final ValueMode valueMode;
 
-        SeparateCounts(int maxDoc, BinaryDocValues values, NumericDocValues counts, DocValuesSkipper countsSkipper) {
+        SeparateCounts(BinaryDocValues values, NumericDocValues counts, Sparsity sparsity, ValueMode valueMode) {
             super(values);
-            this.maxDoc = maxDoc;
             this.counts = counts;
-            this.countsSkipper = countsSkipper;
+            this.sparsity = sparsity;
+            this.valueMode = valueMode;
         }
 
         @Override
@@ -157,21 +157,12 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         @Override
         public Sparsity getSparsity() {
-            if (countsSkipper.docCount() == maxDoc) {
-                return Sparsity.DENSE;
-            } else {
-                return Sparsity.SPARSE;
-            }
+            return sparsity;
         }
 
         @Override
         public ValueMode getValueMode() {
-            long maxValue = countsSkipper.maxValue();
-            if (maxValue == 1) {
-                return ValueMode.SINGLE_VALUED;
-            } else {
-                return ValueMode.MULTI_VALUED;
-            }
+            return valueMode;
         }
     }
 }

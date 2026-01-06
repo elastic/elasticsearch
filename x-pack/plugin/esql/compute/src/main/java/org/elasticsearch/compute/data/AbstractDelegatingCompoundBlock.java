@@ -70,7 +70,6 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         return totalValueCount;
     }
 
-
     @Override
     public T keepMask(BooleanVector mask) {
         return applyOperationToSubBlocks(block -> block.keepMask(mask));

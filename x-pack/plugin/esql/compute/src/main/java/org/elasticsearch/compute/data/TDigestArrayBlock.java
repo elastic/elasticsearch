@@ -72,7 +72,7 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     @Override
-    protected AbstractDelegatingCompoundBlock buildFromSubBlocks(List<Block> subBlocks) {
+    protected TDigestArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
         assert subBlocks.size() == 5;
         return new  TDigestArrayBlock(
             (BytesRefBlock) subBlocks.get(0),
@@ -116,11 +116,6 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     @Override
     public ElementType elementType() {
         return ElementType.TDIGEST;
-    }
-
-    @Override
-    public BlockFactory blockFactory() {
-        return encodedDigests.blockFactory();
     }
 
     @Override

@@ -29,27 +29,16 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
      * @param subBlocks List of sub-blocks, in the same order as {@link AbstractDelegatingCompoundBlock#getSubBlocks()}
      * @return a new instance based on the given blocks.
      */
-    protected abstract AbstractDelegatingCompoundBlock buildFromSubBlocks(List<Block> subBlocks);
+    protected abstract T buildFromSubBlocks(List<Block> subBlocks);
 
     @Override
     public void allowPassingToDifferentDriver() {
         getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 
-    private T applyOperationToSubBlocks(Function<Block, Block> operation) {
-        List<Block> modifiedBlocks = new ArrayList<>(getSubBlocks().size());
-        boolean success = false;
-        try {
-            for  (Block block : getSubBlocks()) {
-                modifiedBlocks.add(operation.apply(block));
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.close(getSubBlocks());
-            }
-        }
-        return (T) buildFromSubBlocks(modifiedBlocks);
+    @Override
+    public BlockFactory blockFactory() {
+        return getSubBlocks().get(0).blockFactory();
     }
 
     @Override
@@ -74,6 +63,22 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
             bytes += b.ramBytesUsed();
         }
         return bytes;
+    }
+
+    private T applyOperationToSubBlocks(Function<Block, Block> operation) {
+        List<Block> modifiedBlocks = new ArrayList<>(getSubBlocks().size());
+        boolean success = false;
+        try {
+            for  (Block block : getSubBlocks()) {
+                modifiedBlocks.add(operation.apply(block));
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(getSubBlocks());
+            }
+        }
+        return buildFromSubBlocks(modifiedBlocks);
     }
 
 }

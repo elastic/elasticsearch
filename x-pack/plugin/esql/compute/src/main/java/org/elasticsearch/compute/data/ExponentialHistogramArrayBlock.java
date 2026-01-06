@@ -110,7 +110,7 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     }
 
     @Override
-    protected AbstractDelegatingCompoundBlock buildFromSubBlocks(List<Block> subBlocks) {
+    protected ExponentialHistogramArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
         return new ExponentialHistogramArrayBlock(
             (DoubleBlock) subBlocks.get(0),
             (DoubleBlock) subBlocks.get(1),
@@ -281,16 +281,6 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     @Override
     public ElementType elementType() {
         return ElementType.EXPONENTIAL_HISTOGRAM;
-    }
-
-    @Override
-    public BlockFactory blockFactory() {
-        return encodedHistograms.blockFactory();
-    }
-
-    @Override
-    public void allowPassingToDifferentDriver() {
-        getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 
     @Override

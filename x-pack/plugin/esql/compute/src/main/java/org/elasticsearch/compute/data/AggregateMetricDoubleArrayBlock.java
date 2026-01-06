@@ -112,30 +112,18 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     }
 
     @Override
-    public BlockFactory blockFactory() {
-        return minBlock.blockFactory();
-    }
-
-    @Override
     protected List<Block> getSubBlocks() {
         return List.of(minBlock, maxBlock, sumBlock, countBlock);
     }
 
     @Override
-    protected AbstractDelegatingCompoundBlock buildFromSubBlocks(List<Block> subBlocks) {
+    protected AggregateMetricDoubleArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
         return new AggregateMetricDoubleArrayBlock(
             (DoubleBlock) subBlocks.get(0),
             (DoubleBlock) subBlocks.get(1),
             (DoubleBlock) subBlocks.get(2),
             (IntBlock) subBlocks.get(3)
         );
-    }
-
-    @Override
-    public void allowPassingToDifferentDriver() {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            block.allowPassingToDifferentDriver();
-        }
     }
 
     @Override

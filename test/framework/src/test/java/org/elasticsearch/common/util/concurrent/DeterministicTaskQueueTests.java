@@ -488,19 +488,19 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         advanceToRandomTime(taskQueue);
         final long startTime = taskQueue.getCurrentTimeMillis();
 
-        final Set<String> strings = new HashSet<>(5);
-        final Set<ScheduledFuture<?>> scheduledFutures = new HashSet<>(5);
+        final List<String> strings = new ArrayList<>(5);
+        final List<ScheduledFuture<?>> scheduledFutures = new ArrayList<>(5);
 
         final long delayMillis = randomLongBetween(1, 100);
 
-        scheduledFutures.add(scheduler.schedule((Runnable) () -> strings.add("deferred"), delayMillis, TimeUnit.MILLISECONDS));
+        scheduledFutures.add(scheduler.schedule(() -> strings.addLast("deferred"), delayMillis, TimeUnit.MILLISECONDS));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        scheduledFutures.add(scheduler.schedule((Runnable) () -> strings.add("runnable"), 0, TimeUnit.MILLISECONDS));
+        scheduledFutures.add(scheduler.schedule(() -> strings.addLast("runnable"), 0, TimeUnit.MILLISECONDS));
         assertTrue(taskQueue.hasRunnableTasks());
 
-        scheduledFutures.add(scheduler.schedule((Runnable) () -> strings.add("also runnable"), -1, TimeUnit.MILLISECONDS));
+        scheduledFutures.add(scheduler.schedule(() -> strings.addLast("also runnable"), -1, TimeUnit.MILLISECONDS));
 
         taskQueue.runAllTasks();
 
@@ -511,8 +511,8 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
 
-        scheduler.schedule((Runnable) () -> strings.add("further deferred"), delayMillis1, TimeUnit.MILLISECONDS);
-        scheduler.schedule((Runnable) () -> strings.add("not quite so deferred"), delayMillis2, TimeUnit.MILLISECONDS);
+        scheduler.schedule(() -> strings.addLast("further deferred"), delayMillis1, TimeUnit.MILLISECONDS);
+        scheduler.schedule(() -> strings.addLast("not quite so deferred"), delayMillis2, TimeUnit.MILLISECONDS);
 
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
@@ -522,7 +522,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         final long cancelledDelayMillis = randomLongBetween(1, 100);
         final var cancelledBeforeExecution = scheduler.schedule(
-            (Runnable) () -> strings.add("cancelled before execution"),
+            () -> strings.addLast("cancelled before execution"),
             cancelledDelayMillis,
             TimeUnit.MILLISECONDS
         );

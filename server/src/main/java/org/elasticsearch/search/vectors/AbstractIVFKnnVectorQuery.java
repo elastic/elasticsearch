@@ -30,9 +30,11 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
@@ -151,8 +154,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (supplier != null) {
                         var filterCost = Math.toIntExact(supplier.cost());
                         float selectivity = (float) filterCost / floatVectorValues.size();
+                        var iterator = supplier.get(NO_MORE_DOCS).iterator();
                         // TODO: is this enough to check if we picked this up from cache?
-                        if (selectivity >= postFilteringThreshold) {
+                        if ((false == iterator instanceof BitSetIterator) && selectivity >= postFilteringThreshold) {
                             // for filters with coverage greater than the provided postFilteringThreshold, we:
                             // * oversample by (1 + (1 - selectivity)) * k)
                             // * skip centroid filtering (most centroids will be valid either way)
@@ -162,7 +166,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.PostFilterEsAcceptDocs(supplier, liveDocs)
+                                    new ESAcceptDocs.PostFilterEsAcceptDocs(leafReaderContext, filterWeight, iterator, liveDocs, supplier.cost(), leafReader.maxDoc())
                                 )
                             );
                         } else {
@@ -170,7 +174,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, leafReader.maxDoc())
+                                    new ESAcceptDocs.ScorerSupplierAcceptDocs(iterator, liveDocs, leafReader.maxDoc(), supplier.cost())
                                 )
                             );
                         }
@@ -199,20 +203,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (VectorLeafSearchFilterMeta leafSearchMeta : leafSearchMetas) {
-            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio));
+            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
         // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);
+        ScoreDoc[] scoreDocs = topK.scoreDocs;
         vectorOpsCount = (int) topK.totalHits.value();
-        if (topK.scoreDocs.length == 0) {
+        if (scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
-        return new KnnScoreDocQuery(topK.scoreDocs, reader);
+        return new KnnScoreDocQuery(scoreDocs, reader);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext context, AcceptDocs filterDocs, IVFCollectorManager knnCollectorManager, float visitRatio)
+    private TopDocs searchLeaf(LeafReaderContext context, AcceptDocs filterDocs, IVFCollectorManager knnCollectorManager, float visitRatio, int docsFound)
         throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
@@ -232,13 +237,25 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
         }
 
+        docsFound += docsAdded;
         if (postFilter) {
-            Arrays.sort(scoreDocs, 0, docsAdded, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
-            docsAdded = Math.min(k, docsAdded);
+            if(docsFound == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+            if(docsFound < k){
+                ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
+                TopDocs additionalResults = searchLeaf(context, filterDocs, knnCollectorManager, visitRatio, docsFound);
+                ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
+                var newScoreDocs = new ScoreDoc[scoreDocs.length + additionalScoreDocs.length];
+                System.arraycopy(scoreDocs, 0, newScoreDocs, 0, scoreDocs.length);
+                System.arraycopy(additionalScoreDocs, 0, newScoreDocs, scoreDocs.length, additionalScoreDocs.length);
+                scoreDocs = newScoreDocs;
+            }
+
+            docsFound = Math.min(k, docsFound);
+            Arrays.sort(scoreDocs, 0, docsFound, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
         }
 
-        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[docsAdded];
-        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, docsAdded);
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[docsFound];
+        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, docsFound);
 
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }

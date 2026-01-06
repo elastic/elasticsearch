@@ -123,7 +123,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float approximateDocsPerCentroid = approximateCost / numCentroids;
         final boolean postFilter = acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
-        if (false == postFilter && approximateDocsPerCentroid <= 1.25) {
+        if (approximateDocsPerCentroid <= 1.25) {
             // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
             approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
         }
@@ -131,19 +131,32 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if (postFilter || approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
+        if ((false == postFilter || ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidCardinality() == 0) && (approximateDocsPerCentroid > 1.25 || numCentroids == 1)) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;
         } else {
             acceptCentroids = new FixedBitSet(numCentroids);
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
-            final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
+            final DocIdSetIterator iterator = false == postFilter
+                ? ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator))
+                : ConjunctionUtils.intersectIterators(List.of(((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidIterator(), docIndexIterator));
             final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
             for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
+                int centroidOrd = (int) longValues.get(docIndexIterator.index());
+                if (postFilter) {
+                    if (false == ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).visited(centroidOrd)) {
+                        acceptCentroids.set(centroidOrd);
+                    }
+                }
             }
+        }
+        if(acceptCentroids != null && acceptCentroids.cardinality() == 0){
+            return null;
+        }
+        if(postFilter && acceptCentroids != null) {
+            ((ESAcceptDocs.PostFilterEsAcceptDocs)acceptDocs).skip(acceptCentroids);
         }
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final int[] scratch = new int[targetQuery.length];
@@ -176,7 +189,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 queryParams,
                 fieldEntry.globalCentroidDp(),
                 visitRatio * centroidOversampling,
-                acceptCentroids
+                acceptCentroids,
+                acceptDocs
             );
         } else {
             centroidIterator = getCentroidIteratorNoParent(
@@ -187,7 +201,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 quantized,
                 queryParams,
                 fieldEntry.globalCentroidDp(),
-                acceptCentroids
+                acceptCentroids,
+                acceptDocs
             );
         }
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
@@ -271,7 +286,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp,
-        FixedBitSet acceptCentroids
+        FixedBitSet acceptCentroids,
+        AcceptDocs acceptDocs
     ) throws IOException {
         final NeighborQueue neighborQueue = new NeighborQueue(numCentroids, true);
         final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
@@ -299,6 +315,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
+                if(acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs){
+                    ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).skip(centroidOrdinal);
+                }
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
@@ -317,7 +336,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp,
         float centroidRatio,
-        FixedBitSet acceptCentroids
+        FixedBitSet acceptCentroids,
+        AcceptDocs acceptDocs
     ) throws IOException {
         // build the three queues we are going to use
         final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
@@ -405,6 +425,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = nextCentroid();
+                if(acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs){
+                    ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).skip(centroidOrdinal);
+                }
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();

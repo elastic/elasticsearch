@@ -19,20 +19,21 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
-import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import java.util.Set;
 
 /**
  * An extension of {@link AcceptDocs} that provides additional methods to get an approximate cost
@@ -178,21 +179,23 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
     /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
     public static final class ScorerSupplierAcceptDocs extends ESAcceptDocs {
-        private final ScorerSupplier scorerSupplier;
+        private final DocIdSetIterator iterator;
         private BitSet acceptBitSet;
         private final Bits liveDocs;
         private final int maxDoc;
         private int cardinality = -1;
+        private final long cost;
 
-        ScorerSupplierAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs, int maxDoc) {
-            this.scorerSupplier = scorerSupplier;
+        ScorerSupplierAcceptDocs(DocIdSetIterator disi, Bits liveDocs, int maxDoc, long cost) {
+            this.iterator = disi;
             this.liveDocs = liveDocs;
             this.maxDoc = maxDoc;
+            this.cost = cost;
         }
 
         private void createBitSetIfNecessary() throws IOException {
             if (acceptBitSet == null) {
-                acceptBitSet = createBitSet(scorerSupplier.get(NO_MORE_DOCS).iterator(), liveDocs, maxDoc);
+                acceptBitSet = createBitSet(iterator, liveDocs, maxDoc);
             }
         }
 
@@ -207,14 +210,12 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             if (acceptBitSet != null) {
                 return new BitSetIterator(acceptBitSet, cardinality);
             }
-            return liveDocs == null
-                ? scorerSupplier.get(NO_MORE_DOCS).iterator()
-                : new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
-                    @Override
-                    protected boolean match(int doc) {
-                        return liveDocs.get(doc);
-                    }
-                };
+            return liveDocs == null ? iterator : new FilteredDocIdSetIterator(iterator) {
+                @Override
+                protected boolean match(int doc) {
+                    return liveDocs.get(doc);
+                }
+            };
         }
 
         @Override
@@ -231,7 +232,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             if (acceptBitSet != null) {
                 return cardinality != -1 ? cardinality : acceptBitSet.approximateCardinality();
             }
-            return Math.toIntExact(scorerSupplier.cost());
+            return Math.toIntExact(cost);
         }
 
         @Override
@@ -246,12 +247,21 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
      */
     public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
 
-        private final ScorerSupplier scorerSupplier;
+        private DocIdSetIterator iterator;
+        private final LeafReaderContext leafReaderContext;
+        private final Weight filterWeight;
         private final Bits liveDocs;
+        private final long cost;
+        private final FixedBitSet docIdSet;
 
-        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) throws IOException {
-            this.scorerSupplier = scorerSupplier;
+        PostFilterEsAcceptDocs(LeafReaderContext ctx, Weight weight, DocIdSetIterator disi, Bits liveDocs, long cost, int maxDoc) throws IOException {
+            assert disi.docID() == -1;
+            this.leafReaderContext = ctx;
+            this.filterWeight = weight;
+            this.iterator = disi;
             this.liveDocs = liveDocs;
+            this.cost = cost;
+            this.docIdSet = new FixedBitSet(maxDoc);
         }
 
         @Override
@@ -262,7 +272,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            return scorerSupplier.get(NO_MORE_DOCS).iterator();
+            return iterator;
         }
 
         @Override
@@ -272,12 +282,37 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int approximateCost() throws IOException {
-            return Math.toIntExact(scorerSupplier.cost());
+            return Math.toIntExact(cost);
         }
 
         @Override
         public Optional<BitSet> getBitSet() throws IOException {
             return null;
+        }
+
+        public void refreshIterator() throws IOException {
+            this.iterator = filterWeight.scorer(leafReaderContext).iterator();
+            assert this.iterator.docID() == -1;
+        }
+
+        public void skip(FixedBitSet fixedBitSet) throws IOException {
+            this.docIdSet.or(fixedBitSet);
+        }
+
+        public void skip(int ord) throws IOException {
+            this.docIdSet.set(ord);
+        }
+
+        public boolean visited(int ord){
+            return docIdSet.get(ord);
+        }
+
+        public int centroidCardinality(){
+            return docIdSet.cardinality();
+        }
+
+        public DocIdSetIterator centroidIterator(){
+            return new BitSetIterator(docIdSet, docIdSet.cardinality());
         }
     }
 }

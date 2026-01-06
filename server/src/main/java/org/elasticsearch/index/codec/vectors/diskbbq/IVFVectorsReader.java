@@ -321,6 +321,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             values,
             visitRatio
         );
+        if(centroidPrefetchingIterator == null){
+            return;
+        }
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;

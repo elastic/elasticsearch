@@ -9,10 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -30,62 +28,154 @@ import java.util.Random;
 
 public class PreconditioningProvider {
 
-    final int blockDim;
-    final int[][] permutationMatrix;
-    final float[][][] blocks;
+    public record Preconditioner(int blockDim, int[][] permutationMatrix, float[][][] blocks) {
 
-    public PreconditioningProvider(int blockDim, int vectorDim) {
-        this.blockDim = blockDim;
+        public float[] applyTransform(float[] vector) {
+            assert vector != null;
+
+            float[] out = new float[vector.length];
+
+            if (blocks.length == 1) {
+                matrixVectorMultiply(blocks[0], vector, out);
+                return out;
+            }
+
+            int blockIdx = 0;
+            float[] x = new float[blockDim];
+            float[] blockOut = new float[blockDim];
+            for (int j = 0; j < blocks.length; j++) {
+                float[][] block = blocks[j];
+                int blockDim = blocks[j].length;
+                // blockDim is only ever smaller for the tail
+                if (blockDim != this.blockDim) {
+                    x = new float[blockDim];
+                    blockOut = new float[blockDim];
+                }
+                for (int k = 0; k < permutationMatrix[j].length; k++) {
+                    int idx = permutationMatrix[j][k];
+                    x[k] = vector[idx];
+                }
+                matrixVectorMultiply(block, x, blockOut);
+                System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
+                blockIdx += blockDim;
+            }
+
+            return out;
+        }
+
+        // TODO: write Panama version of this
+        static void modifiedGramSchmidt(float[][] m) {
+            assert m.length == m[0].length;
+            int dim = m.length;
+            for (int i = 0; i < dim; i++) {
+                double norm = 0.0;
+                for (float v : m[i]) {
+                    norm += v * v;
+                }
+                norm = Math.sqrt(norm);
+                if (norm == 0.0f) {
+                    continue;
+                }
+                for (int j = 0; j < dim; j++) {
+                    m[i][j] /= (float) norm;
+                }
+                for (int k = i + 1; k < dim; k++) {
+                    double dotik = 0.0;
+                    for (int j = 0; j < dim; j++) {
+                        dotik += m[i][j] * m[k][j];
+                    }
+                    for (int j = 0; j < dim; j++) {
+                        m[k][j] -= (float) (dotik * m[i][j]);
+                    }
+                }
+            }
+        }
+
+        private static void randomFill(Random random, float[][] m) {
+            for (int i = 0; i < m.length; ++i) {
+                for (int j = 0; j < m[i].length; ++j) {
+                    m[i][j] = (float) random.nextGaussian();
+                }
+            }
+        }
+
+        private static float[][][] generateRandomOrthogonalMatrix(int dim, int blockDim, Random random) {
+            blockDim = Math.min(dim, blockDim);
+            int nBlocks = dim / blockDim;
+            int rem = dim % blockDim;
+
+            float[][][] blocks = new float[nBlocks + (rem > 0 ? 1 : 0)][][];
+
+            for (int i = 0; i < nBlocks; i++) {
+                float[][] m = new float[blockDim][blockDim];
+                randomFill(random, m);
+                modifiedGramSchmidt(m);
+                blocks[i] = m;
+            }
+
+            if (rem != 0) {
+                float[][] m = new float[rem][rem];
+                randomFill(random, m);
+                modifiedGramSchmidt(m);
+                blocks[nBlocks] = m;
+            }
+
+            return blocks;
+        }
+
+        private static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
+            assert m.length == x.length;
+            assert m.length == out.length;
+            int dim = out.length;
+            for (int i = 0; i < dim; i++) {
+                out[i] = VectorUtil.dotProduct(m[i], x);
+            }
+        }
+
+        private static int[][] createPermutationMatrixRandomly(int dim, int[] dimBlocks, Random random) {
+            // Randomly assign dimensions to blocks.
+            List<Integer> indices = new ArrayList<>(dim);
+            for (int i = 0; i < dim; i++) {
+                indices.add(i);
+            }
+            Collections.shuffle(indices, random);
+
+            int[][] permutationMatrix = new int[dimBlocks.length][];
+            int pos = 0;
+            for (int i = 0; i < dimBlocks.length; i++) {
+                permutationMatrix[i] = new int[dimBlocks[i]];
+                for (int j = 0; j < dimBlocks[i]; j++) {
+                    permutationMatrix[i][j] = indices.get(pos++);
+                }
+                Arrays.sort(permutationMatrix[i]);
+            }
+
+            return permutationMatrix;
+        }
+    }
+
+    public static Preconditioner createPreconditioner(int vectorDimension, int blockDimension) {
+        if (blockDimension <= 0) {
+            throw new IllegalArgumentException("block dimension must be positive but was [" + blockDimension + "]");
+        }
+        if (vectorDimension <= 0) {
+            throw new IllegalArgumentException("vector dimension must be positive but was [" + vectorDimension + "]");
+        }
         Random random = new Random(42L);
-        blocks = PreconditioningProvider.generateRandomOrthogonalMatrix(vectorDim, blockDim, random);
+        float[][][] blocks = Preconditioner.generateRandomOrthogonalMatrix(vectorDimension, blockDimension, random);
         int[] dimBlocks = new int[blocks.length];
         for (int i = 0; i < blocks.length; i++) {
             dimBlocks[i] = blocks[i].length;
         }
-        permutationMatrix = PreconditioningProvider.createPermutationMatrixRandomly(vectorDim, dimBlocks, random);
+        int[][] permutationMatrix = Preconditioner.createPermutationMatrixRandomly(vectorDimension, dimBlocks, random);
+        return new Preconditioner(blockDimension, permutationMatrix, blocks);
     }
 
-    private PreconditioningProvider(int blockDim, float[][][] blocks, int[][] permutationMatrix) {
-        this.blockDim = blockDim;
-        this.permutationMatrix = permutationMatrix;
-        this.blocks = blocks;
-    }
-
-    public float[] applyPreconditioningTransform(float[] vector) {
-        assert vector != null;
-
-        float[] out = new float[vector.length];
-
-        if (blocks.length == 1) {
-            matrixVectorMultiply(blocks[0], vector, out);
-            return out;
-        }
-
-        int blockIdx = 0;
-        float[] x = new float[blockDim];
-        float[] blockOut = new float[blockDim];
-        for (int j = 0; j < blocks.length; j++) {
-            float[][] block = blocks[j];
-            int blockDim = blocks[j].length;
-            // blockDim is only ever smaller for the tail
-            if (blockDim != this.blockDim) {
-                x = new float[blockDim];
-                blockOut = new float[blockDim];
-            }
-            for (int k = 0; k < permutationMatrix[j].length; k++) {
-                int idx = permutationMatrix[j][k];
-                x[k] = vector[idx];
-            }
-            matrixVectorMultiply(block, x, blockOut);
-            System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
-            blockIdx += blockDim;
-        }
-
-        return out;
-    }
-
-    public void write(IndexOutput out) throws IOException {
-        int rem = blockDim;
+    public static void write(Preconditioner preconditioner, IndexOutput out) throws IOException {
+        int rem = preconditioner.blockDim();
+        float[][][] blocks = preconditioner.blocks();
+        int[][] permutationMatrix = preconditioner.permutationMatrix();
+        int blockDim = preconditioner.blockDim();
         if (blocks[blocks.length - 1].length != blockDim) {
             rem = blocks[blocks.length - 1].length;
         }
@@ -114,7 +204,7 @@ public class PreconditioningProvider {
         }
     }
 
-    public static PreconditioningProvider read(IndexInput input) throws IOException {
+    public static Preconditioner read(IndexInput input) throws IOException {
         int blocksLen = input.readInt();
         int blockDim = input.readInt();
         int rem = input.readInt();
@@ -137,161 +227,7 @@ public class PreconditioningProvider {
             input.readInts(permutationMatrix[i], 0, permutationMatrixSubLen);
         }
 
-        return new PreconditioningProvider(blockDim, blocks, permutationMatrix);
-    }
-
-    // TODO: write Panama version of this
-    static void modifiedGramSchmidt(float[][] m) {
-        assert m.length == m[0].length;
-        int dim = m.length;
-        for (int i = 0; i < dim; i++) {
-            double norm = 0.0;
-            for (float v : m[i]) {
-                norm += v * v;
-            }
-            norm = Math.sqrt(norm);
-            if (norm == 0.0f) {
-                continue;
-            }
-            for (int j = 0; j < dim; j++) {
-                m[i][j] /= (float) norm;
-            }
-            for (int k = i + 1; k < dim; k++) {
-                double dotik = 0.0;
-                for (int j = 0; j < dim; j++) {
-                    dotik += m[i][j] * m[k][j];
-                }
-                for (int j = 0; j < dim; j++) {
-                    m[k][j] -= (float) (dotik * m[i][j]);
-                }
-            }
-        }
-    }
-
-    private static void randomFill(Random random, float[][] m) {
-        for (int i = 0; i < m.length; ++i) {
-            for (int j = 0; j < m[i].length; ++j) {
-                m[i][j] = (float) random.nextGaussian();
-            }
-        }
-    }
-
-    private static float[][][] generateRandomOrthogonalMatrix(int dim, int blockDim, Random random) {
-        blockDim = Math.min(dim, blockDim);
-        int nBlocks = dim / blockDim;
-        int rem = dim % blockDim;
-
-        float[][][] blocks = new float[nBlocks + (rem > 0 ? 1 : 0)][][];
-
-        for (int i = 0; i < nBlocks; i++) {
-            float[][] m = new float[blockDim][blockDim];
-            randomFill(random, m);
-            modifiedGramSchmidt(m);
-            blocks[i] = m;
-        }
-
-        if (rem != 0) {
-            float[][] m = new float[rem][rem];
-            randomFill(random, m);
-            modifiedGramSchmidt(m);
-            blocks[nBlocks] = m;
-        }
-
-        return blocks;
-    }
-
-    private static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        assert m.length == x.length;
-        assert m.length == out.length;
-        int dim = out.length;
-        for (int i = 0; i < dim; i++) {
-            out[i] = VectorUtil.dotProduct(m[i], x);
-        }
-    }
-
-    private static int minElementIndex(float[] array) {
-        int minIndex = 0;
-        float minValue = array[0];
-        for (int i = 1; i < array.length; i++) {
-            if (array[i] < minValue) {
-                minValue = array[i];
-                minIndex = i;
-            }
-        }
-        return minIndex;
-    }
-
-    private static int[][] createPermutationMatrixRandomly(int dim, int[] dimBlocks, Random random) {
-        // Randomly assign dimensions to blocks.
-        List<Integer> indices = new ArrayList<>(dim);
-        for (int i = 0; i < dim; i++) {
-            indices.add(i);
-        }
-        Collections.shuffle(indices, random);
-
-        int[][] permutationMatrix = new int[dimBlocks.length][];
-        int pos = 0;
-        for (int i = 0; i < dimBlocks.length; i++) {
-            permutationMatrix[i] = new int[dimBlocks[i]];
-            for (int j = 0; j < dimBlocks[i]; j++) {
-                permutationMatrix[i][j] = indices.get(pos++);
-            }
-            Arrays.sort(permutationMatrix[i]);
-        }
-
-        return permutationMatrix;
-    }
-
-    private static int[][] createPermutationMatrixWEqualVariance(int[] dimBlocks, FloatVectorValues vectors) throws IOException {
-        int dim = vectors.dimension();
-
-        if (dimBlocks.length == 1) {
-            int[] indices = new int[dim];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = i;
-            }
-            return new int[][] { indices };
-        }
-
-        // Use a greedy approach to pick assignments to blocks that equalizes their variance.
-        float[] means = new float[dim];
-        float[] variances = new float[dim];
-        int[] n = new int[dim];
-
-        // TODO: write Panama version of this
-        for (int i = 0; i < vectors.size(); ++i) {
-            float[] vector = vectors.vectorValue(i);
-            for (int j = 0; j < dim; j++) {
-                float value = vector[j];
-                n[j]++;
-                double delta = value - means[j];
-                means[j] += (float) (delta / n[j]);
-                variances[j] += (float) (delta * (value - means[j]));
-            }
-        }
-
-        int[] indices = new int[dim];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-        new IntSorter(indices, i -> NumericUtils.floatToSortableInt(variances[i])).sort(0, indices.length);
-
-        int[][] permutationMatrix = new int[dimBlocks.length][];
-        for (int i = 0; i < permutationMatrix.length; i++) {
-            permutationMatrix[i] = new int[dimBlocks[i]];
-        }
-        float[] cumulativeVariances = new float[dimBlocks.length];
-        int[] jthIdx = new int[permutationMatrix.length];
-        for (int i : indices) {
-            int j = minElementIndex(cumulativeVariances);
-            permutationMatrix[j][jthIdx[j]++] = i;
-            cumulativeVariances[j] = (jthIdx[j] == dimBlocks[j] ? Float.MAX_VALUE : cumulativeVariances[j] + variances[i]);
-        }
-        for (int[] matrix : permutationMatrix) {
-            Arrays.sort(matrix);
-        }
-
-        return permutationMatrix;
+        return new Preconditioner(blockDim, permutationMatrix, blocks);
     }
 
 }

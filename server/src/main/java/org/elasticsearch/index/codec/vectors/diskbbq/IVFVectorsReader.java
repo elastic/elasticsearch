@@ -91,7 +91,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
             ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
-            doInitExtraFiles(state, versionMeta);
+            doInitExtraFiles(state, versionMeta, fieldInfos);
             success = true;
         } finally {
             if (success == false) {
@@ -100,7 +100,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    protected abstract void doInitExtraFiles(SegmentReadState state, int versionMeta) throws IOException;
+    protected abstract void doInitExtraFiles(SegmentReadState state, int versionMeta, FieldInfos fieldInfo) throws IOException;
 
     public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
@@ -250,7 +250,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
+        doAdditionalIntegrityChecks();
     }
+
+    protected abstract void doAdditionalIntegrityChecks() throws IOException;
 
     private FlatVectorsReader getReaderForField(String field) {
         FieldInfo info = fieldInfos.fieldInfo(field);
@@ -268,7 +271,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return getReaderForField(field).getByteVectorValues(field);
     }
 
-    protected abstract float[] preconditionVector(float[] vector);
+    protected abstract float[] preconditionVector(FieldInfo fieldInfo, float[] vector) throws IOException;
 
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
@@ -312,8 +315,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
-        // precondition the query vector if necessary
-        target = preconditionVector(target);
+
+        target = preconditionVector(fieldInfo, target);
 
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
@@ -392,11 +395,32 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
+    protected abstract List<IndexInput> getAdditionalCloseables();
+
     @Override
     public void close() throws IOException {
         List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
+        closeables.addAll(getAdditionalCloseables());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
         IOUtils.close(closeables);
+    }
+
+    protected static class OffsetLength {
+        private final long offset;
+        private final long length;
+
+        protected OffsetLength(long offset, long length) {
+            this.offset = offset;
+            this.length = length;
+        }
+
+        public long offset() {
+            return offset;
+        }
+
+        public long length() {
+            return length;
+        }
     }
 
     protected static class FieldEntry implements GenericFlatVectorReaders.Field {
@@ -409,6 +433,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final long centroidLength;
         protected final long postingListOffset;
         protected final long postingListLength;
+        // protected Map<BlockDimension, OffsetLength> blockDimensionToOffset = new HashMap<>();
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
 
@@ -422,6 +447,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long centroidLength,
             long postingListOffset,
             long postingListLength,
+            // Map<BlockDimension, OffsetLength> blockDimensionToOffset,
             float[] globalCentroid,
             float globalCentroidDp
         ) {
@@ -434,6 +460,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.centroidLength = centroidLength;
             this.postingListOffset = postingListOffset;
             this.postingListLength = postingListLength;
+            // this.blockDimensionToOffset = blockDimensionToOffset;
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
         }
@@ -470,6 +497,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
+        }
+
+        public IndexInput preconditioningSlice(IndexInput preconditioningFile) throws IOException {
+            return null;
+            // return preconditioningFile.slice("preconditioning", dimensions, blockDimensions);
         }
     }
 

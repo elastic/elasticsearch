@@ -17,7 +17,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -222,9 +221,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int dimensions;
-    private final PreconditioningProvider preconditioningProvider;
 
-    // FIXME: dimensions doesn't get used but this is super confusing if someone were to try to use dims for something else
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(0, QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
@@ -273,8 +270,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + centroidsPerParentCluster
             );
         }
-        if (doPrecondition && (preconditioningBlockDimension < MIN_PRECONDITIONING_BLOCK_DIMS
-            || preconditioningBlockDimension > MAX_PRECONDITIONING_BLOCK_DIMS)) {
+        if (doPrecondition
+            && (preconditioningBlockDimension < MIN_PRECONDITIONING_BLOCK_DIMS
+                || preconditioningBlockDimension > MAX_PRECONDITIONING_BLOCK_DIMS)) {
             throw new IllegalArgumentException(
                 "preconditioningBlockDimension must be between "
                     + MIN_PRECONDITIONING_BLOCK_DIMS
@@ -296,18 +294,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         };
         this.useDirectIO = useDirectIO;
 
-        // FIXME: make these settable via DenseVectorFieldMapper
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
-
-        if(doPrecondition) {
-            this.preconditioningProvider = new PreconditioningProvider(this.preconditioningBlockDimension, this.dimensions);
-        } else {
-            this.preconditioningProvider = null;
-        }
     }
 
-    // FIXME: dimensions doesn't get used but this is super confusing if someone were to try to use dims for something else
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public ESNextDiskBBQVectorsFormat() {
         this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
@@ -323,7 +313,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
-            preconditioningProvider
+            dimensions,
+            preconditioningBlockDimension,
+            doPrecondition
         );
     }
 

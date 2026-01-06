@@ -39,6 +39,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -73,6 +74,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         this.writeVersion = writeVersion;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
+
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -184,11 +186,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException;
 
+    public abstract boolean createPreconditioner() throws IOException;
+
     public abstract FloatVectorValues preconditionVectors(FloatVectorValues floatVectorValues) throws IOException;
+
+    public abstract List<float[]> preconditionVectors(List<float[]> vectors);
 
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
+        // build a preconditioner if necessary, only need one given that this writer is tied to a format that has a fixed dim and block dim
+        createPreconditioner();
         for (FieldWriter fieldWriter : fieldWriters) {
             if (fieldWriter.delegate == null) {
                 // field is not float, we just write meta information
@@ -196,10 +204,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 continue;
             }
             // build a float vector values with random access
-            FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
-            // precondition the vectors if necessary
-            // FIXME: precondition them all upfront and write them to a temp file to avoid holding all vectors in memory
-            floatVectorValues = preconditionVectors(floatVectorValues);
+            FloatVectorValues floatVectorValues = getFloatVectorValues(
+                fieldWriter.fieldInfo,
+                fieldWriter.delegate,
+                maxDoc,
+                this::preconditionVectors
+            );
+
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
             // wrap centroids with a supplier
@@ -242,6 +253,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 globalCentroid
             );
         }
+
+        // writePreconditioner(dimension, blockDimension);
+
     }
 
     private static FloatVectorValues getFloatVectorValues(
@@ -249,7 +263,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
         int maxDoc
     ) throws IOException {
+        return getFloatVectorValues(fieldInfo, fieldVectorsWriter, maxDoc, Function.identity());
+    }
+
+    private static FloatVectorValues getFloatVectorValues(
+        FieldInfo fieldInfo,
+        FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
+        int maxDoc,
+        Function<List<float[]>, List<float[]>> vectorTransform
+    ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
+        vectors = vectorTransform.apply(vectors);
         if (vectors.size() == maxDoc) {
             return KmeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
         }
@@ -264,6 +288,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        mergeState.segmentInfo.files();
+
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
@@ -319,6 +345,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+
+            // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
+            createPreconditioner();  // create and write preconditioner
+            mergedFloatVectorValues = preconditionVectors(mergedFloatVectorValues);
+
             // if the segment is dense, we don't need to do anything with docIds.
             boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
             try (
@@ -366,8 +397,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
             FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
-            // precondition vectors if necessary
-            floatVectorValues = preconditionVectors(floatVectorValues);
 
             final long centroidOffset;
             final long centroidLength;
@@ -536,6 +565,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate.ramBytesUsed();
     }
 
-    private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
+    protected record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
 
 }

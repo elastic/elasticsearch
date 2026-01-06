@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
@@ -27,6 +28,7 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -46,7 +48,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    public void doInitExtraFiles(SegmentReadState state, int version) throws IOException {
+    public void doInitExtraFiles(SegmentReadState state, int version, FieldInfos fieldInfo) throws IOException {
         // no extra files to init
     }
 
@@ -179,9 +181,20 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    protected float[] preconditionVector(float[] vector) {
+    protected void doAdditionalIntegrityChecks() throws IOException {
+        // no-op
+    }
+
+    @Override
+    protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) {
         // no-op
         return vector;
+    }
+
+    @Override
+    protected List<IndexInput> getAdditionalCloseables() {
+        // no-op
+        return List.of();
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(

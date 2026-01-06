@@ -88,7 +88,7 @@ If all queried fields are of type [semantic_text](/reference/elasticsearch/mappi
 
 
 `num_candidates`
-:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When `rescore_vector` is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
+:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
 
 
 `visit_percentage` {applies_to}`stack: ga 9.2`

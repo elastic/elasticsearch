@@ -21,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -135,7 +134,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        denseVectorElementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         useSearchInferenceId = randomBoolean();
     }
 
@@ -439,7 +441,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_8_15_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );
             assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
@@ -490,7 +492,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_8_15_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);

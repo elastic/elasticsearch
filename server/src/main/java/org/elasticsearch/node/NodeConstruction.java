@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -723,7 +724,7 @@ class NodeConstruction {
             nodeEnvironment.nodeId()
         );
 
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, telemetryProvider.getMeterRegistry());
         clusterService.addStateApplier(scriptService);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
@@ -823,8 +824,13 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
-                rerouteService
+                rerouteService,
+                telemetryProvider.getMeterRegistry()
             )::onNewInfo
+        );
+
+        clusterInfoService.addListener(
+            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo
         );
 
         IndicesModule indicesModule = new IndicesModule(
@@ -1279,7 +1285,7 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
-        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
+        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 
@@ -1405,13 +1411,19 @@ class NodeConstruction {
         }
     }
 
-    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
+    private ClusterService createClusterService(
+        SettingsModule settingsModule,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
+    ) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getProjectScopedSettings(),
             threadPool,
-            taskManager
+            taskManager,
+            meterRegistry
         );
         resourcesToClose.add(clusterService);
 

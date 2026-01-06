@@ -43,6 +43,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private final Map<String, Object> runtimeMappings;
     private final boolean allowPartialSearchResults;
+    private final boolean crossProject;
     private final String projectRouting;
 
     public SqlConfiguration(
@@ -63,6 +64,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         @Nullable TaskId taskId,
         @Nullable SqlQueryTask task,
         boolean allowPartialSearchResults,
+        boolean crossProject,
         String projectRouting
     ) {
         super(zi, username, clusterName);
@@ -81,6 +83,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.crossProject = crossProject;
         this.projectRouting = projectRouting;
     }
 
@@ -138,6 +141,10 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
+    }
+
+    public boolean crossProject() {
+        return crossProject;
     }
 
     public String projectRouting() {

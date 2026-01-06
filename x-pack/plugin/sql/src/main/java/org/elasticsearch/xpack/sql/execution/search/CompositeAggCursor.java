@@ -135,7 +135,7 @@ public class CompositeAggCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(nextQuery), indices);
         }
 
-        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, indices);
+        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, false, indices);
 
         client.search(request, new DelegatingActionListener<>(listener) {
             @Override

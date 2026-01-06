@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
@@ -37,7 +38,14 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query + " | FORK (WHERE true) (WHERE true) | WHERE _fork == \"fork1\" | DROP _fork";
+        boolean addLimitAfterFork = randomBoolean();
+
+        String suffix = " | FORK (WHERE true) (WHERE true) ";
+        suffix = addLimitAfterFork ? suffix + " | LIMIT 300 " : suffix;
+
+        suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
+
+        String query = testCase.query + suffix;
         doTest(query);
     }
 
@@ -62,7 +70,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using PROMQL are not supported for now",
-            testCase.requiredCapabilities.contains(PROMQL_PRE_TECH_PREVIEW_V4.capabilityName())
+            testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName())
         );
 
         assumeFalse(

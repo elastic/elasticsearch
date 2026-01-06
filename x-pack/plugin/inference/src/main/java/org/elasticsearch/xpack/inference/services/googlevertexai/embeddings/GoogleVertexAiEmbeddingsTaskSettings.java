@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -95,7 +94,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     public GoogleVertexAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
         this.autoTruncate = in.readOptionalBoolean();
-        var inputType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) ? in.readOptionalEnum(InputType.class) : null;
+        var inputType = in.readOptionalEnum(InputType.class);
         validateInputType(inputType);
         this.inputType = inputType;
     }
@@ -128,16 +127,13 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(this.autoTruncate);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeOptionalEnum(this.inputType);
-        }
+        out.writeOptionalEnum(this.inputType);
     }
 
     @Override

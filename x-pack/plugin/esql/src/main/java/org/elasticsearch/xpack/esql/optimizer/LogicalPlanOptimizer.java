@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -166,6 +167,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSurrogateExpressions(),
+            // check for a trivial conversion introduced by a surrogate
+            new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
@@ -225,6 +228,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneRedundantSortClauses(),
             new PruneLeftJoinOnNullMatchingField(),
             new PruneInlineJoinOnEmptyRightSide(),
+            new HoistOrderByBeforeInlineJoin(),
             new PruneEmptyAggregates()
         );
     }

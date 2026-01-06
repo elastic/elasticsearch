@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -26,12 +25,11 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public class PromqlFunctionCall extends UnaryPlan {
+public abstract sealed class PromqlFunctionCall extends UnaryPlan permits AcrossSeriesAggregate, WithinSeriesAggregate {
     // implements TelemetryAware {
 
     private final String functionName;
     private final List<Expression> parameters;
-    protected List<Attribute> output;
 
     public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child);
@@ -47,16 +45,6 @@ public class PromqlFunctionCall extends UnaryPlan {
     @Override
     public String getWriteableName() {
         throw new UnsupportedOperationException("PromqlFunctionCall does not support serialization");
-    }
-
-    @Override
-    protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, PromqlFunctionCall::new, child(), functionName, parameters);
-    }
-
-    @Override
-    public PromqlFunctionCall replaceChild(LogicalPlan newChild) {
-        return new PromqlFunctionCall(source(), newChild, functionName, parameters);
     }
 
     public String functionName() {
@@ -95,5 +83,10 @@ public class PromqlFunctionCall extends UnaryPlan {
         return Objects.equals(child(), other.child())
             && Objects.equals(functionName, other.functionName)
             && Objects.equals(parameters, other.parameters);
+    }
+
+    @Override
+    public List<Attribute> output() {
+        return List.of();
     }
 }

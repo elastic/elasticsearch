@@ -102,6 +102,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     "cpu_usage": {
                         "type": "double",
                         "time_series_metric": "counter"
+                    },
+                    "memory_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    },
+                    "memory_usage.free": {
+                        "type": "double",
+                        "time_series_metric": "counter"
                     }
                   }
                 }
@@ -120,6 +128,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
                     .field("metrics.memory_usage", randomDouble())
+                    .field("metrics.memory_usage.free", randomDouble())
+                    .field("metrics.load", randomDouble())
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -141,6 +151,13 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         String mapping = """
             {
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
@@ -158,6 +175,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 },
                 "metrics.latency": {
                   "type": "exponential_histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "histogram",
                   "time_series_metric": "histogram"
                 },
                 "my_labels": {
@@ -209,6 +230,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
                     .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
                     .endObject()
+                    .endObject()
+
+                    .startObject("metrics.tdigest")
+                    .array("values", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()
 
                     .startObject("my_labels.my_histogram")
@@ -620,7 +646,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         final double[] array = new double[size];
         double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
         for (int i = 0; i < array.length; i++) {
-            array[i] = minHistogramValue += randomDoubleBetween(0.0, 0.5, true);
+            array[i] = minHistogramValue += randomDoubleBetween(0.1, 10.0, true);
         }
         return array;
     }

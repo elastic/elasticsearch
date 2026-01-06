@@ -30,7 +30,6 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +40,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class CustomMustacheFactory extends DefaultMustacheFactory {
+
     static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MEDIA_TYPE = "application/json";
@@ -117,7 +117,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         return new Builder();
     }
 
-    class CustomMustacheVisitor extends DefaultMustacheVisitor {
+    private static class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
         CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
@@ -140,16 +140,23 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void partial(TemplateContext tc, String variable, String indent) {
-            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc),
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc.),
             // and re-thrown in the mustache parser itself
             throw new MustacheException(Strings.format("Cannot expand '%s' because partial templates are not supported", variable));
+        }
+
+        @Override
+        public void dynamicPartial(TemplateContext tc, final String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc.),
+            // and re-thrown in the mustache parser itself
+            throw new MustacheException(Strings.format("Cannot expand '%s' because dynamic partial templates are not supported", variable));
         }
     }
 
     /**
      * Base class for custom Mustache functions
      */
-    abstract static class CustomCode extends IterableCode {
+    private abstract static class CustomCode extends IterableCode {
 
         private final String code;
 
@@ -189,12 +196,11 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
             try (StringWriter capture = new StringWriter()) {
                 // Variable name is in plain text and has type WriteCode
                 if (codes[0] instanceof WriteCode) {
-                    codes[0].execute(capture, Collections.emptyList());
-                    return capture.toString();
+                    codes[0].execute(capture, List.of());
                 } else {
                     codes[0].identity(capture);
-                    return capture.toString();
                 }
+                return capture.toString();
             } catch (IOException e) {
                 throw new MustacheException("Exception while parsing mustache function [" + fn + "] at line " + tc.line(), e);
             }
@@ -204,7 +210,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * This function renders {@link Iterable} and {@link Map} as their JSON representation
      */
-    static class ToJsonCode extends CustomCode {
+    private static class ToJsonCode extends CustomCode {
 
         private static final String CODE = "toJson";
 
@@ -250,7 +256,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * This function concatenates the values of an {@link Iterable} using a given delimiter
      */
-    static class JoinerCode extends CustomCode {
+    private static class JoinerCode extends CustomCode {
 
         protected static final String CODE = "join";
         private static final String DEFAULT_DELIMITER = ",";
@@ -287,7 +293,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static class CustomJoinerCode extends JoinerCode {
+    private static class CustomJoinerCode extends JoinerCode {
 
         private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
@@ -312,7 +318,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
      * This function encodes a string using the {@link URLEncoder#encode(String, String)} method
      * with the UTF-8 charset.
      */
-    static class UrlEncoderCode extends DefaultMustache {
+    private static class UrlEncoderCode extends DefaultMustache {
 
         private static final String CODE = "url";
         private final Encoder encoder;

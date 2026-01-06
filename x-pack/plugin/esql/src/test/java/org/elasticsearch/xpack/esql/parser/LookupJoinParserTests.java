@@ -61,7 +61,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             }
 
         }
-        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onFields);
+        var plan = query("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onFields);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
@@ -79,7 +79,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
      * without checking for the capability
      */
     public void testExpressionJoinEnabled() {
-        var plan = statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field");
+        var plan = query("FROM test | LOOKUP JOIN test2 ON left_field >= right_field");
         var join = as(plan, LookupJoin.class);
     }
 
@@ -115,7 +115,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
         }
 
         String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
-        var plan = statement(query);
+        var plan = query(query);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
@@ -159,7 +159,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
     private void testValidJoinPatternWithRemote(String onClause) {
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause);
+        var plan = query("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(fromPatterns)));
@@ -322,7 +322,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
 
         if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
             {
-                // Selectors are not supported on the left of the join query if used with cluster ids.
+                // Selectors are not supported on the left of the join statement if used with cluster ids.
                 // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
                 var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(DATE_MATH));
                 // We do different validation based on the quotation of the pattern
@@ -335,7 +335,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
                 );
             }
             {
-                // Selectors are not supported on the left of the join query if used with cluster ids.
+                // Selectors are not supported on the left of the join statement if used with cluster ids.
                 // Quoted case: The language specification allows mixing `:` and `::` characters in a quoted expression, but this usage
                 // must cause a validation exception in the non-generated code.
                 var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(INDEX_SELECTOR));
@@ -406,8 +406,8 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
 
-        // Test LOOKUP JOIN ON expression with named query parameters and MATCH function
-        var plan = statement(
+        // Test LOOKUP JOIN ON expression with named statement parameters and MATCH function
+        var plan = query(
             "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?search_term)",
             new QueryParams(List.of(paramAsConstant("search_term", "elasticsearch")))
         );
@@ -441,8 +441,8 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
 
-        // Test LOOKUP JOIN ON expression with positional query parameters and MATCH function
-        var plan = statement(
+        // Test LOOKUP JOIN ON expression with positional statement parameters and MATCH function
+        var plan = query(
             "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?2)",
             new QueryParams(List.of(paramAsConstant(null, "dummy"), paramAsConstant(null, "elasticsearch")))
         );

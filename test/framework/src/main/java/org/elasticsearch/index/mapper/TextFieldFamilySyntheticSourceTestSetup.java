@@ -55,7 +55,8 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 ignoreAbove,
                 randomBoolean(),
                 null,
-                false
+                false,
+                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false)
             );
         }
 

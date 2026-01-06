@@ -27,6 +27,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
@@ -41,10 +42,8 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.function.IntUnaryOperator;
 
@@ -194,7 +193,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
         String quantizedVectorsTempName = null;
-        boolean success = false;
         try (
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
@@ -234,11 +232,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     writeQuantizedValue(quantizedVectorsTemp, binary, zeroResult);
                 }
             }
-            success = true;
-        } finally {
-            if (success == false && quantizedVectorsTempName != null) {
+        } catch (Throwable t) {
+            if (quantizedVectorsTempName != null) {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
             }
+            throw t;
         }
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {
@@ -447,7 +445,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            CentroidSupplier.fromArray(centroidGroups.centroids),
+            CentroidSupplier.fromArray(centroidGroups.centroids, fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -506,24 +504,10 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     private CentroidGroups buildCentroidGroups(FieldInfo fieldInfo, CentroidSupplier centroidSupplier) throws IOException {
-        final FloatVectorValues floatVectorValues = FloatVectorValues.fromFloats(new AbstractList<>() {
-            @Override
-            public float[] get(int index) {
-                try {
-                    return centroidSupplier.centroid(index);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-
-            @Override
-            public int size() {
-                return centroidSupplier.size();
-            }
-        }, fieldInfo.getVectorDimension());
+        final FloatVectorValues floatVectorValues = centroidSupplier.asFloatVectorValues();
         // we use the HierarchicalKMeans to partition the space of all vectors across merging segments
         // this are small numbers so we run it wih all the centroids.
-        final KMeansResult kMeansResult = new HierarchicalKMeans(
+        final KMeansResult kMeansResult = HierarchicalKMeans.ofSerial(
             fieldInfo.getVectorDimension(),
             HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
             HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
@@ -568,7 +552,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation
-        KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
+        KMeansResult kMeansResult = HierarchicalKMeans.ofSerial(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", centroids.length);
@@ -616,6 +600,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;
+        }
+
+        @Override
+        public FloatVectorValues asFloatVectorValues() throws IOException {
+            return KmeansFloatVectorValues.build(centroidsInput, null, numCentroids, dimension);
         }
     }
 

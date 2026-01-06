@@ -91,6 +91,21 @@ public class BytesStreamOutput extends BytesStream {
         count += length;
     }
 
+    @Override
+    public void writeString(String str) throws IOException {
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        StreamOutputHelper.writeOptionalString(str, this);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        StreamOutputHelper.writeGenericString(value, this);
+    }
+
     public void reset() {
         // shrink list of pages
         if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {

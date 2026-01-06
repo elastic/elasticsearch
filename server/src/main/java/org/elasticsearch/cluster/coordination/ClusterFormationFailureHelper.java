@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -157,6 +156,54 @@ public class ClusterFormationFailureHelper {
     }
 
     /**
+     * A helper record containing the subset of the {@link ClusterState} that the {@link ClusterFormationState} requires
+     */
+    public record ClusterFormationClusterStateView(
+        DiscoveryNode localNode,
+        Map<String, DiscoveryNode> masterEligibleNodes,
+        long lastAcceptedVersion,
+        long lastAcceptedTerm,
+        VotingConfiguration lastAcceptedConfiguration,
+        VotingConfiguration lastCommittedConfiguration,
+        long currentTerm
+    ) implements Writeable {
+        public ClusterFormationClusterStateView(ClusterState clusterState, long currentTerm) {
+            this(
+                clusterState.nodes().getLocalNode(),
+                clusterState.nodes().getMasterNodes(),
+                clusterState.version(),
+                clusterState.term(),
+                clusterState.getLastAcceptedConfiguration(),
+                clusterState.getLastCommittedConfiguration(),
+                currentTerm
+            );
+        }
+
+        public ClusterFormationClusterStateView(StreamInput in) throws IOException {
+            this(
+                new DiscoveryNode(in),
+                in.readMap(DiscoveryNode::new),
+                in.readLong(),
+                in.readLong(),
+                new VotingConfiguration(in),
+                new VotingConfiguration(in),
+                in.readLong()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            localNode.writeTo(out);
+            out.writeMap(masterEligibleNodes, StreamOutput::writeWriteable);
+            out.writeLong(lastAcceptedVersion);
+            out.writeLong(lastAcceptedTerm);
+            lastAcceptedConfiguration.writeTo(out);
+            lastCommittedConfiguration.writeTo(out);
+            out.writeLong(currentTerm);
+        }
+    };
+
+    /**
      * This record provides node state information that can be used to determine why cluster formation has failed.
      */
     public record ClusterFormationState(
@@ -178,37 +225,27 @@ public class ClusterFormationFailureHelper {
 
         public ClusterFormationState(
             Settings settings,
-            ClusterState clusterState,
+            ClusterFormationClusterStateView clusterFormationClusterStateView,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
             Set<DiscoveryNode> mastersOfPeers,
-            long currentTerm,
             ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
             List<JoinStatus> inFlightJoinStatuses
         ) {
             this(
                 INITIAL_MASTER_NODES_SETTING.get(settings),
-                clusterState.nodes().getLocalNode(),
-                clusterState.nodes().getMasterNodes(),
-                clusterState.version(),
-                clusterState.term(),
-                clusterState.getLastAcceptedConfiguration(),
-                clusterState.getLastCommittedConfiguration(),
+                clusterFormationClusterStateView.localNode,
+                clusterFormationClusterStateView.masterEligibleNodes,
+                clusterFormationClusterStateView.lastAcceptedVersion,
+                clusterFormationClusterStateView.lastAcceptedTerm,
+                clusterFormationClusterStateView.lastAcceptedConfiguration,
+                clusterFormationClusterStateView.lastCommittedConfiguration,
                 resolvedAddresses,
                 foundPeers,
                 mastersOfPeers,
-                currentTerm,
-                calculateHasDiscoveredQuorum(
-                    foundPeers,
-                    electionStrategy,
-                    clusterState.nodes().getLocalNode(),
-                    currentTerm,
-                    clusterState.term(),
-                    clusterState.version(),
-                    clusterState.getLastCommittedConfiguration(),
-                    clusterState.getLastAcceptedConfiguration()
-                ),
+                clusterFormationClusterStateView.currentTerm,
+                calculateHasDiscoveredQuorum(foundPeers, electionStrategy, clusterFormationClusterStateView),
                 statusInfo,
                 inFlightJoinStatuses
             );
@@ -217,22 +254,17 @@ public class ClusterFormationFailureHelper {
         private static boolean calculateHasDiscoveredQuorum(
             List<DiscoveryNode> foundPeers,
             ElectionStrategy electionStrategy,
-            DiscoveryNode localNode,
-            long currentTerm,
-            long acceptedTerm,
-            long clusterStateVersion,
-            VotingConfiguration lastCommittedConfiguration,
-            VotingConfiguration lastAcceptedConfiguration
+            ClusterFormationClusterStateView clusterFormationClusterStateView
         ) {
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
             return electionStrategy.isElectionQuorum(
-                localNode,
-                currentTerm,
-                acceptedTerm,
-                clusterStateVersion,
-                lastCommittedConfiguration,
-                lastAcceptedConfiguration,
+                clusterFormationClusterStateView.localNode,
+                clusterFormationClusterStateView.currentTerm,
+                clusterFormationClusterStateView.lastAcceptedTerm,
+                clusterFormationClusterStateView.lastAcceptedVersion,
+                clusterFormationClusterStateView.lastCommittedConfiguration,
+                clusterFormationClusterStateView.lastAcceptedConfiguration,
                 voteCollection
             );
         }
@@ -248,9 +280,7 @@ public class ClusterFormationFailureHelper {
                 new VotingConfiguration(in),
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
-                    : Set.of(),
+                in.readCollectionAsImmutableSet(DiscoveryNode::new),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
@@ -430,9 +460,7 @@ public class ClusterFormationFailureHelper {
             lastCommittedConfiguration.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeCollection(mastersOfPeers);
-            }
+            out.writeCollection(mastersOfPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

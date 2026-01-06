@@ -14,11 +14,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.ClassRule;
+import org.junit.runners.model.MultipleFailureException;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ESClientYamlSuiteTestCaseMultipleFailuresIT extends ESClientYamlSuiteTestCase {
 
@@ -48,14 +53,17 @@ public class ESClientYamlSuiteTestCaseMultipleFailuresIT extends ESClientYamlSui
         try {
             super.test();
         } catch (AssertionError error) {
-            String message = error.getMessage();
-            assertThat("Error message should start with failure count", message, containsString("There were 3 errors"));
-            assertThat("Error message should contain first failure", message, containsString("wrong_value1"));
-            assertThat("Error message should contain second failure", message, containsString("wrong_value2"));
-            assertThat("Error message should contain third failure", message, containsString("wrong_value3"));
-            assertThat("Error message should contain actual value1", message, containsString("value1"));
-            assertThat("Error message should contain actual value2", message, containsString("value2"));
-            assertThat("Error message should contain actual value3", message, containsString("value3"));
+            assertThat(error.getCause(), instanceOf(MultipleFailureException.class));
+            MultipleFailureException cause = (MultipleFailureException) error.getCause();
+            assertThat(cause.getFailures(), hasSize(3));
+            assertThat(
+                cause.getFailures(),
+                containsInAnyOrder(
+                    hasToString(containsString("wrong_value1")),
+                    hasToString(containsString("wrong_value2")),
+                    hasToString(containsString("wrong_value3"))
+                )
+            );
         }
     }
 

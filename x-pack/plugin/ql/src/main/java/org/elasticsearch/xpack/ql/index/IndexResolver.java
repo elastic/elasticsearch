@@ -405,9 +405,20 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean setCpsOptions,
+        String projectRouting,
         ActionListener<IndexResolution> listener
     ) {
-        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, listener, (fieldName, types) -> null);
+        resolveAsMergedMapping(
+            indexWildcard,
+            fieldNames,
+            includeFrozen,
+            runtimeMappings,
+            setCpsOptions,
+            projectRouting,
+            listener,
+            (fieldName, types) -> null
+        );
     }
 
     /**
@@ -418,10 +429,22 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean setCpsOptions,
+        String projectRouting,
         ActionListener<IndexResolution> listener,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
+        if (setCpsOptions) {
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
+            fieldRequest.indicesOptions(
+                IndicesOptions.builder(fieldRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+        }
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
@@ -703,9 +726,21 @@ public class IndexResolver {
         String javaRegex,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean crossProjectEnabled,
+        String projectRouting,
         ActionListener<List<EsIndex>> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings);
+        if (crossProjectEnabled) {
+            fieldRequest.indicesOptions(
+                IndicesOptions.builder(fieldRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
+        }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
                 delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));

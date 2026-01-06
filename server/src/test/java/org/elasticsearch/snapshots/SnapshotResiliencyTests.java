@@ -238,7 +238,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
 
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-
         continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(

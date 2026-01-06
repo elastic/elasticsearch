@@ -520,17 +520,17 @@ public class SnapshotResiliencyTestHelper {
                             return ConnectionStatus.CONNECTED;
                         }
                         // Check if both nodes are still part of the cluster
-                        if (nodes().containsKey(node.getName()) == false || nodes().containsKey(destination.getName()) == false) {
+                        if (nodes.containsKey(node.getName()) == false || nodes.containsKey(destination.getName()) == false) {
                             return ConnectionStatus.DISCONNECTED;
                         }
-                        return disconnectedNodes().contains(node.getName()) || disconnectedNodes().contains(destination.getName())
+                        return disconnectedNodes.contains(node.getName()) || disconnectedNodes.contains(destination.getName())
                             ? ConnectionStatus.DISCONNECTED
                             : ConnectionStatus.CONNECTED;
                     }
 
                     @Override
                     protected Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address) {
-                        return nodes().values()
+                        return nodes.values()
                             .stream()
                             .map(cn -> cn.mockTransport)
                             .filter(transport -> transport.getLocalNode().getAddress().equals(address))
@@ -1088,7 +1088,7 @@ public class SnapshotResiliencyTestHelper {
                 disconnectNode(this);
                 final ClusterState oldState = this.clusterService.state();
                 stop();
-                nodes().remove(node.getName());
+                nodes.remove(node.getName());
 
                 scheduleSoon(() -> {
                     try {
@@ -1097,7 +1097,7 @@ public class SnapshotResiliencyTestHelper {
                             transportInterceptorFactory
                         );
                         restartedNode.init();
-                        nodes().put(node.getName(), restartedNode);
+                        nodes.put(node.getName(), restartedNode);
                         restartedNode.start(oldState);
                     } catch (IOException e) {
                         throw new AssertionError(e);
@@ -1194,7 +1194,7 @@ public class SnapshotResiliencyTestHelper {
                     allocationService,
                     masterService,
                     getPersistedStateSupplier(initialState, node),
-                    hostsResolver -> nodes().values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
+                    hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
                     clusterService.getClusterApplierService(),
                     Collections.emptyList(),
                     LuceneTestCase.random(),

@@ -70,7 +70,8 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TransportInterceptorFactory;
+import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes;
+import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -122,7 +123,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     protected DeterministicTaskQueue deterministicTaskQueue;
 
-    protected SnapshotResiliencyTestHelper.TestClusterNodes testClusterNodes;
+    protected TestClusterNodes testClusterNodes;
 
     protected Path tempDir;
 
@@ -176,7 +177,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 fail(result);
             }
         } finally {
-            testClusterNodes.nodes().values().forEach(SnapshotResiliencyTestHelper.TestClusterNode::stop);
+            testClusterNodes.nodes().values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
     }
 
@@ -189,7 +190,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(0, 100);
 
-        final SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -346,7 +347,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         clearDisruptionsAndAwaitSync();
 
-        final SnapshotResiliencyTestHelper.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
+        final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
             .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
         SnapshotsInProgress finalSnapshotsInProgress = SnapshotsInProgress.get(randomMaster.clusterService().state());
         assertTrue(finalSnapshotsInProgress.isEmpty());
@@ -405,7 +406,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         clearDisruptionsAndAwaitSync();
 
-        final SnapshotResiliencyTestHelper.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
+        final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
             .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
         assertTrue(SnapshotsInProgress.get(randomMaster.clusterService().state()).isEmpty());
         final Repository repository = randomMaster.repositoriesService().repository(repoName);
@@ -421,7 +422,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -489,7 +490,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -563,7 +564,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -620,7 +621,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -746,7 +747,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         String snapshotName = "snapshot";
         final String index = "test";
 
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -837,7 +838,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -911,7 +912,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final int shards = randomIntBetween(1, 10);
 
-        final SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
         final AtomicBoolean createdSnapshot = new AtomicBoolean();
@@ -934,12 +935,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .filter(ShardRouting::primary)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no primary shard found"));
-            final SnapshotResiliencyTestHelper.TestClusterNode currentPrimaryNode = testClusterNodes.nodeById(
-                shardToRelocate.currentNodeId()
-            );
-            final SnapshotResiliencyTestHelper.TestClusterNode otherNode = testClusterNodes.randomDataNodeSafe(
-                currentPrimaryNode.node().getName()
-            );
+            final TestClusterNodes.TestClusterNode currentPrimaryNode = testClusterNodes.nodeById(shardToRelocate.currentNodeId());
+            final TestClusterNodes.TestClusterNode otherNode = testClusterNodes.randomDataNodeSafe(currentPrimaryNode.node().getName());
             scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));
             scheduleNow(new Runnable() {
                 @Override
@@ -1021,7 +1018,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(2, 100);
-        SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -1120,7 +1117,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(1, 100);
 
-        final SnapshotResiliencyTestHelper.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes().values().iterator().next().clusterService().state()
         );
 
@@ -1842,7 +1839,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         if (randomBoolean()) {
             disconnectRandomDataNode();
         } else {
-            testClusterNodes.randomDataNode().ifPresent(SnapshotResiliencyTestHelper.TestClusterNode::restart);
+            testClusterNodes.randomDataNode().ifPresent(TestClusterNodes.TestClusterNode::restart);
         }
     }
 
@@ -1944,7 +1941,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
-        testClusterNodes = new SnapshotResiliencyTestHelper.TestClusterNodes(
+        testClusterNodes = new TestClusterNodes(
             masterNodes,
             dataNodes,
             tempDir,
@@ -1974,7 +1971,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     public NodeClient client() {
         // Select from sorted list of nodes
-        final List<SnapshotResiliencyTestHelper.TestClusterNode> nodes = testClusterNodes.nodes()
+        final List<TestClusterNodes.TestClusterNode> nodes = testClusterNodes.nodes()
             .values()
             .stream()
             .filter(n -> testClusterNodes.disconnectedNodes().contains(n.node().getName()) == false)

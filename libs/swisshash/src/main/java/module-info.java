@@ -7,18 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.upgrades;
+module org.elasticsearch.swisshash {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.logging;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
+    requires org.apache.lucene.core;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
-public class TextRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
-
-    public TextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
-
-    @Override
-    public String stringType() {
-        return "text";
-    }
+    exports org.elasticsearch.swisshash;
 }

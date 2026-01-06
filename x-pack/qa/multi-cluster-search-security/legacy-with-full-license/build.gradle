@@ -5,10 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
@@ -18,58 +15,29 @@ restResources {
   }
 }
 
-// randomise between sniff and proxy modes
+// Register REST API specs with javaRestTest source set (required for ESClientYamlSuiteTestCase)
+sourceSets.javaRestTest.output.dir(
+  tasks.named('copyRestApiSpecsTask').flatMap { it.outputResourceDir }
+)
+
+// Randomise between sniff and proxy modes
 var proxyModeProvider = buildParams.random.map{r -> r.nextBoolean()}
 
-def fulfillingCluster = testClusters.register('fulfilling-cluster') {
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  module ':modules:analysis-common'
-  module ':modules:lang-painless'
-  module ':modules:data-streams'
-  module ':x-pack:plugin:mapper-constant-keyword'
-  module ':x-pack:plugin:async-search'
-  user username: "test_user", password: "x-pack-test-password"
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':x-pack:plugin:mapper-constant-keyword')
+  clusterModules project(':x-pack:plugin:async-search')
 }
 
-def queryingCluster = testClusters.register('querying-cluster') {
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  module ':modules:analysis-common'
-  module ':modules:lang-painless'
-  module ':modules:data-streams'
-  module ':x-pack:plugin:mapper-constant-keyword'
-  module ':x-pack:plugin:async-search'
-  setting 'cluster.remote.connections_per_cluster', "1"
-  user username: "test_user", password: "x-pack-test-password"
-
-  if (proxyModeProvider.get()) {
-    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
-    setting 'cluster.remote.my_remote_cluster.proxy_address', {
-      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
-    }, IGNORE_VALUE
-  } else {
-    setting 'cluster.remote.my_remote_cluster.seeds', {
-      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-    }, IGNORE_VALUE
-  }
+tasks.named("javaRestTest").configure {
+  dependsOn "processJavaRestTestResources"
+  maxParallelForks = 1
+  usesDefaultDistribution("Multi-cluster search security tests require the default distribution")
+  systemProperty 'tests.remote.proxy.mode', proxyModeProvider.get().toString()
 }
 
-tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
-}
-
-tasks.register('querying-cluster', RestIntegTestTask) {
-  dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'querying_cluster'
-}
-
-// runs the fulfilling-cluster cluster tests then the querying-cluster tests
-tasks.register("integTest") {
-  dependsOn 'querying-cluster'
-}
-
-tasks.named("check").configure { dependsOn("integTest") }
+tasks.named("check").configure { dependsOn("javaRestTest") }

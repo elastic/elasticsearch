@@ -1,5 +1,5 @@
 tasks.register("integTest") {
   subprojects.each {
-    dependsOn "${it.name}:integTest"
+    dependsOn "${it.name}:javaRestTest"
   }
 }

@@ -27,8 +27,7 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues {
 
     /** Sole constructor */
     protected FilterFloatVectorValues(FloatVectorValues in) {
-        Objects.requireNonNull(in);
-        this.in = in;
+        this.in = Objects.requireNonNull(in);
     }
 
     @Override

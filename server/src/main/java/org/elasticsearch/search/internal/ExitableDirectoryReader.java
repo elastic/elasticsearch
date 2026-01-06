@@ -137,7 +137,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(queryCancellation, vectorValues) : vectorValues;
+            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(vectorValues, queryCancellation) : vectorValues;
         }
 
         @Override
@@ -457,7 +457,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     private static class ExitableByteVectorValues extends FilterByteVectorValues {
         private final QueryCancellation queryCancellation;
 
-        private ExitableByteVectorValues(QueryCancellation queryCancellation, ByteVectorValues in) {
+        private ExitableByteVectorValues(ByteVectorValues in, QueryCancellation queryCancellation) {
             super(in);
             this.queryCancellation = queryCancellation;
         }
@@ -491,7 +491,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public ByteVectorValues copy() throws IOException {
-            return new ExitableByteVectorValues(queryCancellation, in.copy());
+            return new ExitableByteVectorValues(in.copy(), queryCancellation);
         }
     }
 
@@ -552,7 +552,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public FloatVectorValues copy() throws IOException {
             assert in instanceof BulkScorableFloatVectorValues;
-            FloatVectorValues copy = this.in;
+            FloatVectorValues copy = this.in.copy();
             BulkScorableFloatVectorValues bulkScorableCopy = (BulkScorableFloatVectorValues) copy;
             return new ExitableBulkScorableFloatVectorValues(copy, bulkScorableCopy, queryCancellation);
         }

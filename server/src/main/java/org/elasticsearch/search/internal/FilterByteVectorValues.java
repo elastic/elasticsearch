@@ -27,8 +27,7 @@ public abstract class FilterByteVectorValues extends ByteVectorValues {
 
     /** Sole constructor */
     protected FilterByteVectorValues(ByteVectorValues in) {
-        Objects.requireNonNull(in);
-        this.in = in;
+        this.in = Objects.requireNonNull(in);
     }
 
     @Override

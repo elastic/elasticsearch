@@ -23,16 +23,6 @@ import static org.apache.lucene.tests.util.LuceneTestCase.random;
 public class TransformConfigVersionUtils {
     private static final List<TransformConfigVersion> ALL_VERSIONS = KnownTransformConfigVersions.ALL_VERSIONS;
 
-    /** Returns all released versions */
-    public static List<TransformConfigVersion> allReleasedVersions() {
-        return ALL_VERSIONS;
-    }
-
-    /** Returns the oldest known {@link TransformConfigVersion} */
-    public static TransformConfigVersion getFirstVersion() {
-        return ALL_VERSIONS.get(0);
-    }
-
     /** Returns a random {@link TransformConfigVersion} from all available versions. */
     public static TransformConfigVersion randomVersion() {
         return ESTestCase.randomFrom(ALL_VERSIONS);

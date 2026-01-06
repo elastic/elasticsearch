@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -106,6 +107,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
     }
 
     public void testPartialResults() throws Exception {
+        assumeTrue("require pragma", canUseQueryPragmas());
         populateIndices();
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
@@ -147,6 +149,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
     }
 
     public void testOneRemoteClusterPartial() throws Exception {
+        assumeTrue("require pragma", canUseQueryPragmas());
         populateIndices();
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query("FROM ok*,cluster-a:ok*,*-b:fail* | KEEP id, fail_me");
@@ -462,5 +465,9 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", "no_such_node"))
                 .setWaitForActiveShards(ActiveShardCount.NONE)
         );
+    }
+
+    protected static boolean canUseQueryPragmas() {
+        return Build.current().isSnapshot();
     }
 }

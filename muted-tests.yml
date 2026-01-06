@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
   method: testRecreateTemplateWhenDeleted
   issue: https://github.com/elastic/elasticsearch/issues/123232
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testOneRemoteClusterPartial
-  issue: https://github.com/elastic/elasticsearch/issues/124055
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/125668
@@ -354,6 +351,3 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/140168

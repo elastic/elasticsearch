@@ -236,7 +236,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
             );
         }
         var indexCreated = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
         );
@@ -343,7 +342,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
         // we have to stick with the same major
             minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
-        final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
+        final Version justGood = randomVersionBetween(minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
             NodeJoinExecutor.ensureNodesCompatibility(justGood, nodes);
@@ -676,7 +675,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             if (randomBoolean()) {
                 builder.put(
                     IndexMetadata.SETTING_VERSION_COMPATIBILITY,
-                    IndexVersionUtils.randomVersionBetween(random(), createdVersion, IndexVersion.current())
+                    IndexVersionUtils.randomVersionBetween(createdVersion, IndexVersion.current())
                 );
             }
         } else {

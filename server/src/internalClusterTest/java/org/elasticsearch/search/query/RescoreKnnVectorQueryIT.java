@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,7 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -93,7 +91,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
             Arrays.stream(VectorIndexType.values())
                 .filter(VectorIndexType::isQuantized)
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
-                .collect(Collectors.toCollection(ArrayList::new))
+                .toList()
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -202,15 +200,12 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         indexRandom(true, docs);
 
         float[] queryVector = testParams.queryVector;
-        float oversample = randomFloatBetween(1.0f, 100f, true);
-        RescoreVectorBuilder rescoreVectorBuilder = new RescoreVectorBuilder(oversample);
-
         SearchRequestBuilder requestBuilder = searchRequestGenerator.apply(
             testParams,
             prepareSearch(INDEX_NAME).setSize(numDocs).setTrackTotalHits(randomBoolean())
         );
 
-        assertNoFailuresAndResponse(requestBuilder, knnResponse -> { compareWithExactSearch(knnResponse, queryVector, numDocs); });
+        assertNoFailuresAndResponse(requestBuilder, knnResponse -> compareWithExactSearch(knnResponse, queryVector, numDocs));
     }
 
     private static void compareWithExactSearch(SearchResponse knnResponse, float[] queryVector, int docCount) {

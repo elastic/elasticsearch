@@ -80,7 +80,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        var queryVector = randomVector(numDims);
+        float[] queryVector = randomVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
         innerQueries.add(
@@ -94,8 +94,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
-
-                for (var innerQuery : innerQueries) {
+                for (Query innerQuery : innerQueries) {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
@@ -163,7 +162,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        var queryVector = randomVector(numDims);
+        float[] queryVector = randomVector(numDims);
 
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
@@ -177,7 +176,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
             try (DirectoryReader reader = DirectoryReader.open(d)) {
-                for (var innerQuery : innerQueries) {
+                for (Query innerQuery : innerQueries) {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
@@ -315,28 +314,19 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     private static void addRandomDocuments(int numDocs, Directory d, int numDims) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            DenseVectorFieldMapper.ElementType.BFLOAT16
+        );
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(
-                DEFAULT_VECTORS_PER_CLUSTER,
-                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                randomBoolean()
-            ),
-            new ES93BinaryQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                false
-            ),
-            new ES93HnswBinaryQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                randomBoolean()
-            ),
-            new ES93ScalarQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16)
-            ),
+            new ES920DiskBBQVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, elementType, randomBoolean()),
+            new ES93BinaryQuantizedVectorsFormat(elementType, false),
+            new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
+            new ES93ScalarQuantizedVectorsFormat(elementType),
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
+                elementType,
                 null,
                 7,
                 false,

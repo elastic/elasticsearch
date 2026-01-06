@@ -89,16 +89,6 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     @Override
-    public int getTotalValueCount() {
-        return encodedDigests.getTotalValueCount();
-    }
-
-    @Override
-    public int getPositionCount() {
-        return encodedDigests.getPositionCount();
-    }
-
-    @Override
     public int getFirstValueIndex(int position) {
         return position;
     }

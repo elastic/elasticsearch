@@ -29,14 +29,13 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     private final DoubleBlock maxBlock;
     private final DoubleBlock sumBlock;
     private final IntBlock countBlock;
-    private final int positionCount;
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
         this.maxBlock = maxBlock;
         this.sumBlock = sumBlock;
         this.countBlock = countBlock;
-        this.positionCount = minBlock.getPositionCount();
+        int positionCount = minBlock.getPositionCount();
         for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
             if (b.getPositionCount() != positionCount) {
                 assert false : "expected positionCount=" + positionCount + " but was " + b;
@@ -73,20 +72,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     @Override
     public Vector asVector() {
         return null;
-    }
-
-    @Override
-    public int getTotalValueCount() {
-        int totalValueCount = 0;
-        for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            totalValueCount += b.getTotalValueCount();
-        }
-        return totalValueCount;
-    }
-
-    @Override
-    public int getPositionCount() {
-        return positionCount;
     }
 
     @Override

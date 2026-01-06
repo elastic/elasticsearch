@@ -256,16 +256,6 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     }
 
     @Override
-    public int getTotalValueCount() {
-        return encodedHistograms.getTotalValueCount();
-    }
-
-    @Override
-    public int getPositionCount() {
-        return encodedHistograms.getPositionCount();
-    }
-
-    @Override
     public int getFirstValueIndex(int position) {
         return position;
     }

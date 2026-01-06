@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
@@ -29,6 +29,19 @@ import java.util.Objects;
  */
 public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
+
+    /**
+     * Backward compatibility entry for reading the old "EsqlProject" type which has been consolidated into Project.
+     */
+    public static final NamedWriteableRegistry.Entry ESQL_PROJECT_ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "EsqlProject",
+        Project::readFrom
+    );
+
+    private static Project readFrom(StreamInput in) throws IOException {
+        return new Project(in);
+    }
 
     private final List<? extends NamedExpression> projections;
 
@@ -96,7 +109,13 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(projections);
+        for (NamedExpression projection : projections) {
+            // don't call dataType() - it will fail on UnresolvedAttribute
+            if (projection.resolved() == false && projection instanceof UnsupportedAttribute == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

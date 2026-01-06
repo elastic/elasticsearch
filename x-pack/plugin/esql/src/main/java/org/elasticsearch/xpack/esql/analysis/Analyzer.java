@@ -142,7 +142,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -902,7 +901,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit EsqlProject to align the outputs.
+                // We need to add an explicit Project to align the outputs.
                 if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
@@ -1258,7 +1257,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedProjections = new ArrayList<>(priorities.keySet());
             }
 
-            return new EsqlProject(p.source(), p.child(), resolvedProjections);
+            return new Project(p.source(), p.child(), resolvedProjections);
         }
 
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
@@ -1288,13 +1287,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             }
 
-            return new EsqlProject(drop.source(), drop.child(), resolvedProjections);
+            return new Project(drop.source(), drop.child(), resolvedProjections);
         }
 
         private LogicalPlan resolveRename(Rename rename, List<Attribute> childrenOutput) {
             List<NamedExpression> projections = projectionsForRename(rename, childrenOutput, log);
 
-            return new EsqlProject(rename.source(), rename.child(), projections);
+            return new Project(rename.source(), rename.child(), projections);
         }
 
         /**
@@ -2562,12 +2561,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
          */
         private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
-            // Fork/UnionAll adds an EsqlProject on top of each child plan during resolveFork, check this pattern before pushing down
+            // Fork/UnionAll adds an Project on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if (aliases.isEmpty() == false && child instanceof EsqlProject esqlProject) {
+            if (aliases.isEmpty() == false && child instanceof Project esqlProject) {
                 LogicalPlan childOfProject = esqlProject.child();
                 Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new EsqlProject(esqlProject.source(), eval, output);
+                return new Project(esqlProject.source(), eval, output);
             }
             return child;
         }
@@ -2707,7 +2706,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         outputChanged = true;
                     }
                 }
-                // create a new eval for the casting expressions, and push it down under the EsqlProject
+                // create a new eval for the casting expressions, and push it down under the Project
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
             }
 

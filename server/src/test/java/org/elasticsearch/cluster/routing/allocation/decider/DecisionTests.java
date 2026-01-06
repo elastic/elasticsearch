@@ -54,7 +54,9 @@ public class DecisionTests extends ESTestCase {
     }
 
     public void testTypeHigherThan() {
-        assertTrue(YES.higherThan(THROTTLE) && THROTTLE.higherThan(NOT_PREFERRED) && NOT_PREFERRED.higherThan(NO));
+        assertTrue(
+            YES.isBetterAcrossNodes(THROTTLE) && THROTTLE.isBetterAcrossNodes(NOT_PREFERRED) && NOT_PREFERRED.isBetterAcrossNodes(NO)
+        );
     }
 
     public void testTypeAllowed() {

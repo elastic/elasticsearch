@@ -530,12 +530,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
-                    if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
+                    if (rebalanceConditionsMet && canAllocate.type().isBetterAcrossNodes(bestRebalanceCanAllocateDecisionType)) {
                         // Overwrite the best decision since it is better than the last. This means that YES/THROTTLE decisions will replace
                         // NOT_PREFERRED/NO decisions, and a YES decision will replace a THROTTLE decision. NOT_PREFERRED will also replace
                         // NO, even if neither are acted upon for rebalancing, for allocation explain purposes.
                         bestRebalanceCanAllocateDecisionType = canAllocate.type();
-                        if (canAllocate.type().higherThan(Type.NOT_PREFERRED)) {
+                        if (canAllocate.type().isBetterAcrossNodes(Type.NOT_PREFERRED)) {
                             // Movement is only allowed to THROTTLE/YES nodes. NOT_PREFERRED is the same as no for rebalancing, since
                             // rebalancing aims to distribute resource usage and NOT_PREFERRED means the move could cause hot-spots.
                             targetNode = node;
@@ -1053,7 +1053,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
                         continue;
                     }
-                    if (allocationDecision.type().higherThan(bestDecision)) {
+                    if (allocationDecision.type().isBetterAcrossNodes(bestDecision)) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
                             targetNode = target;
@@ -1570,6 +1570,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
 
+                    assert rebalanceDecision.type() != Type.NOT_PREFERRED
+                        : "if this changes, we'll have to consider what comparison to use";
                     final Decision.Type canAllocateOrRebalance = Decision.Type.min(allocationDecision.type(), rebalanceDecision.type());
 
                     maxNode.removeShard(projectIndex(shard), shard);

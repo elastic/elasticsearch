@@ -153,10 +153,10 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         }
 
         /**
-         * @return lowest decision by natural order
+         * @return the worst result according to {@link #isWorseForTheSameNode}. THROTTLE is worse than NOT_PREFERRED.
          */
         public static Type min(Type a, Type b) {
-            return a.compareTo(b) < 0 ? a : b;
+            return a.isWorseForTheSameNode(b) ? a : b;
         }
 
         @Override
@@ -179,8 +179,39 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             }
         }
 
-        public boolean higherThan(Type other) {
-            return this.compareTo(other) > 0;
+        /**
+         * Compares this decision against a new decision. A temporarily THROTTLE'ed node is a better choice than a NOT_PREFERRED node.
+         * <p>
+         * This is used in simulation, which does not encounter THROTTLE; and allocation explain, which will choose a target node that is
+         * THROTTLED temporarily (which simulation ignores and will assign to) over one that is NOT_PREFERRED. Simulation
+         * and explain both use the same code paths in the Allocator code, so this helper is used in the Allocator code.
+         */
+        public boolean isBetterAcrossNodes(Type newDecision) {
+            return this.compareTo(newDecision) > 0;
+        }
+
+        /**
+         * Compares this decision against a new decision. THROTTLE is considered a worse decision than NOT_PREFERRED.
+         * <p>
+         * A node that has both NOT_PREFERRED and THROTTLE decider results must surface THROTTLE so that the shard does not get moved.
+         * THROTTLE will go away eventually and NOT_PREFERRED will surface, and then different action can be taken. This is important for
+         * the Reconciler executing real shard movement decisions. Allocation explain will also use it for individual node explanations.
+         */
+        public boolean isWorseForTheSameNode(Type decision) {
+            return switch (decision) {
+                case NO -> {
+                    yield true;
+                }
+                case NOT_PREFERRED -> {
+                    yield (this == YES) ? false /* this=YES is not worse than NOT_PREFERRED */ : true /* this=THROTTLE is worse */;
+                }
+                case THROTTLE -> {
+                    yield (this == NO) ? true : false /* all Types other than NO are better than THROTTLE */ ;
+                }
+                case YES -> {
+                    yield true;
+                }
+            };
         }
 
         /**

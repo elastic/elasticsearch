@@ -2013,7 +2013,7 @@ count:long | points:integer
 ###############################################
 # Tests for bug with literals that evaluate to null
 # (due to inner geometry parsing errors)
-# in ST_DISTANCE, ST_INTERSECTS, ST_DISJOINT, ST_CONTAINS
+# in ST_DISTANCE, ST_INTERSECTS, ST_DISJOINT, ST_CONTAINS, ST_WITHIN
 # Reported in https://github.com/elastic/elasticsearch/issues/138594
 #
 

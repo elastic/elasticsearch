@@ -165,7 +165,6 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             TransportVersion.current()
         );

@@ -225,7 +225,7 @@ class FlattenedFieldParser {
             }
         }
         int valueStart = keyedValue.offset + length + 1;
-        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart);
+        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - (length + 1));
     }
 
     private record Context(XContentParser parser, DocumentParserContext documentParserContext) {}

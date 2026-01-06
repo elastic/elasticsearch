@@ -835,6 +835,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
+    private final IndexVersion indexCreatedVersion;
 
     private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(leafName, mappedFieldType, builderParams);
@@ -848,6 +849,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get()
         );
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -911,7 +913,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                    leafName()
+                    leafName(),
+                    indexCreatedVersion
                 )
             );
         }

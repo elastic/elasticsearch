@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
+
 /**
  * Represents a decision to move a started shard, either because it is no longer allowed to remain on its current node
  * or because moving it to another node will form a better cluster balance.
@@ -39,14 +41,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         null,
         0
     );
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
-        null,
-        null,
-        AllocationDecision.NO,
-        Decision.NO,
-        null,
-        0
-    );
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(null, null, AllocationDecision.NO, NO, null, 0);
 
     @Nullable
     private final AllocationDecision canMoveDecision;
@@ -172,7 +167,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return cannotRemain() && (canMoveDecision == AllocationDecision.YES || canMoveDecision == AllocationDecision.NOT_PREFERRED);
+        return switch (canRemainDecision.type()) {
+            case NO -> canMoveDecision == AllocationDecision.YES || canMoveDecision == AllocationDecision.NOT_PREFERRED;
+            case NOT_PREFERRED -> canMoveDecision == AllocationDecision.YES;
+            default -> false;
+        };
     }
 
     /**

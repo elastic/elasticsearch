@@ -244,9 +244,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
                 TopDocs additionalResults = searchLeaf(context, filterDocs, knnCollectorManager, visitRatio, docsFound);
                 ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
-                var newScoreDocs = new ScoreDoc[scoreDocs.length + additionalScoreDocs.length];
-                System.arraycopy(scoreDocs, 0, newScoreDocs, 0, scoreDocs.length);
-                System.arraycopy(additionalScoreDocs, 0, newScoreDocs, scoreDocs.length, additionalScoreDocs.length);
+                var newScoreDocs = new ScoreDoc[docsAdded + additionalScoreDocs.length];
+                System.arraycopy(scoreDocs, 0, newScoreDocs, 0, docsAdded);
+                System.arraycopy(additionalScoreDocs, 0, newScoreDocs, docsAdded, additionalScoreDocs.length);
                 scoreDocs = newScoreDocs;
             }
 

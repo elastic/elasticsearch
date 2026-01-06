@@ -172,12 +172,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return cannotRemain() && (canMoveDecision == AllocationDecision.YES);
-    }
-
-    public boolean cannotRemainAndNotPreferredMove() {
-        checkDecisionState();
-        return cannotRemain() && canMoveDecision == AllocationDecision.NOT_PREFERRED;
+        return cannotRemain() && (canMoveDecision == AllocationDecision.YES || canMoveDecision == AllocationDecision.NOT_PREFERRED);
     }
 
     /**
@@ -342,9 +337,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("rebalance_explanation", getExplanation());
             } else {
                 if (cannotRemainAndCanMove()) {
-                    builder.field("can_move_to_other_node", "yes");
-                } else if (cannotRemainAndNotPreferredMove()) {
-                    builder.field("can_move_to_other_node", "not-preferred");
+                    builder.field("can_move_to_other_node", canMoveDecision);
                 } else {
                     builder.field("can_move_to_other_node", "no");
                 }

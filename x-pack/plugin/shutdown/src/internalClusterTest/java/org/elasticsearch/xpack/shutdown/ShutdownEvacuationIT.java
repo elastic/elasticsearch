@@ -22,7 +22,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockIndexEventListener;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,17 +40,22 @@ public class ShutdownEvacuationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockIndexEventListener.TestPlugin.class, ShutdownPlugin.class, NotPreferredPlugin.class);
+        return Arrays.asList(ShutdownPlugin.class, NotPreferredPlugin.class);
     }
 
-    public void testEvacuationToNotPreferredNodesDuringShutdown() {
-        String node1 = internalCluster().startNode();
+    @After
+    public void clearNotPreferredNodes() {
+        NOT_PREFERRED_NODES.clear();
+    }
+
+    public void testCanEvacuationToNotPreferredNodeDuringShutdown() {
+        final var node1 = internalCluster().startNode();
         final var indexName = randomIdentifier();
         createIndex(indexName, 1, 0);
         ensureGreen(indexName);
-        String node2 = internalCluster().startNode();
-        String node2ID = getNodeId(node2);
-        String node1ID = getNodeId(node1);
+        final var node2 = internalCluster().startNode();
+        final var node2ID = getNodeId(node2);
+        final var node1ID = getNodeId(node1);
 
         NOT_PREFERRED_NODES.add(node2ID);
 

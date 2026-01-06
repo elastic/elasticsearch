@@ -84,7 +84,7 @@ If all queried fields are of type [semantic_text](/reference/elasticsearch/mappi
 
 
 `k`
-:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for `rescore_vector` are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
+:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
 
 
 `num_candidates`

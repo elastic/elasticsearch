@@ -80,7 +80,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(getSubBlocks());
+                closeInternal();
             }
         }
         return buildFromSubBlocks(modifiedBlocks);

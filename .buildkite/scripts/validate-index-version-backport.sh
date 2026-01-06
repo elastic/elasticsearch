@@ -13,7 +13,7 @@ set -euo pipefail
 echo "--- Looking for index version changes"
 
 index_versions_main=$(curl -s "https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
-index_versions_local=$(grep "def([0-9_]*," "../../server/src/main/java/org/elasticsearch/index/IndexVersions.java")
+index_versions_local=$(grep "def([0-9_]*," "${WORKSPACE}/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
 
 while IFS= read -r version; do
   version_trimmed=$(echo "${version}" | sed 's/^[[:blank:]]*//;s/[[:blank:]]*$//')

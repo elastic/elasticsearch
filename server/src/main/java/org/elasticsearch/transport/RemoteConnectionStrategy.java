@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -241,8 +242,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (e == null) {
             logger.debug(msgSupplier);
         } else {
-            logger.warn(msgSupplier, e);
-            if (connectionAttemptFailures != null) {
+            logger.log(isClosed() ? Level.DEBUG : Level.WARN, msgSupplier, e);
+            if (isClosed() == false && connectionAttemptFailures != null) {
                 connectionAttemptFailures.add(
                     1,
                     Map.of(

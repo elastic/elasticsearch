@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -83,6 +84,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final TransportService transportService;
+    private final NodeClient client;
     private final ExchangeService exchangeService;
     private final Executor esqlExecutor;
     private final ThreadPool threadPool;
@@ -93,6 +95,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ProjectResolver projectResolver,
         SearchService searchService,
         TransportService transportService,
+        NodeClient client,
         ExchangeService exchangeService,
         Executor esqlExecutor
     ) {
@@ -101,6 +104,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.projectResolver = projectResolver;
         this.searchService = searchService;
         this.transportService = transportService;
+        this.client = client;
         this.exchangeService = exchangeService;
         this.esqlExecutor = esqlExecutor;
         this.threadPool = transportService.getThreadPool();
@@ -126,6 +130,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterService,
             projectResolver,
             transportService,
+            client,
             esqlExecutor,
             parentTask,
             originalIndices,

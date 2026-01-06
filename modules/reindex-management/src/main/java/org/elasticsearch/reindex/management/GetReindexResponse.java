@@ -53,7 +53,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         TaskInfo taskInfo = task.getTask();
         builder.startObject();
         builder.field("completed", task.isCompleted());
-        GetReindexResponse.taskInfoToXContent(builder, params, taskInfo);
+        taskInfoToXContent(builder, params, taskInfo);
         if (task.getError() != null) {
             XContentHelper.writeRawField("error", task.getError(), builder.contentType(), builder, params);
         }
@@ -65,7 +65,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     }
 
     // reindex specific TaskInfo serialization
-    public static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
+    static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
         // TODO: revisit if we should expose taskInfo.description, since it may contain sensitive information like ip and username
         builder.field("id", taskInfo.node() + ":" + taskInfo.id());
         builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());

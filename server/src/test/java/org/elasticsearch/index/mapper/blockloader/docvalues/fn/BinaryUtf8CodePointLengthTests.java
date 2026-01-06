@@ -17,7 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.KeywordFieldMapper.MultiValuedBinaryDocValuesField.Ordering.NATURAL;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,7 +62,7 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new KeywordFieldMapper.MultiValuedBinaryDocValuesField("field", NATURAL);
+                var field = new MultiValuedBinaryDocValuesField.IntegratedCount("field", new ArrayList<>());
                 field.add(new BytesRef("a".repeat(i % cardinality)));
                 if (multiValues && i % cardinality == 0) {
                     field.add(new BytesRef("a".repeat((i % cardinality) + 1)));

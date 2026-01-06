@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
@@ -123,7 +125,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         assertEquals("field", fields.get(1).name());
         assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(1).fieldType().docValuesType());
+        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
 
         // Check the keyed fields.
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
@@ -137,11 +139,34 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         assertEquals("field._keyed", keyedFields.get(1).name());
         assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
-        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(1).fieldType().docValuesType());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(1).fieldType().docValuesType());
 
         // Check that there is no 'field names' field.
         List<IndexableField> fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.size());
+    }
+
+    public void testLegacyDocValuesType() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES),
+            fieldMapping(this::minimalMapping)
+        );
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+
+        // Check the keyed fields.
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
+
+        assertEquals("field", fields.get(1).name());
+        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(1).fieldType().docValuesType());
+
+        assertEquals("field._keyed", keyedFields.get(1).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(1).fieldType().docValuesType());
     }
 
     public void testNotDimension() throws Exception {
@@ -236,6 +261,26 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("type", "flattened");
             b.field("index", false);
         }));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.BINARY, fields.get(0).fieldType().docValuesType());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(0).fieldType().docValuesType());
+    }
+
+    public void testLegacyDisableIndex() throws Exception {
+
+        DocumentMapper mapper = createDocumentMapper(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES),
+            fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("index", false);
+            })
+        );
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");

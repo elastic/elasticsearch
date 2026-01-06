@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
@@ -20,12 +21,14 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -62,13 +65,17 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.IntegratedCount("field", new ArrayList<>());
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", new TreeSet<>());
                 field.add(new BytesRef("a".repeat(i % cardinality)));
+                NumericDocValuesField countField;
                 if (multiValues && i % cardinality == 0) {
                     field.add(new BytesRef("a".repeat((i % cardinality) + 1)));
                     mvCount++;
+                    countField = NumericDocValuesField.indexedField(field.countFieldName(), 2);
+                } else {
+                    countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
                 }
-                iw.addDocument(List.of(field));
+                iw.addDocument(List.of(field, countField));
             }
             if (missingValues) {
                 iw.addDocument(List.of());
@@ -84,12 +91,12 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
                 }
 
                 var warnings = new MockWarnings();
-                var stringsLoader = new BytesRefsFromCustomBinaryBlockLoader("field");
+                var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
                 var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
 
                 var stringsReader = stringsLoader.reader(ctx);
                 var codePointsReader = codePointsLoader.reader(ctx);
-                assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.Binary"));
+                assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (
                     TestBlock strings = read(stringsLoader, stringsReader, docs);

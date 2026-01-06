@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
 
 /**
@@ -73,7 +75,9 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
         BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
         if (binary != null) {
-            return new Binary(warnings, binary);
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            return new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary);
         }
         return new ConstantNullsReader();
     }
@@ -522,15 +526,14 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
     }
 
-    private static class Binary extends BlockDocValuesReader {
+    private static class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
         private final Warnings warnings;
+        private final NumericDocValues counts;
         private final BinaryDocValues binaryDocValues;
 
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
-        private final BytesRef scratch = new BytesRef();
-
-        Binary(Warnings warnings, BinaryDocValues binaryDocValues) {
+        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues binaryDocValues) {
             this.warnings = warnings;
+            this.counts = counts;
             this.binaryDocValues = binaryDocValues;
         }
 
@@ -562,22 +565,20 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public String toString() {
-            return "Utf8CodePointsFromOrds.Binary";
+            return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
         }
 
         private void appendLength(int doc, IntBuilder builder) throws IOException {
-            if (binaryDocValues.advanceExact(doc) == false) {
+            if (counts.advanceExact(doc) == false) {
                 builder.appendNull();
             } else {
-                BytesRef bytes = binaryDocValues.binaryValue();
-                in.reset(bytes.bytes, bytes.offset, bytes.length);
-                int valueCount = in.readVInt();
-                scratch.bytes = bytes.bytes;
-
+                int valueCount = Math.toIntExact(counts.longValue());
                 if (valueCount == 1) {
-                    scratch.length = in.readVInt();
-                    scratch.offset = in.getPosition();
-                    int length = UnicodeUtil.codePointCount(scratch);
+                    boolean advanced = binaryDocValues.advanceExact(doc);
+                    assert advanced;
+
+                    BytesRef bytes = binaryDocValues.binaryValue();
+                    int length = UnicodeUtil.codePointCount(bytes);
                     builder.appendInt(length);
                 } else {
                     registerSingleValueWarning(warnings);
@@ -587,18 +588,13 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
 
         private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {
-            if (binaryDocValues.advanceExact(docId) == false) {
+            if (counts.advanceExact(docId) == false) {
                 return factory.constantNulls(1);
             } else {
-                BytesRef bytes = binaryDocValues.binaryValue();
-                in.reset(bytes.bytes, bytes.offset, bytes.length);
-                int valueCount = in.readVInt();
-                scratch.bytes = bytes.bytes;
-
+                int valueCount = Math.toIntExact(counts.longValue());
                 if (valueCount == 1) {
-                    scratch.length = in.readVInt();
-                    scratch.offset = in.getPosition();
-                    int length = UnicodeUtil.codePointCount(scratch);
+                    BytesRef bytes = binaryDocValues.binaryValue();
+                    int length = UnicodeUtil.codePointCount(bytes);
                     return factory.constantInt(length, 1);
                 } else {
                     registerSingleValueWarning(warnings);

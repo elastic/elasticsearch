@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -75,7 +76,8 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
                 new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings)
             ),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         final StatelessTier tierToSetToZero = randomFrom(StatelessTier.values());
@@ -125,7 +127,8 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
                 new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings)
             ),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         final StatelessTier tierToSetToZero = randomFrom(StatelessTier.values());

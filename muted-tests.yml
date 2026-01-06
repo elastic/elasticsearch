@@ -255,15 +255,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
-  issue: https://github.com/elastic/elasticsearch/issues/137732
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
-  issue: https://github.com/elastic/elasticsearch/issues/137823
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
@@ -339,12 +333,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139740
-- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139741
 - class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/139826
@@ -381,12 +369,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
-  method: testResolvesDateMath
-  issue: https://github.com/elastic/elasticsearch/issues/140105
-- class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
-  method: testLocalDateMathExpression
-  issue: https://github.com/elastic/elasticsearch/issues/140106
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127

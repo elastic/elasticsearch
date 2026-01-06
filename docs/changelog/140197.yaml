@@ -1,0 +1,5 @@
+pr: 140197
+summary: Fix `canMove` regression (hack)
+area: Allocation
+type: bug
+issues: []

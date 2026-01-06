@@ -78,6 +78,15 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     public int getFirstValueIndex(int position) {
         return minBlock.getFirstValueIndex(position);
     }
+    
+    @Override
+    public int getTotalValueCount() {
+        int totalValueCount = 0;
+        for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+            totalValueCount += b.getTotalValueCount();
+        }
+        return totalValueCount;
+    }
 
     @Override
     public int getValueCount(int position) {

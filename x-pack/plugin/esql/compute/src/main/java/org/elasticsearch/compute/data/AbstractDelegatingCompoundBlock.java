@@ -62,16 +62,6 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
-    public int getTotalValueCount() {
-        int totalValueCount = 0;
-        for (Block b : getSubBlocks()) {
-            totalValueCount += b.getTotalValueCount();
-        }
-        return totalValueCount;
-    }
-
-
-    @Override
     public T keepMask(BooleanVector mask) {
         return applyOperationToSubBlocks(block -> block.keepMask(mask));
     }

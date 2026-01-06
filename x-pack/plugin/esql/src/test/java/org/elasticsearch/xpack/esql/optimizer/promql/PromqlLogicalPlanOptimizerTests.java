@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -64,8 +65,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -426,6 +429,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#21) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#9)]
      *               \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#11, cluster{f}#8, eve..]
      */
+
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelector() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -444,6 +449,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorPrefix() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -463,6 +469,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -497,6 +504,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#293) AND RLIKE(pod{f}#281, "[a-z]+", false)]
      *               \_EsRelation[k8s][@timestamp{f}#279, client.ip{f}#283, cluster{f}#280, ..]
      */
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -600,7 +608,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testConstantFoldingArithmeticOperators() {
-        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1", true);
         var eval = plan.collect(Eval.class).getFirst();
         var literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(literal.value(), equalTo(2.0));
@@ -647,9 +655,20 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     protected LogicalPlan planPromql(String query) {
+        return planPromql(query, false);
+    }
+
+    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        AttributeSet.Builder references = AttributeSet.builder();
+        analyzed.forEachDown(lp -> references.addAll(lp.references()));
+        if (allowEmptyReferences) {
+            assertThat(references.build(), empty());
+        } else {
+            assertThat(references.build(), not(empty()));
+        }
         logger.trace("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);

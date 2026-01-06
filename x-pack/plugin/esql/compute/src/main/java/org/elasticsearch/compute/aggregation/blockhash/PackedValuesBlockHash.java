@@ -12,7 +12,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -61,7 +61,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefHash bytesRefHash;
+    private final BytesRefHashTable bytesRefHash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final List<GroupSpec> specs;
@@ -70,7 +70,7 @@ final class PackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
+        this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
     }
@@ -356,7 +356,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
 
-            BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
+            BytesRef[] values = new BytesRef[Math.min(100, Math.toIntExact(bytesRefHash.size()))];
             BytesRef[] nulls = new BytesRef[values.length];
             for (int offset = 0; offset < values.length; offset++) {
                 values[offset] = new BytesRef();

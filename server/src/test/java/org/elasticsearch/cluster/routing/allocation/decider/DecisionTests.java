@@ -99,7 +99,7 @@ public class DecisionTests extends ESTestCase {
     }
 
     /**
-     * Test the reading and writing of an enum to a specific transport version
+     * Test the reading and writing of an enum to a specific transport version (assuming lossless roundtrip)
      *
      * @param value The value to write
      * @param remoteEnum The enum to use for deserialization

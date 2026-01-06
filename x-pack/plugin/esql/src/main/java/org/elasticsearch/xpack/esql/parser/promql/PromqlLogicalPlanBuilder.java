@@ -432,12 +432,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
-        Boolean exists = PromqlFunctionRegistry.INSTANCE.functionExists(name);
-        if (Boolean.TRUE.equals(exists) == false) {
-            String message = exists == null ? "Function [{}] not implemented yet" : "Unknown function [{}]";
-            throw new ParsingException(source, message, name);
-        }
-
+        PromqlFunctionRegistry.INSTANCE.checkFunction(source, name);
         var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
 
         // TODO: the list of params could contain literals so need to handle that

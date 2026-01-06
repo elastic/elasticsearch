@@ -46,7 +46,6 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -109,7 +108,7 @@ public class SnapshotsServiceUtils {
     public static void ensureNotReadOnly(final ClusterState currentState, final String repositoryName) {
         final var repositoryMetadata = RepositoriesMetadata.get(currentState).repository(repositoryName);
         if (RepositoriesService.isReadOnly(repositoryMetadata.settings())) {
-            throw new RepositoryException(repositoryMetadata.name(), "repository is readonly");
+            throw new IllegalArgumentException("[" + repositoryMetadata.name() + "] repository is readonly");
         }
     }
 

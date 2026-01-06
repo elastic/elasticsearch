@@ -13,7 +13,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -580,9 +579,7 @@ public class SnapshotResiliencyTestHelper {
                 @Override
                 protected void execute(Runnable runnable) {
                     final Runnable wrappedRunnable = DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable);
-                    if (maybeExecuteTransportRunnable(wrappedRunnable) == false) {
-                        scheduleNow(wrappedRunnable);
-                    }
+                    scheduleNow(wrappedRunnable);
                 }
 
                 @Override
@@ -1112,20 +1109,6 @@ public class SnapshotResiliencyTestHelper {
                     TestProjectResolvers.DEFAULT_PROJECT_ONLY
                 )
             );
-            actions.put(
-                TransportClusterHealthAction.TYPE,
-                new TransportClusterHealthAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    allocationService,
-                    projectResolver
-                )
-            );
-
-            doInit(actions, actionFilters);
 
             client.initialize(
                 actions,
@@ -1142,17 +1125,6 @@ public class SnapshotResiliencyTestHelper {
             return new String[] {
                 "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
                     + "See the breaking changes documentation for the next major version." };
-        }
-
-        protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
-
-        /**
-         * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.
-         * @param runnable The transport layer runnable, i.e. request and response.
-         * @return true if executed, false to schedule it.
-         */
-        protected boolean maybeExecuteTransportRunnable(Runnable runnable) {
-            return false;
         }
 
         public void restart() {

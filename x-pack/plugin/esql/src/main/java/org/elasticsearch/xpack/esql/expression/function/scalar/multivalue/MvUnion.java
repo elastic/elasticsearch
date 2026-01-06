@@ -289,12 +289,12 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     static <T> void processUnionSet(
-            Block.Builder builder,
-            int position,
-            Block field1,
-            Block field2,
-            BiFunction<Integer, Block, T> getValueFunction,
-            Consumer<T> addValueFunction
+        Block.Builder builder,
+        int position,
+        Block field1,
+        Block field2,
+        BiFunction<Integer, Block, T> getValueFunction,
+        Consumer<T> addValueFunction
     ) {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
@@ -305,8 +305,8 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
             return;
         }
 
-        // Extract values from first field
-        Set<T> firstSet = new LinkedHashSet<>();
+        // Extract values from first field into OperationalSet
+        MvSetOperationHelper.OperationalSet<T> firstSet = new MvSetOperationHelper.OperationalSet<>();
         int firstValueIndex = field1.getFirstValueIndex(position);
         for (int i = 0; i < firstValueCount; i++) {
             firstSet.add(getValueFunction.apply(firstValueIndex + i, field1));
@@ -319,8 +319,8 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
             secondSet.add(getValueFunction.apply(secondValueIndex + i, field2));
         }
 
-        // Compute union using helper
-        Set<T> result = MvSetOperationHelper.union(firstSet, secondSet);
+        // Compute union in-place
+        Set<T> result = firstSet.union(secondSet);
 
         // Build result
         builder.beginPositionEntry();

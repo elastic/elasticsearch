@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -293,8 +292,8 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
             return;
         }
 
-        // Extract values from first field (LinkedHashSet to preserve order)
-        Set<T> firstSet = new LinkedHashSet<>();
+        // Extract values from first field into OperationalSet (preserves order)
+        MvSetOperationHelper.OperationalSet<T> firstSet = new MvSetOperationHelper.OperationalSet<>();
         int firstValueIndex = field1.getFirstValueIndex(position);
         for (int i = 0; i < firstValueCount; i++) {
             firstSet.add(getValueFunction.apply(firstValueIndex + i, field1));
@@ -307,8 +306,8 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
             secondSet.add(getValueFunction.apply(secondValueIndex + i, field2));
         }
 
-        // Compute intersection using helper
-        Set<T> result = MvSetOperationHelper.intersection(firstSet, secondSet);
+        // Compute intersection in-place
+        Set<T> result = firstSet.intersect(secondSet);
 
         if (result.isEmpty()) {
             builder.appendNull();

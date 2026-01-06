@@ -18,23 +18,28 @@ public final class MvSetOperationHelper {
 
     private MvSetOperationHelper() {}
 
-    /**
-     * Union: returns all unique elements from both sets.
-     * Order: elements from set1 first, then new elements from set2.
-     */
-    public static <T> Set<T> union(Set<T> set1, Set<T> set2) {
-        Set<T> result = new LinkedHashSet<>(set1);
-        result.addAll(set2);
-        return result;
-    }
+    public static class OperationalSet<E> extends LinkedHashSet<E> {
 
-    /**
-     * Intersection: returns elements present in both sets.
-     * Order: preserved from set1.
-     */
-    public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
-        Set<T> result = new LinkedHashSet<>(set1);
-        result.retainAll(set2);
-        return result;
+        /**
+         * Performs an in-place union with the given set.
+         * Adds all elements from the given set to this set.
+         * @param set the set to union with
+         * @return this set after the union operation
+         */
+        public Set<E> union(Set<E> set) {
+            this.addAll(set);
+            return this;
+        }
+
+        /**
+         * Performs an in-place intersection with the given set.
+         * Retains only elements that are present in both sets.
+         * @param set the set to intersect with
+         * @return this set after the intersection operation
+         */
+        public Set<E> intersect(Set<E> set) {
+            this.retainAll(set);
+            return this;
+        }
     }
 }

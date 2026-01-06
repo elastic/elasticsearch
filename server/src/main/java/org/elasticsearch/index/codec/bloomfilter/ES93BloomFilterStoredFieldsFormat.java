@@ -10,17 +10,23 @@
 package org.elasticsearch.index.codec.bloomfilter;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.StoredFieldsWriter;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MappedMultiFields;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.ReaderSlice;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.StoredFieldDataInput;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -40,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions.MurmurHash3.hash64;
 
@@ -66,7 +73,7 @@ import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions
  * </ol>
  */
 public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
-    public static final String STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME = "ES93BloomFilterStoredFieldsFormat";
+    public static final String FORMAT_NAME = "ES93BloomFilterStoredFieldsFormat";
     public static final String STORED_FIELDS_BLOOM_FILTER_EXTENSION = "sfbf";
     public static final String STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION = "sfbfm";
     private static final int VERSION_START = 0;
@@ -78,24 +85,24 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
     private static final byte BLOOM_FILTER_STORED = 1;
     private static final byte BLOOM_FILTER_NOT_STORED = 0;
     private static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
+    private static final String DEFAULT_SEGMENT_SUFFIX = "";
+    public static final ByteSizeValue DEFAULT_BLOOM_FILTER_SIZE = ByteSizeValue.ofKb(2);
 
     private final BigArrays bigArrays;
-    private final String segmentSuffix;
-    private final StoredFieldsFormat delegate;
     private final String bloomFilterFieldName;
     private final int numHashFunctions;
     private final int bloomFilterSizeInBits;
 
-    public ES93BloomFilterStoredFieldsFormat(
-        BigArrays bigArrays,
-        String segmentSuffix,
-        StoredFieldsFormat delegate,
-        ByteSizeValue bloomFilterSize,
-        String bloomFilterFieldName
-    ) {
+    // Public constructor SPI use for reads only
+    public ES93BloomFilterStoredFieldsFormat() {
+        bigArrays = null;
+        bloomFilterFieldName = null;
+        numHashFunctions = 0;
+        bloomFilterSizeInBits = 0;
+    }
+
+    public ES93BloomFilterStoredFieldsFormat(BigArrays bigArrays, ByteSizeValue bloomFilterSize, String bloomFilterFieldName) {
         this.bigArrays = bigArrays;
-        this.segmentSuffix = segmentSuffix;
-        this.delegate = delegate;
         this.bloomFilterFieldName = bloomFilterFieldName;
         this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
 
@@ -103,6 +110,29 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             throw new IllegalArgumentException("bloom filter size must be greater than 0");
         }
 
+        this.bloomFilterSizeInBits = closestPowerOfTwoBloomFilterSizeInBits(bloomFilterSize);
+    }
+
+    @Override
+    public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
+        return new Reader(directory, si, fn, context);
+    }
+
+    @Override
+    public StoredFieldsWriter fieldsWriter(Directory directory, SegmentInfo si, IOContext context) throws IOException {
+        assert bigArrays != null;
+        assert bloomFilterFieldName != null;
+        assert numHashFunctions > 0;
+        assert bloomFilterSizeInBits > 0;
+        // TODO: compute the bloom filter size based on heuristics and oversize factor
+        return new Writer(directory, si, context, bigArrays, numHashFunctions, this::getBloomFilterSizeInBits, bloomFilterFieldName);
+    }
+
+    int getBloomFilterSizeInBits() {
+        return bloomFilterSizeInBits;
+    }
+
+    static int closestPowerOfTwoBloomFilterSizeInBits(ByteSizeValue bloomFilterSize) {
         var closestPowerOfTwoBloomFilterSizeInBytes = Long.highestOneBit(bloomFilterSize.getBytes());
         if (closestPowerOfTwoBloomFilterSizeInBytes > MAX_BLOOM_FILTER_SIZE.getBytes()) {
             throw new IllegalArgumentException(
@@ -114,91 +144,47 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                     + " or less (rounded to nearest power of two)"
             );
         }
-        this.bloomFilterSizeInBits = Math.toIntExact(Math.multiplyExact(closestPowerOfTwoBloomFilterSizeInBytes, Byte.SIZE));
-    }
-
-    @Override
-    public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
-        return new Reader(directory, si, fn, context, segmentSuffix, delegate.fieldsReader(directory, si, fn, context));
-    }
-
-    @Override
-    public StoredFieldsWriter fieldsWriter(Directory directory, SegmentInfo si, IOContext context) throws IOException {
-        // TODO: compute the bloom filter size based on heuristics and oversize factor
-        return new Writer(
-            directory,
-            si,
-            context,
-            segmentSuffix,
-            bigArrays,
-            numHashFunctions,
-            bloomFilterSizeInBits,
-            bloomFilterFieldName,
-            delegate.fieldsWriter(directory, si, context)
-        );
+        return Math.toIntExact(Math.multiplyExact(closestPowerOfTwoBloomFilterSizeInBytes, Byte.SIZE));
     }
 
     static class Writer extends StoredFieldsWriter {
-        private final IndexOutput bloomFilterDataOut;
-        private final IndexOutput metadataOut;
-        private final ByteArray buffer;
-        private final List<Closeable> toClose = new ArrayList<>();
-        private final int[] hashes;
+        private final Directory directory;
+        private final SegmentInfo segmentInfo;
+        private final IOContext context;
+        private final BigArrays bigArrays;
+        private final IntSupplier defaultBloomFilterSizeInBitsSupplier;
         private final int numHashFunctions;
-        private final int bloomFilterSizeInBits;
-        private final int bloomFilterSizeInBytes;
-        private final StoredFieldsWriter delegateWriter;
         private final String bloomFilterFieldName;
-        private FieldInfo bloomFilterFieldInfo;
+        private final List<Closeable> toClose = new ArrayList<>();
+
+        private final IndexOutput metadataOut;
+        private BloomFilterWriter bloomFilterWriter;
 
         Writer(
             Directory directory,
             SegmentInfo segmentInfo,
             IOContext context,
-            String segmentSuffix,
             BigArrays bigArrays,
             int numHashFunctions,
-            int bloomFilterSizeInBits,
-            String bloomFilterFieldName,
-            StoredFieldsWriter delegateWriter
+            IntSupplier defaultBloomFilterSizeInBitsSupplier,
+            String bloomFilterFieldName
         ) throws IOException {
-            assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
+            this.directory = directory;
+            this.segmentInfo = segmentInfo;
+            this.context = context;
+            this.bigArrays = bigArrays;
+            this.defaultBloomFilterSizeInBitsSupplier = defaultBloomFilterSizeInBitsSupplier;
             assert numHashFunctions <= PRIMES.length
                 : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
             this.numHashFunctions = numHashFunctions;
-            this.hashes = new int[numHashFunctions];
-            this.bloomFilterSizeInBits = bloomFilterSizeInBits;
-            this.bloomFilterSizeInBytes = bloomFilterSizeInBits / Byte.SIZE;
             this.bloomFilterFieldName = bloomFilterFieldName;
-
-            this.delegateWriter = delegateWriter;
-            toClose.add(delegateWriter);
 
             boolean success = false;
             try {
-                bloomFilterDataOut = directory.createOutput(bloomFilterFileName(segmentInfo, segmentSuffix), context);
-                toClose.add(bloomFilterDataOut);
-                CodecUtil.writeIndexHeader(
-                    bloomFilterDataOut,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
-                    VERSION_CURRENT,
-                    segmentInfo.getId(),
-                    segmentSuffix
-                );
-
-                metadataOut = directory.createOutput(bloomFilterMetadataFileName(segmentInfo, segmentSuffix), context);
+                metadataOut = directory.createOutput(bloomFilterMetadataFileName(segmentInfo), context);
                 toClose.add(metadataOut);
-                CodecUtil.writeIndexHeader(
-                    metadataOut,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
-                    VERSION_CURRENT,
-                    segmentInfo.getId(),
-                    segmentSuffix
-                );
-
-                buffer = bigArrays.newByteArray(bloomFilterSizeInBytes, false);
-                toClose.add(buffer);
+                CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), DEFAULT_SEGMENT_SUFFIX);
 
                 success = true;
             } finally {
@@ -209,55 +195,43 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         @Override
-        public void startDocument() throws IOException {
-            delegateWriter.startDocument();
+        public void startDocument() {
+
         }
 
         @Override
-        public void finishDocument() throws IOException {
-            delegateWriter.finishDocument();
+        public void finishDocument() {
+
         }
 
         @Override
         public void writeField(FieldInfo info, int value) throws IOException {
-            if (isBloomFilterField(info) == false) {
-                delegateWriter.writeField(info, value);
-            }
+            throwUnsupported(info, "int");
         }
 
         @Override
         public void writeField(FieldInfo info, long value) throws IOException {
-            if (isBloomFilterField(info) == false) {
-                delegateWriter.writeField(info, value);
-            }
+            throwUnsupported(info, "long");
         }
 
         @Override
         public void writeField(FieldInfo info, float value) throws IOException {
-            if (isBloomFilterField(info) == false) {
-                delegateWriter.writeField(info, value);
-            }
+            throwUnsupported(info, "float");
         }
 
         @Override
         public void writeField(FieldInfo info, double value) throws IOException {
-            if (isBloomFilterField(info) == false) {
-                delegateWriter.writeField(info, value);
-            }
+            throwUnsupported(info, "double");
         }
 
         @Override
         public void writeField(FieldInfo info, StoredFieldDataInput value) throws IOException {
-            if (isBloomFilterField(info) == false) {
-                delegateWriter.writeField(info, value);
-            }
+            throwUnsupported(info, "StoredFieldDataInput");
         }
 
         @Override
         public void writeField(FieldInfo info, String value) throws IOException {
-            if (isBloomFilterField(info) == false) {
-                delegateWriter.writeField(info, value);
-            }
+            throwUnsupported(info, "String");
         }
 
         @Override
@@ -265,51 +239,40 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             if (isBloomFilterField(info)) {
                 addToBloomFilter(info, value);
             } else {
-                delegateWriter.writeField(info, value);
+                throw new IllegalArgumentException("Bloom filter field [" + info.name + "] is not supported");
             }
+        }
+
+        private void throwUnsupported(FieldInfo info, String dataType) {
+            throw new UnsupportedOperationException(
+                "writeField operation not supported for field '" + info.name + "' with type " + dataType
+            );
         }
 
         private boolean isBloomFilterField(FieldInfo info) {
-            return (bloomFilterFieldInfo != null && bloomFilterFieldInfo.getFieldNumber() == info.getFieldNumber())
+            return (bloomFilterWriter != null && bloomFilterWriter.fieldInfo.getFieldNumber() == info.getFieldNumber())
                 || info.getName().equals(bloomFilterFieldName);
         }
 
-        private void addToBloomFilter(FieldInfo info, BytesRef value) {
+        private int getBloomFilterSizeInBits() {
+            int bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
+            assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
+            return bloomFilterSizeInBits;
+        }
+
+        private void addToBloomFilter(FieldInfo info, BytesRef value) throws IOException {
             assert info.getName().equals(bloomFilterFieldName) : "Expected " + bloomFilterFieldName + " but got " + info;
-            bloomFilterFieldInfo = info;
-            var termHashes = hashTerm(value, hashes);
-            for (int hash : termHashes) {
-                final int posInBitArray = hash & (bloomFilterSizeInBits - 1);
-                final int pos = posInBitArray >> 3; // div 8
-                final int mask = 1 << (posInBitArray & 7); // mod 8
-                final byte val = (byte) (buffer.get(pos) | mask);
-                buffer.set(pos, val);
-            }
+            maybeInitializeBloomFilterWriter(info, getBloomFilterSizeInBits());
+            bloomFilterWriter.add(value);
         }
 
         @Override
         public void finish(int numDocs) throws IOException {
             finishBloomFilterStoredFormat();
-            delegateWriter.finish(numDocs);
         }
 
         private void finishBloomFilterStoredFormat() throws IOException {
-            BloomFilterMetadata bloomFilterMetadata = null;
-            if (bloomFilterFieldInfo != null) {
-                bloomFilterMetadata = new BloomFilterMetadata(
-                    bloomFilterFieldInfo,
-                    bloomFilterDataOut.getFilePointer(),
-                    bloomFilterSizeInBits,
-                    numHashFunctions
-                );
-
-                if (buffer.hasArray()) {
-                    bloomFilterDataOut.writeBytes(buffer.array(), 0, bloomFilterSizeInBytes);
-                } else {
-                    BytesReference.fromByteArray(buffer, bloomFilterSizeInBytes).writeTo(new IndexOutputOutputStream(bloomFilterDataOut));
-                }
-            }
-            CodecUtil.writeFooter(bloomFilterDataOut);
+            BloomFilterMetadata bloomFilterMetadata = bloomFilterWriter == null ? null : bloomFilterWriter.finish();
 
             if (bloomFilterMetadata != null) {
                 metadataOut.writeByte(BLOOM_FILTER_STORED);
@@ -322,9 +285,117 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public int merge(MergeState mergeState) throws IOException {
-            // Skip merging the bloom filter for now
+            if (useOptimizedMerge(mergeState)) {
+                mergeOptimized(mergeState);
+            } else {
+                rebuildBloomFilterFromSegments(mergeState);
+            }
             finishBloomFilterStoredFormat();
-            return delegateWriter.merge(mergeState);
+            return 0;
+        }
+
+        private void mergeOptimized(MergeState mergeState) throws IOException {
+            assert useOptimizedMerge(mergeState);
+
+            if (mergeState.storedFieldsReaders.length == 0) {
+                return;
+            }
+            assert mergeState.storedFieldsReaders[0] instanceof Reader;
+            Reader firstReader = (Reader) mergeState.storedFieldsReaders[0];
+            assert firstReader.bloomFilterFieldReader != null;
+
+            var mergedBloomFilterBitSetSizeInBits = firstReader.bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
+
+            var bloomFilterFieldInfo = mergeState.mergeFieldInfos.fieldInfo(bloomFilterFieldName);
+            maybeInitializeBloomFilterWriter(bloomFilterFieldInfo, mergedBloomFilterBitSetSizeInBits);
+            bloomFilterWriter.mergeBloomFiltersWithOr(mergeState);
+        }
+
+        private void rebuildBloomFilterFromSegments(MergeState mergeState) throws IOException {
+            final List<Fields> fields = new ArrayList<>();
+            final List<ReaderSlice> slices = new ArrayList<>();
+
+            int docBase = 0;
+
+            for (int readerIndex = 0; readerIndex < mergeState.fieldsProducers.length; readerIndex++) {
+                final FieldsProducer f = mergeState.fieldsProducers[readerIndex];
+
+                final int maxDoc = mergeState.maxDocs[readerIndex];
+                if (f != null) {
+                    f.checkIntegrity();
+                    slices.add(new ReaderSlice(docBase, maxDoc, readerIndex));
+                    fields.add(f);
+                }
+                docBase += maxDoc;
+            }
+
+            Fields mergedFields = new MappedMultiFields(
+                mergeState,
+                new MultiFields(fields.toArray(Fields.EMPTY_ARRAY), slices.toArray(ReaderSlice.EMPTY_ARRAY))
+            );
+
+            var terms = mergedFields.terms(bloomFilterFieldName);
+            if (terms == null) {
+                return;
+            }
+
+            FieldInfo bloomFilterFieldInfo = mergeState.mergeFieldInfos.fieldInfo(bloomFilterFieldName);
+            assert bloomFilterFieldInfo != null;
+
+            // TODO: use terms.docCount to compute an optimal bloom filter size
+            maybeInitializeBloomFilterWriter(bloomFilterFieldInfo, getBloomFilterSizeInBits());
+
+            final TermsEnum termsEnum = terms.iterator();
+            while (true) {
+                final BytesRef term = termsEnum.next();
+                if (term == null) {
+                    break;
+                }
+                addToBloomFilter(bloomFilterFieldInfo, term);
+            }
+        }
+
+        /**
+         * Determines whether bloom filters can be merged using a bitwise OR operation.
+         *
+         * <p>Fast merging is possible when all segments in the merge state satisfy two conditions:
+         * <ul>
+         *   <li>Each segment has an associated bloom filter
+         *   <li>All bloom filters have identical dimensions (same bit array size)
+         * </ul>
+         *
+         * <p>When these conditions are met, the bloom filters can be efficiently combined by
+         * performing a bitwise OR across their underlying bitsets, avoiding the need to
+         * re-hash and re-insert elements.
+         *
+         * @param mergeState the merge state containing segments to be merged
+         * @return {@code true} if all segments have compatible bloom filters that can be
+         *         merged via bitwise OR; {@code false} otherwise
+         */
+        private boolean useOptimizedMerge(MergeState mergeState) {
+            int expectedBloomFilterSize = -1;
+            for (int i = 0; i < mergeState.storedFieldsReaders.length; i++) {
+                StoredFieldsReader storedFieldsReader = mergeState.storedFieldsReaders[i];
+                if (storedFieldsReader instanceof Reader == false) {
+                    return false;
+                }
+                Reader reader = (Reader) storedFieldsReader;
+
+                BloomFilterFieldReader bloomFilterFieldReader = reader.bloomFilterFieldReader;
+
+                if (bloomFilterFieldReader == null) {
+                    return false;
+                }
+
+                if (expectedBloomFilterSize == -1) {
+                    expectedBloomFilterSize = bloomFilterFieldReader.bloomFilterBitSetSizeInBits;
+                }
+
+                if (bloomFilterFieldReader.bloomFilterBitSetSizeInBits != expectedBloomFilterSize) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override
@@ -334,33 +405,145 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public long ramBytesUsed() {
-            return buffer.ramBytesUsed() + delegateWriter.ramBytesUsed();
+            return bloomFilterWriter == null ? 0 : bloomFilterWriter.buffer.ramBytesUsed();
+        }
+
+        private void maybeInitializeBloomFilterWriter(FieldInfo fieldInfo, int bitSetSizeInBits) throws IOException {
+            assert isPowerOfTwo(bitSetSizeInBits) : "Expected a power of two but got " + bitSetSizeInBits;
+            if (bloomFilterWriter != null) {
+                return;
+            }
+
+            try {
+                bloomFilterWriter = new BloomFilterWriter(fieldInfo, bitSetSizeInBits);
+                toClose.add(bloomFilterWriter);
+            } catch (IOException e) {
+                IOUtils.closeWhileHandlingException(toClose);
+                throw e;
+            }
+        }
+
+        class BloomFilterWriter implements Closeable {
+            private final FieldInfo fieldInfo;
+            private final int bitsetSizeInBits;
+            private final int bitSetSizeInBytes;
+            private final ByteArray buffer;
+            private final int[] hashes;
+            private final IndexOutput bloomFilterDataOut;
+
+            private boolean flushed = false;
+
+            BloomFilterWriter(FieldInfo fieldInfo, int bitsetSizeInBits) throws IOException {
+                this.fieldInfo = fieldInfo;
+                this.bitsetSizeInBits = bitsetSizeInBits;
+                this.bitSetSizeInBytes = bitsetSizeInBits / Byte.SIZE;
+                this.buffer = bigArrays.newByteArray(bitSetSizeInBytes, false);
+                this.hashes = new int[numHashFunctions];
+                this.bloomFilterDataOut = directory.createOutput(bloomFilterFileName(segmentInfo), context);
+
+                boolean success = false;
+                try {
+                    CodecUtil.writeIndexHeader(
+                        bloomFilterDataOut,
+                        FORMAT_NAME,
+                        VERSION_CURRENT,
+                        segmentInfo.getId(),
+                        DEFAULT_SEGMENT_SUFFIX
+                    );
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        bloomFilterDataOut.close();
+                    }
+                }
+            }
+
+            private void add(BytesRef value) {
+                ensureNotFlushed();
+                var termHashes = hashTerm(value, hashes);
+                for (int hash : termHashes) {
+                    final int posInBitArray = hash & (bitsetSizeInBits - 1);
+                    final int pos = posInBitArray >> 3; // div 8
+                    final int mask = 1 << (posInBitArray & 7); // mod 8
+                    final byte val = (byte) (buffer.get(pos) | mask);
+                    buffer.set(pos, val);
+                }
+            }
+
+            private void mergeBloomFiltersWithOr(MergeState mergeState) throws IOException {
+                ensureNotFlushed();
+
+                for (int readerIdx = 0; readerIdx < mergeState.storedFieldsReaders.length; readerIdx++) {
+                    StoredFieldsReader storedFieldsReader = mergeState.storedFieldsReaders[readerIdx];
+                    if (storedFieldsReader instanceof Reader == false) {
+                        throw new IllegalStateException("Expected a Reader but got " + storedFieldsReader.getClass());
+                    }
+
+                    Reader reader = (Reader) storedFieldsReader;
+                    var bloomFilterFieldReader = reader.bloomFilterFieldReader;
+
+                    if (bloomFilterFieldReader != null) {
+                        assert bloomFilterFieldReader.getBloomFilterBitSetSizeInBits() == bitsetSizeInBits
+                            : "Expected a bloom filter bitset size "
+                                + bitsetSizeInBits
+                                + " but got "
+                                + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
+                        bloomFilterFieldReader.checkIntegrity();
+                        IndexInput bloomFilterData = bloomFilterFieldReader.bloomFilterData;
+
+                        bloomFilterData.prefetch(0, bitSetSizeInBytes);
+                        for (int i = 0; i < bitSetSizeInBytes; i++) {
+                            var existingBloomFilterByte = bloomFilterData.readByte();
+                            var resultingBloomFilterByte = buffer.get(i);
+                            buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
+                        }
+                    }
+                }
+            }
+
+            private BloomFilterMetadata finish() throws IOException {
+                ensureNotFlushed();
+                BloomFilterMetadata bloomFilterMetadata = new BloomFilterMetadata(
+                    fieldInfo,
+                    bloomFilterDataOut.getFilePointer(),
+                    bitsetSizeInBits,
+                    numHashFunctions
+                );
+
+                if (buffer.hasArray()) {
+                    bloomFilterDataOut.writeBytes(buffer.array(), 0, bitSetSizeInBytes);
+                } else {
+                    BytesReference.fromByteArray(buffer, bitSetSizeInBytes).writeTo(new IndexOutputOutputStream(bloomFilterDataOut));
+                }
+
+                CodecUtil.writeFooter(bloomFilterDataOut);
+
+                flushed = true;
+                return bloomFilterMetadata;
+            }
+
+            private void ensureNotFlushed() {
+                if (flushed) {
+                    throw new IllegalStateException("Bloom filter has already been flushed");
+                }
+            }
+
+            @Override
+            public void close() throws IOException {
+                IOUtils.closeWhileHandlingException(bloomFilterDataOut, buffer);
+            }
         }
     }
 
-    private static class Reader extends StoredFieldsReader implements BloomFilterProvider {
+    static class Reader extends StoredFieldsReader implements BloomFilter {
+        // The bloom filter can be null in cases where the indexed documents
+        // do not include a field bloomFilterFieldName and thus the bloom filter
+        // is empty. (This mostly apply for tests).
         @Nullable
         private final BloomFilterFieldReader bloomFilterFieldReader;
-        private final StoredFieldsReader delegateReader;
 
-        Reader(
-            Directory directory,
-            SegmentInfo si,
-            FieldInfos fn,
-            IOContext context,
-            String segmentSuffix,
-            StoredFieldsReader delegateReader
-        ) throws IOException {
-            this.delegateReader = delegateReader;
-            var success = false;
-            try {
-                bloomFilterFieldReader = BloomFilterFieldReader.open(directory, si, fn, context, segmentSuffix);
-                success = true;
-            } finally {
-                if (success == false) {
-                    delegateReader.close();
-                }
-            }
+        Reader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
+            bloomFilterFieldReader = BloomFilterFieldReader.open(directory, si, fn, context);
         }
 
         @Override
@@ -373,22 +556,21 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             if (bloomFilterFieldReader != null) {
                 bloomFilterFieldReader.checkIntegrity();
             }
-            delegateReader.checkIntegrity();
         }
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(bloomFilterFieldReader, delegateReader);
+            IOUtils.close(bloomFilterFieldReader);
         }
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            delegateReader.document(docID, visitor);
+            // TODO: read synthetic _id from doc values
         }
 
         @Override
-        public BloomFilter getBloomFilter() throws IOException {
-            return bloomFilterFieldReader;
+        public boolean mayContainTerm(String field, BytesRef term) throws IOException {
+            return bloomFilterFieldReader == null || bloomFilterFieldReader.mayContainTerm(field, term);
         }
     }
 
@@ -418,26 +600,25 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
     }
 
-    static class BloomFilterFieldReader implements BloomFilter {
+    static class BloomFilterFieldReader implements Closeable {
         private final FieldInfo fieldInfo;
         private final IndexInput bloomFilterData;
         private final RandomAccessInput bloomFilterIn;
-        private final int bloomFilterSizeInBits;
+        private final int bloomFilterBitSetSizeInBits;
         private final int[] hashes;
 
         @Nullable
-        static BloomFilterFieldReader open(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context, String segmentSuffix)
-            throws IOException {
+        static BloomFilterFieldReader open(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
             List<Closeable> toClose = new ArrayList<>();
             boolean success = false;
-            try (var metaInput = directory.openChecksumInput(bloomFilterMetadataFileName(si, segmentSuffix))) {
+            try (var metaInput = directory.openChecksumInput(bloomFilterMetadataFileName(si))) {
                 var metadataVersion = CodecUtil.checkIndexHeader(
                     metaInput,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
+                    FORMAT_NAME,
                     VERSION_START,
                     VERSION_CURRENT,
                     si.getId(),
-                    segmentSuffix
+                    DEFAULT_SEGMENT_SUFFIX
                 );
                 var hasBloomFilter = metaInput.readByte() == BLOOM_FILTER_STORED;
                 if (hasBloomFilter == false) {
@@ -446,15 +627,15 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                 BloomFilterMetadata bloomFilterMetadata = BloomFilterMetadata.readFrom(metaInput, fn);
                 CodecUtil.checkFooter(metaInput);
 
-                IndexInput bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), context);
+                IndexInput bloomFilterData = directory.openInput(bloomFilterFileName(si), context);
                 toClose.add(bloomFilterData);
                 var bloomFilterDataVersion = CodecUtil.checkIndexHeader(
                     bloomFilterData,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
+                    FORMAT_NAME,
                     VERSION_START,
                     VERSION_CURRENT,
                     si.getId(),
-                    segmentSuffix
+                    DEFAULT_SEGMENT_SUFFIX
                 );
 
                 if (metadataVersion != bloomFilterDataVersion) {
@@ -484,13 +665,13 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         BloomFilterFieldReader(
             FieldInfo fieldInfo,
             RandomAccessInput bloomFilterIn,
-            int bloomFilterSizeInBits,
+            int bloomFilterBitSetSizeInBits,
             int numHashFunctions,
             IndexInput bloomFilterData
         ) {
             this.fieldInfo = Objects.requireNonNull(fieldInfo);
             this.bloomFilterIn = bloomFilterIn;
-            this.bloomFilterSizeInBits = bloomFilterSizeInBits;
+            this.bloomFilterBitSetSizeInBits = bloomFilterBitSetSizeInBits;
             this.hashes = new int[numHashFunctions];
             this.bloomFilterData = bloomFilterData;
         }
@@ -501,7 +682,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             var termHashes = hashTerm(term, hashes);
 
             for (int hash : termHashes) {
-                final int posInBitArray = hash & (bloomFilterSizeInBits - 1);
+                final int posInBitArray = hash & (bloomFilterBitSetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
                 final byte bits = bloomFilterIn.readByte(pos);
@@ -510,6 +691,10 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                 }
             }
             return true;
+        }
+
+        int getBloomFilterBitSetSizeInBits() {
+            return bloomFilterBitSetSizeInBits;
         }
 
         void checkIntegrity() throws IOException {
@@ -539,27 +724,11 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         return (value & (value - 1)) == 0;
     }
 
-    private static String bloomFilterMetadataFileName(SegmentInfo segmentInfo, String segmentSuffix) {
-        return IndexFileNames.segmentFileName(segmentInfo.name, segmentSuffix, STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION);
+    private static String bloomFilterMetadataFileName(SegmentInfo segmentInfo) {
+        return IndexFileNames.segmentFileName(segmentInfo.name, DEFAULT_SEGMENT_SUFFIX, STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION);
     }
 
-    private static String bloomFilterFileName(SegmentInfo segmentInfo, String segmentSuffix) {
-        return IndexFileNames.segmentFileName(segmentInfo.name, segmentSuffix, STORED_FIELDS_BLOOM_FILTER_EXTENSION);
-    }
-
-    public interface BloomFilter extends Closeable {
-        /**
-         * Tests whether the given term may exist in the specified field.
-         *
-         * @param field the field name to check
-         * @param term the term to test for membership
-         * @return true if term may be present, false if definitely absent
-         */
-        boolean mayContainTerm(String field, BytesRef term) throws IOException;
-    }
-
-    public interface BloomFilterProvider extends Closeable {
-        @Nullable
-        BloomFilter getBloomFilter() throws IOException;
+    private static String bloomFilterFileName(SegmentInfo segmentInfo) {
+        return IndexFileNames.segmentFileName(segmentInfo.name, DEFAULT_SEGMENT_SUFFIX, STORED_FIELDS_BLOOM_FILTER_EXTENSION);
     }
 }

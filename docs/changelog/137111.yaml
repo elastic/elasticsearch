@@ -1,5 +1,0 @@
-pr: 137111
-summary: Remove `auto_expand_replicas` setting during index clone in `searchable_snapshot`
-area: ILM+SLM
-type: bug
-issues: []

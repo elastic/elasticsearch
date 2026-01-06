@@ -42,7 +42,8 @@ public class Eval extends UnaryPlan
         PostAnalysisVerificationAware,
         TelemetryAware,
         Streaming,
-        SortAgnostic {
+        SortAgnostic,
+        SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;

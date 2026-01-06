@@ -22,6 +22,8 @@ import java.util.List;
  */
 public interface EmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends InferenceServiceResults {
 
+    String EMBEDDING = "embedding";
+
     /**
      * A resulting embedding for one of the input texts to the inference service.
      */

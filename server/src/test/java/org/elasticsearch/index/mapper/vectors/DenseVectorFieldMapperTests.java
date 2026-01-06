@@ -25,14 +25,18 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,7 +57,9 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
@@ -66,16 +72,19 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,11 +97,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     private final int dims;
 
     public DenseVectorFieldMapperTests() {
-        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
+        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
         this.indexed = usually();
         this.indexOptionsSet = this.indexed && randomBoolean();
         int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
-        int randomMultiplier = ElementType.FLOAT == elementType ? randomIntBetween(1, 64) : 1;
+        int randomMultiplier = switch (elementType) {
+            case FLOAT, BFLOAT16 -> randomIntBetween(1, 64);
+            case BYTE, BIT -> 1;
+        };
         this.dims = baseDims * randomMultiplier;
     }
 
@@ -153,22 +165,31 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected Object getSampleValueForDocument(boolean binaryFormat) {
         if (binaryFormat) {
-            final byte[] toEncode;
-            if (elementType == ElementType.FLOAT) {
-                float[] array = randomNormalizedVector(this.dims);
-                final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * array.length);
-                buffer.asFloatBuffer().put(array);
-                toEncode = buffer.array();
-            } else {
-                toEncode = elementType == ElementType.BIT
-                    ? randomByteArrayOfLength(this.dims / Byte.SIZE)
-                    : randomByteArrayOfLength(this.dims);
-            }
+            byte[] toEncode = switch (elementType) {
+                case FLOAT -> {
+                    float[] array = randomNormalizedVector(this.dims);
+                    final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * array.length);
+                    buffer.asFloatBuffer().put(array);
+                    yield buffer.array();
+                }
+                case BFLOAT16 -> {
+                    float[] array = randomNormalizedVector(this.dims);
+                    final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * array.length);
+                    BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
+                    yield buffer.array();
+                }
+                case BYTE -> randomByteArrayOfLength(dims);
+                case BIT -> randomByteArrayOfLength(this.dims / Byte.SIZE);
+            };
             return Base64.getEncoder().encodeToString(toEncode);
+        } else {
+            return switch (elementType) {
+                case FLOAT -> convertToList(randomNormalizedVector(this.dims));
+                case BFLOAT16 -> convertToBFloat16List(randomNormalizedVector(this.dims));
+                case BYTE -> convertToList(randomByteArrayOfLength(dims));
+                case BIT -> convertToList(randomByteArrayOfLength(this.dims / Byte.SIZE));
+            };
         }
-        return elementType == ElementType.FLOAT
-            ? convertToList(randomNormalizedVector(this.dims))
-            : convertToList(randomByteArrayOfLength(elementType == ElementType.BIT ? this.dims / Byte.SIZE : dims));
     }
 
     @Override
@@ -180,6 +201,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         List<Float> list = new ArrayList<>(vector.length);
         for (float v : vector) {
             list.add(v);
+        }
+        return list;
+    }
+
+    public static List<Float> convertToBFloat16List(float[] vector) {
+        List<Float> list = new ArrayList<>(vector.length);
+        for (float v : vector) {
+            list.add(BFloat16.truncateToBFloat16(v));
         }
         return list;
     }
@@ -308,7 +337,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 hasToString(containsString("\"type\":\"" + newType + "\""))
             );
         }
-        for (String newType : List.of("bbq_flat", "bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -337,7 +366,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 hasToString(containsString("\"type\":\"" + newType + "\""))
             );
         }
-        for (String newType : List.of("bbq_flat", "bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -389,7 +418,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "hnsw").endObject(),
             b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
         );
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -438,7 +467,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "int8_hnsw").endObject(),
             b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
         );
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -469,7 +498,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
-        for (String newType : List.of("bbq_flat", "bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -539,7 +568,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "int4_hnsw").endObject(),
             b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
         );
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -551,7 +580,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         // update for bbq_flat
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -581,14 +610,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
-        registerIndexOptionsUpdate(
-            checker,
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-            "type",
-            "bbq_hnsw",
-            "bbq_disk",
-            hasToString(containsString("\"type\":\"bbq_disk\""))
-        );
     }
 
     @Override
@@ -1590,7 +1611,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-            case FLOAT -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
+            case FLOAT, BFLOAT16 -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
             case BIT -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
         };
     }
@@ -1891,7 +1912,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -1904,12 +1925,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
+        String expectedString = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + ")";
+            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -1929,7 +1950,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 b.endObject();
             }));
-            CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+            CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
             Codec codec = codecService.codec("default");
             KnnVectorsFormat knnVectorsFormat;
             if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -1943,21 +1964,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             }
             VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-            String expectedString = "ES813Int8FlatVectorFormat(name=ES813Int8FlatVectorFormat, innerFormat="
-                + "ES814ScalarQuantizedVectorsFormat(name=ES814ScalarQuantizedVectorsFormat,"
+            String expectedString = "ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat,"
                 + " confidenceInterval="
                 + (setConfidenceInterval ? Float.toString(confidenceInterval) : (quantizedFlatFormat.equals("int4_flat") ? "0.0" : null))
                 + ", bits="
                 + (quantizedFlatFormat.equals("int4_flat") ? 4 : 7)
                 + ", compressed="
                 + quantizedFlatFormat.equals("int4_flat")
-                + ", flatVectorScorer=ESFlatVectorsScorer("
-                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                + ", flatVectorScorer=ESQuantizedFlatVectorsScorer("
+                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer())"
                 + ", factory="
                 + (factory != null ? factory : "null")
                 + "), "
-                + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))";
-            assertEquals(expectedString, knnVectorsFormat.toString());
+                + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+            assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
 
@@ -1980,7 +2001,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -1994,21 +2015,20 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
         VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
+        String expectedString = "ES93HnswScalarQuantizedVectorsFormat(name=ES93HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", bits=7, compressed=false, "
-            + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
+            + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), "
             + "factory="
             + (factory != null ? factory : "null")
-            + "), "
-            + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + "))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testKnnBBQHNSWVectorsFormat() throws IOException {
@@ -2026,7 +2046,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("ef_construction", efConstruction);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -2039,42 +2059,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn="
+        String expectedString = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES818BinaryQuantizedVectorsFormat("
-            + "name=ES818BinaryQuantizedVectorsFormat, "
-            + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
-    }
-
-    public void testKnnBBQIVFVectorsFormat() throws IOException {
-        final int dims = randomIntBetween(64, 4096);
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", dims);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.endObject();
-        }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
-        Codec codec = codecService.codec("default");
-        KnnVectorsFormat knnVectorsFormat;
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        }
-        String expectedString = "ES920DiskBBQVectorsFormat(vectorPerCluster=384)";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+            + ", flatVectorFormat=ES93BinaryQuantizedVectorsFormat("
+            + "name=ES93BinaryQuantizedVectorsFormat, "
+            + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+            + " format=Lucene99FlatVectorsFormat";
+        assertThat(knnVectorsFormat, hasToString(startsWith(expectedString)));
     }
 
     public void testInvalidVectorDimensionsBBQ() {
@@ -2112,7 +2105,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -2126,21 +2119,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
         VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
+        String expectedString = "ES93HnswScalarQuantizedVectorsFormat(name=ES93HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : 0.0f)
-            + ", bits=4, compressed=true, "
-            + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
-            + "factory="
+            + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), factory="
             + (factory != null ? factory : "null")
-            + "), "
-            + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + "))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testInvalidVectorDimensions() {
@@ -2156,6 +2146,48 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.endObject();
             })));
             assertThat(e.getMessage(), containsString("only supports even dimensions"));
+        }
+    }
+
+    public void testPushingDownExecutorAndThreads() {
+        TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
+            new DenseVectorFieldMapper.HnswIndexOptions(16, 200)
+        );
+        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, List.of()).indexOptions(testIndexOptions)
+            .dimensions(128)
+            .elementType(ElementType.FLOAT)
+            .build(MapperBuilderContext.root(false, false));
+        final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
+            "foo",
+            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()
+        );
+        final IndexSettings disabled = IndexSettingsModule.newIndexSettings(
+            "foo",
+            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), false).build()
+        );
+        // enabled with null tp
+        mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);
+        assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+        assertNull(testIndexOptions.passedMergingExecutorService);
+        // disabled with null tp
+        mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, null);
+        assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+        assertNull(testIndexOptions.passedMergingExecutorService);
+        // tiny tp, means we don't have extra threads for merging
+        try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 1).build())) {
+            mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, tp);
+            assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+            assertNull(testIndexOptions.passedMergingExecutorService);
+
+            mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, tp);
+            assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+            assertNull(testIndexOptions.passedMergingExecutorService);
+        }
+        // big tp
+        try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 10).build())) {
+            mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, tp);
+            assertNotNull(testIndexOptions.passedMergingExecutorService);
+            assertEquals(10, testIndexOptions.passedNumMergeWorkers);
         }
     }
 
@@ -2176,24 +2208,23 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
-        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
+        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
             Object value = switch (elementType) {
-                case BYTE, BIT:
-                    yield randomList(dims, dims, ESTestCase::randomByte);
-                case FLOAT:
-                    yield randomList(dims, dims, ESTestCase::randomFloat);
+                case BYTE, BIT -> randomList(dims, dims, ESTestCase::randomByte);
+                case FLOAT -> randomList(dims, dims, ESTestCase::randomFloat);
+                case BFLOAT16 -> randomList(dims, dims, () -> BFloat16.truncateToBFloat16(randomFloat()));
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "dense_vector");
-            if (elementType == ElementType.BYTE || elementType == ElementType.BIT || randomBoolean()) {
+            if (elementType != ElementType.FLOAT || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }
             b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
@@ -2221,5 +2252,49 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
+
+        private final DenseVectorFieldMapper.DenseVectorIndexOptions inner;
+        private ExecutorService passedMergingExecutorService;
+        private int passedNumMergeWorkers = -1;
+
+        TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
+            super(inner.type);
+            this.inner = inner;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+            this.passedMergingExecutorService = mergingExecutorService;
+            this.passedNumMergeWorkers = numMergeWorkers;
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
+        }
+
+        @Override
+        public boolean updatableTo(DenseVectorFieldMapper.DenseVectorIndexOptions update) {
+            return inner.updatableTo(update);
+        }
+
+        @Override
+        boolean doEquals(DenseVectorFieldMapper.DenseVectorIndexOptions other) {
+            return inner.equals(other);
+        }
+
+        @Override
+        int doHashCode() {
+            return inner.hashCode();
+        }
+
+        @Override
+        public boolean isFlat() {
+            return inner.isFlat();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return inner.toXContent(builder, params);
+        }
     }
 }

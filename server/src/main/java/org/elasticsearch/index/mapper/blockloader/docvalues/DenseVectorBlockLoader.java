@@ -53,7 +53,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
         switch (fieldType.getElementType()) {
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
                 if (floatVectorValues != null) {
                     if (fieldType.isNormalized()) {
@@ -178,7 +178,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorValuesBlockReader";
+            return "FloatDenseVectorFromDocValues." + processor.name();
         }
     }
 
@@ -216,7 +216,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
+            return "FloatDenseVectorFromDocValues.Normalized." + processor.name();
         }
     }
 
@@ -237,7 +237,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
+            return "ByteDenseVectorFromDocValues." + processor.name();
         }
     }
 
@@ -255,7 +255,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.BitDenseVectorValuesBlockReader";
+            return "BitDenseVectorFromDocValues." + processor.name();
         }
     }
 }

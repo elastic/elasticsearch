@@ -448,7 +448,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             threadPool,
             model,
             EMBEDDINGS_HANDLER,
-            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getInputs(), embeddingsInput.getInputType(), model),
+            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getTextInputs(), embeddingsInput.getInputType(), model),
             EmbeddingsInput.class
         );
 

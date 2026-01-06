@@ -1,0 +1,5 @@
+pr: 137263
+summary: Add late chunking configuration for JinaAI embedding task settings
+area: Machine Learning
+type: enhancement
+issues: []

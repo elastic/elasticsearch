@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+
+import java.util.Map;
 
 public class DisabledSearchStats implements SearchStats {
 
@@ -25,12 +31,22 @@ public class DisabledSearchStats implements SearchStats {
 
     @Override
     public boolean hasDocValues(FieldName field) {
-        return true;
+        // Some geo tests assume doc values and the loader emulates it. Nothing else does.
+        return field.string().endsWith("location") || field.string().endsWith("centroid") || field.string().equals("subset");
     }
 
     @Override
     public boolean hasExactSubfield(FieldName field) {
         return true;
+    }
+
+    @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        return false;
     }
 
     @Override
@@ -66,5 +82,10 @@ public class DisabledSearchStats implements SearchStats {
     @Override
     public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
         return false;
+    }
+
+    @Override
+    public Map<ShardId, IndexMetadata> targetShards() {
+        return Map.of();
     }
 }

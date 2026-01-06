@@ -1,0 +1,6 @@
+pr: 139244
+summary: "Inference command: support for CCS"
+area: ES|QL
+type: enhancement
+issues:
+ - 136860

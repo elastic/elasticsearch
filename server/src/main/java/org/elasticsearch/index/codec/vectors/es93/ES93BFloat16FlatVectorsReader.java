@@ -33,6 +33,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.FileDataHint;
@@ -49,6 +51,7 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 
 public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
@@ -63,7 +66,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         super(scorer);
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
-        boolean success = false;
         // Flat formats are used to randomly access vectors from their node ID that is stored
         // in the HNSW graph.
         dataContext = state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
@@ -75,11 +77,9 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
                 ES93BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 dataContext
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -120,7 +120,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         IndexInput in = state.directory.openInput(fileName, context);
-        boolean success = false;
         try {
             int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
@@ -137,12 +136,10 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
                 );
             }
             CodecUtil.retrieveChecksum(in);
-            success = true;
             return in;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(in);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(in);
+            throw t;
         }
     }
 
@@ -178,6 +175,11 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
         vectorData.updateIOContext(dataContext.withHints(DataAccessHint.SEQUENTIAL));
         return this;
+    }
+
+    @Override
+    public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
     }
 
     private FieldEntry getFieldEntryOrThrow(String field) {

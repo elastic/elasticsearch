@@ -361,6 +361,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
+        // Force merge to single segment to ensure deterministic _doc sort order during reindexing
+        // Without this, multiple segments or segment merges can cause non-deterministic document processing order
+        client().admin().indices().prepareForceMerge(sourceIndex).setMaxNumSegments(1).setFlush(true).get();
 
         String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";

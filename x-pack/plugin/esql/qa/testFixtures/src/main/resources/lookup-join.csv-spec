@@ -1692,7 +1692,6 @@ enrichLookupStatsBug
 required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
-required_capability: exponential_histogram
 
 from *
 | enrich languages_policy on cluster
@@ -5705,6 +5704,6 @@ from languages_lookup_non_unique_ke*
 warning:Line 13:24: evaluation of [other2 == 50] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 13:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword |id_int:integer | ip_addr:ip |is_active_bool:boolean | name_str:keyword
+language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword | date:datetime | date_nanos:date_nanos | id_int:integer | ip_addr:ip | is_active_bool:boolean | name_str:keyword
 
 ;

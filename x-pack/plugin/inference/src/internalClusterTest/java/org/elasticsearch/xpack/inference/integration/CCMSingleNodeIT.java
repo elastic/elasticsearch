@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import java.util.Collection;
 import java.util.Objects;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService.CCM_DOC_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -50,6 +51,11 @@ public abstract class CCMSingleNodeIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
     }
 
     public void testStoreAndGetCCMModel() {
@@ -77,12 +83,7 @@ public abstract class CCMSingleNodeIT extends ESSingleNodeTestCase {
         assertStoreCCMConfiguration();
         assertStoreCCMConfiguration("new_secret");
 
-        var results = client().prepareSearch(CCMIndex.INDEX_PATTERN)
-            .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID))
-            .execute()
-            .actionGet(TimeValue.THIRTY_SECONDS);
-
-        assertThat(results.getHits().getHits().length, is(1));
+        assertHitCount(client().prepareSearch(CCMIndex.INDEX_PATTERN).setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID)), 1);
     }
 
     public void testGet_ThrowsResourceNotFoundException_WhenCCMIndexDoesNotExist() {

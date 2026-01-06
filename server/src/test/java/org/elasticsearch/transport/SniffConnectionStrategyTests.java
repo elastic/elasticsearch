@@ -74,6 +74,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final String seedNodesKey = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey();
     private Settings clientSettings;
     private ConnectionProfile profile;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -83,7 +84,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         hasClusterCredentials = randomBoolean();
-        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff");
+        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff").put(seedNodesKey, "localhost:8080");
         if (hasClusterCredentials) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
@@ -387,7 +388,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -465,7 +469,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService incompatibleSeedTransport = startTransport(
                 "seed_node",
@@ -1223,9 +1230,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate,
         List<String> seedNodes
     ) {
-        return new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
-            .nodePredicate(nodePredicate)
-            .seedNodes(seedNodes)
-            .build();
+        final var builder = new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
+            .nodePredicate(nodePredicate);
+        if (seedNodes != null && seedNodes.isEmpty() == false) {
+            builder.seedNodes(seedNodes);
+        }
+        return builder.build();
     }
 }

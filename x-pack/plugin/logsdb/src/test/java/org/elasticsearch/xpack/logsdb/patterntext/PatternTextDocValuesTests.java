@@ -76,9 +76,9 @@ public class PatternTextDocValuesTests extends ESTestCase {
         return messages;
     }
 
-    private static BinaryDocValues makeDocValues(List<Message> messages) throws IOException {
+    private static BinaryDocValues makeDocValues(List<Message> messages) {
         var template = new SimpleSortedSetDocValues(messages.stream().map(Message::template).toList().toArray(new String[0]));
-        var args = new SimpleSortedSetDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
+        var args = new SimpleBinaryDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
         var info = new SimpleSortedSetDocValues(messages.stream().map(m -> m.hasArg() ? info(0) : info()).toList().toArray(new String[0]));
         return new PatternTextDocValues(template, args, info);
     }
@@ -222,12 +222,17 @@ public class PatternTextDocValuesTests extends ESTestCase {
             return ordToValues.size();
         }
 
-        @Override
         public boolean advanceExact(int target) {
-            for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
-                if (docToOrds.get(currDoc) != null) {
-                    return currDoc == target;
-                }
+            currDoc = target;
+
+            // If there is a value for target, currDoc is set to target, and we return true because target was found.
+            if (docToOrds.get(currDoc) != null) {
+                return true;
+            }
+
+            // Otherwise, we update currDoc to first doc with a value after target and return false.
+            while (currDoc < docToOrds.size() && docToOrds.get(currDoc) == null) {
+                currDoc++;
             }
             return false;
         }
@@ -235,6 +240,58 @@ public class PatternTextDocValuesTests extends ESTestCase {
         @Override
         public int docID() {
             return currDoc >= docToOrds.size() ? NO_MORE_DOCS : currDoc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            return 1;
+        }
+    }
+
+    static class SimpleBinaryDocValues extends BinaryDocValues {
+
+        private final List<String> values;
+        private int currDoc = -1;
+
+        // Single value for each docId, null if no value for a docId
+        SimpleBinaryDocValues(String... docIdToValue) {
+            values = Arrays.asList(docIdToValue);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef(values.get(currDoc));
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            currDoc = target;
+
+            // If there is a value for target, currDoc is set to target, and we return true because target was found.
+            if (values.get(currDoc) != null) {
+                return true;
+            }
+
+            // Otherwise, we update currDoc to first doc with a value after target and return false.
+            while (currDoc < values.size() && values.get(currDoc) == null) {
+                currDoc++;
+            }
+            return false;
+        }
+
+        @Override
+        public int docID() {
+            return currDoc >= values.size() ? NO_MORE_DOCS : currDoc;
         }
 
         @Override

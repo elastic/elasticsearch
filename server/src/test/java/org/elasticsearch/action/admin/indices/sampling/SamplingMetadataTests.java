@@ -94,7 +94,7 @@ public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializatio
         return new SamplingConfiguration(
             randomDoubleBetween(0.0, 1.0, true),
             randomBoolean() ? null : randomIntBetween(1, 1000),
-            randomBoolean() ? null : ByteSizeValue.ofGb(randomIntBetween(1, 5)),
+            randomBoolean() ? null : ByteSizeValue.ofKb(randomIntBetween(50, 100)),
             randomBoolean() ? null : new TimeValue(randomIntBetween(1, 30), TimeUnit.DAYS),
             randomBoolean() ? randomAlphaOfLength(10) : null
         );

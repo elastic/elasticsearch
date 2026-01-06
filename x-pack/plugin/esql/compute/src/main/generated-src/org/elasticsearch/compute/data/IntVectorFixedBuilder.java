@@ -50,7 +50,7 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         return size == 1
             ? ConstantIntVector.RAM_BYTES_USED
             : IntArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Integer.BYTES
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * Integer.BYTES
             );
     }
 

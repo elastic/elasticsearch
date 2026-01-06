@@ -28,7 +28,9 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         DoubleBlock,
         BytesRefBlock,
         AggregateMetricDoubleBlock,
-        ExponentialHistogramBlock {
+        ExponentialHistogramBlock,
+        LongRangeBlock,
+        TDigestBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -117,6 +119,16 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public ConstantNullBlock expand() {
         incRef();
+        return this;
+    }
+
+    @Override
+    public LongBlock getFromBlock() {
+        return this;
+    }
+
+    @Override
+    public LongBlock getToBlock() {
         return this;
     }
 
@@ -298,6 +310,25 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public void serializeTDigest(int valueIndex, SerializedTDigestOutput out, BytesRef scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public TDigestHolder getTDigestHolder(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public DoubleBlock buildHistogramComponentBlock(Component component) {
+        // if all histograms are null, the component block is also a constant null block with the same position count
+        this.incRef();
+        return this;
     }
 
     @Override

@@ -1,6 +1,0 @@
-pr: 136231
-summary: Return a better error message when Timestamp is renamed in TS queries
-area: ES|QL
-type: bug
-issues:
- - 134994

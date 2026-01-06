@@ -117,7 +117,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchResponse.Clusters clusters,
         Client client,
         boolean batchQueryPhase,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes
     ) {
         super(
             "query",
@@ -137,7 +138,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
             clusters,
-            searchResponseMetrics
+            searchResponseMetrics,
+            searchRequestAttributes
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -401,7 +403,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 new ShardId(in),
                 in.readOptionalWriteable(ShardSearchContextId::new),
                 in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)
-                    ? SplitShardCountSummary.fromInt(in.readVInt())
+                    ? new SplitShardCountSummary(in)
                     : SplitShardCountSummary.UNSET
             );
         }
@@ -414,7 +416,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                out.writeVInt(reshardSplitShardCountSummary.asInt());
+                reshardSplitShardCountSummary.writeTo(out);
             }
         }
     }
@@ -496,7 +498,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId(),
-                            shardRoutings.getReshardSplitShardCountSummary()
+                            shardRoutings.getSplitShardCountSummary()
                         )
                     );
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
@@ -869,6 +871,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             var channelListener = new ChannelActionListener<>(channel);
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
             out.setTransportVersion(channel.getVersion());
+
+            boolean success = false;
             try (queryPhaseResultConsumer) {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
                 if (reductionFailure == null) {
@@ -876,11 +880,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 } else {
                     writeReductionFailureResponse(out, reductionFailure);
                 }
+                success = true;
             } catch (IOException e) {
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                if (success == false) {
+                    out.close();
+                }
             }
+
             ActionListener.respondAndRelease(
                 channelListener,
                 new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())

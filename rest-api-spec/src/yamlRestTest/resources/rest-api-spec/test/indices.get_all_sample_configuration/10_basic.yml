@@ -40,7 +40,7 @@ teardown:
         body:
           rate: 0.5
           max_samples: 100
-          max_size: "10mb"
+          max_size: "100kb"
           time_to_live: "1h"
 
   - match: { acknowledged: true }
@@ -53,7 +53,7 @@ teardown:
   - match: { configurations.0.index: "test-single-config-index" }
   - match: { configurations.0.configuration.rate: 0.5 }
   - match: { configurations.0.configuration.max_samples: 100 }
-  - match: { configurations.0.configuration.max_size: "10mb" }
+  - match: { configurations.0.configuration.max_size: "100kb" }
   - match: { configurations.0.configuration.time_to_live: "1h" }
 
 ---
@@ -85,7 +85,7 @@ teardown:
         body:
           rate: 0.7
           max_samples: 200
-          max_size: "20mb"
+          max_size: "100kb"
 
   - match: { acknowledged: true }
 
@@ -186,7 +186,7 @@ teardown:
         body:
           rate: 0.9
           max_samples: 150
-          max_size: "15mb"
+          max_size: "100kb"
 
   - match: { acknowledged: true }
 
@@ -199,7 +199,7 @@ teardown:
   - match: { configurations.0.index: "test-update-all-index" }
   - match: { configurations.0.configuration.rate: 0.9 }
   - match: { configurations.0.configuration.max_samples: 150 }
-  - match: { configurations.0.configuration.max_size: "15mb" }
+  - match: { configurations.0.configuration.max_size: "100kb" }
 
 ---
 "Get all sampling configurations after deletion":

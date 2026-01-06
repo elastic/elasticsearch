@@ -129,7 +129,7 @@ public class OptimizerRulesTests extends ESTestCase {
         };
 
         rule.apply(
-            new EsqlParser().createStatement("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
+            EsqlParser.INSTANCE.parseQuery("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
             new LogicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion())
         );
 

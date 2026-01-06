@@ -32,13 +32,14 @@ import org.elasticsearch.core.Releasables;
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
-final class BytesRefLongBlockHash extends BlockHash {
+public final class BytesRefLongBlockHash extends BlockHash {
     private final int bytesChannel;
     private final int longsChannel;
     private final boolean reverseOutput;
     private final int emitBatchSize;
     private final BytesRefBlockHash bytesHash;
     private final LongLongHash finalHash;
+    private long minLongKey = Long.MAX_VALUE;
 
     BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
         super(blockFactory);
@@ -104,7 +105,7 @@ final class BytesRefLongBlockHash extends BlockHash {
         final int[] ords = new int[positions];
         int lastByte = bytesHashes.getInt(0);
         long lastLong = longsVector.getLong(0);
-        ords[0] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, lastLong)));
+        ords[0] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, lastLong)));
         boolean constant = true;
         if (bytesHashes.isConstant()) {
             for (int i = 1; i < positions; i++) {
@@ -112,7 +113,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (nextLong == lastLong) {
                     ords[i] = ords[i - 1];
                 } else {
-                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, nextLong)));
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, nextLong)));
                     lastLong = nextLong;
                     constant = false;
                 }
@@ -124,7 +125,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (nextByte == lastByte && nextLong == lastLong) {
                     ords[i] = ords[i - 1];
                 } else {
-                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(nextByte, nextLong)));
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(nextByte, nextLong)));
                     lastByte = nextByte;
                     lastLong = nextLong;
                     constant = false;
@@ -205,6 +206,31 @@ final class BytesRefLongBlockHash extends BlockHash {
         } else {
             return new Block[] { k1, k2.asBlock() };
         }
+    }
+
+    public long getBytesRefKeyFromGroup(long groupId) {
+        return finalHash.getKey1(groupId);
+    }
+
+    public long getLongKeyFromGroup(long groupId) {
+        return finalHash.getKey2(groupId);
+    }
+
+    public long getGroupId(long bytesKey, long longKey) {
+        return finalHash.find(bytesKey, longKey);
+    }
+
+    public long addGroup(long bytesKey, long longKey) {
+        minLongKey = Math.min(minLongKey, longKey);
+        return finalHash.add(bytesKey, longKey);
+    }
+
+    public long numGroups() {
+        return finalHash.size();
+    }
+
+    public long getMinLongKey() {
+        return minLongKey;
     }
 
     @Override

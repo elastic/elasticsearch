@@ -20,10 +20,10 @@ import java.io.IOException;
 /**
  * Loads {@code keyword} style fields that are stored as a lookup table.
  */
-abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
 
-    AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
+    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
         this.fieldName = fieldName;
     }
 
@@ -56,7 +56,7 @@ abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader
     protected static class Singleton extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
 
-        Singleton(SortedDocValues ordinals) {
+        public Singleton(SortedDocValues ordinals) {
             this.ordinals = ordinals;
         }
 
@@ -76,7 +76,7 @@ abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader
                 return readSingleDoc(factory, docs.get(offset));
             }
             if (ordinals instanceof OptionalColumnAtATimeReader direct) {
-                Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
+                Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {
                     return block;
                 }

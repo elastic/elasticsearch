@@ -26,15 +26,14 @@ public abstract class TextFamilyFieldType extends StringFieldType {
 
     public TextFamilyFieldType(
         String name,
-        boolean isIndexed,
+        IndexType indexType,
         boolean isStored,
-        boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta,
         boolean isSyntheticSourceEnabled,
         boolean isWithinMultiField
     ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, indexType, isStored, textSearchInfo, meta);
         this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         this.isWithinMultiField = isWithinMultiField;
     }

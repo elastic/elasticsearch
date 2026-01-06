@@ -115,7 +115,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
 
             @Override
@@ -223,7 +224,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
 
                 @Override
@@ -340,7 +342,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
 
                 @Override
@@ -471,7 +474,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -580,7 +584,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
 
                 @Override
@@ -680,7 +685,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(searchShardIterators.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
 
             @Override

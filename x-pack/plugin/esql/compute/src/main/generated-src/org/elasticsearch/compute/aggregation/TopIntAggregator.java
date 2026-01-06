@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.sort.IntBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -62,9 +61,9 @@ class TopIntAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int valuesPosition) {
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
+    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int position) {
+        int start = values.getFirstValueIndex(position);
+        int end = start + values.getValueCount(position);
         for (int i = start; i < end; i++) {
             combine(state, groupId, values.getInt(i));
         }
@@ -118,7 +117,9 @@ class TopIntAggregator {
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory());
+            try (var intValues = driverContext.blockFactory().newConstantIntVector(0, 1)) {
+                internalState.toIntermediate(blocks, offset, intValues, driverContext);
+            }
         }
 
         Block toBlock(BlockFactory blockFactory) {

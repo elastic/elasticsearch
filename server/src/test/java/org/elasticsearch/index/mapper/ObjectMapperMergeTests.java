@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -327,11 +326,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 "http.status_code",
                 NumberFieldMapper.NumberType.LONG,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             )
         ).build(MapperBuilderContext.root(false, false));
 

@@ -16,7 +16,6 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -147,7 +148,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         assertEquals(new PhraseQuery("field", "a", "b"), delegate);
-        assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+        assertNotEquals(Queries.ALL_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(delegate));
     }
 
     public void testMultiPhraseQuery() throws IOException {
@@ -159,7 +160,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             .add(new Term("field", "c"))
             .build();
         assertEquals(expected, delegate);
-        assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+        assertNotEquals(Queries.ALL_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(delegate));
     }
 
     public void testPhrasePrefixQuery() throws IOException {
@@ -171,7 +172,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         expected.add(new Term[] { new Term("field", "a"), new Term("field", "b") });
         expected.add(new Term("field", "c"));
         assertEquals(expected, delegate);
-        assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+        assertNotEquals(Queries.ALL_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(delegate));
     }
 
     public void testTermIntervals() {
@@ -295,9 +296,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -344,9 +344,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true

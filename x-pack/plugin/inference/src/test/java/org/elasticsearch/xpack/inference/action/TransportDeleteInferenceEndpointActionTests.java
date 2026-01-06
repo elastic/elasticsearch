@@ -85,7 +85,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
             listener.onResponse(new UnparsedModel("model_id", TaskType.COMPLETION, "service", Map.of(), Map.of()));
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(anyString(), any());
-        when(mockModelRegistry.containsDefaultConfigId(anyString())).thenReturn(true);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(anyString())).thenReturn(true);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
 
@@ -109,7 +109,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
             listener.onResponse(new UnparsedModel("model_id", TaskType.COMPLETION, "service", Map.of(), Map.of()));
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(anyString(), any());
-        when(mockModelRegistry.containsDefaultConfigId(anyString())).thenReturn(true);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(anyString())).thenReturn(true);
         doAnswer(invocationOnMock -> {
             ActionListener<Boolean> listener = invocationOnMock.getArgument(1);
             listener.onResponse(true);
@@ -145,7 +145,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         var taskType = randomFrom(TaskType.values());
         var mockService = mock(InferenceService.class);
         mockUnparsableModel(inferenceEndpointId, serviceName, taskType, mockService);
-        when(mockModelRegistry.containsDefaultConfigId(inferenceEndpointId)).thenReturn(false);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId)).thenReturn(false);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
         action.masterOperation(
@@ -160,7 +160,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
 
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockModelRegistry).containsDefaultConfigId(eq(inferenceEndpointId));
+        verify(mockModelRegistry).containsPreconfiguredInferenceEndpointId(eq(inferenceEndpointId));
         verify(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry, mockService);
     }
@@ -240,7 +240,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         var serviceName = randomAlphanumericOfLength(10);
         var taskType = randomFrom(TaskType.values());
         mockNoService(inferenceEndpointId, serviceName, taskType);
-        when(mockModelRegistry.containsDefaultConfigId(inferenceEndpointId)).thenReturn(false);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId)).thenReturn(false);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
 
@@ -255,7 +255,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("No service found for this inference endpoint"));
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockModelRegistry).containsDefaultConfigId(eq(inferenceEndpointId));
+        verify(mockModelRegistry).containsPreconfiguredInferenceEndpointId(eq(inferenceEndpointId));
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry);
     }
 
@@ -275,7 +275,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         var mockService = mock(InferenceService.class);
         var mockModel = mock(Model.class);
         mockStopDeploymentFails(inferenceEndpointId, serviceName, taskType, mockService, mockModel);
-        when(mockModelRegistry.containsDefaultConfigId(inferenceEndpointId)).thenReturn(false);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId)).thenReturn(false);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
         action.masterOperation(
@@ -289,7 +289,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Failed to stop model deployment"));
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockModelRegistry).containsDefaultConfigId(eq(inferenceEndpointId));
+        verify(mockModelRegistry).containsPreconfiguredInferenceEndpointId(eq(inferenceEndpointId));
         verify(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
         verify(mockService).stop(eq(mockModel), any());
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry, mockService, mockModel);

@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -313,5 +314,81 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
                 )
             )
         );
+    }
+
+    public void testGetServiceInferenceIds_ReturnsCorrectIdsForKnownService() {
+        var serviceA = "service_a";
+        var endpointId1 = "endpointId1";
+        var endpointId2 = "endpointId2";
+
+        var settings1 = MinimalServiceSettings.chatCompletion(serviceA);
+        var settings2 = MinimalServiceSettings.sparseEmbedding(serviceA);
+        var models = Map.of(endpointId1, settings1, endpointId2, settings2);
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
+        assertThat(serviceEndpoints, is(Set.of(endpointId1, endpointId2)));
+    }
+
+    public void testGetServiceInferenceIds_AcceptsNullKeys() {
+        var serviceA = "service_a";
+        var endpointId1 = "endpointId1";
+        var endpointId2 = "endpointId2";
+        var nullEndpoint1 = "nullEndpoint1";
+        var nullEndpoint2 = "nullEndpoint2";
+
+        var settings1 = MinimalServiceSettings.chatCompletion(serviceA);
+        var settings2 = MinimalServiceSettings.sparseEmbedding(serviceA);
+        // I'm not sure why minimal service settings would have a null service name, but testing it anyway
+        var nullServiceNameSettings1 = MinimalServiceSettings.sparseEmbedding(null);
+        var nullServiceNameSettings2 = MinimalServiceSettings.sparseEmbedding(null);
+        var models = Map.of(
+            endpointId1,
+            settings1,
+            endpointId2,
+            settings2,
+            nullEndpoint1,
+            nullServiceNameSettings1,
+            nullEndpoint2,
+            nullServiceNameSettings2
+        );
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
+        assertThat(serviceEndpoints, is(Set.of(endpointId1, endpointId2)));
+        assertThat(metadata.getServiceInferenceIds(null), is(Set.of(nullEndpoint1, nullEndpoint2)));
+    }
+
+    public void testGetServiceInferenceIds_ReturnsEmptySetForUnknownService() {
+        var serviceA = "service_a";
+        var serviceB = "service_b";
+        var endpointId = "endpointId1";
+
+        var settings = MinimalServiceSettings.chatCompletion(serviceA);
+        var models = Map.of(endpointId, settings);
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var serviceEndpoints = metadata.getServiceInferenceIds(serviceB);
+        assertThat(serviceEndpoints, is(empty()));
+    }
+
+    public void testGetServiceInferenceIds_ReturnsEmptySetForEmptyModelMap() {
+        var serviceA = "service_a";
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.of());
+
+        var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
+        assertThat(serviceEndpoints, is(empty()));
+    }
+
+    public void testGetServiceInferenceIds_ReturnedSetIsImmutable_WhenAttemptingToModifyIt() {
+        var serviceA = "service_a";
+        var endpointId = "endpointId1";
+
+        var settings = MinimalServiceSettings.chatCompletion(serviceA);
+        var models = Map.of(endpointId, settings);
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
+        expectThrows(UnsupportedOperationException.class, () -> serviceEndpoints.add("newId"));
     }
 }

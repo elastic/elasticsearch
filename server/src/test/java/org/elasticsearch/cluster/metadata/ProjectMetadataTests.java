@@ -337,7 +337,7 @@ public class ProjectMetadataTests extends ESTestCase {
         }
 
         Exception e = expectThrows(IllegalStateException.class, projectBuilder::build);
-        assertThat(e.getMessage(), startsWith("index, alias, and data stream names need to be unique"));
+        assertThat(e.getMessage(), startsWith("index, alias, data stream, and view names need to be unique"));
     }
 
     public void testValidateAliasWriteOnly() {
@@ -969,7 +969,7 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, and data stream names need to be unique, but the following duplicates were found [data "
+                "index, alias, data stream, and view names need to be unique, but the following duplicates were found [data "
                     + "stream ["
                     + dataStreamName
                     + "] conflicts with index]"
@@ -988,7 +988,7 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, and data stream names need to be unique, but the following duplicates were found ["
+                "index, alias, data stream, and view names need to be unique, but the following duplicates were found ["
                     + dataStreamName
                     + " (alias of ["
                     + idx.getIndex().getName()
@@ -2244,6 +2244,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2281,6 +2282,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2320,6 +2322,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2361,6 +2364,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2397,6 +2401,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2511,6 +2516,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2548,6 +2554,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2587,6 +2594,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2628,6 +2636,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2664,6 +2673,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,

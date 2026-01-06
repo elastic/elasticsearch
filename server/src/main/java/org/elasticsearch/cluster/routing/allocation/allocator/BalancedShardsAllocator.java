@@ -849,7 +849,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         + shardRouting
                         + "]";
 
-                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
+                if (moveDecision.isDecisionTaken()
+                    && (moveDecision.cannotRemainAndCanMove() || moveDecision.cannotRemainAndNotPreferredMove())) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
@@ -861,7 +862,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardMoved = true;
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
-                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                    logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
                 }
             }
 

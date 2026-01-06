@@ -374,4 +374,17 @@ public final class MoveDecision extends AbstractAllocationDecision {
         return 31 * super.hashCode() + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
     }
 
+    @Override
+    public String toString() {
+        return "MoveDecision{"
+            + "canMoveDecision="
+            + canMoveDecision
+            + ", canRemainDecision="
+            + canRemainDecision
+            + ", clusterRebalanceDecision="
+            + clusterRebalanceDecision
+            + ", currentNodeRanking="
+            + currentNodeRanking
+            + '}';
+    }
 }

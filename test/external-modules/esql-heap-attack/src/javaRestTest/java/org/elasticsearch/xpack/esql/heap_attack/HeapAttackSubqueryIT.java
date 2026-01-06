@@ -204,12 +204,11 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // OOM heap dump shows around 45 docs/pages in it locally, which means fetching 45 docs will cause OOM, each page is 5MB.
         // 2 subqueries and 8 subqueries both OOM, however they have different patterns in the heap dump.
         // 1. According to the heap dump of 2 subqueries, the OOM happened during adding page into OutputOperator for returning results,
-        // it seems like there is no memory tracking for OutputOperator, so CBE won't happen to this test, the constrain is in returning
-        // data, limiting to returning 30 docs reduces the final OutputOperator size and avoids OOM for 2 subqueries.
+        // pages and blocks are tracked by CB, BlockSourceReader also show in the heap dump but its scratch is not tracked by CB.
         // 2. According to the heap dump of 8 subqueries, the pattern is very similar as OOM of 8 subqueries in
         // testManyRandomKeywordFieldsInSubqueryIntermediateResults, BlockSourceReader.scratch is not tracked by CB,
         // the constrain is in reading data.
-        // TODO improve memory tracking in OutputOperator and BlockSourceReader.scratch
+        // TODO improve memory tracking in BlockSourceReader.scratch
         int docs = 40; // 40 docs *5MB does not OOM without subquery, 2 or 8 subqueries OOM with different patterns in the heap dump
         int limit = 30;
         heapAttackIT.initGiantTextField(docs);

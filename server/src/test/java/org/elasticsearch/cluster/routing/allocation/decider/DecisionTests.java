@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 
@@ -81,7 +80,7 @@ public class DecisionTests extends ESTestCase {
     }
 
     private void expectValue(Decision.Type expected, TransportVersion readAsTransportVersion, BytesReference bytes) throws IOException {
-        final StreamInput currentValueInput = bytes.streamInput();
+        final var currentValueInput = bytes.streamInput();
         currentValueInput.setTransportVersion(readAsTransportVersion);
         assertEquals(expected, Type.readFrom(currentValueInput));
     }

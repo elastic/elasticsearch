@@ -1,5 +1,5 @@
 pr: 140197
-summary: Fix `canMove` regression (hack)
+summary: Handle moveDecision returning NOT_PREFERRED correctly
 area: Allocation
 type: bug
 issues: []

@@ -9,33 +9,20 @@
 #
 
 set -euo pipefail
-BUILDKITE_PULL_REQUEST_BASE_BRANCH="indexscript"
-if [[ "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" == "main" ]]; then
-  # Don't run on PRs targeting main
-  exit 0
-fi
 
 echo "--- Looking for index version changes"
 
-# Get any changes in this pull request to transport definitions
-git fetch origin "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" --quiet
-changed_file=$(git diff --name-only "origin/${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" | grep -E "server/src/main/java/org/elasticsearch/index/IndexVersions.java" || true)
+index_versions_main=$(curl -s "https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
+index_versions_local=$(grep "def([0-9_]*," "../../server/src/main/java/org/elasticsearch/index/IndexVersions.java")
 
-if [[ -z "${changed_file}" ]]; then
-  echo "No index version changes detected."
-  exit 0
-fi
+count=0
+while ((count++)); IFS= read -r version; do
+  version=$(echo "${version}" | sed 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+  if ! echo "${index_versions_main}" | grep -q "${version}"; then
+      echo "Changes to index version [$(echo ${version:33} | cut -d' ' -f1)] missing from main branch."
+      echo "Index version changes must first be merged to main before being backported."
+      exit 1
+  fi
+done <<< "${index_versions_local}"
 
-echo "${change_file}"
-
-# Compare those files against the main branch to ensure they are the same
-#git fetch origin main --quiet
-#while IFS= read -r file; do
-#  if ! git diff --quiet origin/main -- "${file}"; then
-#      echo "Changes to index definition [${file}] missing from main branch."
-#      echo "Transport changes must first be merged to main before being backported."
-#      exit 1
-#  fi
-#done <<< "${changed_file}"
-
-echo "All transport changes exist in main branch."
+echo "All index version changes exist in main branch."

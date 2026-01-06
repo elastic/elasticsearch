@@ -71,6 +71,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    protected Settings nodeSettings(String clusterAlias) {
+        return nodeSettings();
+    }
+
     protected Settings nodeSettings() {
         return Settings.EMPTY;
     }
@@ -103,11 +107,11 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return null;
     }
 
-    private Client internalClient() {
+    protected Client internalClient() {
         return internalClient(LOCAL_CLUSTER);
     }
 
-    private Client internalClient(String clusterAlias) {
+    protected Client internalClient(String clusterAlias) {
         String internalClientOrigin = internalClientOrigin();
         Client client = client(clusterAlias);
         return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
@@ -133,7 +137,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final int numberOfNodes = randomIntBetween(1, 3);
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 
-            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
+            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(clusterAlias), nodePlugins);
             final InternalTestCluster cluster = new InternalTestCluster(
                 randomLong(),
                 createTempDir(),
@@ -189,6 +193,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         settings.putNull("cluster.remote." + clusterAlias + ".seeds");
         settings.putNull("cluster.remote." + clusterAlias + ".mode");
         settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
+        // TODO: Remove api key specific settings
         internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -227,23 +232,24 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
             ? skipUnavailableForRemoteClusters().get(clusterAlias)
             : DEFAULT_SKIP_UNAVAILABLE;
-        Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
-            builder = settings.putNull(remoteClusterSettingPrefix + "proxy_address")
+            settings.putNull(remoteClusterSettingPrefix + "proxy_address")
                 .put(remoteClusterSettingPrefix + "mode", "sniff")
                 .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses));
         } else {
             final String proxyNode = randomFrom(seedAddresses);
             LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, seedNodes);
-            builder = settings.putNull(remoteClusterSettingPrefix + "seeds")
+            settings.putNull(remoteClusterSettingPrefix + "seeds")
                 .put(remoteClusterSettingPrefix + "mode", "proxy")
                 .put(remoteClusterSettingPrefix + "proxy_address", proxyNode);
         }
         if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
-            builder.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
+            settings.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
         }
-        builder.build();
+
+        customizeRemoteClusterConfig(clusterAlias);
+        customizeLocalClusterConfig(clusterAlias);
 
         ClusterUpdateSettingsResponse resp = internalClient().admin()
             .cluster()
@@ -268,6 +274,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             assertThat(remoteConnectionInfos, not(empty()));
         });
     }
+
+    protected void customizeRemoteClusterConfig(String clusterAlias) throws Exception {}
+
+    protected void customizeLocalClusterConfig(String remoteClusterAlias) throws Exception {}
 
     static class ClusterGroup implements Closeable {
         private final Map<String, InternalTestCluster> clusters;

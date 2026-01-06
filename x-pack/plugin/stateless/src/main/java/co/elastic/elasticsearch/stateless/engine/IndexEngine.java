@@ -300,6 +300,13 @@ public class IndexEngine extends InternalEngine {
                         assert timestampFieldMappedType.indexType().hasPoints();
                         try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
                             var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
+                            // Sometimes it's possible to get ghost points, since we're using a low level API
+                            // so we should skip those. This can happen when all the docs containing points
+                            // are deleted and the segments get merged.
+                            // See https://github.com/apache/lucene/issues/11393 for more details.
+                            if (pointsReader == null) {
+                                continue;
+                            }
                             segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
                             segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
                         }

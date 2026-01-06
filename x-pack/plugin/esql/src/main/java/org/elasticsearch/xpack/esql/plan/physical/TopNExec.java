@@ -112,7 +112,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<TopNExec> info() {
-        return NodeInfo.create(this, TopNExec::new, child(), order, limit, estimatedRowSize, sortedInput);
+        return NodeInfo.create(this, TopNExec::new, child(), order, limit, estimatedRowSize);
     }
 
     @Override

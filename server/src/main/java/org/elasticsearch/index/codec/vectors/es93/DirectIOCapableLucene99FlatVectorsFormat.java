@@ -31,8 +31,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 
@@ -189,7 +187,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
     }
 
-    static class RescorerOffHeapVectorValues extends FloatVectorValues implements BulkScorableFloatVectorValues {
+    static class RescorerOffHeapVectorValues extends FloatVectorValues {
         private final VectorSimilarityFunction similarityFunction;
         private final FloatVectorValues inner;
         private final IndexInput inputSlice;
@@ -234,58 +232,28 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
+        public int ordToDoc(int ord) {
+            return inner.ordToDoc(ord);
+        }
+
+        @Override
         public RescorerOffHeapVectorValues copy() throws IOException {
             return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction, scorer, forcePreFetching);
         }
 
         @Override
-        public BulkVectorScorer bulkRescorer(float[] target) throws IOException {
-            return bulkScorer(target);
-        }
-
-        @Override
-        public BulkVectorScorer bulkScorer(float[] target) throws IOException {
-            DocIndexIterator indexIterator = inner.iterator();
-            RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
-            return forcePreFetching && inputSlice != null
-                ? new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES)
-                : new FloatBulkVectorScorer(randomScorer, indexIterator);
+        public VectorScorer rescorer(float[] target) throws IOException {
+            if (forcePreFetching && inputSlice != null) {
+                DocIndexIterator indexIterator = inner.iterator();
+                RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
+                return new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES);
+            }
+            return inner.rescorer(target);
         }
 
         @Override
         public VectorScorer scorer(float[] target) throws IOException {
             return inner.scorer(target);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return inner.ordToDoc(ord);
-        }
-    }
-
-    private record FloatBulkVectorScorer(RandomVectorScorer inner, KnnVectorValues.DocIndexIterator indexIterator)
-        implements
-            BulkScorableVectorValues.BulkVectorScorer {
-
-        @Override
-        public float score() throws IOException {
-            return inner.score(indexIterator.index());
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            return indexIterator;
-        }
-
-        @Override
-        public BulkScorer bulkScore(DocIdSetIterator matchingDocs) throws IOException {
-            DocIdSetIterator conjunctionScorer = matchingDocs == null
-                ? indexIterator
-                : ConjunctionUtils.intersectIterators(List.of(matchingDocs, indexIterator));
-            if (conjunctionScorer.docID() == -1) {
-                conjunctionScorer.nextDoc();
-            }
-            return new FloatBulkScorer(inner, 32, indexIterator, conjunctionScorer);
         }
     }
 
@@ -294,7 +262,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         KnnVectorValues.DocIndexIterator indexIterator,
         IndexInput inputSlice,
         int byteSize
-    ) implements BulkScorableVectorValues.BulkVectorScorer {
+    ) implements VectorScorer {
 
         @Override
         public float score() throws IOException {
@@ -307,67 +275,23 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
-        public BulkScorer bulkScore(DocIdSetIterator matchingDocs) throws IOException {
+        public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
             DocIdSetIterator conjunctionScorer = matchingDocs == null
                 ? indexIterator
                 : ConjunctionUtils.intersectIterators(List.of(matchingDocs, indexIterator));
             if (conjunctionScorer.docID() == -1) {
                 conjunctionScorer.nextDoc();
             }
-            return new PrefetchingFloatBulkScorer(inner, inputSlice, byteSize, 32, indexIterator, conjunctionScorer);
+            return new PrefetchingFloatBulkScorer(inner, inputSlice, byteSize, indexIterator, conjunctionScorer);
         }
     }
 
-    private static class FloatBulkScorer implements BulkScorableVectorValues.BulkVectorScorer.BulkScorer {
+    private static class PrefetchingFloatBulkScorer implements VectorScorer.Bulk {
+        private static final int BULK_SIZE = 64;
+        private static final int SCORE_BULK_SIZE = 32;
         private final KnnVectorValues.DocIndexIterator indexIterator;
         private final DocIdSetIterator matchingDocs;
         private final RandomVectorScorer inner;
-        private final int bulkSize;
-        private final int[] docBuffer;
-        private final float[] scoreBuffer;
-
-        FloatBulkScorer(RandomVectorScorer fvv, int bulkSize, KnnVectorValues.DocIndexIterator iterator, DocIdSetIterator matchingDocs) {
-            this.indexIterator = iterator;
-            this.matchingDocs = matchingDocs;
-            this.inner = fvv;
-            this.bulkSize = bulkSize;
-            this.docBuffer = new int[bulkSize];
-            this.scoreBuffer = new float[bulkSize];
-        }
-
-        @Override
-        public void nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
-            buffer.growNoCopy(nextCount);
-            int size = 0;
-            for (int doc = matchingDocs.docID(); doc != DocIdSetIterator.NO_MORE_DOCS && size < nextCount; doc = matchingDocs.nextDoc()) {
-                if (liveDocs == null || liveDocs.get(doc)) {
-                    buffer.docs[size++] = indexIterator.index();
-                }
-            }
-            final int loopBound = size - (size % bulkSize);
-            int i = 0;
-            for (; i < loopBound; i += bulkSize) {
-                System.arraycopy(buffer.docs, i, docBuffer, 0, bulkSize);
-                inner.bulkScore(docBuffer, scoreBuffer, bulkSize);
-                System.arraycopy(scoreBuffer, 0, buffer.features, i, bulkSize);
-            }
-            final int countLeft = size - i;
-            System.arraycopy(buffer.docs, i, docBuffer, 0, countLeft);
-            inner.bulkScore(docBuffer, scoreBuffer, countLeft);
-            System.arraycopy(scoreBuffer, 0, buffer.features, i, countLeft);
-            buffer.size = size;
-            // fix the docIds in buffer
-            for (int j = 0; j < size; j++) {
-                buffer.docs[j] = inner.ordToDoc(buffer.docs[j]);
-            }
-        }
-    }
-
-    private static class PrefetchingFloatBulkScorer implements BulkScorableVectorValues.BulkVectorScorer.BulkScorer {
-        private final KnnVectorValues.DocIndexIterator indexIterator;
-        private final DocIdSetIterator matchingDocs;
-        private final RandomVectorScorer inner;
-        private final int bulkSize;
         private final IndexInput inputSlice;
         private final int byteSize;
         private final int[] docBuffer;
@@ -377,56 +301,51 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
             RandomVectorScorer fvv,
             IndexInput inputSlice,
             int byteSize,
-            int bulkSize,
             KnnVectorValues.DocIndexIterator iterator,
             DocIdSetIterator matchingDocs
         ) {
             this.indexIterator = iterator;
             this.matchingDocs = matchingDocs;
             this.inner = fvv;
-            this.bulkSize = bulkSize;
             this.inputSlice = inputSlice;
-            this.docBuffer = new int[bulkSize];
-            this.scoreBuffer = new float[bulkSize];
+            this.docBuffer = new int[BULK_SIZE];
+            this.scoreBuffer = new float[BULK_SIZE];
             this.byteSize = byteSize;
         }
 
         @Override
-        public void nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
-            buffer.growNoCopy(nextCount);
+        public float nextDocsAndScores(int upTo, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
+            buffer.growNoCopy(BULK_SIZE);
             int size = 0;
-            for (int doc = matchingDocs.docID(); doc != DocIdSetIterator.NO_MORE_DOCS && size < nextCount; doc = matchingDocs.nextDoc()) {
+            for (int doc = matchingDocs.docID(); doc < upTo && size < BULK_SIZE; doc = matchingDocs.nextDoc()) {
                 if (liveDocs == null || liveDocs.get(doc)) {
                     buffer.docs[size++] = indexIterator.index();
                 }
             }
-            final int firstBulkSize = Math.min(bulkSize, size);
-            for (int j = 0; j < firstBulkSize; j++) {
+            for (int j = 0; j < size; j++) {
                 final long ord = buffer.docs[j];
                 inputSlice.prefetch(ord * byteSize, byteSize);
             }
-            final int loopBound = size - (size % bulkSize);
+            final int loopBound = size - (size % SCORE_BULK_SIZE);
             int i = 0;
-            for (; i < loopBound; i += bulkSize) {
-                final int nextI = i + bulkSize;
-                final int nextBulkSize = Math.min(bulkSize, size - nextI);
-                for (int j = 0; j < nextBulkSize; j++) {
-                    final long ord = buffer.docs[nextI + j];
-                    inputSlice.prefetch(ord * byteSize, byteSize);
-                }
-                System.arraycopy(buffer.docs, i, docBuffer, 0, bulkSize);
-                inner.bulkScore(docBuffer, scoreBuffer, bulkSize);
-                System.arraycopy(scoreBuffer, 0, buffer.features, i, bulkSize);
+            float maxScore = Float.NEGATIVE_INFINITY;
+            for (; i < loopBound; i += SCORE_BULK_SIZE) {
+                System.arraycopy(buffer.docs, i, docBuffer, 0, SCORE_BULK_SIZE);
+                maxScore = Math.max(inner.bulkScore(docBuffer, scoreBuffer, SCORE_BULK_SIZE), maxScore);
+                System.arraycopy(scoreBuffer, 0, buffer.features, i, SCORE_BULK_SIZE);
             }
             final int countLeft = size - i;
-            System.arraycopy(buffer.docs, i, docBuffer, 0, countLeft);
-            inner.bulkScore(docBuffer, scoreBuffer, countLeft);
-            System.arraycopy(scoreBuffer, 0, buffer.features, i, countLeft);
+            if (countLeft > 0) {
+                System.arraycopy(buffer.docs, i, docBuffer, 0, countLeft);
+                maxScore = Math.max(inner.bulkScore(docBuffer, scoreBuffer, countLeft), maxScore);
+                System.arraycopy(scoreBuffer, 0, buffer.features, i, countLeft);
+            }
             buffer.size = size;
             // fix the docIds in buffer
             for (int j = 0; j < size; j++) {
                 buffer.docs[j] = inner.ordToDoc(buffer.docs[j]);
             }
+            return maxScore;
         }
     }
 }

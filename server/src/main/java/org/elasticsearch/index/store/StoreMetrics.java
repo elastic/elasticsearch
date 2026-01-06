@@ -52,7 +52,6 @@ public class StoreMetrics implements Metrics.PluggableMetrics<StoreMetrics> {
         bytesRead += amount;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("bytesRead", bytesRead);

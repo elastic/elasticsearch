@@ -24,24 +24,31 @@ public class Metrics {
 
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject {
         Supplier<T> delta();
+
         T snapshot();
     }
 
-
     private Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data;
-
 
     public <T extends PluggableMetrics<T>> T metrics(Class<T> type) {
         Object result = data.get(type);
         assert result.getClass() == type;
-        //noinspection unchecked
+        // noinspection unchecked
         return (T) result;
     }
 
     public Supplier<Metrics> delta() {
-        Map<? extends Class<? extends PluggableMetrics<?>>, Supplier<? extends PluggableMetrics<?>>> delta = data.entrySet().stream().map(e -> Tuple.tuple(e.getKey(), e.getValue().delta())).collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+        Map<? extends Class<? extends PluggableMetrics<?>>, Supplier<? extends PluggableMetrics<?>>> delta = data.entrySet()
+            .stream()
+            .map(e -> Tuple.tuple(e.getKey(), e.getValue().delta()))
+            .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
 
-        return () -> new Metrics(delta.entrySet().stream().map(e-> Tuple.tuple(e.getKey(), e.getValue().get())).collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2)));
+        return () -> new Metrics(
+            delta.entrySet()
+                .stream()
+                .map(e -> Tuple.tuple(e.getKey(), e.getValue().get()))
+                .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2))
+        );
     }
 
     public static class Builder {

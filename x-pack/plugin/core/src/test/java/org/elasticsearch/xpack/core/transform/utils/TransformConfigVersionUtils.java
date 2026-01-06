@@ -53,7 +53,7 @@ public class TransformConfigVersionUtils {
         @Nullable TransformConfigVersion minVersion,
         @Nullable TransformConfigVersion maxVersion
     ) {
-        return randomVersionBetween(minVersion, maxVersion);
+        return randomVersionBetween(random(), minVersion, maxVersion);
     }
 
     /** Returns a random {@link TransformConfigVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

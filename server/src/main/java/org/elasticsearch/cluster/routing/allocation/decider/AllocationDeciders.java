@@ -205,32 +205,40 @@ public class AllocationDeciders {
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (debugMode == RoutingAllocation.DebugMode.OFF) {
-            Decision mostNegativeDecision = Decision.YES;
+            Decision overallDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (mostNegativeDecision.type().higherThan(decision.type())) {
-                    mostNegativeDecision = decision;
-                    if (mostNegativeDecision.type() == Decision.Type.NO) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
-                        }
-                        break;
+                if (decision.type() == Decision.Type.NO) {
+                    traceNoDecisions(decider, decision, logMessageCreator);
+                    overallDecision = decision;
+                    break;
+                } else if (decision.type() == Decision.Type.NOT_PREFERRED && overallDecision.type() == Decision.Type.YES) {
+                    overallDecision = decision;
+                } else if (decision.type() == Decision.Type.THROTTLE
+                    && (overallDecision.type() == Decision.Type.YES || overallDecision.type() == Decision.Type.NOT_PREFERRED)) {
+                        overallDecision = decision;
                     }
-                }
             }
-            return mostNegativeDecision;
+            return overallDecision;
         } else {
             final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
-                    logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
-                }
+                traceNoDecisions(decider, decision, logMessageCreator);
                 if (decision != Decision.ALWAYS && (debugMode == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
                     multiDecision.add(decision);
                 }
             }
             return multiDecision;
+        }
+    }
+
+    /**
+     * NO decisions have TRACE-level logging.
+     */
+    private void traceNoDecisions(AllocationDecider decider, Decision decision, BiFunction<String, Decision, String> logMessageCreator) {
+        if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
+            logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
         }
     }
 

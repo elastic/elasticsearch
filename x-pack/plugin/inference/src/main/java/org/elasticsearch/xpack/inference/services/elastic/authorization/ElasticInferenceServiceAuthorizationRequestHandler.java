@@ -116,6 +116,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             requestCompleteLatch.countDown();
+            listener.onFailure(e);
         }
     }
 

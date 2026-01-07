@@ -521,13 +521,13 @@ stack: preview 9.3
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):
 
-::::{tab-set}
-:::{tab-item} {{stack}} 9.1+
+::::{applies-switch}
+:::{applies-item} stack: ga 9.1+
 ```txt
 flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ```
 :::
-:::{tab-item} {{stack}} 9.0
+:::{applies-item} stack: ga =9.0
 ```txt
 flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
 ```

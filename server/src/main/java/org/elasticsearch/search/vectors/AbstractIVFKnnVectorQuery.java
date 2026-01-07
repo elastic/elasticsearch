@@ -37,7 +37,6 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -217,11 +216,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
-        if(longAdder.longValue() > 0) {
-            LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester").info(
-                "Completed {} additional searches to fill results",
-                longAdder.longValue()
-            );
+        if (longAdder.longValue() > 0) {
+            LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester")
+                .info("Completed {} additional searches to fill results", longAdder.longValue());
         }
         // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);

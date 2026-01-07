@@ -1143,7 +1143,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private ActionModule getFakeActionModule(Set<RestHeaderDefinition> headersToCopy) {
-        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        SettingsModule settings = new SettingsModule(Settings.builder().put("path.home", createTempDir()).build());
         ActionPlugin copyHeadersPlugin = new ActionPlugin() {
             @Override
             public Collection<RestHeaderDefinition> getRestHeaders() {

@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -54,23 +54,23 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     public static final String SPLIT_HANDOFF_ACTION_NAME = TYPE.name() + "/handoff";
 
     private final TransportService transportService;
-    private final Client client;
     private final Executor recoveryExecutor;
+    private final IndicesService indicesService;
     private final SplitSourceService splitSourceService;
     private final SplitTargetService splitTargetService;
 
     @Inject
     public TransportReshardSplitAction(
-        Client client,
         TransportService transportService,
         ActionFilters actionFilters,
+        IndicesService indicesService,
         SplitSourceService splitSourceService,
         SplitTargetService splitTargetService
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.client = client;
         this.transportService = transportService;
         this.recoveryExecutor = transportService.getThreadPool().generic();
+        this.indicesService = indicesService;
         this.splitSourceService = splitSourceService;
         this.splitTargetService = splitTargetService;
 
@@ -160,7 +160,9 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     private void handleSplitHandoffOnTarget(Request request, ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> splitTargetService.acceptHandoff(request, l));
+        var indexService = indicesService.indexServiceSafe(request.shardId.getIndex());
+        var indexShard = indexService.getShard(request.shardId.id());
+        splitTargetService.acceptHandoff(indexShard, request, listener);
     }
 
     public static class SplitRequest extends ActionRequest {

@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
@@ -28,8 +29,6 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 public class ContextualAiRerankServiceSettings extends FilteredXContentObject
@@ -52,8 +51,8 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     public static ContextualAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String url = extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -109,8 +108,8 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(URL, uri.toString());
-        builder.field(MODEL_ID, modelId);
+        builder.field(ServiceFields.URL, uri.toString());
+        builder.field(ServiceFields.MODEL_ID, modelId);
 
         rateLimitSettings.toXContent(builder, params);
 
@@ -120,8 +119,8 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
-        builder.field(MODEL_ID, modelId);
+        builder.field(ServiceFields.URL, uri.toString());
+        builder.field(ServiceFields.MODEL_ID, modelId);
 
         rateLimitSettings.toXContent(builder, params);
 

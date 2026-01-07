@@ -71,7 +71,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
         assertNotSame(
             PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current()),
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.current()))
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersion.current()))
         );
 
         // Same Lucene version should be cached:

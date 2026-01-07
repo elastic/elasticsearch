@@ -99,7 +99,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedTransportVersion() {
         List<TransportVersion> transportVersions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random(), false))
+            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(false))
             .toList();
         TransportVersion min = Collections.min(transportVersions);
         List<CompatibilityVersions> compatibilityVersions = transportVersions.stream()

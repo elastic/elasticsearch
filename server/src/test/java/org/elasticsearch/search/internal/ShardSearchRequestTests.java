@@ -228,7 +228,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
                 version = TransportVersionUtils.randomVersionBetween(TransportVersion.minimumCompatible(), TransportVersion.current());
             }

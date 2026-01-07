@@ -307,7 +307,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testIsMetadataField() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
 
         CheckedFunction<IndexMode, MapperService, IOException> initMapperService = (indexMode) -> {
             Settings.Builder settingsBuilder = Settings.builder()

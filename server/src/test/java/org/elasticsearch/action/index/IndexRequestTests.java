@@ -237,7 +237,7 @@ public class IndexRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 indexRequest.setDynamicTemplates(Map.of());
             }
-            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion();
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);
@@ -252,7 +252,7 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion();
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);
@@ -271,7 +271,7 @@ public class IndexRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 indexRequest.setDynamicTemplateParams(Map.of());
             }
-            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion();
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);

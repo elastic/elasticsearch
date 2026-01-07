@@ -72,7 +72,7 @@ public class TransportPrevalidateNodeRemovalActionTests extends ESTestCase {
         return DiscoveryNodeUtils.builder(nodeId)
             .name(nodeName)
             .roles(emptySet())
-            .version(randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
     }
 }

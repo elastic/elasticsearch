@@ -692,7 +692,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     public void testIntRewritesToLong() throws IOException {
         assertIntegerSortRewrite(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
             SortField.Type.LONG
         );
         assertIntegerSortRewrite(

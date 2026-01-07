@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.NavigableSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -57,22 +56,8 @@ public class TransportVersionUtils {
         return ESTestCase.randomFrom(allReleasedVersions().stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link TransportVersion} from all available versions. */
-    public static TransportVersion randomVersion(Random random) {
-        return RandomPicks.randomFrom(random, allReleasedVersions());
-    }
-
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static TransportVersion randomVersionBetween(@Nullable TransportVersion minVersion, @Nullable TransportVersion maxVersion) {
-        return randomVersionBetween(random(), minVersion, maxVersion);
-    }
-
-    /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
-    public static TransportVersion randomVersionBetween(
-        Random random,
-        @Nullable TransportVersion minVersion,
-        @Nullable TransportVersion maxVersion
-    ) {
         if (minVersion != null && maxVersion != null && maxVersion.supports(minVersion) == false) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
@@ -93,7 +78,7 @@ public class TransportVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return RandomPicks.randomFrom(random, versions);
+        return RandomPicks.randomFrom(random(), versions);
     }
 
     public static TransportVersion getPreviousVersion() {
@@ -143,14 +128,14 @@ public class TransportVersionUtils {
     }
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
-    public static TransportVersion randomCompatibleVersion(Random random) {
-        return randomCompatibleVersion(random, true);
+    public static TransportVersion randomCompatibleVersion() {
+        return randomCompatibleVersion(true);
     }
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
-    public static TransportVersion randomCompatibleVersion(Random random, boolean includePatches) {
+    public static TransportVersion randomCompatibleVersion(boolean includePatches) {
         return RandomPicks.randomFrom(
-            random,
+            random(),
             (includePatches ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).stream().filter(TransportVersion::isCompatible).toList()
         );
     }

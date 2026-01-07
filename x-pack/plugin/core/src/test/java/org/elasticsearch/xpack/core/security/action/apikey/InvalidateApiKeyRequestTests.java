@@ -174,7 +174,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         final boolean ownedByAuthenticatedUser = true;
         InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, ownedByAuthenticatedUser);
         {
-            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             out.setTransportVersion(transportVersion);

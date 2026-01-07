@@ -406,7 +406,7 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         final AsyncSender sender = interceptor.interceptSender(intercepted);
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion();
         when(connection.getTransportVersion()).thenReturn(connectionVersion);
 
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);

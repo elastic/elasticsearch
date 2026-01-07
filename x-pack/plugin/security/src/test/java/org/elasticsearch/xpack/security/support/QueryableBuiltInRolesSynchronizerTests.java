@@ -592,7 +592,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         VersionInformation oldVersion = new VersionInformation(
             VersionUtils.randomVersionBetween(null, VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
+            IndexVersionUtils.randomCompatibleVersion()
         );
         return nodes(randomIntBetween(1, 3), true).add(
             DiscoveryNodeUtils.builder("old-data-node")

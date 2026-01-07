@@ -56,7 +56,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return false;
     }
 
-    private final IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+    private final IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion();
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);

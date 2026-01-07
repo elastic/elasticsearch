@@ -117,16 +117,22 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
      * This enumeration defines the possible types of decisions
      */
     enum Type implements Writeable {
-        // ordered by positiveness; order matters for serialization and comparison
-        NO,
-        NOT_PREFERRED,
-        // Temporarily throttled is a better choice than choosing a not-preferred node,
-        // but NOT_PREFERRED and THROTTLED are generally not comparable.
-        THROTTLE,
-        YES;
+        // order matters only for serialization, do NOT use for comparison
+        NO(0, 0),
+        NOT_PREFERRED(1, 2),
+        THROTTLE(2, 1),
+        YES(3, 3);
 
         // visible for testing
         static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName("allocation_decision_not_preferred");
+
+        private final int nodeComparisonOrdinal;
+        private final int decisionComparisonOrdinal;
+
+        Type(int nodeComparisonOrdinal, int decisionComparisonOrdinal) {
+            this.nodeComparisonOrdinal = nodeComparisonOrdinal;
+            this.decisionComparisonOrdinal = decisionComparisonOrdinal;
+        }
 
         public static Type readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
@@ -152,13 +158,6 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             }
         }
 
-        /**
-         * @return lowest decision by natural order
-         */
-        public static Type min(Type a, Type b) {
-            return a.compareTo(b) < 0 ? a : b;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
@@ -179,8 +178,30 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             }
         }
 
-        public boolean higherThan(Type other) {
-            return this.compareTo(other) > 0;
+        /**
+         * Compares this decision against another decision (for choosing a node)
+         * <p>
+         * This comparison is used at the node level when deciding which node to allocate a shard to. We prefer to wait and allocate a shard
+         * to a <code>THROTTLE</code>'d node than to move a shard to a <code>NOT_PREFERRED</code> node immediately.
+         *
+         * @return 0 when this == other, 1 when this &gt; other, -1 when this &lt; other
+         */
+        public int compareToBetweenNodes(Type other) {
+            return Integer.compare(nodeComparisonOrdinal, other.nodeComparisonOrdinal);
+        }
+
+        /**
+         * Compares this decision against another decision (for decision-aggregation)
+         * <p>
+         * This comparison is used when aggregating the results from many deciders. If one decider returns <code>THROTTLE</code> and
+         * another returns <code>NOT_PREFERRED</code>, we want to return <code>THROTTLE</code> to ensure we respect any throttling deciders.
+         * This can only occur in the reconciler or non-desired balancer, in both cases if we see a <code>THROTTLE</code> we want to
+         * respect that until it resolves.
+         *
+         * @return 0 when this == other, 1 when this &gt; other, -1 when this &lt; other
+         */
+        public int compareToBetweenDecisions(Type other) {
+            return Integer.compare(decisionComparisonOrdinal, other.decisionComparisonOrdinal);
         }
 
         /**
@@ -287,7 +308,14 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         @Override
         public Type type() {
             // returns most negative decision
-            return decisions.stream().map(Single::type).reduce(Type.YES, Type::min);
+            Decision.Type worst = Type.YES;
+            for (Single decision : decisions) {
+                final var next = decision.type();
+                if (next.compareToBetweenDecisions(worst) < 0) {
+                    worst = next;
+                }
+            }
+            return worst;
         }
 
         @Override

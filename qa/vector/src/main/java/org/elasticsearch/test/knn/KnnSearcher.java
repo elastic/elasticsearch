@@ -305,6 +305,7 @@ class KnnSearcher {
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+        finalResults.postFilteringThreshold = searchParameters.postFilteringThreshold();
     }
 
     private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)
@@ -425,7 +426,16 @@ class KnnSearcher {
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, overSampledTopK, efSearch, filterQuery, visitRatio);
+            float postFilteringThreshold = searchParameters.postFilteringThreshold();
+            knnQuery = new IVFKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                vector,
+                overSampledTopK,
+                efSearch,
+                filterQuery,
+                visitRatio,
+                postFilteringThreshold
+            );
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,

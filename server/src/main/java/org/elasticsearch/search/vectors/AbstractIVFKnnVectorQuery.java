@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
-import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
@@ -166,7 +165,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.PostFilterEsAcceptDocs(leafReaderContext, filterWeight, iterator, liveDocs, supplier.cost(), leafReader.maxDoc())
+                                    new ESAcceptDocs.PostFilterEsAcceptDocs(
+                                        leafReaderContext,
+                                        filterWeight,
+                                        iterator,
+                                        liveDocs,
+                                        supplier.cost(),
+                                        leafReader.maxDoc()
+                                    )
                                 )
                             );
                         } else {
@@ -217,8 +223,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(scoreDocs, reader);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext context, AcceptDocs filterDocs, IVFCollectorManager knnCollectorManager, float visitRatio, int docsFound, IntHashSet dedup)
-        throws IOException {
+    private TopDocs searchLeaf(
+        LeafReaderContext context,
+        AcceptDocs filterDocs,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        int docsFound,
+        IntHashSet dedup
+    ) throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         // Create dedup set on first call, reuse on recursive calls to filter out duplicates across passes
         if (dedup == null) {
@@ -246,9 +258,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         docsFound += docsAdded;
         if (postFilter) {
-            if(docsFound == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+            if (docsFound == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
             // Only recurse if we need more docs AND approximateSearch returned results (centroids remain)
-            if(docsFound < k && resultsFound > 0){
+            if (docsFound < k && resultsFound > 0) {
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
                 TopDocs additionalResults = searchLeaf(context, filterDocs, knnCollectorManager, visitRatio, docsFound, dedup);
                 ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;

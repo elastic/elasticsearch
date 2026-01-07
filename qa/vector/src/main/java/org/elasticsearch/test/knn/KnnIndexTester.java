@@ -412,6 +412,7 @@ public class KnnIndexTester {
                 "recall",
                 "visited",
                 "filter_selectivity",
+                "post_filtering_threshold",
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
@@ -448,6 +449,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                    String.format(Locale.ROOT, "%.2f", queryResult.postFilteringThreshold),
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
@@ -531,6 +533,7 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        float postFilteringThreshold;
         int numCandidates;
 
         Results(String indexName, String indexType, int numDocs) {

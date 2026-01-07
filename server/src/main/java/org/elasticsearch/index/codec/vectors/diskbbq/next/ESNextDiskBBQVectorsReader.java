@@ -131,7 +131,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if ((false == postFilter || ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidCardinality() == 0) && (approximateDocsPerCentroid > 1.25 || numCentroids == 1)) {
+        if ((false == postFilter || ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidCardinality() == 0)
+            && (approximateDocsPerCentroid > 1.25 || numCentroids == 1)) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;
@@ -140,7 +141,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
             final DocIdSetIterator iterator = false == postFilter
                 ? ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator))
-                : ConjunctionUtils.intersectIterators(List.of(((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidIterator(), docIndexIterator));
+                : ConjunctionUtils.intersectIterators(
+                    List.of(((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidIterator(), docIndexIterator)
+                );
             final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
             for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
@@ -152,11 +155,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 }
             }
         }
-        if(acceptCentroids != null && acceptCentroids.cardinality() == 0){
+        if (acceptCentroids != null && acceptCentroids.cardinality() == 0) {
             return null;
         }
-        if(postFilter && acceptCentroids != null) {
-            ((ESAcceptDocs.PostFilterEsAcceptDocs)acceptDocs).skip(acceptCentroids);
+        if (postFilter && acceptCentroids != null) {
+            ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).skip(acceptCentroids);
         }
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final int[] scratch = new int[targetQuery.length];
@@ -315,7 +318,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
-                if(acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs){
+                if (acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs) {
                     ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).skip(centroidOrdinal);
                 }
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
@@ -425,7 +428,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = nextCentroid();
-                if(acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs){
+                if (acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs) {
                     ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).skip(centroidOrdinal);
                 }
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);

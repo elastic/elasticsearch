@@ -80,6 +80,7 @@ record TestConfiguration(
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
+    static final ParseField POST_FILTERING_THRESHOLD = new ParseField("post_filtering_threshold");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
@@ -139,6 +140,7 @@ record TestConfiguration(
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
+        PARSER.declareFloatArray(Builder::setPostFilteringThresholds, POST_FILTERING_THRESHOLD);
     }
 
     public int numberOfSearchRuns() {
@@ -186,6 +188,7 @@ record TestConfiguration(
         private boolean onDiskRescore = false;
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
+        private List<Float> postFilteringThresholds = List.of(1f);
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -234,6 +237,11 @@ record TestConfiguration(
 
         public Builder setVisitPercentages(List<Double> visitPercentages) {
             this.visitPercentages = visitPercentages;
+            return this;
+        }
+
+        public Builder setPostFilteringThresholds(List<Float> postFilteringThresholds) {
+            this.postFilteringThresholds = postFilteringThresholds;
             return this;
         }
 
@@ -390,7 +398,8 @@ record TestConfiguration(
                     filterSelectivity.getFirst(),
                     filterCached.getFirst(),
                     earlyTermination.getFirst(),
-                    seed.getFirst()
+                    seed.getFirst(),
+                    postFilteringThresholds.getFirst()
                 );
 
                 for (var so : searchParams) {
@@ -460,6 +469,7 @@ record TestConfiguration(
             builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
             builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
             builder.field(FILTER_CACHED.getPreferredName(), filterCached);
+            builder.field(POST_FILTERING_THRESHOLD.getPreferredName(), postFilteringThresholds);
             if (mergePolicy != null) {
                 builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
             }
@@ -480,7 +490,8 @@ record TestConfiguration(
                 filterSelectivity.size(),
                 filterCached.size(),
                 earlyTermination.size(),
-                seed.size()
+                seed.size(),
+                postFilteringThresholds.size()
             );
             return lengths.stream().max(Integer::compareTo).get();
         }
@@ -497,7 +508,8 @@ record TestConfiguration(
                     filterSelectivity,
                     filterCached,
                     earlyTermination,
-                    seed
+                    seed,
+                    postFilteringThresholds
                 )
             ).stream()
                 .map(
@@ -511,7 +523,8 @@ record TestConfiguration(
                         (Float) params.get(6),
                         (Boolean) params.get(7),
                         (Boolean) params.get(8),
-                        (Long) params.get(9)
+                        (Long) params.get(9),
+                        (Float) params.get(10)
                     )
                 )
                 .toList();

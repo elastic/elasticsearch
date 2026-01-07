@@ -30,10 +30,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * An extension of {@link AcceptDocs} that provides additional methods to get an approximate cost
@@ -254,7 +252,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final long cost;
         private final FixedBitSet docIdSet;
 
-        PostFilterEsAcceptDocs(LeafReaderContext ctx, Weight weight, DocIdSetIterator disi, Bits liveDocs, long cost, int maxDoc) throws IOException {
+        PostFilterEsAcceptDocs(LeafReaderContext ctx, Weight weight, DocIdSetIterator disi, Bits liveDocs, long cost, int maxDoc)
+            throws IOException {
             assert disi.docID() == -1;
             this.leafReaderContext = ctx;
             this.filterWeight = weight;
@@ -303,15 +302,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             this.docIdSet.set(ord);
         }
 
-        public boolean visited(int ord){
+        public boolean visited(int ord) {
             return docIdSet.get(ord);
         }
 
-        public int centroidCardinality(){
+        public int centroidCardinality() {
             return docIdSet.cardinality();
         }
 
-        public DocIdSetIterator centroidIterator(){
+        public DocIdSetIterator centroidIterator() {
             return new BitSetIterator(docIdSet, docIdSet.cardinality());
         }
     }

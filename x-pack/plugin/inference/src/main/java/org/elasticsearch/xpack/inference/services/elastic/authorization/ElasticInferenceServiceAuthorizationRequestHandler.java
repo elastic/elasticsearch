@@ -101,50 +101,46 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
      * @param sender a {@link Sender} for making the request to the Elastic Inference Service
      */
     public void getAuthorization(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
-        getAuthorizationHelper(listener, sender, false);
+        getAuthorization(listener, sender, false);
     }
 
     /**
-     * Skips retrieving the authorization information from Elastic Inference Service if CCM is not configured,
-     * and it is a supported environment, a supported environment would be on-prem or ECK. ECH and serverless are not supported
+     * Retrieves the authorization information from Elastic Inference Service. This will skip making a request if CCM is not enabled
+     * and it is a supported environment. A supported environment is on-prem or ECK. ECH and serverless are not supported
      * environments for CCM (because they can already connect to EIS). For environments where CCM is not supported, it will always
      * attempt to retrieve the authorization information.
      * @param listener a listener to receive the response
      * @param sender a {@link Sender} for making the request to the Elastic Inference Service
      */
-    public void getAuthorizationSkippingIfCcmNotConfigured(
-        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
-        Sender sender
-    ) {
-        getAuthorizationHelper(listener, sender, true);
+    public void getAuthorizationIfPermittedEnvironment(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
+        getAuthorization(listener, sender, true);
     }
 
-    private void getAuthorizationHelper(
+    private void getAuthorization(
         ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
         Sender sender,
-        boolean skipIfCcmNotConfigured
+        boolean checkCcmState
     ) {
         var countdownListener = ActionListener.runAfter(listener, requestCompleteLatch::countDown);
 
         try {
-            if (skipIfCcmNotConfigured == false || ccmFeature.isCcmSupportedEnvironment() == false) {
-                retrieveAuthorizationInformation(countdownListener, sender);
-                return;
-            }
-
-            var isCcmEnabledListener = ActionListener.<Boolean>wrap(response -> {
-                if (response == null || response == false) {
-                    logger.debug("CCM is not configured, skipping authorization request to Elastic Inference Service.");
+            if (checkCcmState && ccmFeature.isCcmSupportedEnvironment()) {
+                var isCcmEnabledListener = ActionListener.<Boolean>wrap(enabled -> {
+                    if (enabled == null || enabled == false) {
+                        logger.debug("CCM is not enabled, skipping authorization request to Elastic Inference Service.");
+                        countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
+                    } else {
+                        retrieveAuthorizationInformation(countdownListener, sender);
+                    }
+                }, e -> {
+                    logger.atDebug().withThrowable(e).log("Failed to determine if CCM is configured, returning unauthorized.");
                     countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
-                } else {
-                    retrieveAuthorizationInformation(countdownListener, sender);
-                }
-            }, e -> {
-                logger.atDebug().withThrowable(e).log("Failed to determine if CCM is configured, returning unauthorized.");
-                countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
-            });
+                });
 
-            ccmService.isEnabled(isCcmEnabledListener);
+                ccmService.isEnabled(isCcmEnabledListener);
+            } else {
+                retrieveAuthorizationInformation(countdownListener, sender);
+            }
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             countdownListener.onFailure(e);

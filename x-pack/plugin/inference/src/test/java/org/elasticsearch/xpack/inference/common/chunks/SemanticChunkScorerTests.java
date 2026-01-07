@@ -98,6 +98,7 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
             10,
             10f,
             null,
+            null,
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
@@ -162,6 +163,7 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
             10,
             10,
             10f,
+            null,
             null,
             null
         );

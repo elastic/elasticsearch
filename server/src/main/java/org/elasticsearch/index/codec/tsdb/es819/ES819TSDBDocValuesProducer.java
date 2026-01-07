@@ -542,7 +542,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return;
             }
 
-            decompressDocOffsets(numDocsInBlock, compressedData);
+            if (header.allSameLength()) {
+                int length = compressedData.readVInt();
+                int currOffset = 0;
+                for (int i = 0; i <= numDocsInBlock; i++) {
+                    uncompressedDocStarts[i] = currOffset;
+                    currOffset += length;
+                }
+            } else {
+                decompressDocOffsets(numDocsInBlock, compressedData);
+            }
 
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;

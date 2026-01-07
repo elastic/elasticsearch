@@ -187,6 +187,19 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         assertBinaryValues(binaryValues);
     }
 
+    public void testBlockWiseBinarySameLengthValues() throws Exception {
+        List<String> binaryValues = new ArrayList<>();
+        int numSequences = 10;
+        for (int i = 0; i < numSequences; i++) {
+            int lengthForSequence = randomIntBetween(0, 10);
+            int numInSequence = randomIntBetween(0, 3 * BLOCK_COUNT_THRESHOLD);
+            for (int j = 0; j < numInSequence; j++) {
+                binaryValues.add(randomAlphaOfLength(lengthForSequence));
+            }
+        }
+        assertBinaryValues(binaryValues);
+    }
+
     public void testBlockWiseBinaryLargeValues() throws Exception {
         boolean sparse = randomBoolean();
         int numBlocksBound = 5;

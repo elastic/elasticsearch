@@ -482,7 +482,10 @@ works in parallel with the storage engine.)
 
 ### Create a Shard
 
-### Local Recovery
+### Local Shards Recovery
+Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
+
+This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data from the source shard(s) directory. Copy is used if the runtime environment does not support hard links (e.g., on Windows). Source shard(s) directories are added using the `IndexWriter#addIndexes` API. Once an `IndexWriter` is correctly set up with source shard(s), the necessary data modifications are performed (like deleting excess documents during split) and a new commit is created for the recovering shard. After that recovery proceeds using standard store recovery logic utilizing the commit that was just created.
 
 ### Peer Recovery
 
@@ -876,3 +879,20 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 ### Closing a Shard
 
 (this can also happen during shard reallocation, right? This might be a standalone topic, or need another section about it in allocation?...)
+
+# Shrink/Split/Clone index APIs
+
+These APIs are used to create a new index that contains a copy of data from a provided index and differs in number of shards and/or index settings. They can only be executed against source indices that are marked read-only.
+
+The shrink API (`/{index}/_shrink/{target}`) creates an index that has fewer shards than the original index.
+
+The split API (`/{index}/_split/{target}`) creates an index that has more shards than the original index.
+
+The clone API (`/{index}/_clone/{target}`) creates an index that has the same number of shards as the original index but may have different index settings.
+
+The main implementation logic is centralized in `TransportResizeAction` however it only creates a new index in the cluster state using special `recoverFrom` and `resizeType` parameters. The entire workflow involves multiple components.
+
+The high level structure is the following:
+1. `TransportResizeAction` creates index metadata for the new index that contains information about the resize performed. It also creates a routing table for the new index which assigns a `LocalShardsRecoverySource.INSTANCE` recovery source to primary shards based on the resize information in the index metadata .
+2. Allocation logic allocates shards of the index so that they are on the same node as the corresponding shards of the source index. See `ResizeAllocationDecider`. Note that this doesn't work for shrink case since during shrink there are multiple source shards that are "merged" together. These source shards may be on different nodes already. Shard movement in this case needs to be performed manually.
+3. Primary shards perform [local shards recovery](#local-shards-recovery) using index metadata to know what type of resize operation is performed.

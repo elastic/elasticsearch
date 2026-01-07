@@ -41,8 +41,7 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
             return null;
         }
 
-        bytesValues = new MultiValuedSortedBinaryDocValues(docValues);
-
+        bytesValues = MultiValuedSortedBinaryDocValues.from(leafReader, name, docValues);
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);
             return hasValue;

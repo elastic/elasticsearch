@@ -38,7 +38,7 @@ public class MvDedupeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 validPerPosition,
                 signature,
                 (v, p) -> "any type except counter types, dense_vector, "
-                    + "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
             )
         );
     }

@@ -201,13 +201,13 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
         PersistentTasks.Builder<?> tasks = builder();
 
         TransportVersion minVersion = TransportVersion.minimumCompatible();
-        TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
+        TransportVersion streamVersion = randomVersionBetween(minVersion, getPreviousVersion(TransportVersion.current()));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                randomVersionBetween(random(), minVersion, streamVersion),
+                randomVersionBetween(minVersion, streamVersion),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -217,7 +217,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.current()),
+                randomVersionBetween(getNextVersion(streamVersion), TransportVersion.current()),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()

@@ -711,12 +711,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testRescoreVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = randomFrom(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersionUtils.getLowestReadCompatibleVersion(),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
             ),
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             )
@@ -742,12 +740,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testRescoreZeroVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = randomFrom(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersionUtils.getLowestReadCompatibleVersion(),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
             ),
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
             )
@@ -1427,7 +1423,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int dims = randomIntBetween(64, 2048);
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
         );
         float[] vector = new float[dims];
@@ -1519,7 +1515,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             VectorSimilarityFunction.COSINE,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
                 IndexVersionUtils.randomVersionBetween(
-                    random(),
                     IndexVersions.V_8_0_0,
                     IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.NORMALIZE_COSINE)
                 ),
@@ -1529,7 +1524,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
-                IndexVersionUtils.randomVersionBetween(random(), DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
                 ElementType.FLOAT
             )
         );

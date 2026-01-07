@@ -297,7 +297,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     private boolean accepted(DocIdSetIterator iterator, int doc) throws IOException {
-        if (iterator == null) {
+        if (iterator == null || iterator.docID() == doc) {
             return true;
         }
         if (iterator.docID() == NO_MORE_DOCS || iterator.docID() > doc) {

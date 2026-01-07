@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +16,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
@@ -28,7 +28,6 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
@@ -39,7 +38,6 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     public static final String NAME = "contextualai_rerank_service_settings";
     private static final String API_KEY = "api_key";
-    private static final String MODEL_ID = "model_id";
 
     // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
     private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
@@ -55,7 +53,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -107,7 +105,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         builder.startObject();
 
         builder.field(URL, uri.toString());
-        builder.field(MODEL_ID, modelId);
+        builder.field(ServiceFields.MODEL_ID, modelId);
 
         rateLimitSettings.toXContent(builder, params);
 
@@ -118,7 +116,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(URL, uri.toString());
-        builder.field(MODEL_ID, modelId);
+        builder.field(ServiceFields.MODEL_ID, modelId);
 
         rateLimitSettings.toXContent(builder, params);
 
@@ -149,6 +147,6 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 }

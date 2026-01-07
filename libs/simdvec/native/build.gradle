@@ -29,7 +29,7 @@ var os = org.gradle.internal.os.OperatingSystem.current()
 //  objdump --disassemble-symbols=_dot7u build/libs/vec/shared/aarch64/libvec.dylib
 // Note: symbol decoration may differ on Linux, i.e. the leading underscore is not present
 //
-// gcc -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
+// g++ -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
 
 group = 'org.elasticsearch'
 
@@ -47,12 +47,10 @@ model {
   toolChains {
     gcc(Gcc) {
       target("aarch64") {
-        cCompiler.executable = "/usr/bin/gcc"
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+        cppCompiler.executable = "/usr/bin/g++"
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=armv8-a"]) }
       }
       target("amd64") {
-        cCompiler.executable = "/usr/bin/gcc"
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
         cppCompiler.executable = "/usr/bin/g++"
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
@@ -61,17 +59,16 @@ model {
       eachPlatform { toolchain ->
         def platform = toolchain.getPlatform()
         if (platform.name == "x64") {
-          cCompiler.withArguments { args -> args.addAll(["/O2", "/LD", "-march=core-avx2"]) }
+          cppCompiler.withArguments { args -> args.addAll(["/O2", "/LD", "-march=core-avx2"]) }
         }
       }
     }
     clang(Clang) {
       target("aarch64") {
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=armv8-a"]) }
       }
 
       target("amd64") {
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2"]) }
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
     }
@@ -134,7 +131,7 @@ tasks.register('buildSharedLibraryAndCopy') {
   description = 'Assembles native shared library for the host architecture and copies to libs/native/libraries/build/platform/'
   // check if `LOCAL_VEC_BINARY_OS` is set, if not throw an error to prevent accidental overwrites
   if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
-    throw new GradleException("LOCAL_VEC_BINARY_OS is set, skipping copy to prevent overwriting local binary.")
+    throw new GradleException("LOCAL_VEC_BINARY_OS is not set, skipping copy to prevent overwriting local binary.")
   }
   dependsOn "buildSharedLibrary"
   doLast {

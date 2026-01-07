@@ -26,8 +26,8 @@
           ],
           "parts": {
             "name": {
-              "type": "list",
-              "description": "The comma separated names of the component templates"
+              "type": "string",
+              "description": "The name of the component template. Wildcard (`*`) expressions are supported."
             }
           }
         }

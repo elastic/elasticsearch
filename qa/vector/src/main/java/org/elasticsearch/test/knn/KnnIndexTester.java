@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
@@ -32,12 +31,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -45,8 +47,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,7 +97,7 @@ public class KnnIndexTester {
         LOG_DOC
     }
 
-    private static String formatIndexPath(CmdLineArgs args) {
+    private static String formatIndexPath(TestConfiguration args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
@@ -116,7 +116,7 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(CmdLineArgs args) {
+    static Codec createCodec(TestConfiguration args) {
         final KnnVectorsFormat format;
         int quantizeBits = args.quantizeBits();
         if (args.indexType() == IndexType.IVF) {
@@ -146,18 +146,31 @@ public class KnnIndexTester {
         } else {
             if (quantizeBits == 1) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES818BinaryQuantizedVectorsFormat();
+                    format = new ES93BinaryQuantizedVectorsFormat();
                 } else {
-                    format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
+                    format = new ES93HnswBinaryQuantizedVectorsFormat(
+                        args.hnswM(),
+                        args.hnswEfConstruction(),
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        false
+                    );
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES813Int8FlatVectorFormat(null, quantizeBits, true);
+                    format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, null, quantizeBits, true);
                 } else {
-                    format = new ES814HnswScalarQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), null, quantizeBits, true);
+                    format = new ES93HnswScalarQuantizedVectorsFormat(
+                        args.hnswM(),
+                        args.hnswEfConstruction(),
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        null,
+                        quantizeBits,
+                        true,
+                        false
+                    );
                 }
             } else {
-                format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
+                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), DenseVectorFieldMapper.ElementType.FLOAT);
             }
         }
         return new Lucene103Codec() {
@@ -188,6 +201,36 @@ public class KnnIndexTester {
         };
     }
 
+    private record ParsedArgs(boolean help, String configPath, int warmUpIterations) {
+
+    }
+
+    private static ParsedArgs parseArgs(String[] args) {
+        boolean help = false;
+        String configFile = null;
+        int warmUpIterations = 1;
+
+        if (args.length > 2) {
+            return null; // invalid options
+        }
+
+        for (var arg : args) {
+            if (arg.equals("-h") || arg.equals("--help")) {
+                help = true;
+            } else if (arg.startsWith("--warmUp=")) {
+                warmUpIterations = Integer.parseInt(arg.substring("--warmUp=".length()));
+            } else {
+                configFile = arg;
+            }
+        }
+
+        if (configFile == null) {
+            return null; // config file required
+        }
+
+        return new ParsedArgs(help, configFile, warmUpIterations);
+    }
+
     /**
      * Main method to run the KNN index tester.
      * It parses command line arguments, creates the index, and runs searches if specified.
@@ -196,43 +239,42 @@ public class KnnIndexTester {
      * @throws Exception If an error occurs during index creation or search
      */
     public static void main(String[] args) throws Exception {
-        if (args.length != 1 || args[0].equals("--help") || args[0].equals("-h")) {
+        var parsedArgs = parseArgs(args);
+        if (parsedArgs == null || parsedArgs.help()) {
             // printout an example configuration formatted file and indicate that it is required
-            System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file>");
+            System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file> [--warmUp]");
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
-            System.out.println("An example configuration object: ");
+            System.out.println("--warmUp is the number of warm up iterations");
+            System.out.println();
+            System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
+            System.out.println("Every combination of each parameter will be run.");
             System.out.println(
-                Strings.toString(
-                    new CmdLineArgs.Builder().setDimensions(64)
-                        .setDocVectors(List.of("/doc/vectors/path"))
-                        .setQueryVectors("/query/vectors/path")
-                        .build(),
-                    true,
-                    true
-                )
+                "This example configuration runs 4 searches with different combinations of num_candidates and early_termination:"
             );
+            System.out.println(TestConfiguration.exampleFormatForHelp());
             return;
         }
-        String jsonConfig = args[0];
-        // Parse command line arguments
-        Path jsonConfigPath = PathUtils.get(jsonConfig);
+
+        Path jsonConfigPath = PathUtils.get(parsedArgs.configPath());
         if (Files.exists(jsonConfigPath) == false) {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
+
+        logger.info("Using configuration file: " + jsonConfigPath);
         // Parse the JSON config file to get command line arguments
-        // This assumes that CmdLineArgs.fromXContent is implemented to parse the JSON file
-        List<CmdLineArgs> cmdLineArgsList = new ArrayList<>();
+        // This assumes that the JSON file is the correct format
+        List<TestConfiguration> testConfigurationList = new ArrayList<>();
         try (
             InputStream jsonStream = Files.newInputStream(jsonConfigPath);
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, jsonStream)
         ) {
             // check if the parser is at the start of an object if so, we only have one set of arguments
             if (parser.currentToken() == null && parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                cmdLineArgsList.add(CmdLineArgs.fromXContent(parser));
+                testConfigurationList.add(TestConfiguration.fromXContent(parser));
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 // if the parser is at the start of an array, we have multiple sets of arguments
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    cmdLineArgsList.add(CmdLineArgs.fromXContent(parser));
+                    testConfigurationList.add(TestConfiguration.fromXContent(parser));
                 }
             } else {
                 throw new IllegalArgumentException("Invalid JSON format in config file: " + jsonConfigPath);
@@ -240,60 +282,71 @@ public class KnnIndexTester {
         }
         FormattedResults formattedResults = new FormattedResults();
 
-        for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
-            double[] visitPercentages = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
-                ? cmdLineArgs.visitPercentages()
-                : new double[] { 0 };
-            String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
+        for (TestConfiguration testConfiguration : testConfigurationList) {
+            String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(
-                cmdLineArgs.docVectors().get(0).getFileName().toString(),
+                testConfiguration.docVectors().get(0).getFileName().toString(),
                 indexType,
-                cmdLineArgs.numDocs(),
-                cmdLineArgs.filterSelectivity()
+                testConfiguration.numDocs()
             );
-            Results[] results = new Results[visitPercentages.length];
-            for (int i = 0; i < visitPercentages.length; i++) {
+            Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
+            for (int i = 0; i < results.length; i++) {
                 results[i] = new Results(
-                    cmdLineArgs.docVectors().get(0).getFileName().toString(),
+                    testConfiguration.docVectors().get(0).getFileName().toString(),
                     indexType,
-                    cmdLineArgs.numDocs(),
-                    cmdLineArgs.filterSelectivity()
+                    testConfiguration.numDocs()
                 );
             }
             logger.info("Running with Java: " + Runtime.version());
-            logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
-            Codec codec = createCodec(cmdLineArgs);
-            Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
-            MergePolicy mergePolicy = getMergePolicy(cmdLineArgs);
-            if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
+            logger.info("Running KNN index tester with arguments: " + testConfiguration);
+            Codec codec = createCodec(testConfiguration);
+            Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
+            MergePolicy mergePolicy = getMergePolicy(testConfiguration);
+            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
-                    cmdLineArgs.docVectors(),
+                    testConfiguration.docVectors(),
                     indexPath,
                     codec,
-                    cmdLineArgs.indexThreads(),
-                    cmdLineArgs.vectorEncoding(),
-                    cmdLineArgs.dimensions(),
-                    cmdLineArgs.vectorSpace(),
-                    cmdLineArgs.numDocs(),
+                    testConfiguration.indexThreads(),
+                    testConfiguration.vectorEncoding(),
+                    testConfiguration.dimensions(),
+                    testConfiguration.vectorSpace(),
+                    testConfiguration.numDocs(),
                     mergePolicy,
-                    cmdLineArgs.writerBufferSizeInMb(),
-                    cmdLineArgs.writerMaxBufferedDocs()
+                    testConfiguration.writerBufferSizeInMb(),
+                    testConfiguration.writerMaxBufferedDocs()
                 );
-                if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
+                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
-                if (cmdLineArgs.reindex()) {
+                if (testConfiguration.reindex()) {
                     knnIndexer.createIndex(indexResults);
                 }
-                if (cmdLineArgs.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults, cmdLineArgs.forceMergeMaxNumSegments());
+                if (testConfiguration.forceMerge()) {
+                    knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
                 }
             }
             numSegments(indexPath, indexResults);
-            if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
+            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+                if (parsedArgs.warmUpIterations() > 0) {
+                    logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+                }
+                // Warm up
+                for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+                    for (int i = 0; i < results.length; i++) {
+                        var ignoreResults = new Results(
+                            testConfiguration.docVectors().get(0).getFileName().toString(),
+                            indexType,
+                            testConfiguration.numDocs()
+                        );
+                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                        knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+                    }
+                }
+
                 for (int i = 0; i < results.length; i++) {
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, visitPercentages[i]);
-                    knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
+                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                    knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
                 }
             }
             formattedResults.queryResults.addAll(List.of(results));
@@ -302,7 +355,7 @@ public class KnnIndexTester {
         logger.info("Results: \n" + formattedResults);
     }
 
-    private static MergePolicy getMergePolicy(CmdLineArgs args) {
+    private static MergePolicy getMergePolicy(TestConfiguration args) {
         MergePolicy mergePolicy = null;
         if (args.mergePolicy() != null) {
             if (args.mergePolicy() == MergePolicyType.TIERED) {
@@ -358,7 +411,11 @@ public class KnnIndexTester {
                 "QPS",
                 "recall",
                 "visited",
-                "filter_selectivity" };
+                "filter_selectivity",
+                "filter_cached",
+                "oversampling_factor",
+                "num_candidates",
+                "early_termination" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -383,14 +440,18 @@ public class KnnIndexTester {
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
-                    String.format(Locale.ROOT, "%.2f", queryResult.visitPercentage),
+                    String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
                     String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
-                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity), };
+                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                    Boolean.toString(queryResult.filterCached),
+                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
+                    String.format(Locale.ROOT, "%d", queryResult.numCandidates),
+                    Boolean.toString(queryResult.earlyTermination) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -456,7 +517,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
-        final float filterSelectivity;
+        float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
@@ -467,12 +528,15 @@ public class KnnIndexTester {
         double averageVisited;
         double netCpuTimeMS;
         double avgCpuCount;
+        boolean filterCached;
+        double overSamplingFactor;
+        boolean earlyTermination;
+        int numCandidates;
 
-        Results(String indexName, String indexType, int numDocs, float filterSelectivity) {
+        Results(String indexName, String indexType, int numDocs) {
             this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
-            this.filterSelectivity = filterSelectivity;
         }
     }
 

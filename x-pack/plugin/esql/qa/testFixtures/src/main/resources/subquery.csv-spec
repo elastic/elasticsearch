@@ -3,7 +3,6 @@
 //
 
 subqueryInFrom
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM sample_data)
@@ -26,7 +25,6 @@ null           | null              | 172.21.3.15
 ;
 
 subqueryInFromWithoutMainIndexPattern
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM (FROM employees)
@@ -42,7 +40,6 @@ emp_no:integer | languages:integer
 ;
 
 subqueryInFromWithoutMainIndexPatternWithMultipleSubqueries
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM (FROM employees), (FROM sample_data)
@@ -65,7 +62,6 @@ null           | null              | 172.21.3.15
 ;
 
 subqueryInFromWithIdenticalIndexPatternsInMainAndSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees)
@@ -84,11 +80,11 @@ emp_no:integer | languages:integer
 ;
 
 subqueryInFromWithEvalInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data | EVAL x = client_ip::keyword ) metadata _index
+FROM employees, (FROM sample_data metadata _index | EVAL x = client_ip::keyword ) metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT emp_no, client_ip
 | KEEP _index,  emp_no, languages, client_ip, x
 ;
@@ -97,23 +93,23 @@ _index:keyword | emp_no:integer | languages:integer | client_ip:ip | x:keyword
 employees      | 10091          | 3                 | null | null
 employees      | 10092          | 1                 | null | null
 employees      | 10093          | 3                 | null | null
-null   | null           | null              | 172.21.0.5 | 172.21.0.5
-null   | null           | null              | 172.21.2.113 | 172.21.2.113
-null   | null           | null              | 172.21.2.162 | 172.21.2.162
-null   | null           | null              | 172.21.3.15 | 172.21.3.15
-null   | null           | null              | 172.21.3.15 | 172.21.3.15
-null   | null           | null              | 172.21.3.15 | 172.21.3.15
-null   | null           | null              | 172.21.3.15 | 172.21.3.15
+sample_data    | null           | null              | 172.21.0.5 | 172.21.0.5
+sample_data    | null           | null              | 172.21.2.113 | 172.21.2.113
+sample_data    | null           | null              | 172.21.2.162 | 172.21.2.162
+sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 ;
 
 subqueryInFromWithWhereInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM sample_data metadata _index
                                 | WHERE client_ip == "172.21.3.15" ) 
            metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT emp_no
 | KEEP _index,  emp_no, languages, client_ip
 ;
@@ -129,133 +125,121 @@ sample_data    | null           | null              | 172.21.3.15
 ;
 
 subqueryInFromWithStatsInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data  metadata _index
-                                | STATS cnt = count(*) by client_ip ) 
-           metadata _index
+FROM employees, (FROM sample_data metadata _index
+                                | STATS cnt = count(*) by _index, client_ip )
+          metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
-| SORT emp_no, client_ip
-| KEEP _index,  emp_no, languages, cnt, client_ip
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| SORT _index, emp_no, client_ip
+| KEEP _index, emp_no, languages, cnt, client_ip
 ;
 
 _index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
-employees      | 10091          | 3                 | null     | null
-employees      | 10092          | 1                 | null     | null
-employees      | 10093          | 3                 | null     | null
-null           | null           | null              | 1        | 172.21.0.5
-null           | null           | null              | 1        | 172.21.2.113
-null           | null           | null              | 1        | 172.21.2.162
-null           | null           | null              | 4        | 172.21.3.15
+employees | 10091          | 3                 | null     | null
+employees | 10092          | 1                 | null     | null
+employees | 10093          | 3                 | null     | null
+sample_data | null           | null              | 1        | 172.21.0.5
+sample_data | null           | null              | 1        | 172.21.2.113
+sample_data | null           | null              | 1        | 172.21.2.162
+sample_data | null           | null              | 4        | 172.21.3.15
 ;
 
 subqueryInFromWithStatsInSubqueryConjunctiveFilterInMainQuery
-required_capability: fork_v9
-required_capability: subquery_in_from_command
-
-FROM employees, (FROM sample_data
-                                | STATS cnt = count(*) by client_ip )
-                              , (FROM sample_data_str
-                                | STATS cnt = count(*) by client_ip )
-           metadata _index
-| EVAL client_ip = client_ip::ip
-| WHERE client_ip == "172.21.3.15" AND cnt >0
-| SORT emp_no, client_ip
-| KEEP _index,  emp_no, languages, cnt, client_ip
-;
-
-_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
-null           | null           | null              | 4        | 172.21.3.15
-null           | null           | null              | 4        | 172.21.3.15
-;
-
-subqueryInFromWithStatsInSubqueryDisjunctiveFilterInMainQuery
-required_capability: fork_v9
-required_capability: subquery_in_from_command
-
-FROM employees, (FROM sample_data
-                                | STATS cnt = count(*) by client_ip )
-                              , (FROM sample_data_str
-                                | STATS cnt = count(*) by client_ip )
-           metadata _index
-| EVAL client_ip = client_ip::ip
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR client_ip == "172.21.3.15"
-| SORT emp_no, client_ip
-| KEEP _index,  emp_no, languages, cnt, client_ip
-;
-
-_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
-employees      | 10091          | 3                 | null     | null
-employees      | 10092          | 1                 | null     | null
-employees      | 10093          | 3                 | null     | null
-null           | null           | null              | 4        | 172.21.3.15
-null           | null           | null              | 4        | 172.21.3.15
-;
-
-subqueryInFromWithStatsInMainQuery
-required_capability: fork_v9
-required_capability: subquery_in_from_command
-
-FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos  metadata _index
-            | WHERE client_ip == "172.21.3.15") ,
-           (FROM sample_data_ts_long  metadata _index
-            | EVAL @timestamp = @timestamp::date_nanos
-            | WHERE client_ip == "172.21.0.5")
-            metadata _index
-| EVAL client_ip = client_ip::ip
-| STATS cnt = count(*) BY _index, client_ip
-| SORT _index, client_ip
-;
-
-cnt:long | _index:keyword  | client_ip:ip
-1        | sample_data          | 172.21.0.5
-1        | sample_data          | 172.21.2.113
-1        | sample_data          | 172.21.2.162
-4        | sample_data          | 172.21.3.15
-1        | sample_data_str      | 172.21.0.5
-1        | sample_data_str      | 172.21.2.113
-1        | sample_data_str      | 172.21.2.162
-4        | sample_data_str      | 172.21.3.15
-1        | sample_data_ts_long  | 172.21.0.5
-4        | sample_data_ts_nanos | 172.21.3.15
-;
-
-subqueryInFromWithLookupJoinInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM sample_data  metadata _index
-                                | EVAL client_ip = client_ip::keyword
-                                | LOOKUP JOIN clientips_lookup ON client_ip ) 
-           metadata _index
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
-| SORT emp_no, client_ip
-| KEEP _index,  emp_no, languages, client_ip, env
+                                | STATS cnt = count(*) by _index, client_ip )
+                              , (FROM sample_data_str  metadata _index
+                                | STATS cnt = count(*) by _index, client_ip )
+             metadata _index
+| EVAL client_ip = client_ip::ip, _index = MV_LAST(SPLIT(_index, ":"))
+| WHERE client_ip == "172.21.3.15" AND cnt >0
+| SORT _index, emp_no, client_ip
+| KEEP _index, emp_no, languages, cnt, client_ip
 ;
 
-_index:keyword | emp_no:integer | languages:integer | client_ip:keyword | env:keyword
-employees      | 10091          | 3                 | null              | null
-employees      | 10092          | 1                 | null              | null
-employees      | 10093          | 3                 | null              | null
-sample_data    | null           | null              | 172.21.0.5        | Development
-sample_data    | null           | null              | 172.21.2.113      | QA
-sample_data    | null           | null              | 172.21.2.162      | QA
-sample_data    | null           | null              | 172.21.3.15       | Production
-sample_data    | null           | null              | 172.21.3.15       | Production
-sample_data    | null           | null              | 172.21.3.15       | Production
-sample_data    | null           | null              | 172.21.3.15       | Production
+_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
+sample_data |null           | null              | 4        | 172.21.3.15
+sample_data_str |null           | null              | 4        | 172.21.3.15
+;
+
+subqueryInFromWithStatsInSubqueryDisjunctiveFilterInMainQuery
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM sample_data metadata _index
+                                | STATS cnt = count(*) by _index, client_ip )
+                              , (FROM sample_data_str metadata _index
+                                | STATS cnt = count(*) by _index, client_ip )
+           metadata _index
+| EVAL client_ip = client_ip::ip, _index = MV_LAST(SPLIT(_index, ":"))
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR client_ip == "172.21.3.15"
+| SORT _index, emp_no, client_ip
+| KEEP _index, emp_no, languages, cnt, client_ip
+;
+
+_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
+employees | 10091          | 3                 | null     | null
+employees |10092          | 1                 | null     | null
+employees |10093          | 3                 | null     | null
+sample_data | null           | null              | 4        | 172.21.3.15
+sample_data_str | null           | null              | 4        | 172.21.3.15
+;
+
+subqueryInFromWithStatsInMainQuery
+required_capability: subquery_in_from_command
+
+FROM sample_data, sample_data_str,
+           (FROM sample_data_ts_nanos
+            | WHERE client_ip == "172.21.3.15") ,
+           (FROM sample_data_ts_long
+            | EVAL @timestamp = @timestamp::date_nanos
+            | WHERE client_ip == "172.21.0.5")
+| EVAL client_ip = client_ip::ip
+| STATS cnt = count(*) BY client_ip
+| SORT client_ip
+;
+
+cnt:long | client_ip:ip
+3        | 172.21.0.5
+2        | 172.21.2.113
+2        | 172.21.2.162
+12        | 172.21.3.15
+;
+
+subqueryInFromWithLookupJoinInSubquery
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM sample_data
+                                | EVAL client_ip = client_ip::keyword
+                                | LOOKUP JOIN clientips_lookup ON client_ip ) 
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| SORT emp_no, client_ip
+| KEEP emp_no, languages, client_ip, env
+;
+
+emp_no:integer | languages:integer | client_ip:keyword | env:keyword
+10091          | 3                 | null              | null
+10092          | 1                 | null              | null
+10093          | 3                 | null              | null
+null           | null              | 172.21.0.5        | Development
+null           | null              | 172.21.2.113      | QA
+null           | null              | 172.21.2.162      | QA
+null           | null              | 172.21.3.15       | Production
+null           | null              | 172.21.3.15       | Production
+null           | null              | 172.21.3.15       | Production
+null           | null              | 172.21.3.15       | Production
 ;
 
 subqueryInFromWithLookupJoinInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM sample_data  metadata _index
                                 | EVAL client_ip = client_ip::keyword )
            metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | LOOKUP JOIN clientips_lookup ON client_ip
 | SORT emp_no, client_ip
 | KEEP _index,  emp_no, languages, client_ip, env
@@ -275,79 +259,92 @@ sample_data    | null           | null              | 172.21.3.15       | Produc
 ;
 
 subqueryInFromWithEnrichInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees_incompatible
                                 | ENRICH languages_policy on languages with language_name )
-           metadata _index
 | EVAL emp_no = emp_no::long
 | WHERE emp_no >= 10091 AND emp_no < 10094
-| SORT _index, emp_no
-| KEEP _index,  emp_no, languages, language_name
+| SORT emp_no, language_name
+| KEEP emp_no, languages, language_name
 ;
 
-_index:keyword | emp_no:long | languages:integer | language_name:keyword
-employees      | 10091       | 3                 | null
-employees      | 10092       | 1                 | null
-employees      | 10093       | 3                 | null
-null           | 10091       | 3                 | Spanish
-null           | 10092       | 1                 | English
-null           | 10093       | 3                 | Spanish
+emp_no:long | languages:integer | language_name:keyword
+10091       | 3                 | Spanish
+10091       | 3                 | null
+10092       | 1                 | English
+10092       | 1                 | null
+10093       | 3                 | Spanish
+10093       | 3                 | null
 ;
 
 subqueryInFromWithEnrichInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees_incompatible
                                  | KEEP emp_no, languages)
-           metadata _index
 | EVAL emp_no = emp_no::long
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | ENRICH languages_policy on languages with language_name
-| SORT _index, emp_no
-| KEEP _index,  emp_no, languages, language_name
+| SORT emp_no
+| KEEP emp_no, languages, language_name
 ;
 
-_index:keyword | emp_no:long | languages:integer | language_name:keyword
-employees      | 10091       | 3                 | Spanish
-employees      | 10092       | 1                 | English
-employees      | 10093       | 3                 | Spanish
-null           | 10091       | 3                 | Spanish
-null           | 10092       | 1                 | English
-null           | 10093       | 3                 | Spanish
+emp_no:long | languages:integer | language_name:keyword
+10091       | 3                 | Spanish
+10091       | 3                 | Spanish
+10092       | 1                 | English
+10092       | 1                 | English
+10093       | 3                 | Spanish
+10093       | 3                 | Spanish
 ;
 
 subqueryInFromWithSortInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM sample_data
                                 | STATS cnt = count(*) by client_ip
                                 | SORT cnt DESC
                                 | LIMIT 1 )
-           metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
 | SORT emp_no, client_ip
-| KEEP _index,  emp_no, languages, cnt, client_ip
+| KEEP emp_no, languages, cnt, client_ip
 ;
 
-_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
+emp_no:integer | languages:integer | cnt:long | client_ip:ip
+10091          | 3                 | null     | null
+10092          | 1                 | null     | null
+10093          | 3                 | null     | null
+null           | null              | 4        | 172.21.3.15
+;
+
+subqueryWithCountStarAndDateTrunc
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM sample_data metadata _index
+                                | STATS cnt = count(*) by ts=date_trunc(1 hour, @timestamp)
+                                | SORT cnt DESC
+                                )
+           metadata _index
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| SORT emp_no, ts
+| KEEP _index,  emp_no, languages, cnt, ts
+;
+
+_index:keyword | emp_no:integer | languages:integer | cnt:long | ts:datetime
 employees      | 10091          | 3                 | null     | null
 employees      | 10092          | 1                 | null     | null
 employees      | 10093          | 3                 | null     | null
-null           | null           | null              | 4        | 172.21.3.15
+null           | null           | null              | 2        | 2023-10-23T12:00:00.000Z
+null           | null           | null              | 5        | 2023-10-23T13:00:00.000Z
 ;
 
 subqueryInFromWithGrokInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
                                                         | GROK concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
                                                         | KEEP emp_no, a, b )
-           metadata _index
 | EVAL emp_no = emp_no::long
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | SORT emp_no, a, b
@@ -364,13 +361,11 @@ emp_no:long | a:keyword | b:keyword
 ;
 
 subqueryInFromWithGrokInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
                                                         | WHERE emp_no > 10091 AND emp_no < 10094
                                                         | KEEP emp_no, first_name, last_name )
-           metadata _index
 | EVAL emp_no = emp_no::long, first_name = first_name::keyword, last_name = last_name::keyword
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | GROK concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
@@ -387,7 +382,6 @@ emp_no:long | a:keyword | b:keyword
 ;
 
 subqueryInFromWithDissectInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees_incompatible
@@ -410,13 +404,11 @@ emp_no:long | a:keyword | b:keyword
 ;
 
 subqueryInFromWithDissectInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees_incompatible
                                  | WHERE emp_no > 10091 AND emp_no < 10094
                                  | KEEP emp_no, first_name, last_name )
-           metadata _index
 | EVAL emp_no = emp_no::long, first_name = first_name::keyword, last_name = last_name::keyword
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | EVAL name = concat(first_name, "1 ", last_name)
@@ -434,7 +426,6 @@ emp_no:long | a:keyword  | b:keyword
 ;
 
 subqueryInFromWithMvExpandInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
@@ -462,7 +453,6 @@ emp_no:long | first_name:keyword | last_name:keyword | job_positions:keyword
 ;
 
 subqueryInFromWithMvExpandInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
@@ -495,7 +485,6 @@ emp_no:long | first_name:keyword | last_name:keyword | job_positions:keyword
 ;
 
 subqueryInFromWithInlineStatsInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees_incompatible
@@ -516,46 +505,7 @@ emp_no:long | first_name:keyword | last_name:keyword | cnt:long | gender:keyword
 10093       | Sailaja         | Desikan        | null     | M
 ;
 
-subqueryInFromWithInlineStatsInMainQuery-Ignore
-required_capability: fork_v9
-required_capability: subquery_in_from_command
-
-FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos
-            | WHERE client_ip == "172.21.3.15") ,
-           (FROM sample_data_ts_long
-            | EVAL @timestamp = @timestamp::date_nanos
-            | WHERE client_ip == "172.21.0.5")
-            metadata _index
-| EVAL client_ip = client_ip::ip
-| INLINE STATS cnt = count(*) BY _index, client_ip
-| SORT _index, @timestamp
-;
-
-@timestamp:date_nanos          | event_duration:long | message:keyword       | cnt:long | _index:keyword  | client_ip:ip
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | 1        | sample_data     | 172.21.2.162
-2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | 1        | sample_data     | 172.21.2.113
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | 1        | sample_data     | 172.21.0.5
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | 4        | sample_data     | 172.21.3.15
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | 4        | sample_data     | 172.21.3.15
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | 4        | sample_data     | 172.21.3.15
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | 4        | sample_data     | 172.21.3.15
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | 1        | sample_data_str | 172.21.2.162
-2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | 1        | sample_data_str | 172.21.2.113
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | 1        | sample_data_str | 172.21.0.5
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | 4        | sample_data_str | 172.21.3.15
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | 4        | sample_data_str | 172.21.3.15
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | 4        | sample_data_str | 172.21.3.15
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | 4        | sample_data_str | 172.21.3.15
-1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | 1        | null            | 172.21.0.5
-2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | 4        | null            | 172.21.3.15
-2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | 4        | null            | 172.21.3.15
-2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | 4        | null            | 172.21.3.15
-2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | 4        | null            | 172.21.3.15
-;
-
 subqueryInFromWithRenameInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
@@ -577,19 +527,19 @@ emp_no:long | first_name:text | last_name:text | a:keyword | b:keyword
 ;
 
 subqueryInFromWithRenameInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos
+           (FROM sample_data_ts_nanos metadata _index
             | WHERE client_ip == "172.21.3.15") ,
-           (FROM sample_data_ts_long
+           (FROM sample_data_ts_long metadata _index
             | EVAL @timestamp = @timestamp::date_nanos
             | WHERE client_ip == "172.21.0.5")
             metadata _index
-| EVAL client_ip = client_ip::ip
+| EVAL client_ip = client_ip::ip, _index = MV_LAST(SPLIT(_index, ":"))
 | DROP event_duration, message
 | RENAME client_ip AS clientip
+| KEEP @timestamp, _index, clientip
 | SORT _index, @timestamp
 ;
 
@@ -608,15 +558,14 @@ FROM sample_data, sample_data_str,
 2023-10-23T13:52:55.015Z       | sample_data_str | 172.21.3.15
 2023-10-23T13:53:55.832Z      | sample_data_str | 172.21.3.15
 2023-10-23T13:55:01.543Z      | sample_data_str | 172.21.3.15
-1970-01-01T00:28:18.068014937Z  | null            | 172.21.0.5
-2023-10-23T13:51:54.732123456Z | null            | 172.21.3.15
-2023-10-23T13:52:55.015123456Z | null            | 172.21.3.15
-2023-10-23T13:53:55.832123456Z | null            | 172.21.3.15
-2023-10-23T13:55:01.543123456Z | null            | 172.21.3.15
+1970-01-01T00:28:18.068014937Z  | sample_data_ts_long | 172.21.0.5
+2023-10-23T13:51:54.732123456Z | sample_data_ts_nanos | 172.21.3.15
+2023-10-23T13:52:55.015123456Z | sample_data_ts_nanos | 172.21.3.15
+2023-10-23T13:53:55.832123456Z | sample_data_ts_nanos | 172.21.3.15
+2023-10-23T13:55:01.543123456Z | sample_data_ts_nanos | 172.21.3.15
 ;
 
 subqueryInFromWithSampleInSubquery
-required_capability: fork_v9
 required_capability: sample_v3
 required_capability: subquery_in_from_command
 
@@ -640,7 +589,6 @@ null           | null              | 172.21.3.15
 ;
 
 subqueryInFromWithSampleInMainQuery
-required_capability: fork_v9
 required_capability: sample_v3
 required_capability: subquery_in_from_command
 
@@ -665,7 +613,6 @@ null           | null              | 172.21.3.15
 ;
 
 subqueryInFromWithChangePointInSubquery
-required_capability: fork_v9
 required_capability: change_point
 required_capability: subquery_in_from_command
 
@@ -686,7 +633,6 @@ null           | 10023       | 1000000     | spike        | 0.0
 ;
 
 subqueryInFromWithChangePointInMainQuery
-required_capability: fork_v9
 required_capability: change_point
 required_capability: subquery_in_from_command
 
@@ -706,7 +652,6 @@ emp_no:long | salary:long | type:keyword | pvalue:double
 ;
 
 subqueryInFromWithCompletionInSubquery
-required_capability: fork_v9
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
@@ -729,51 +674,50 @@ null                            | null                            | 2023-10-23T1
 ;
 
 subqueryInFromWithCompletionInMainQuery
-required_capability: fork_v9
 required_capability: completion
 required_capability: subquery_in_from_command
 
-FROM books, (FROM sample_data
+FROM books, (FROM sample_data metadata _index
                         | WHERE client_ip == "172.21.0.5"
-                        | KEEP @timestamp, client_ip)
+                        | KEEP @timestamp, client_ip, _index)
+           metadata _index
 | SORT book_no
 | LIMIT 2
 | COMPLETION title WITH { "inference_id" : "test_completion" }
-| KEEP title, completion, @timestamp, client_ip
+| KEEP _index, title, completion, @timestamp, client_ip
 ;
 ignoreOrder:true
 
-title:text                                | completion:keyword                        | @timestamp:datetime | client_ip:ip
-Realms of Tolkien: Images of Middle-earth | REALMS OF TOLKIEN: IMAGES OF MIDDLE-EARTH | null                | null
-The brothers Karamazov                    | THE BROTHERS KARAMAZOV                    | null                | null
+_index: keyword | title:text                                | completion:keyword                        | @timestamp:datetime | client_ip:ip
+books | Realms of Tolkien: Images of Middle-earth | REALMS OF TOLKIEN: IMAGES OF MIDDLE-EARTH | null                | null
+books | The brothers Karamazov                    | THE BROTHERS KARAMAZOV                    | null                | null
 ;
 
 subqueryInFromWithRerankInSubquery
-required_capability: fork_v9
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
 
-FROM sample_data, (FROM books METADATA _score
+FROM sample_data, (FROM books METADATA _score, _index
                                    | WHERE title:"war and peace" AND author:"Tolstoy"
                                    | SORT _score DESC, book_no ASC
                                    | LIMIT 2
                                    | RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
                                    | EVAL _score=ROUND(_score, 2)
-                                   | KEEP book_no, title, author, _score)
+                                   | KEEP book_no, title, author, _score, _index)
+            metadata _index
 | WHERE client_ip == "172.21.0.5" or client_ip IS NULL
-| KEEP book_no, title, author, _score, @timestamp
+| KEEP _index, book_no, title, author, _score, @timestamp
 ;
 ignoreOrder:true
 
-book_no:keyword | title:text                      | author:text                                 | _score:double | @timestamp:datetime
-4536            | War and Peace (Signet Classics) | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03          | null
-5327            | War and Peace                   | Leo Tolstoy                                 | 0.08          | null
-null            | null                            | null                                        | null          | 2023-10-23T13:33:34.937Z
+_index:keyword | book_no:keyword | title:text                      | author:text                                 | _score:double | @timestamp:datetime
+books | 4536            | War and Peace (Signet Classics) | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03          | null
+books | 5327            | War and Peace                   | Leo Tolstoy                                 | 0.08          | null
+sample_data | null            | null                            | null                                        | null          | 2023-10-23T13:33:34.937Z
 ;
 
 subqueryInFromWithRerankInMainQuery
-required_capability: fork_v9
 required_capability: rerank
 required_capability: subquery_in_from_command
 
@@ -794,7 +738,6 @@ book_no:keyword | title:text                                | author:text       
 ;
 
 subqueryInFromWithUnionTypesWithCommonTypes
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM employees, (FROM employees_incompatible, employees
@@ -803,90 +746,49 @@ FROM employees, (FROM employees_incompatible, employees
                                             , last_name = last_name::keyword
                                 | WHERE emp_no < 10093
                                 | KEEP emp_no, first_name, last_name)
-           metadata _index
 | WHERE emp_no >= 10091 AND emp_no < 10094
-| SORT _index, emp_no
-| KEEP _index,  emp_no, first_name, last_name
+| SORT emp_no
+| KEEP emp_no, first_name, last_name
 ;
 
-_index:keyword | emp_no:integer | first_name:keyword | last_name:keyword
-employees      | 10091          | Amabile            | Gomatam
-employees      | 10092          | Valdiodio          | Niizuma
-employees      | 10093          | Sailaja            | Desikan
-null           | 10091          | Amabile            | Gomatam
-null           | 10091          | Amabile            | Gomatam
-null           | 10092          | Valdiodio          | Niizuma
-null           | 10092          | Valdiodio          | Niizuma
+emp_no:integer | first_name:keyword | last_name:keyword
+10091          | Amabile            | Gomatam
+10091          | Amabile            | Gomatam
+10091          | Amabile            | Gomatam
+10092          | Valdiodio          | Niizuma
+10092          | Valdiodio          | Niizuma
+10092          | Valdiodio          | Niizuma
+10093          | Sailaja            | Desikan
 ;
 
 subqueryInFromWithUnionTypesWithoutKeepingFieldsWithCommonTypes
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM sample_data, 
-           (FROM sample_data_ts_nanos 
+           (FROM sample_data_ts_nanos
             | WHERE client_ip == "172.21.3.15") ,
            (FROM sample_data_ts_long
             | EVAL @timestamp = @timestamp::date_nanos
             | WHERE client_ip == "172.21.0.5")
-            metadata _index
-| SORT _index, @timestamp
+| SORT @timestamp
 ;
 
-@timestamp:date_nanos          | client_ip:ip | event_duration:long | message:keyword       | _index:keyword
-2023-10-23T12:15:03.360Z       | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | sample_data
-2023-10-23T12:27:28.948Z       | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | sample_data
-2023-10-23T13:33:34.937Z       | 172.21.0.5   | 1232382             | Disconnected          | sample_data
-2023-10-23T13:51:54.732Z       | 172.21.3.15  | 725448              | Connection error      | sample_data
-2023-10-23T13:52:55.015Z       | 172.21.3.15  | 8268153             | Connection error      | sample_data
-2023-10-23T13:53:55.832Z       | 172.21.3.15  | 5033755             | Connection error      | sample_data
-2023-10-23T13:55:01.543Z       | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | sample_data
-1970-01-01T00:28:18.068014937Z | 172.21.0.5   | 1232382             | Disconnected          | null
-2023-10-23T13:51:54.732123456Z | 172.21.3.15  | 725448              | Connection error      | null
-2023-10-23T13:52:55.015123456Z | 172.21.3.15  | 8268153             | Connection error      | null
-2023-10-23T13:53:55.832123456Z | 172.21.3.15  | 5033755             | Connection error      | null
-2023-10-23T13:55:01.543123456Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | null
+@timestamp:date_nanos          | client_ip:ip | event_duration:long | message:keyword 
+1970-01-01T00:28:18.068014937Z | 172.21.0.5   | 1232382             | Disconnected
+2023-10-23T12:15:03.360Z       | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
+2023-10-23T12:27:28.948Z       | 172.21.2.113 | 2764889             | Connected to 10.1.0.2
+2023-10-23T13:33:34.937Z       | 172.21.0.5   | 1232382             | Disconnected
+2023-10-23T13:51:54.732Z       | 172.21.3.15  | 725448              | Connection error
+2023-10-23T13:51:54.732123456Z | 172.21.3.15  | 725448              | Connection error 
+2023-10-23T13:52:55.015Z       | 172.21.3.15  | 8268153             | Connection error
+2023-10-23T13:52:55.015123456Z | 172.21.3.15  | 8268153             | Connection error 
+2023-10-23T13:53:55.832Z       | 172.21.3.15  | 5033755             | Connection error
+2023-10-23T13:53:55.832123456Z | 172.21.3.15  | 5033755             | Connection error 
+2023-10-23T13:55:01.543Z       | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
+2023-10-23T13:55:01.543123456Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
 ;
 
 subqueryInFromWithUnionTypesWithoutCommonTypesExplicitCasting
-required_capability: fork_v9
-required_capability: subquery_in_from_command
-
-FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos 
-            | WHERE client_ip == "172.21.3.15") ,
-           (FROM sample_data_ts_long
-            | EVAL @timestamp = @timestamp::date_nanos
-            | WHERE client_ip == "172.21.0.5")
-            metadata _index
-| EVAL client_ip = client_ip::ip
-| SORT _index, @timestamp
-;
-
-@timestamp:date_nanos          | event_duration:long | message:keyword       | _index:keyword  | client_ip:ip
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data     | 172.21.2.162
-2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | sample_data     | 172.21.2.113
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data     | 172.21.0.5
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data     | 172.21.3.15
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data     | 172.21.3.15
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data     | 172.21.3.15
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data     | 172.21.3.15
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data_str | 172.21.2.162
-2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | sample_data_str | 172.21.2.113
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data_str | 172.21.0.5
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data_str | 172.21.3.15
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data_str | 172.21.3.15
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data_str | 172.21.3.15
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data_str | 172.21.3.15
-1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | null            | 172.21.0.5
-2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | null            | 172.21.3.15
-2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | null            | 172.21.3.15
-2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | null            | 172.21.3.15
-2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | null            | 172.21.3.15
-;
-
-subqueryInFromWithUnionTypesWithoutCommonTypesMultipleExplicitCasting
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM sample_data, sample_data_str,
@@ -896,166 +798,196 @@ FROM sample_data, sample_data_str,
             | EVAL @timestamp = @timestamp::date_nanos
             | WHERE client_ip == "172.21.0.5")
             metadata _index
-| EVAL client_ip = client_ip::ip, client_ip_str = client_ip::keyword
-| WHERE client_ip IN ("172.21.0.5", "172.21.3.15", "172.21.2.162")
+| EVAL _index = MV_LAST(SPLIT(_index, ":")), client_ip = client_ip::ip
 | SORT _index, @timestamp
 ;
 
-@timestamp:date_nanos          | event_duration:long | message:keyword       | _index:keyword       | client_ip:ip | client_ip_str:keyword
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data          | 172.21.2.162 | 172.21.2.162
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data          | 172.21.0.5   | 172.21.0.5
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data          | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data          | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data          | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data          | 172.21.3.15  | 172.21.3.15
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data_str      | 172.21.2.162 | 172.21.2.162
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data_str      | 172.21.0.5   | 172.21.0.5
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data_str      | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data_str      | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data_str      | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data_str      | 172.21.3.15  | 172.21.3.15
-1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | sample_data_ts_long  | 172.21.0.5   | 172.21.0.5
-2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | sample_data_ts_nanos | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | sample_data_ts_nanos | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | sample_data_ts_nanos | 172.21.3.15  | 172.21.3.15
-2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | sample_data_ts_nanos | 172.21.3.15  | 172.21.3.15
+@timestamp:date_nanos          | event_duration:long | message:keyword       | _index:keyword       | client_ip:ip
+2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data          | 172.21.2.162
+2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | sample_data          | 172.21.2.113
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data          | 172.21.0.5
+2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data          | 172.21.3.15
+2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data          | 172.21.3.15
+2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data          | 172.21.3.15
+2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data          | 172.21.3.15
+2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data_str      | 172.21.2.162
+2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | sample_data_str      | 172.21.2.113
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data_str      | 172.21.0.5
+2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data_str      | 172.21.3.15
+2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data_str      | 172.21.3.15
+2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data_str      | 172.21.3.15
+2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data_str      | 172.21.3.15
+1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | sample_data_ts_long  | 172.21.0.5
+2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | sample_data_ts_nanos | 172.21.3.15
+2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | sample_data_ts_nanos | 172.21.3.15
+2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | sample_data_ts_nanos | 172.21.3.15
+2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | sample_data_ts_nanos | 172.21.3.15
 ;
 
-subqueryInFromWithUnionTypesWithoutCommonTypesWithoutExplicitCasting
-required_capability: fork_v9
+subqueryInFromWithUnionTypesWithoutCommonTypesMultipleExplicitCasting
 required_capability: subquery_in_from_command
 
 FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos 
+           (FROM sample_data_ts_nanos
             | WHERE client_ip == "172.21.3.15") ,
            (FROM sample_data_ts_long
             | EVAL @timestamp = @timestamp::date_nanos
             | WHERE client_ip == "172.21.0.5")
-            metadata _index
-| SORT _index, @timestamp
+| EVAL client_ip = client_ip::ip, client_ip_str = client_ip::keyword
+| WHERE client_ip IN ("172.21.0.5", "172.21.3.15", "172.21.2.162")
+| SORT @timestamp
 ;
 
-@timestamp:date_nanos          | event_duration:long | message:keyword       | _index:keyword  | client_ip:keyword
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data     | null
-2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | sample_data     | null
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data     | null
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data     | null
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data     | null
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data     | null
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data     | null
-2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data_str | null
-2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | sample_data_str | null
-2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | sample_data_str | null
-2023-10-23T13:51:54.732Z       | 725448              | Connection error      | sample_data_str | null
-2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | sample_data_str | null
-2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | sample_data_str | null
-2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | sample_data_str | null
-1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | null            | null
-2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | null            | null
-2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | null            | null
-2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | null            | null
-2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | null            | null
+@timestamp:date_nanos          | event_duration:long | message:keyword       | client_ip:ip | client_ip_str:keyword
+1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | 172.21.0.5   | 172.21.0.5
+2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | 172.21.2.162 | 172.21.2.162
+2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | 172.21.2.162 | 172.21.2.162
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | 172.21.0.5   | 172.21.0.5
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | 172.21.0.5   | 172.21.0.5
+2023-10-23T13:51:54.732Z       | 725448              | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:51:54.732Z       | 725448              | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | 172.21.3.15  | 172.21.3.15
+2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | 172.21.3.15  | 172.21.3.15
+;
+
+subqueryInFromWithUnionTypesWithoutCommonTypesWithoutExplicitCasting
+required_capability: subquery_in_from_command
+
+FROM sample_data, sample_data_str,
+           (FROM sample_data_ts_nanos
+            | WHERE client_ip == "172.21.3.15") ,
+           (FROM sample_data_ts_long
+            | EVAL @timestamp = @timestamp::date_nanos
+            | WHERE client_ip == "172.21.0.5")
+| KEEP @timestamp, event_duration, message, client_ip
+| SORT @timestamp
+;
+
+@timestamp:date_nanos          | event_duration:long | message:keyword       | client_ip:keyword
+1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | null
+2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | null
+2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | null
+2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | null
+2023-10-23T12:27:28.948Z       | 2764889             | Connected to 10.1.0.2 | null
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | null
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected          | null
+2023-10-23T13:51:54.732Z       | 725448              | Connection error      | null
+2023-10-23T13:51:54.732Z       | 725448              | Connection error      | null
+2023-10-23T13:51:54.732123456Z | 725448              | Connection error      | null
+2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | null
+2023-10-23T13:52:55.015Z       | 8268153             | Connection error      | null
+2023-10-23T13:52:55.015123456Z | 8268153             | Connection error      | null
+2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | null
+2023-10-23T13:53:55.832Z       | 5033755             | Connection error      | null
+2023-10-23T13:53:55.832123456Z | 5033755             | Connection error      | null
+2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | null
+2023-10-23T13:55:01.543Z       | 1756467             | Connected to 10.1.0.1 | null
+2023-10-23T13:55:01.543123456Z | 1756467             | Connected to 10.1.0.1 | null
 ;
 
 subqueryInFromWithTimeSeriesDataTypesInSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM sample_data, (FROM k8s metadata _index) metadata _index
+FROM sample_data, (FROM k8s)
 | WHERE @timestamp < "2024-05-10T00:01:00.000Z"
-| KEEP _index, @timestamp, client.ip, event_duration, cluster, network.total_bytes_in, network.eth0.tx
-| SORT _index, @timestamp, client.ip, cluster
+| KEEP @timestamp, client.ip, event_duration, cluster, network.total_bytes_in, network.eth0.tx
+| SORT @timestamp, client.ip, cluster
 ;
 
-_index:keyword | @timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:integer
-k8s            | 2024-05-10T00:00:29.000Z | 10.10.20.34  | null                | staging         | 953                         | 81
-k8s            | 2024-05-10T00:00:33.000Z | 10.10.20.34  | null                | staging         | 1111                        | 48
-k8s            | 2024-05-10T00:00:51.000Z | 10.10.20.30  | null                | prod            | 278                         | 58
-k8s            | 2024-05-10T00:00:57.000Z | 10.10.20.30  | null                | prod            | 955                         | 131
-sample_data    | 2023-10-23T12:15:03.360Z | null         | 3450233             | null            | null                        | null
-sample_data    | 2023-10-23T12:27:28.948Z | null         | 2764889             | null            | null                        | null
-sample_data    | 2023-10-23T13:33:34.937Z | null         | 1232382             | null            | null                        | null
-sample_data    | 2023-10-23T13:51:54.732Z | null         | 725448              | null            | null                        | null
-sample_data    | 2023-10-23T13:52:55.015Z | null         | 8268153             | null            | null                        | null
-sample_data    | 2023-10-23T13:53:55.832Z | null         | 5033755             | null            | null                        | null
-sample_data    | 2023-10-23T13:55:01.543Z | null         | 1756467             | null            | null                        | null
+@timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:integer
+2023-10-23T12:15:03.360Z | null         | 3450233             | null            | null                        | null
+2023-10-23T12:27:28.948Z | null         | 2764889             | null            | null                        | null
+2023-10-23T13:33:34.937Z | null         | 1232382             | null            | null                        | null
+2023-10-23T13:51:54.732Z | null         | 725448              | null            | null                        | null
+2023-10-23T13:52:55.015Z | null         | 8268153             | null            | null                        | null
+2023-10-23T13:53:55.832Z | null         | 5033755             | null            | null                        | null
+2023-10-23T13:55:01.543Z | null         | 1756467             | null            | null                        | null
+2024-05-10T00:00:29.000Z | 10.10.20.34  | null                | staging         | 953                         | 81
+2024-05-10T00:00:33.000Z | 10.10.20.34  | null                | staging         | 1111                        | 48
+2024-05-10T00:00:51.000Z | 10.10.20.30  | null                | prod            | 278                         | 58
+2024-05-10T00:00:57.000Z | 10.10.20.30  | null                | prod            | 955                         | 131
 ;
 
 subqueryInFromWithTimeSeriesDataTypesInMainQuery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM k8s-downsampled, (FROM sample_data metadata _index) metadata _index
+FROM k8s-downsampled, (FROM sample_data)
 | WHERE @timestamp <= "2024-05-09T23:30:00.000Z"
-| KEEP _index, @timestamp, client.ip, event_duration, cluster, network.total_bytes_in, network.eth0.tx
-| SORT _index, @timestamp, client.ip, cluster,  network.total_bytes_in
+| KEEP @timestamp, client.ip, event_duration, cluster, network.total_bytes_in, network.eth0.tx
+| SORT @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
-_index:keyword  | @timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:aggregate_metric_double
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | prod            | 285                         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | qa              | 1143                        | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | staging         | 930                         | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | prod            | 1038                        | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 363                         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 1032                        | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | null                | prod            | 210                         | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 821                         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 838                         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
-sample_data     | 2023-10-23T12:15:03.360Z | null         | 3450233             | null            | null                        | null
-sample_data     | 2023-10-23T12:27:28.948Z | null         | 2764889             | null            | null                        | null
-sample_data     | 2023-10-23T13:33:34.937Z | null         | 1232382             | null            | null                        | null
-sample_data     | 2023-10-23T13:51:54.732Z | null         | 725448              | null            | null                        | null
-sample_data     | 2023-10-23T13:52:55.015Z | null         | 8268153             | null            | null                        | null
-sample_data     | 2023-10-23T13:53:55.832Z | null         | 5033755             | null            | null                        | null
-sample_data     | 2023-10-23T13:55:01.543Z | null         | 1756467             | null            | null                        | null
+@timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:aggregate_metric_double
+2023-10-23T12:15:03.360Z | null         | 3450233             | null            | null                        | null
+2023-10-23T12:27:28.948Z | null         | 2764889             | null            | null                        | null
+2023-10-23T13:33:34.937Z | null         | 1232382             | null            | null                        | null
+2023-10-23T13:51:54.732Z | null         | 725448              | null            | null                        | null
+2023-10-23T13:52:55.015Z | null         | 8268153             | null            | null                        | null
+2023-10-23T13:53:55.832Z | null         | 5033755             | null            | null                        | null
+2023-10-23T13:55:01.543Z | null         | 1756467             | null            | null                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | prod            | 285                         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | qa              | 1143                        | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | staging         | 930                         | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | prod            | 1038                        | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 363                         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 1032                        | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+2024-05-09T23:30:00.000Z | 10.10.20.33  | null                | prod            | 210                         | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 821                         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 838                         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
 ;
 
 subqueryInFromWithTimeSeriesDataTypesInMainQueryAndSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM k8s, (FROM k8s-downsampled metadata _index | WHERE @timestamp <= "2024-05-09T23:30:00.000Z") metadata _index
+FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"
-| KEEP _index, @timestamp, client.ip, cluster, network.total_bytes_in, network.eth0.tx
-| SORT _index, @timestamp, client.ip, cluster,  network.total_bytes_in
+| KEEP @timestamp, client.ip, cluster, network.total_bytes_in, network.eth0.tx
+| SORT @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
-_index:keyword  | @timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
-k8s             | 2024-05-10T00:00:29.000Z | 10.10.20.34  | staging         | 953                         | null
-k8s             | 2024-05-10T00:00:33.000Z | 10.10.20.34  | staging         | 1111                        | null
-k8s             | 2024-05-10T00:00:51.000Z | 10.10.20.30  | prod            | 278                         | null
-k8s             | 2024-05-10T00:00:57.000Z | 10.10.20.30  | prod            | 955                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | prod            | 1038                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 363                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 1032                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | prod            | 210                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 821                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
+@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
+2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | prod            | 1038                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 363                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 1032                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.33  | prod            | 210                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 821                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
+2024-05-10T00:00:29.000Z | 10.10.20.34  | staging         | 953                         | null
+2024-05-10T00:00:33.000Z | 10.10.20.34  | staging         | 1111                        | null
+2024-05-10T00:00:51.000Z | 10.10.20.30  | prod            | 278                         | null
+2024-05-10T00:00:57.000Z | 10.10.20.30  | prod            | 955                         | null
 ;
 
 subqueryInFromWithFullTextFunctionInMainQueryAndSubquery
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 required_capability: match_function
 
-FROM books, (FROM books | WHERE author:"Faulkner" and ratings > 4) metadata _index
+FROM books, (FROM books | WHERE author:"Faulkner" and ratings > 4)
 | WHERE match(title, "Faulkner") OR qstr("publisher:Oxford")
 | EVAL ratings = ROUND(ratings, 2)
-| KEEP _index, book_no, title, author, publisher, ratings
-| SORT _index, book_no
+| KEEP book_no, title, author, publisher, ratings
+| SORT book_no
 ;
 
-_index:keyword | book_no:keyword | title:text                                                                                                                     | author:text                                          | publisher:text          | ratings:double
-books          | 2713            | Collected Stories of William Faulkner                                                                                          | William Faulkner                                     | Vintage                 | 4.53
-books          | 2776            | The Devil and Other Stories (Oxford World's Classics)                                                                          | Leo Tolstoy                                          | OUP Oxford              | 5.0
-books          | 2883            | A Summer of Faulkner: As I Lay Dying/The Sound and the Fury/Light in August (Oprah's Book Club)                                | William Faulkner                                     | Vintage Books           | 3.89
-books          | 2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | Oxford Paperbacks       | 4.0
-books          | 5119            | William Faulkner                                                                                                               | William Faulkner                                     | Vintage                 | 4.0
-books          | 5948            | That We Are Gentle Creatures                                                                                                   | Fyodor Dostoevsky                                    | OUP Oxford              | 4.33
-books          | 8534            | Crime and Punishment (Oxford World's Classics)                                                                                 | Fyodor Dostoevsky                                    | Oxford University Press | 4.38
-books          | 9801            | The Karamazov Brothers (Oxford World's Classics)                                                                               | Fyodor Dostoevsky                                    | Oxford University Press | 4.4
-null           | 2713            | Collected Stories of William Faulkner                                                                                          | William Faulkner                                     | Vintage                 | 4.53
+book_no:keyword | title:text                                                                                                                     | author:text                                          | publisher:text          | ratings:double
+2713            | Collected Stories of William Faulkner                                                                                          | William Faulkner                                     | Vintage                 | 4.53
+2713            | Collected Stories of William Faulkner                                                                                          | William Faulkner                                     | Vintage                 | 4.53
+2776            | The Devil and Other Stories (Oxford World's Classics)                                                                          | Leo Tolstoy                                          | OUP Oxford              | 5.0
+2883            | A Summer of Faulkner: As I Lay Dying/The Sound and the Fury/Light in August (Oprah's Book Club)                                | William Faulkner                                     | Vintage Books           | 3.89
+2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | Oxford Paperbacks       | 4.0
+5119            | William Faulkner                                                                                                               | William Faulkner                                     | Vintage                 | 4.0
+5948            | That We Are Gentle Creatures                                                                                                   | Fyodor Dostoevsky                                    | OUP Oxford              | 4.33
+8534            | Crime and Punishment (Oxford World's Classics)                                                                                 | Fyodor Dostoevsky                                    | Oxford University Press | 4.38
+9801            | The Karamazov Brothers (Oxford World's Classics)                                                                               | Fyodor Dostoevsky                                    | Oxford University Press | 4.4
 ;

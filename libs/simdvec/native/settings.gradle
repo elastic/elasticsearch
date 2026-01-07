@@ -8,3 +8,12 @@
  */
 
 rootProject.name = 'vec'
+
+buildCache {
+  local {
+    enabled = false
+  }
+  remote(HttpBuildCache) {
+    enabled = false
+  }
+}

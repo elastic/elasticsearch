@@ -298,7 +298,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
+                    logger.warn(() -> "failed to store async-search [" + docId + "]", e);
                     // at end, we should report a failure to the listener
                     updateResponse(
                         docId,
@@ -575,7 +575,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        assert TransportVersion.current().supports(version) : version + " >= " + TransportVersion.current();
+        if (TransportVersion.isCompatible(version) == false) {
+            throw new IllegalArgumentException(
+                "Unable to retrieve async search results. Stored results were created with an incompatible version of Elasticsearch."
+            );
+        }
         final StreamInput input;
         input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
         try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {

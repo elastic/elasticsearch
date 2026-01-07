@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -25,8 +24,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,21 +58,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         public Response(StreamInput in) throws IOException {
             clusterSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             nodeSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
-            Map<String, Map<String, List<DeprecationIssue>>> mutableResourceDeprecations = in.getTransportVersion()
-                .supports(TransportVersions.V_8_18_0) == false ? new HashMap<>() : Map.of();
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                mutableResourceDeprecations.put(IndexDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
-            }
-            if (in.getTransportVersion().supports(TransportVersions.V_8_17_0)
-                && in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
-            }
             pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                resourceDeprecationIssues = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
-            } else {
-                resourceDeprecationIssues = Collections.unmodifiableMap(mutableResourceDeprecations);
-            }
+            resourceDeprecationIssues = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
         }
 
         public Response(
@@ -130,17 +114,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(clusterSettingsIssues);
             out.writeCollection(nodeSettingsIssues);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                out.writeMap(getIndexSettingsIssues(), StreamOutput::writeCollection);
-            }
-            if (out.getTransportVersion().supports(TransportVersions.V_8_17_0)
-                && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                out.writeMap(getDataStreamDeprecationIssues(), StreamOutput::writeCollection);
-            }
             out.writeMap(pluginSettingsIssues, StreamOutput::writeCollection);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeMap(resourceDeprecationIssues, (o, v) -> o.writeMap(v, StreamOutput::writeCollection));
-            }
+            out.writeMap(resourceDeprecationIssues, (o, v) -> o.writeMap(v, StreamOutput::writeCollection));
         }
 
         @Override

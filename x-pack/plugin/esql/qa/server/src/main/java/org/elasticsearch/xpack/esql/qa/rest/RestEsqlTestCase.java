@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -288,7 +289,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(6, answer.size());
+        assertEquals(9, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -300,6 +301,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("values_loaded", 0)
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
+                .entry("completion_time_in_millis", greaterThan(0L))
+                .entry("expiration_time_in_millis", greaterThan(0L))
+                .entry("start_time_in_millis", greaterThan(0L))
         );
     }
 
@@ -1852,6 +1856,46 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (int i = 0; i < totalIndices; i++) {
             assertTrue(deleteIndex(testIndexName() + i).isAcknowledged());
         }
+    }
+
+    public void testParamsWithLike() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var anonymous_query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword like ? | keep keyword | sort keyword", testIndexName())
+        ).params("[\"key*0\"]");
+        Map<String, Object> result = runEsql(anonymous_query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithLikeList() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var positional_query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword like (?1, ?2) | keep keyword | sort keyword", testIndexName())
+        ).params("[\"key*0\", \"key*1\"]");
+        Map<String, Object> result = runEsql(positional_query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithRLike() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword rlike ?pattern | keep keyword | sort keyword", testIndexName())
+        ).params("[{\"pattern\" : \"key.*0\"}]");
+        Map<String, Object> result = runEsql(query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithRLikeList() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword rlike (?p1, ?p2) | keep keyword | sort keyword", testIndexName())
+        ).params("[{\"p1\" : \"key.*0\"}, {\"p2\" : \"key.*1\"}]");
+        Map<String, Object> result = runEsql(query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
     }
 
     @SuppressWarnings("fallthrough")

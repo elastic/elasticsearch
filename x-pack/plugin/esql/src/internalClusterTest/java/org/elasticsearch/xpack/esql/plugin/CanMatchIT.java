@@ -86,8 +86,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             }
             try (
                 EsqlQueryResponse resp = run(
-                    syncEsqlQueryRequest().query("from events_*")
-                        .pragmas(randomPragmas())
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
                         .filter(new RangeQueryBuilder("@timestamp").gte("2023-01-01"))
                 )
             ) {
@@ -103,8 +102,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    syncEsqlQueryRequest().query("from events_*")
-                        .pragmas(randomPragmas())
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
                         .filter(new RangeQueryBuilder("@timestamp").lt("2023-01-01"))
                 )
             ) {
@@ -120,8 +118,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    syncEsqlQueryRequest().query("from events_*")
-                        .pragmas(randomPragmas())
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
                         .filter(new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31"))
                 )
             ) {
@@ -143,8 +140,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    syncEsqlQueryRequest().query("from events_*")
-                        .pragmas(randomPragmas())
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
                         .filter(new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31"))
                 )
             ) {
@@ -204,8 +200,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from employees | stats count(emp_no)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from employees | stats count(emp_no)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -213,8 +208,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from employees | stats avg(salary)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from employees | stats avg(salary)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -231,8 +225,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from e* | stats count(emp_no)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from e* | stats count(emp_no)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -240,8 +233,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from e* | stats avg(salary)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from e* | stats avg(salary)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -258,8 +250,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from engineer* | stats count(emp_no)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from engineer* | stats count(emp_no)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -267,8 +258,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from engineer* | stats avg(salary)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from engineer* | stats avg(salary)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -285,8 +275,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from sales | stats count(emp_no)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from sales | stats count(emp_no)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -294,8 +283,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
         try (
             var resp = run(
-                syncEsqlQueryRequest().query("from sales | stats avg(salary)")
-                    .pragmas(randomPragmas())
+                syncEsqlQueryRequest("from sales | stats avg(salary)").pragmas(randomPragmas())
                     .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
             )
         ) {
@@ -359,11 +347,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             containsString("index [logs] has no active shard copy"),
             () -> run("from * | KEEP timestamp,message")
         );
-        try (
-            EsqlQueryResponse resp = run(
-                syncEsqlQueryRequest().query("from events,logs | KEEP timestamp,message").allowPartialResults(true)
-            )
-        ) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("from events,logs | KEEP timestamp,message").allowPartialResults(true))) {
             assertTrue(resp.isPartial());
             EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertThat(local.getFailures(), hasSize(1));

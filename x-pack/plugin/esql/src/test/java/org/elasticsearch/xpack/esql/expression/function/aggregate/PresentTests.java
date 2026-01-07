@@ -56,11 +56,14 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geotileCases(1, 1000),
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.histogramCases(1, 100)
         ).flatMap(List::stream).map(PresentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
-        for (var dataType : List.of(
+        List<DataType> types = List.of(
             DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
@@ -77,8 +80,11 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.LONG,
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
-            DataType.VERSION
-        )) {
+            DataType.VERSION,
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
+        );
+        for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",

@@ -368,6 +368,24 @@ public class BlockTestUtils {
     }
 
     /**
+     * Extracts values from a block at a particular position.
+     *
+     * @param block The block to extract the values from
+     * @param position The position at which to extract the values
+     * @param emptyIfNull Whether to return an empty list if there are no values at the position
+     *
+     * @return List of values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> valuesAtPosition(Block block, int position, boolean emptyIfNull) {
+        List<Object> values = valuesAtPositions(block, position, position + 1).getFirst();
+        if (values == null) {
+            return emptyIfNull ? new ArrayList<>() : null;
+        }
+        return (List<T>) values;
+    }
+
+    /**
      * Convert all of the {@link Block}s in a page that contain {@link BytesRef}s into
      * {@link OrdinalBytesRefBlock}s.
      */

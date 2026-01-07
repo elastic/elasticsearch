@@ -92,8 +92,22 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             allowExplicitIndex,
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
-                // Do not allow project_routing if we're not in a CPS environment.
-                if (crossProjectEnabled == false && searchTemplateRequest.getProjectRouting() != null) {
+                /*
+                 * For multisearch requests, project_routing could appear within the request body as:
+                 * {"project_routing": ...}
+                 * {"id": ...}
+                 *
+                 * In such cases, it is picked up by MultiSearchRequest#readMultiLineFormat() and is associated with the
+                 * SearchRequest object that represents the corresponding msearch request. However, it could also erroneously
+                 * appear as:
+                 * {...}
+                 * {"project_routing": ..., "id": ...}
+                 *
+                 * This is because, the same parser is shared between _msearch/template and _search/template and the above
+                 * format is valid only for the latter. For this reason, we need to explicitly check if project_routing got
+                 * associated with the SearchTemplateRequest instead of SearchRequest and error out if needed.
+                 */
+                if (searchTemplateRequest.getProjectRouting() != null) {
                     throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
                 }
                 if (searchTemplateRequest.getScript() != null) {

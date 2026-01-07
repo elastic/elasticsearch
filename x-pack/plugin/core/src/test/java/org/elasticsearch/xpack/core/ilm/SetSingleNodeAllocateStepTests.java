@@ -595,7 +595,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     private VersionInformation randomOldVersionInformation() {
         final var previousVersion = VersionUtils.getPreviousVersion();
-        final var version = VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
+        final var version = VersionUtils.randomVersionBetween(previousVersion.minimumCompatibilityVersion(), previousVersion);
         return new VersionInformation(
             BuildVersion.fromVersionId(version.id()),
             version,

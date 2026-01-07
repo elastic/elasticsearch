@@ -203,7 +203,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (VectorLeafSearchFilterMeta leafSearchMeta : leafSearchMetas) {
-            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0));
+            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -211,17 +211,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         ScoreDoc[] scoreDocs = topK.scoreDocs;
         vectorOpsCount = (int) topK.totalHits.value();
-        if (scoreDocs.length == 0) {
+        if (scoreDocs.length == 0 || scoreDocs.length < k) {
             return Queries.NO_DOCS_INSTANCE;
         }
         return new KnnScoreDocQuery(scoreDocs, reader);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext context, AcceptDocs filterDocs, IVFCollectorManager knnCollectorManager, float visitRatio, int docsFound)
+    private TopDocs searchLeaf(LeafReaderContext context, AcceptDocs filterDocs, IVFCollectorManager knnCollectorManager, float visitRatio, int docsFound, IntHashSet dedup)
         throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
-        IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
+        // Create dedup set on first call, reuse on recursive calls to filter out duplicates across passes
+        if (dedup == null) {
+            dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
+        }
         ScoreDoc[] scoreDocs = results.scoreDocs;
+        int resultsFound = scoreDocs.length;
 
         boolean postFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         var iterator = postFilter ? filterDocs.iterator() : null;
@@ -231,23 +235,29 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         int docsAdded = 0;
         for (ScoreDoc scoreDoc : scoreDocs) {
-            if (dedup.add(scoreDoc.doc) && (false == postFilter || accepted(iterator, scoreDoc.doc))) {
-                scoreDoc.doc += context.docBase;
-                scoreDocs[docsAdded++] = scoreDoc;
+            if ((false == postFilter || accepted(iterator, scoreDoc.doc))) {
+                int globalDoc = scoreDoc.doc + context.docBase;
+                if (dedup.add(globalDoc)) {
+                    scoreDoc.doc = globalDoc;
+                    scoreDocs[docsAdded++] = scoreDoc;
+                }
             }
         }
 
         docsFound += docsAdded;
         if (postFilter) {
             if(docsFound == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-            if(docsFound < k){
+            // Only recurse if we need more docs AND approximateSearch returned results (centroids remain)
+            if(docsFound < k && resultsFound > 0){
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
-                TopDocs additionalResults = searchLeaf(context, filterDocs, knnCollectorManager, visitRatio, docsFound);
+                TopDocs additionalResults = searchLeaf(context, filterDocs, knnCollectorManager, visitRatio, docsFound, dedup);
                 ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
                 var newScoreDocs = new ScoreDoc[docsAdded + additionalScoreDocs.length];
                 System.arraycopy(scoreDocs, 0, newScoreDocs, 0, docsAdded);
                 System.arraycopy(additionalScoreDocs, 0, newScoreDocs, docsAdded, additionalScoreDocs.length);
                 scoreDocs = newScoreDocs;
+                // Update docsFound to reflect merged results
+                docsFound = docsAdded + additionalScoreDocs.length;
             }
 
             docsFound = Math.min(k, docsFound);
@@ -288,7 +298,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     static class IVFCollectorManager implements KnnCollectorManager {
-        private final int k;
+        public final int k;
         final LongAccumulator longAccumulator;
 
         IVFCollectorManager(int k, IndexSearcher searcher) {

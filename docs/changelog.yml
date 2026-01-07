@@ -2,35 +2,59 @@
 # This file configures the valid values for changelog fields.
 # Place this file as `changelog.yml` in the `docs/` directory
 
-# Available types for changelog entries
-available_types:
-  - breaking-change
-  - bug-fix
-  - deprecation
-  - docs
-  - enhancement
-  - feature
-  - known-issue
-  - regression
-  - security
-  - other
+# Available products (optional - if not specified, all valid products are allowed)
+available_products:
+  - elasticsearch
+  - cloud-serverless
+  # Add more products as needed
 
-# Available subtypes for breaking changes
-available_subtypes:
-  - api
-  - behavioral
-  - configuration
-  - dependency
-  - subscription
-  - plugin
-  - security
-  - other
+# Available types for changelog entries (optional - if not specified, all valid types are allowed)
+# available_types:
+  # - breaking-change
+  # - bug-fix
+  # - deprecation
+  # - docs
+  # - enhancement
+  # - feature
+  # - known-issue
+  # - regression
+  # - security
+  # - other
 
-# Available lifecycle values
-available_lifecycles:
-  - preview
-  - beta
-  - ga
+# GitHub label mappings (optional - used when --pr option is specified)
+# Maps GitHub PR labels to changelog type values
+# When a PR has a label that matches a key, the corresponding type value is used
+label_to_type:
+  ">breaking": breaking-change
+  ">breaking-java": breaking-change
+  ">bug": bug-fix
+  ">deprecation": deprecation
+  ">docs": docs
+  "documentation": docs
+  "release_note:enhancement": enhancement
+  ">enhancement": enhancement
+  ">feature": feature
+  # "type:known": known-issue
+  ">regression": regression
+  # "type:security": security
+  # "type:other": other
+
+# Available subtypes for breaking changes (optional - if not specified, all valid subtypes are allowed)
+# available_subtypes:
+#   - api
+#   - behavioral
+#   - configuration
+#   - dependency
+#   - subscription
+#   - plugin
+#   - security
+#   - other
+
+# Available lifecycle values (optional - if not specified, all valid lifecycle values are allowed)
+# available_lifecycles:
+#   - preview
+#   - beta
+#   - ga
 
 # Available areas (optional - if not specified, all areas are allowed)
 available_areas:
@@ -117,30 +141,6 @@ available_areas:
   - Vector Search
   - Watcher
   # Add more areas as needed
-
-# Available products (optional - if not specified, all products are allowed)
-available_products:
-  - elasticsearch
-  - cloud-serverless
-  # Add more products as needed
-
-# GitHub label mappings (optional - used when --pr option is specified)
-# Maps GitHub PR labels to changelog type values
-# When a PR has a label that matches a key, the corresponding type value is used
-label_to_type:
-  ">breaking": breaking-change
-  ">breaking-java": breaking-change
-  ">bug": bug-fix
-  ">deprecation": deprecation
-  ">docs": docs
-  "documentation": docs
-  "release_note:enhancement": enhancement
-  ">enhancement": enhancement
-  ">feature": feature
-  # "type:known": known-issue
-  ">regression": regression
-  # "type:security": security
-  # "type:other": other
 
 # Maps GitHub PR labels to changelog area values
 # Multiple labels can map to the same area, and a single label can map to multiple areas (comma-separated)
@@ -235,46 +235,49 @@ label_to_areas:
 # Product-specific label blockers (optional)
 # Maps product IDs to lists of labels that prevent changelog creation for that product
 # If you run the changelog add command with the --prs option and a PR has any of these labels, the changelog is not created
-product_label_blockers:
-  elasticsearch:
-    - ">non-issue"
-    - ">test"
-    - ">refactoring"
-    - ":Delivery/Build"
-    - ":Delivery/Tooling"
-  cloud-serverless:
-    - ">non-issue"
-    - ">test"
-    - ":Delivery/Build"
-    - ":Delivery/Tooling"
-    - ">refactoring"
-    - ":Distributed Coordination/Allocation"
-    - ":Security/Audit"
-    - ":Security/Authentication"
-    - ":Distributed Coordination/Autoscaling"
-    - ":Distributed Indexing/CCR"
-    - ":Search Foundations/CCS"
-    - ":Distributed Coordination/Cluster Coordination"
-    - ":StorageEngine/Codec"
-    - ":Distributed Coordination/Discovery-Plugins"
-    - ":Distributed Indexing/Engine"
-    - ":Security/FIPS"
-    - ":Data Management/Health"
-    - ":Data Management/ILM+SLM"
-    - ":Security/IdentityProvider"
-    - ":Core/Infra/CLI"
-    - ":Core/Infra/Circuit Breakers"
-    - ":Core/Infra/Core"
-    - ":Core/Infra/Entitlements"
-    - ":Core/Infra/Logging"
-    - ":Core/Infra/Metrics"
-    - ":Core/Infra/Node Lifecycle"
-    - ":Core/Infra/Plugins"
-    - ":Core/Infra/Transport API"
-    - ":Security/License"
-    - ":Data Management/Monitoring"
-    - ":Delivery/Packaging"
-    - ":Distributed Indexing/Searchable Snapshots"
-    - ":Distributed Coordination/Snapshot/Restore"
-    - ":Data Management/Stats"
-    - ":Data Management/Watcher"
+# add_blockers:
+#   elasticsearch,cloud-serverless:
+#     - ">non-issue"
+#     - ">test"
+#     - ">refactoring"
+#     - ":Delivery/Build"
+#     - ":Delivery/Tooling"
+
+# render_blockers:
+#   cloud-serverless:
+#     areas:
+#       - Allocation
+#       - Audit
+#       - Authentication
+#       - Autoscaling
+#       - CCR
+#       - CCS
+#       - "Cluster Coordination"
+#       - Codec
+#       - "Discovery-Plugins"
+#       - Engine
+#       - FIPS
+#       - Health
+#       - "ILM+SLM"
+#       - "IdentityProvider"
+#       - "Infra/CLI"
+#       - "Circuit Breakers"
+#       - "Infra/Core"
+#       - "Infra/Entitlements"
+#       - "Infra/Logging"
+#       - "Infra/Metrics"
+#       - "Infra/Node Lifecycle"
+#       - "Infra/Plugins"
+#       - "Infra/Transport API"
+#       - License
+#       - Monitoring
+#       - Packaging
+#       - Searchable Snapshots
+#       - "Snapshot/Restore"
+#       - Stats
+#       - Watcher
+#     types:
+#       - docs
+#   elasticsearch:
+#     types:
+#       - docs

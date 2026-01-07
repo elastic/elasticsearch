@@ -2903,7 +2903,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"_index","next":{"term":{"_index":{"value":"test"}}}}}]
      *         [_doc{f}#10], limit[10000], sort[] estimatedRowSize[266]
-     *
      */
     public void testPushDownMetadataIndexInEquality() {
         var plan = physicalPlan("""

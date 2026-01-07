@@ -114,7 +114,7 @@ public class ReplicasLoadBalancingScaler {
         ClusterState state,
         ReplicaRankingContext rankingContext,
         DesiredClusterTopology desiredClusterTopology,
-        boolean onlyTopologyCheck,
+        boolean onlyScaleDownToTopologyBounds,
         ActionListener<ReplicasLoadBalancingResult> listener
     ) {
         if (enableReplicasForLoadBalancing == false) {
@@ -143,7 +143,7 @@ public class ReplicasLoadBalancingScaler {
             numberOfShuttingDownSearchNodes
         );
 
-        if (onlyTopologyCheck) {
+        if (onlyScaleDownToTopologyBounds) {
             listener.onResponse(new ReplicasLoadBalancingResult(immediateReplicaScaleDown, Map.of()));
             return;
         }

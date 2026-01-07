@@ -12,11 +12,11 @@ set -euo pipefail
 
 echo "--- Looking for index version changes"
 
-index_versions_main=$(curl -s "https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
+index_versions_main=$(curl -s "https://raw.githubusercontent.com/elastic/elasticsearch/main/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
 index_versions_local=$(grep "def([0-9_]*," "${WORKSPACE}/server/src/main/java/org/elasticsearch/index/IndexVersions.java")
 
 while IFS= read -r version; do
-  if ! echo "${index_versions_main}" | grep "${version}"; then
+  if ! echo "${index_versions_main}" | grep -F "${version}"; then
     echo "Changes to index version [$(echo ${version:37} | cut -d' ' -f1)] missing from main branch."
     echo "Index version changes must first be merged to main before being backported."
     exit 1

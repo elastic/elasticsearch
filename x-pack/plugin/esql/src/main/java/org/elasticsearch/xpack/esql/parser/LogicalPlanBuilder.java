@@ -363,7 +363,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * @see org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs#resolveRow
      */
     @Override
-    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
         return new Row(source(ctx), visitFields(ctx.fields()));
     }

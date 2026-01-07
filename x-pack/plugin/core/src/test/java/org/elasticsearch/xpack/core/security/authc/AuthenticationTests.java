@@ -874,7 +874,6 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -883,7 +882,9 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        final TransportVersion maybeOldVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS == version
+            ? version
+            : randomTransportVersionBetween(Authentication.VERSION_CROSS_CLUSTER_ACCESS, version);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
@@ -903,7 +904,6 @@ public class AuthenticationTests extends ESTestCase {
             .build();
         // pick a version before that of the authentication instance to force a rewrite
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
         );
@@ -946,12 +946,11 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             // Don't include CURRENT, so we always have at least one newer version available below
             TransportVersionUtils.getPreviousVersion()
         );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(olderVersion, null);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
             // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion

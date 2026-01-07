@@ -37,6 +37,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -275,7 +276,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     }
 
     protected static String fullyQualifiedIndexName(String clusterAlias, String indexName) {
-        return clusterAlias + ":" + indexName;
+        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexName);
     }
 
     protected static float[] generateDenseVectorFieldValue(int dimensions, DenseVectorFieldMapper.ElementType elementType, float value) {

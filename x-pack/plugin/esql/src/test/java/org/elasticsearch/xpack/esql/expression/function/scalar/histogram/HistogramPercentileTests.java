@@ -10,13 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.aggregation.TDigestStates;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +30,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.getCastEvaluator;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.getSuppliersForNumericType;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
 
@@ -55,23 +60,22 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
             invalidPercentileSuppliers.stream()
         ).toList();
 
+        List<TestCaseSupplier.TypedDataSupplier> histogramInputs = new ArrayList<>();
+        histogramInputs.addAll(TestCaseSupplier.exponentialHistogramCases());
+        histogramInputs.addAll(TestCaseSupplier.tdigestCases());
+
         TestCaseSupplier.casesCrossProduct((histogramObj, percentileObj) -> {
-            ExponentialHistogram histogram = (ExponentialHistogram) histogramObj;
             Number percentile = (Number) percentileObj;
             double percVal = percentile.doubleValue();
             if (percVal < 0 || percVal > 100 || Double.isNaN(percVal)) {
                 return null;
             }
-            double result = ExponentialHistogramQuantile.getQuantile(histogram, percVal / 100.0);
+            double result = getExpectedPercentile(histogramObj, percVal);
             return Double.isNaN(result) ? null : result;
         },
-            TestCaseSupplier.exponentialHistogramCases(),
+            histogramInputs,
             allPercentiles,
-            (histoType, percentileType) -> equalTo(
-                "HistogramPercentileEvaluator[value=Attribute[channel=0], percentile="
-                    + getCastEvaluator("Attribute[channel=1]", percentileType, DataType.DOUBLE)
-                    + "]"
-            ),
+            HistogramPercentileTests::getEvaluatorToStringMatcher,
             (typedHistoData, typedPercentileData) -> {
                 Object percentile = typedPercentileData.getValue();
                 if (invalidPercentileValues.contains(percentile)) {
@@ -89,6 +93,33 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static double getExpectedPercentile(Object histogramObj, double percVal) {
+        return switch (histogramObj) {
+            case ExponentialHistogram expHisto -> ExponentialHistogramQuantile.getQuantile(expHisto, percVal / 100.0);
+            case TDigestHolder tdigest -> {
+                try (TDigestState scratch = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION)) {
+                    tdigest.addTo(scratch);
+                    yield scratch.quantile(percVal / 100.0);
+                }
+            }
+            default -> throw new IllegalStateException("Not a histogram object [" + histogramObj + "]");
+        };
+    }
+
+    private static Matcher<String> getEvaluatorToStringMatcher(DataType histoType, DataType percentileType) {
+
+        String percentileEvaluatorName = getCastEvaluator("Attribute[channel=1]", percentileType, DataType.DOUBLE);
+        return switch (histoType) {
+            case EXPONENTIAL_HISTOGRAM -> equalTo(
+                "HistogramPercentileExponentialHistogramEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + "]"
+            );
+            case TDIGEST -> startsWith(
+                "HistogramPercentileTDigestEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + ", breaker="
+            );
+            default -> throw new IllegalStateException("Not a histogram type: " + histoType);
+        };
     }
 
     @Override

@@ -353,6 +353,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     @Override
     public String toString() {
         String valuesString = Stream.of(AggregateMetricDoubleBlockBuilder.Metric.values())
+            .filter(metric -> metric != AggregateMetricDoubleBlockBuilder.Metric.DEFAULT)
             .map(metric -> metric.getLabel() + "=" + getMetricBlock(metric.getIndex()))
             .collect(Collectors.joining(", ", "[", "]"));
 

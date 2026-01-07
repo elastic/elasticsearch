@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FlattenedFieldMapperTests extends MapperTestCase {
 
@@ -346,13 +348,24 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(2, fields.size());
     }
 
+    private MultiValuedBinaryDocValuesField getDocValuesField(List<IndexableField> fields) {
+        var docValuesFields = fields.stream().filter(field -> field.fieldType().docValuesType() == DocValuesType.BINARY).toList();
+        assertEquals(1, docValuesFields.size());
+        assertThat(docValuesFields.getFirst(), instanceOf(MultiValuedBinaryDocValuesField.class));
+
+        return (MultiValuedBinaryDocValuesField) docValuesFields.getFirst();
+    }
+
     public void testDotOnlyFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(
             source(b -> b.startObject("field").field(".", "value1").field("..", "value2").field("...", "value3").endObject())
         );
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.size());
+        // 3 indexed fields with no doc values
+        // 1 non-indexed field with multivalued binary doc values
+        assertEquals(4, fields.size());
+        assertEquals(3, getDocValuesField(fields).count());
     }
 
     public void testMixOfOrdinaryAndFlattenedFields() throws Exception {
@@ -404,7 +417,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
         assertNull(parsedDoc.dynamicMappingsUpdate());
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.size());
+        assertEquals(4, fields.size());
+        assertEquals(3, getDocValuesField(fields).count());
         fields = parsedDoc.rootDoc().getFields("a.b");
         assertEquals(0, fields.size());
         fields = parsedDoc.rootDoc().getFields("a.b.c");
@@ -443,16 +457,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
 
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.size());
+        assertEquals(4, fields.size());
+        assertEquals(3, getDocValuesField(fields).count());
         assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
         assertEquals(new BytesRef("true"), fields.get(2).binaryValue());
-        assertEquals(new BytesRef("false"), fields.get(4).binaryValue());
+        assertEquals(new BytesRef("false"), fields.get(3).binaryValue());
 
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(6, keyedFields.size());
+        assertEquals(4, keyedFields.size());
+        assertEquals(3, getDocValuesField(keyedFields).count());
         assertEquals(new BytesRef("key1\0value"), keyedFields.get(0).binaryValue());
         assertEquals(new BytesRef("key2\0true"), keyedFields.get(2).binaryValue());
-        assertEquals(new BytesRef("key3\0false"), keyedFields.get(4).binaryValue());
+        assertEquals(new BytesRef("key3\0false"), keyedFields.get(3).binaryValue());
     }
 
     public void testDepthLimit() throws IOException {

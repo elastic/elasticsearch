@@ -145,7 +145,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public void testCreatesEisChatCompletionEndpoint() throws Exception {
         assertNoAuthorizedEisEndpoints();
 
-        webServer.clearRequests();
+        resetWebServerQueues();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         restartPollingTaskAndWaitForAuthResponse();
 
@@ -260,20 +260,25 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public void testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized() throws Exception {
         assertNoAuthorizedEisEndpoints();
 
-        webServer.clearRequests();
+        resetWebServerQueues();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
-        webServer.clearRequests();
+        resetWebServerQueues();
         // Simulate that the model is no longer authorized
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
+    }
+
+    private static void resetWebServerQueues() {
+        webServer.clearRequests();
+        webServer.clearResponses();
     }
 
     private void assertChatCompletionEndpointExists() throws Exception {
@@ -300,7 +305,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {
         assertNoAuthorizedEisEndpoints();
 
-        webServer.clearRequests();
+        resetWebServerQueues();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
@@ -308,14 +313,14 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertChatCompletionEndpointExists();
 
         // Simulate that the model is no longer authorized
-        webServer.clearRequests();
+        resetWebServerQueues();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
-        webServer.clearRequests();
+        resetWebServerQueues();
         // Simulate that a text embedding model is now authorized
         var jinaEmbedResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaEmbedAuthorizationResponse(gatewayUrl)
             .responseJson();
@@ -341,7 +346,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Ensure the task is created and we get an initial authorization response
         assertNoAuthorizedEisEndpoints();
 
-        webServer.clearRequests();
+        resetWebServerQueues();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();

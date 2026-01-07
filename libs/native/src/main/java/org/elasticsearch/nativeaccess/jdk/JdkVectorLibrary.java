@@ -75,25 +75,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 dot7uBulkWithOffsets$mh = downcallHandle("vec_dot7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
 
                 doti4b1$mh = downcallHandle(
-                    "vec_dot_bit_int4_2",
+                    "vec_dot_bit_int4" + suffix,
                     FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT),
                     LinkerHelperUtil.critical()
                 );
-                doti4b1Bulk$mh = downcallHandle(
-                    "vec_dot_bit_int4_bulk_2",
-                    FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
-                    LinkerHelperUtil.critical()
-                );
+                doti4b1Bulk$mh = downcallHandle("vec_dot_bit_int4_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 doti4b1BulkWithOffsets$mh = downcallHandle(
-                    "vec_dot_bit_int4_bulk_offsets_2",
-                    FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
+                    "vec_dot_bit_int4_bulk_offsets" + suffix,
+                    bulkOffsets,
                     LinkerHelperUtil.critical()
                 );
-
 
                 sqr7u$mh = downcallHandle("vec_sqr7u" + suffix, intSingle, LinkerHelperUtil.critical());
                 sqr7uBulk$mh = downcallHandle("vec_sqr7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 sqr7uBulkWithOffsets$mh = downcallHandle("vec_sqr7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+
                 dotf32$mh = downcallHandle("vec_dotf32" + suffix, floatSingle, LinkerHelperUtil.critical());
                 sqrf32$mh = downcallHandle("vec_sqrf32" + suffix, floatSingle, LinkerHelperUtil.critical());
                 INSTANCE = new JdkVectorSimilarityFunctions();

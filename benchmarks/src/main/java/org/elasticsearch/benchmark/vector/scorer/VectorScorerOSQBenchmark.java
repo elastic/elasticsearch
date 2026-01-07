@@ -56,12 +56,12 @@ public class VectorScorerOSQBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    enum DirectoryType  {
+    public enum DirectoryType {
         NIO,
         MMAP
     }
 
-    enum VectorImplementation {
+    public enum VectorImplementation {
         SCALAR,
         VECTORIZED
     }

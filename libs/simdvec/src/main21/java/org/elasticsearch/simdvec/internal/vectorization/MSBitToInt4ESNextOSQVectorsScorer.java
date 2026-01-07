@@ -47,8 +47,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         if (length >= 16) {
             if (NATIVE_SUPPORTED) {
                 return nativeQuantizeScore(q);
-            }
-            else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+            } else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     return quantizeScore256(q);
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
@@ -207,8 +206,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         if (length >= 16) {
             if (NATIVE_SUPPORTED) {
                 nativeQuantizeScoreBulk(q, count, scores);
-            }
-            else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+            } else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     quantizeScore256Bulk(q, count, scores);
                     return true;
@@ -226,7 +224,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         var queryMemorySegment = MemorySegment.ofArray(q);
         var scoresSegment = MemorySegment.ofArray(scores);
         dotProductI4B1Bulk(queryMemorySegment, memorySegment.asSlice(initialOffset), length, count, scoresSegment);
-        in.skipBytes((long)length * count);
+        in.skipBytes((long) length * count);
     }
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {

@@ -2004,7 +2004,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     public void testNestedLimitDefaults() throws IOException {
         // current defaults
         {
-            var version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NESTED_PATH_LIMIT, IndexVersion.current());
+            var version = IndexVersionUtils.randomVersionBetween(IndexVersions.NESTED_PATH_LIMIT, IndexVersion.current());
             var mapperService = createMapperService(version, Settings.builder().build(), mapping(b -> {}));
             assertThat(
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),

@@ -214,10 +214,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null, longAdder));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
-//        if (longAdder.longValue() > 0) {
-//            LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester")
-//                .info("Completed {} additional searches to fill results", longAdder.longValue());
-//        }
+        // if (longAdder.longValue() > 0) {
+        // LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester")
+        // .info("Completed {} additional searches to fill results", longAdder.longValue());
+        // }
         // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         ScoreDoc[] scoreDocs = topK.scoreDocs;

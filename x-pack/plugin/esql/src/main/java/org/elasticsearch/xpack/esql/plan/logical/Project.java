@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -33,7 +34,7 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
     /**
      * Backward compatibility entry for reading the old "EsqlProject" type which has been consolidated into Project.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.ANALYTICS)
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_ANALYTICS)
     public static final NamedWriteableRegistry.Entry V9_ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "EsqlProject",

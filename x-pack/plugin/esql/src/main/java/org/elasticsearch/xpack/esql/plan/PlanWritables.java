@@ -90,7 +90,7 @@ public class PlanWritables {
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
-            Project.ESQL_PROJECT_ENTRY, // Backward compatibility for reading old "EsqlProject" type
+            Project.V9_ENTRY, // Backward compatibility for reading old "EsqlProject" type
             Rerank.ENTRY,
             Sample.ENTRY,
             Subquery.ENTRY,

@@ -46,6 +46,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -157,22 +158,29 @@ public class ValuesSourceReaderBenchmark {
                     "keyword_1",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> blockLoader("stored_keyword_1")
+                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader("stored_keyword_1"), null)
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_2",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> blockLoader("stored_keyword_2")
+                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader("stored_keyword_2"), null)
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_3",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> blockLoader("stored_keyword_3")
+                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader("stored_keyword_3"), null)
                 )
             );
-            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), false, shardIdx -> blockLoader(name)));
+            default -> List.of(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    name,
+                    elementType(name),
+                    false,
+                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader(name), null)
+                )
+            );
         };
     }
 
@@ -369,7 +377,7 @@ public class ValuesSourceReaderBenchmark {
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
-            blockFactory,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory),
             ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
             new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {

@@ -296,10 +296,12 @@ public class IndexingShardRecoveryIT extends AbstractServerlessStatelessPluginIn
         var afterRestore = new PrimaryTermAndGeneration(
             // term is incremented by 1
             afterSnapshot.lastUploadedBcc.primaryTerm() + 1L,
-            // Lucene index is committed three times on snapshot recovery:
-            // 1st for StatelessIndexEventListener#afterFilesRestoredFromRepository, 2nd for bootstrapNewHistory
-            // and 3rd for associateIndexWithNewTranslog
-            afterSnapshot.lastUploadedCc.generation() + 3L
+            // Lucene index is committed two or three times on snapshot recovery:
+            // 1st for StatelessIndexEventListener#afterFilesRestoredFromRepository if the commit is neither a hollow commit
+            // nor from an empty store, i.e. documents have been indexed before the snapshot
+            // 2nd for bootstrapNewHistory
+            // 3rd for associateIndexWithNewTranslog
+            afterSnapshot.lastUploadedCc.generation() + (totalDocs > 0 ? 3L : 2L)
         );
         assertBusyCommitsMatchExpectedResults(indexName, expectedResults(afterRestore, 0));
         assertDocsCount(indexName, totalDocs);

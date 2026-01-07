@@ -94,7 +94,8 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             groupings,
             newAggregateFunctions,
             null,
-            aggregate.timestamp());
+            aggregate.timestamp()
+        );
         // insert the time_series
         return newStats.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeries));
     }

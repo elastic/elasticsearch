@@ -14,7 +14,25 @@ import org.openjdk.jmh.annotations.State;
 
 /**
  * Configuration holder for compression metrics in TSDB codec benchmarks.
- * Inject into {@code @Setup} methods; use {@link CompressionMetrics} for benchmark methods.
+ *
+ * <p>This class stores encoding parameters that are set during benchmark setup
+ * and used by {@link CompressionMetrics} to compute compression statistics.
+ * It is annotated with {@code @State(Scope.Benchmark)} to share configuration
+ * across all threads in a benchmark.
+ *
+ * <h2>Usage</h2>
+ * <pre>{@code
+ * @Setup(Level.Iteration)
+ * public void setupIteration(MetricsConfig config) {
+ *     // ... setup encoder and run once to measure encoded size ...
+ *     config.configure(BLOCK_SIZE, encoder.getEncodedBytes(), bitsPerValue);
+ * }
+ * }</pre>
+ *
+ * <p>Inject this class into {@code @Setup} methods. For {@code @Benchmark} methods,
+ * use {@link CompressionMetrics} instead.
+ *
+ * @see CompressionMetrics
  */
 @State(Scope.Benchmark)
 public class MetricsConfig {
@@ -23,20 +41,36 @@ public class MetricsConfig {
     private int encodedBytesPerBlock;
     private int nominalBitsPerValue;
 
+    /**
+     * Configures the metrics parameters for the current benchmark iteration.
+     *
+     * @param blockSize            number of values per encoded block (typically 128)
+     * @param encodedBytesPerBlock actual bytes produced after encoding one block
+     * @param nominalBitsPerValue  the input {@code bitsPerValue} parameter being tested
+     */
     public void configure(int blockSize, int encodedBytesPerBlock, int nominalBitsPerValue) {
         this.blockSize = blockSize;
         this.encodedBytesPerBlock = encodedBytesPerBlock;
         this.nominalBitsPerValue = nominalBitsPerValue;
     }
 
+    /**
+     * Returns the number of values per encoded block.
+     */
     public int getBlockSize() {
         return blockSize;
     }
 
+    /**
+     * Returns the actual bytes produced after encoding one block.
+     */
     public int getEncodedBytesPerBlock() {
         return encodedBytesPerBlock;
     }
 
+    /**
+     * Returns the nominal bits per value being tested.
+     */
     public int getNominalBitsPerValue() {
         return nominalBitsPerValue;
     }

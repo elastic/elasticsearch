@@ -14,7 +14,16 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * Encoding benchmark implementation for TSDB doc values.
+ *
+ * <p>This class benchmarks the {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder#encode}
+ * method, measuring how long it takes to encode a block of long values into a compressed byte format.
+ *
+ * @see DecodeBenchmark
+ */
 public class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
+
     private ByteArrayDataOutput dataOutput;
     private long[] input;
     private byte[] output;

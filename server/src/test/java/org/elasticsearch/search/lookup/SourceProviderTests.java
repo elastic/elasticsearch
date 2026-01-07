@@ -21,12 +21,12 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.test.ESTestCase;
@@ -84,7 +84,7 @@ public class SourceProviderTests extends ESTestCase {
 
             int numIterations = 20;
             for (int i = 0; i < numIterations; i++) {
-                searcher.search(new MatchAllDocsQuery(), assertingCollectorManager());
+                searcher.search(Queries.ALL_DOCS_INSTANCE, assertingCollectorManager());
             }
 
             reader.close();

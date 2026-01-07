@@ -100,6 +100,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
@@ -214,7 +215,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
-                || t == DataType.TSID_DATA_TYPE,
+                || t == DataType.TSID_DATA_TYPE
+                || t == DataType.DATE_RANGE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -320,7 +322,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     );
                     expBuilder.append(histo);
                 }
-                case TDIGEST -> ((TDigestBlockBuilder) builder).append(EsqlTestUtils.randomTDigest());
+                case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
                 case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
                 default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -1328,6 +1330,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             expHistoBuilder.append(parsed);
                         }
                     }
+                    case DATE_RANGE -> {
+                        BlockLoader.LongRangeBuilder b = (BlockLoader.LongRangeBuilder) builder;
+                        var ll = parseDateRange(value.toString());
+                        b.from().appendLong(ll.from());
+                        b.to().appendLong(ll.to());
+                    }
                     case TDIGEST -> {
                         TDigestBlockBuilder tDigestBlockBuilder = (TDigestBlockBuilder) builder;
                         String json = Types.forciblyCast(value);
@@ -1347,7 +1355,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             if (parsed == null) {
                                 tDigestBlockBuilder.appendNull();
                             } else {
-                                tDigestBlockBuilder.append(parsed);
+                                tDigestBlockBuilder.appendTDigest(parsed);
                             }
                         } catch (UnsupportedOperationException | IOException e) {
                             fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());

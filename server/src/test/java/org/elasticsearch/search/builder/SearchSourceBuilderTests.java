@@ -10,6 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -671,6 +672,56 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSortUsage() throws IOException {
+        var sortFormats = List.of("\"_score\"", "\"field_name\"", "{ \"name\" : \"desc\" }", """
+              {
+                "_script": {
+                  "type": "number",
+                  "script": {
+                    "lang": "painless",
+                    "source": "doc['field_name'].value * 0.1"
+                  }
+                }
+              }
+            """, """
+                {
+                  "_geo_distance" : {
+                      "pin.location" : [-70, 40]
+                  }
+                }
+            """);
+
+        var expectedTypes = List.of("_score", "field_sort", "field_sort", "_script", "_geo_distance");
+
+        for (int i = 0; i < sortFormats.size(); i++) {
+            var sorter = sortFormats.get(i);
+            String restContent = Strings.format("""
+                {
+                    "query" : {
+                        "match": { "content": { "query": "foo bar" }}
+                     },
+                    "sort": %s
+                }
+                """, sorter);
+
+            SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder, nf -> false);
+                SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+                Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+                assertEquals(
+                    "Failed to correctly parse and record sort usage of '" + restContent + "'",
+                    1L,
+                    sectionsUsage.get("sort").longValue()
+                );
+                var extendedData = searchUsageStats.getExtendedSearchUsage().getCategorizedExtendedData().get("section").get("sort");
+                assertThat(extendedData, instanceOf(ExtendedSearchUsageLongCounter.class));
+                var counter = (ExtendedSearchUsageLongCounter) extendedData;
+                assertEquals(Map.of(expectedTypes.get(i), 1L), counter.getValues());
+            }
+        }
+    }
+
     public void testEmptySectionsAreNotTracked() throws IOException {
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
 
@@ -787,6 +838,11 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertParseFailureNotTracked(searchUsageHolder, """
             {
               "search_after" : []
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "sort" : {}
             }
             """);
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -71,7 +70,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             if (tierPreference == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

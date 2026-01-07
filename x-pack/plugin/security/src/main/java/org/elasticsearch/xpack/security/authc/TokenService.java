@@ -862,7 +862,7 @@ public class TokenService {
             } else {
                 idsOfOlderTokens.add(userToken.getId());
             }
-            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().before(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH) == false;
         }
         final RefreshPolicy tokensInvalidationRefreshPolicy = anyOlderTokensBeforeRefreshViaGet
             ? RefreshPolicy.WAIT_UNTIL

@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -88,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -8022,7 +8022,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateTDigestSumWithImplicitMergeOverTime() {
-        assumeTrue("TDigest support", EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled());
         var query = """
             TS tdigest_timeseries_index | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -8054,7 +8053,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateTDigestPercentileWithImplicitMergeOverTime() {
-        assumeTrue("TDigest support", EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled());
         var query = """
             TS tdigest_timeseries_index | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -10362,6 +10360,194 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var relation = as(aggregateInBranch.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
         }
+    }
+
+    /**
+     * Verifies that multi-value constant literals used as GROUP BY keys are not propagated
+     * after the Aggregate node. GROUP BY explodes multi-values into single values, so propagating
+     * the original multi-value literal would be incorrect.
+     *
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[a{r}#4 > 1[INTEGER]]
+     *   \_Aggregate[[a{r}#4],[SUM(a{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS c#8, a{r}#4]]
+     *     \_LocalRelation[[a{r}#4],Page{blocks=[IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayV
+     * ector[positions=2, values=[1, 2]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantGroupByWhere() {
+        var plan = plan("""
+            ROW a = [1, 2]
+            | STATS c = SUM(a) BY a
+            | WHERE a > 1
+            """);
+
+        // Plan structure: Limit -> Filter -> Aggregate -> LocalRelation
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        // The key assertion: `a` in the filter should be a ReferenceAttribute, NOT a Literal
+        // If it were a Literal([1, 2]), that would indicate incorrect constant propagation
+        var condition = as(filter.condition(), GreaterThan.class);
+        var left = as(condition.left(), ReferenceAttribute.class);
+        assertThat(Expressions.name(left), equalTo("a"));
+
+        var agg = as(filter.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * Verifies that multi-value constant literals in aggregate expressions referencing
+     * grouping keys are not incorrectly propagated.
+     *
+     * <pre>{@code
+     * Project[[a + SUM(a){r}#8, a{r}#4]]
+     * \_Eval[[a{r}#4 + $$SUM$a_+_SUM(a)$0{r$}#9 AS a + SUM(a)#8]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[a{r}#4],[SUM(a{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a_+_SUM(a)$0#9, a{r}#4]]
+     *       \_LocalRelation[[a{r}#4],Page{blocks=[IntArrayBlock[positions=1, mvOrdering=SORTED_ASCENDING, vector=IntArrayVector[positions=2
+     * , values=[1, 2]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantGroupByAggExpr() {
+        var plan = plan("""
+            ROW a = [1, 2]
+            | STATS a + SUM(a) BY a
+            """);
+
+        // Plan structure: Project -> Eval -> Limit -> Aggregate -> LocalRelation
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+
+        // The EVAL expression `a + $$SUM$...` contains `a` which should be a ReferenceAttribute
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var addExpr = as(alias.child(), Add.class);
+
+        // Left side of add should be a reference to `a`, not a literal [1, 2]
+        var left = as(addExpr.left(), ReferenceAttribute.class);
+        assertThat(Expressions.name(left), equalTo("a"));
+
+        // Right side should be a reference to the SUM result
+        var right = as(addExpr.right(), ReferenceAttribute.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * Verifies that multi-value constant literals used as GROUP BY keys are not propagated
+     * into EVAL expressions after the Aggregate.
+     *
+     * <pre>{@code
+     * Eval[[a{r}#4 AS b#10]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Aggregate[[a{r}#4],[SUM(a{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS SUM(a)#7, a{r}#4]]
+     *     \_LocalRelation[[a{r}#4],Page{blocks=[IntArrayBlock[positions=1, mvOrdering=UNORDERED, vector=IntArrayVector[positions=2, value
+     * s=[1, 2]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantGroupByEval() {
+        var plan = plan("""
+            ROW a = [1, 2]
+            | STATS SUM(a) BY a
+            | EVAL b = a
+            """);
+
+        // Plan structure: Eval -> Limit -> Aggregate -> LocalRelation
+        var eval = as(plan, Eval.class);
+
+        // The EVAL expression `b = a` should reference `a` as an attribute, not a literal
+        assertThat(eval.fields(), hasSize(1));
+        var bAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(bAlias.name(), equalTo("b"));
+
+        // The child of the alias should be a ReferenceAttribute to `a`, not a Literal([1, 2])
+        var a = as(bAlias.child(), ReferenceAttribute.class);
+        assertThat(Expressions.name(a), equalTo("a"));
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT($$TO_LOWER(langua>$COUNT$0{r$}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#12, COUNT($$language_name$t
+     * emp_name$23{r}#25,true[BOOLEAN],PT0S[TIME_DURATION]) AS b#15]]
+     *   \_Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
+     *     \_Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,{"match":{"indices":[],"match_field":"id","enrich_fields":["langua
+     * ge_code","language_name"]}},{=languages_idx},[language_code{r}#20, language_name{r}#24 AS $$language_name$temp_n
+     * ame$23#25]]
+     *       \_Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
+     *         |_LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     * }</pre>
+     */
+    public void testCircularRefEnrichStats() {
+        var query = """
+            ROW language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name AS message
+            | ENRICH languages_idx ON message
+            | STATS a = COUNT(TO_LOWER(language_name)), b = COUNT(language_name)
+            """;
+        var plan = optimizedPlan(query);
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit(), is(new Literal(Source.EMPTY, 1000, DataType.INTEGER)));
+
+        // Aggregate[[],[COUNT(...) AS a, COUNT(...) AS b]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(0));
+        assertThat(aggregate.aggregates(), hasSize(2));
+
+        var agg1 = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(agg1.name(), is("a"));
+        var count1 = as(agg1.child(), Count.class);
+        var field1 = as(count1.field(), ReferenceAttribute.class);
+        assertThat(field1.name(), is("$$TO_LOWER(langua>$COUNT$0"));
+
+        var agg2 = as(aggregate.aggregates().get(1), Alias.class);
+        assertThat(agg2.name(), is("b"));
+        var count2 = as(agg2.child(), Count.class);
+        var field2 = as(count2.field(), ReferenceAttribute.class);
+        assertThat(field2.name(), startsWith("$$language_name$temp_name$"));
+
+        // Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), ToLower.class);
+
+        assertThat(evalFieldAlias.name(), is("$$TO_LOWER(langua>$COUNT$0"));
+        assertThat(count1.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("TO_LOWER(language_name)"));
+
+        // Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,...]
+        var enrich = as(eval.child(), Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("languages_idx")));
+        assertThat(enrich.enrichFields(), hasSize(2));
+
+        // Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
+        var join = as(enrich.child(), Join.class);
+        assertThat(join.config().type(), is(JoinTypes.LEFT));
+
+        // LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[...]]}]
+        var localRelation = as(join.left(), LocalRelation.class);
+        assertThat(localRelation.output(), hasSize(1));
+        assertThat(localRelation.output().get(0).name(), is("language_code"));
+
+        // EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+        var esRelation = as(join.right(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), is("languages_lookup"));
+        assertThat(esRelation.indexMode(), is(IndexMode.LOOKUP));
     }
 
     /**

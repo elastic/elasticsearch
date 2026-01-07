@@ -451,7 +451,11 @@ class IndicesAndAliasesResolver {
                     assert authorizedProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
                         : "resolving cross-project request but authorized project is local only";
 
-                    final var resolvedProjects = crossProjectRoutingResolver.resolve(replaceable.getProjectRouting(), projectMetadata, authorizedProjects);
+                    final var resolvedProjects = crossProjectRoutingResolver.resolve(
+                        replaceable.getProjectRouting(),
+                        projectMetadata,
+                        authorizedProjects
+                    );
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),

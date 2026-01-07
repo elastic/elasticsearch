@@ -1,0 +1,5 @@
+pr: 140302
+summary: "[Stack Monitoring] mapping for total node shards in .monitoring-es-mb"
+area: Monitoring
+type: enhancement
+issues: []

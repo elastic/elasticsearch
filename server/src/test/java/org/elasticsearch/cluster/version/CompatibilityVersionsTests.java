@@ -34,7 +34,6 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testMinimumTransportVersions() {
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersionUtils.getNextVersion(version1, true),
             TransportVersion.current()
         );
@@ -81,7 +80,6 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testMinimumsAreMerged() {
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersionUtils.getNextVersion(version1, true),
             TransportVersion.current()
         );
@@ -110,7 +108,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
         // should not throw
         CompatibilityVersions.ensureVersionsCompatibility(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()), Map.of()),
+            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(min, TransportVersion.current()), Map.of()),
             compatibilityVersions
         );
 

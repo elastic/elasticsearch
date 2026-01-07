@@ -224,18 +224,18 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         return switch (taskType) {
             case TEXT_EMBEDDING -> new JinaAIEmbeddingsModel(
                 inferenceEntityId,
-                NAME,
                 (JinaAIEmbeddingsServiceSettings) serviceSettings,
                 (JinaAIEmbeddingsTaskSettings) taskSettings,
                 chunkingSettings,
-                (DefaultSecretSettings) secretSettings
+                (DefaultSecretSettings) secretSettings,
+                null
             );
             case RERANK -> new JinaAIRerankModel(
                 inferenceEntityId,
-                NAME,
                 (JinaAIRerankServiceSettings) serviceSettings,
                 (JinaAIRerankTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
+                (DefaultSecretSettings) secretSettings,
+                null
             );
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };

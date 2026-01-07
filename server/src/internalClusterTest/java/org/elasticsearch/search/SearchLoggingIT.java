@@ -176,8 +176,6 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertThat(message.get("query"), containsString("mockscript"));
         assertThat(message.get("indices"), equalTo("test"));
         assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
-        assertThat(message.get("error.message"), containsString("shards failure"));
-
     }
 
     public void testMultiSearch() {

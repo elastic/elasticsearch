@@ -248,6 +248,15 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
+    /**
+     * Merge the child centroids in {@code subPartitions} into the K means results.
+     * {@code subPartitions} are inserted into the results next to the parent centroid
+     * at position {@code cluster}.
+     * @param current Current results
+     * @param cluster Index of the split centroid
+     * @param subPartitions The new centroids resulting from the split
+     * @return The number of centroids added excluding the one that is replaced
+     */
     int updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
         if (subPartitions.centroids().length == 0) {
             return 0; // nothing to do, sub-partitions is empty

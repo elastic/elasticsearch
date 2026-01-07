@@ -20,11 +20,11 @@ SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
-PIPE : '|';                   //When in DEFAULT MODE don't pop.
+PIPE : '|'                    -> type(PIPE); //When in DEFAULT MODE don't pop.
 
 mode EXPRESSION_MODE;
 
-PIPE : '|' -> type(PIPE), popMode;
+EXPRESSION_PIPE : PIPE -> type(PIPE), popMode;
 SEMICOLON : ';' -> type(SEMICOLON), popMode;
 
 fragment DIGIT

@@ -76,6 +76,30 @@ a:integer | row:integer
 null      | 2
 ;
 
+multipleRowsWithPipePart
+required_capability: multiple_row_source_commands
+ROW a = 1 \;
+ROW a = 2 \;
+ROW a = 3
+| LIMIT 2; 
+
+a:integer 
+1         
+2
+;
+
+multipleRowsWithPipePartWithTrailingSemicolumn
+required_capability: multiple_row_source_commands
+ROW a = 1 \;
+ROW a = 2 \;
+ROW a = 3 \;
+| LIMIT 2;
+
+a:integer 
+1         
+2
+;
+
 implicitNames
 row 100, 10, c = 1;
 

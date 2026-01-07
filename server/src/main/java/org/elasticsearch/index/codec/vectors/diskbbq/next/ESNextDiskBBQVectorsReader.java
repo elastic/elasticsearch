@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -55,39 +56,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        return new CentroidIterator() {
-            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
-                ? centroidIterator.nextPostingListOffsetAndLength()
-                : null;
-
-            {
-                // prefetch the first one
-                if (nextOffsetAndLength != null) {
-                    prefetch(nextOffsetAndLength);
-                }
-            }
-
-            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
-                postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
-            }
-
-            @Override
-            public boolean hasNext() {
-                return nextOffsetAndLength != null;
-            }
-
-            @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
-                if (centroidIterator.hasNext()) {
-                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
-                    prefetch(nextOffsetAndLength);
-                } else {
-                    nextOffsetAndLength = null;  // indicate we reached the end
-                }
-                return offsetAndLength;
-            }
-        };
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
     }
 
     static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {

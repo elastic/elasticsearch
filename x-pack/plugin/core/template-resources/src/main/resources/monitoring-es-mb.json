@@ -93,6 +93,13 @@
                             }
                           }
                         },
+                        "shard_stats": {
+                          "properties": {
+                            "total_count": {
+                              "type": "long"
+                            }
+                          }
+                        },
                         "store": {
                           "properties": {
                             "size": {

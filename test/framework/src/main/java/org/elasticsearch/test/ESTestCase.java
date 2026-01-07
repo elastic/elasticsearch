@@ -2815,22 +2815,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Join the given {@link Thread} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
      * flag and asserting that the thread is indeed completed before the timeout.
-     */
-    public static void safeJoin(Thread t) {
-        safeJoin(t, SAFE_AWAIT_TIMEOUT);
-    }
-
-    /**
-     * Join the given {@link Thread} with a supplied timeout, preserving the thread's interrupt status
-     * flag and asserting that the thread is indeed completed before the timeout.
      * <p>
      * Prefer {@link #safeAwait(CountDownLatch)} (with the default 10s timeout) wherever possible. It's very unusual to need to block a
      * test for more than 10s, and such slow tests are a big problem for overall test suite performance. In almost all cases it's possible
      * to find a different way to write the test which doesn't need such a long wait.
      */
-    public static void safeJoin(Thread t, TimeValue timeout) {
+    public static void safeJoin(Thread t) {
         try {
-            t.join(timeout.millis());
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
             assertFalse("safeJoin: Thread is still running after the timeout", t.isAlive());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

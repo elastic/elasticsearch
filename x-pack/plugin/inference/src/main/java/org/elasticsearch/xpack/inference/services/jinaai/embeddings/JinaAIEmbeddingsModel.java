@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -14,22 +15,34 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class JinaAIEmbeddingsModel extends JinaAIModel {
+
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(JinaAIUtils.HOST)
+        .setPathSegments(JinaAIUtils.VERSION_1, JinaAIUtils.EMBEDDINGS_PATH);
+
     public static JinaAIEmbeddingsModel of(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = JinaAIEmbeddingsTaskSettings.fromMap(taskSettings);
+        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+            return model;
+        }
         return new JinaAIEmbeddingsModel(model, JinaAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public JinaAIEmbeddingsModel(
         String inferenceId,
-        String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
@@ -38,27 +51,28 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     ) {
         this(
             inferenceId,
-            service,
             JinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            null
         );
     }
 
     public JinaAIEmbeddingsModel(
         String modelId,
-        String service,
         JinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable String uri
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings()
+            serviceSettings.getCommonSettings(),
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
         );
     }
 
@@ -88,10 +102,5 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     @Override
     public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
-    }
-
-    @Override
-    public URI uri() {
-        return getServiceSettings().getCommonSettings().uri();
     }
 }

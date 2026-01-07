@@ -436,10 +436,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());
 
-            // flattened supports ordinals, but _not_ global ordinals
-            assertTrue(config.hasOrdinals());
-            ValuesSource.Bytes.WithOrdinals valuesSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-            assertFalse(valuesSourceWithOrdinals.supportsGlobalOrdinalsMapping());
+            assertFalse(config.hasOrdinals());
         });
     }
 }

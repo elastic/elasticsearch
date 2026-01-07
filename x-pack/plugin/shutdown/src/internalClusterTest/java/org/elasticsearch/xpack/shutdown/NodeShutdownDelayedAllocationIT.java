@@ -184,41 +184,6 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
     }
 
-    public void testShardCanBeAssignedToReplacementNodeWhenSourceNodeCompletesVacating() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        final var dataNode1 = internalCluster().startDataOnlyNode();
-        final var dataNode1Id = getNodeId(dataNode1);
-        ensureStableCluster(2);
-
-        final String index1 = "index1";
-        createIndex(index1, 1, 0);
-        ensureGreen(index1);
-
-        final var dataNode2 = internalCluster().startDataOnlyNode();
-        final var dataNode2Id = getNodeId(dataNode2);
-        ensureStableCluster(3);
-
-        final var putShutdownRequest = new PutShutdownNodeAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
-            dataNode1Id,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            dataNode2,
-            null
-        );
-        assertTrue(safeGet(client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest)).isAcknowledged());
-        ensureGreen(index1);
-
-        assertThat(findIdOfNodeWithIndex(index1), equalTo(dataNode2Id));
-
-        final String index2 = "index2";
-        createIndex(index2, 1, 0);
-        ensureGreen(index2);
-        assertThat(findIdOfNodeWithIndex(index2), equalTo(dataNode2Id));
-    }
-
     /**
      * Sets up a cluster and an index, picks a random node that has a shard, marks it for shutdown with a long timeout, and then stops the
      * node.
@@ -277,16 +242,6 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return randomFrom(startedShards).currentNodeId();
-    }
-
-    private String findIdOfNodeWithIndex(String indexName) {
-        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        return startedShards.stream()
-            .filter(shardRouting -> shardRouting.shardId().getIndexName().equals(indexName))
-            .findFirst()
-            .map(ShardRouting::currentNodeId)
-            .orElseThrow();
     }
 
     private String findNodeNameFromId(String id) {

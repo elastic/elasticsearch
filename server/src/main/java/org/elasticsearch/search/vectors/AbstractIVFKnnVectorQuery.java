@@ -36,7 +36,6 @@ import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -215,7 +214,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null, longAdder));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
-
 //        if (longAdder.longValue() > 0) {
 //            LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester")
 //                .info("Completed {} additional searches to fill results", longAdder.longValue());

@@ -159,7 +159,13 @@ public class KnnIndexTester {
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, null, quantizeBits, true);
+                    format = new ES93ScalarQuantizedVectorsFormat(
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        null,
+                        quantizeBits,
+                        true,
+                        false
+                    );
                 } else {
                     format = new ES93HnswScalarQuantizedVectorsFormat(
                         args.hnswM(),

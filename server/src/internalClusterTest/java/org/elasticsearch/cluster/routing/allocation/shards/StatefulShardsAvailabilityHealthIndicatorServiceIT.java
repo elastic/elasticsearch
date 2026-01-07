@@ -138,7 +138,12 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         var systemIndices = internalCluster().getCurrentMasterNodeInstance(SystemIndices.class);
         var projectResolver = internalCluster().getCurrentMasterNodeInstance(ProjectResolver.class);
 
-        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
+        var service = new StatefulShardsAvailabilityHealthIndicatorService(
+            clusterService,
+            allocationService,
+            systemIndices,
+            projectResolver
+        );
         var states = new ArrayList<RoutingNodesAndHealth>();
         var listener = new ClusterStateListener() {
             @Override

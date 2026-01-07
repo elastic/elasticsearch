@@ -100,6 +100,19 @@ public class DecisionTests extends ESTestCase {
         testReadWriteEnum(NO, OriginalType.class, OriginalType.NO, TransportVersion.minimumCompatible());
     }
 
+    public void testMultiPrioritisation() {
+        assertEffectiveDecision(NO, Decision.NO, Decision.THROTTLE, Decision.NOT_PREFERRED, Decision.YES);
+        assertEffectiveDecision(THROTTLE, Decision.THROTTLE, Decision.NOT_PREFERRED, Decision.YES);
+        assertEffectiveDecision(NOT_PREFERRED, Decision.NOT_PREFERRED, Decision.YES);
+        assertEffectiveDecision(YES, Decision.YES);
+        assertEffectiveDecision(YES);
+    }
+
+    private void assertEffectiveDecision(Decision.Type effectiveDecision, Decision.Single... decisions) {
+        final var multi = new Decision.Multi(shuffledList(List.of(decisions)));
+        assertEquals(effectiveDecision, multi.type());
+    }
+
     /**
      * Test the reading and writing of an enum to a specific transport version (assuming lossless roundtrip)
      *

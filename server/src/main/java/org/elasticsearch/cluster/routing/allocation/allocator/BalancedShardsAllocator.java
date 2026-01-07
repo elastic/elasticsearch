@@ -1570,14 +1570,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
 
-                    assert rebalanceDecision.type() != Type.NOT_PREFERRED
-                        : "if this changes, we'll have to consider what comparison to use";
-                    final Decision.Type canAllocateOrRebalance = Decision.Type.min(allocationDecision.type(), rebalanceDecision.type());
+                    assert rebalanceDecision.type() == Type.YES || rebalanceDecision.type() == Type.THROTTLE
+                        : "We should only see YES/THROTTLE decisions here";
+                    assert allocationDecision.type() == Type.YES || allocationDecision.type() == Type.THROTTLE
+                        : "We should only see YES/THROTTLE decisions here";
+                    final Decision.Type canAllocateOrRebalance = allocationDecision.type() == Type.THROTTLE
+                        || rebalanceDecision.type() == Type.THROTTLE ? Type.THROTTLE : Type.YES;
 
                     maxNode.removeShard(projectIndex(shard), shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    assert canAllocateOrRebalance == Type.YES || canAllocateOrRebalance == Type.THROTTLE : canAllocateOrRebalance;
                     logger.debug(
                         "decision [{}]: relocate [{}] from [{}] to [{}]",
                         canAllocateOrRebalance,

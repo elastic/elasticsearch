@@ -152,13 +152,6 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             }
         }
 
-        /**
-         * @return the worst result according to {@link #isWorseForTheSameNode}. THROTTLE is worse than NOT_PREFERRED.
-         */
-        public static Type min(Type a, Type b) {
-            return a.isWorseForTheSameNode(b) ? a : b;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
@@ -200,7 +193,7 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         public boolean isWorseForTheSameNode(Type decision) {
             return switch (decision) {
                 case NO -> {
-                    yield true;
+                    yield false;
                 }
                 case NOT_PREFERRED -> {
                     yield (this == YES) ? false /* this=YES is not worse than NOT_PREFERRED */ : true /* this=THROTTLE is worse */;
@@ -318,7 +311,14 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         @Override
         public Type type() {
             // returns most negative decision
-            return decisions.stream().map(Single::type).reduce(Type.YES, Type::min);
+            Decision.Type worst = Type.YES;
+            for (Single decision : decisions) {
+                final var next = decision.type();
+                if (next.isWorseForTheSameNode(worst)) {
+                    worst = next;
+                }
+            }
+            return worst;
         }
 
         @Override

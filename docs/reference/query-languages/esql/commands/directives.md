@@ -16,6 +16,6 @@ and are separated by semicolons. Multiple directives can be included in a single
 
 {{esql}} supports these directives:
 
-:::{include} ../_snippets/lists/source-commands.md
+:::{include} ../_snippets/lists/directives.md
 :::
 

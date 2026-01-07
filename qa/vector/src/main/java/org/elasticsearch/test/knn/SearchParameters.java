@@ -124,6 +124,7 @@ public record SearchParameters(
 
         public Builder setPostFilteringThreshold(float postFilteringThreshold) {
             this.postFilteringThreshold = postFilteringThreshold;
+            return this;
         }
 
         private Builder setNullValues(SearchParameters params) {

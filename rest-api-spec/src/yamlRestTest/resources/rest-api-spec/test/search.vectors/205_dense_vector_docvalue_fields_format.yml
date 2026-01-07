@@ -4,7 +4,7 @@ setup:
         - method: POST
           path: /_search
           capabilities: [ dense_vector_docvalue_fields, dense_vector_docvalue_fields_format ]
-      cluster_features: [ "mapper.vectors.generic_vector_format", "mapper.base64_vector_format" ]
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
       test_runner_features: [ capabilities, close_to ]
       reason: Needs docvalue_fields capability and generic vector format support
   - do:
@@ -72,7 +72,7 @@ setup:
       indices.refresh: { }
 
 ---
-"dense_vector docvalue_fields default array vs base64 format":
+"dense_vector docvalue_fields default array vs binary format":
   - do:
       search:
         index: dv-format
@@ -110,21 +110,21 @@ setup:
         body:
           docvalue_fields:
             - field: vec_float_indexed
-              format: "base64"
+              format: "binary"
             - field: vec_float_dv
-              format: "base64"
+              format: "binary"
             - field: vec_byte_indexed
-              format: "base64"
+              format: "binary"
             - field: vec_byte_dv
-              format: "base64"
+              format: "binary"
             - field: vec_bit_indexed
-              format: "base64"
+              format: "binary"
             - field: vec_bit_dv
-              format: "base64"
+              format: "binary"
             - field: vec_bfloat16_indexed
-              format: "base64"
+              format: "binary"
             - field: vec_bfloat16_dv
-              format: "base64"
+              format: "binary"
           sort: _doc
 
   - match: { hits.total.value: 1 }

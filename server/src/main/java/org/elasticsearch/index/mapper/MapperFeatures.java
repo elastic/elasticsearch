@@ -59,7 +59,6 @@ public class MapperFeatures implements FeatureSpecification {
     );
     static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
     static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
-    static final NodeFeature BASE64_VECTOR_FORMAT = new NodeFeature("mapper.base64_vector_format");
     public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
     static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
     static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
@@ -113,7 +112,6 @@ public class MapperFeatures implements FeatureSpecification {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
             BASE64_DENSE_VECTORS,
-            BASE64_VECTOR_FORMAT,
             FIX_DENSE_VECTOR_WRONG_FIELDS,
             BBQ_DISK_STATS_SUPPORT,
             SKIPPERS_ON_UNINDEXED_FIELDS,

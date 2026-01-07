@@ -1,6 +1,6 @@
-# FireworksAI Integration Testing Guide
+# FireworksAI Embeddings Integration Testing Guide
 
-This guide helps you manually test the FireworksAI embeddings and reranking integration.
+This guide helps you manually test the FireworksAI embeddings integration.
 
 ## Prerequisites
 
@@ -37,10 +37,7 @@ The script will:
 - ✓ Create embeddings endpoint
 - ✓ Test embedding generation
 - ✓ Test dimension overrides
-- ✓ Create rerank endpoint
-- ✓ Test document reranking
-- ✓ Test top-N limiting
-- ✓ Verify all configurations
+- ✓ Verify configurations
 - ✓ Clean up endpoints
 
 ### Option 2: Manual Testing
@@ -48,14 +45,14 @@ The script will:
 #### Test Embeddings
 
 ```bash
-# Create endpoint
+# Create endpoint with Qwen3 embeddings model (serverless)
 curl -X PUT "localhost:9200/_inference/text_embedding/fireworks-embeddings" \
 -H "Content-Type: application/json" \
 -d '{
   "service": "fireworksai",
   "service_settings": {
     "api_key": "YOUR_API_KEY",
-    "model_id": "nomic-ai/nomic-embed-text-v1.5"
+    "model_id": "fireworks/qwen3-embedding-8b"
   }
 }'
 
@@ -65,68 +62,69 @@ curl -X POST "localhost:9200/_inference/text_embedding/fireworks-embeddings" \
 -d '{
   "input": ["Hello world", "Elasticsearch is great"]
 }'
-```
 
-#### Test Reranking
-
-```bash
-# Create endpoint
-curl -X PUT "localhost:9200/_inference/rerank/fireworks-rerank" \
+# Generate embeddings with custom dimensions (variable-length)
+curl -X POST "localhost:9200/_inference/text_embedding/fireworks-embeddings" \
 -H "Content-Type: application/json" \
 -d '{
-  "service": "fireworksai",
-  "service_settings": {
-    "api_key": "YOUR_API_KEY",
-    "model_id": "jinaai/jina-reranker-v2-base-multilingual"
+  "input": ["Test with custom dimensions"],
+  "task_settings": {
+    "dimensions": 512
   }
-}'
-
-# Rerank documents
-curl -X POST "localhost:9200/_inference/rerank/fireworks-rerank" \
--H "Content-Type: application/json" \
--d '{
-  "query": "What is the capital of France?",
-  "input": [
-    "Paris is the capital of France",
-    "Berlin is the capital of Germany"
-  ]
 }'
 ```
 
 ## Supported Models
 
-### Embeddings
-- `nomic-ai/nomic-embed-text-v1.5` (768d) ⭐ **Recommended**
-- `WhereIsAI/UAE-Large-V1` (1024d)
-- `thenlper/gte-large` (1024d)
+### Embeddings (Serverless)
 
-### Reranking
-- `jinaai/jina-reranker-v2-base-multilingual` ⭐ **Recommended**
-- `BAAI/bge-reranker-v2-m3`
+Based on [Fireworks AI Embeddings Documentation](https://docs.fireworks.ai/guides/querying-embeddings-models):
+
+| Model | Description |
+|-------|-------------|
+| `fireworks/qwen3-embedding-8b` | ⭐ **Recommended** - Qwen3 8B embeddings (serverless) |
+| `fireworks/qwen3-embedding-4b` | Qwen3 4B embeddings |
+| `fireworks/qwen3-embedding-0p6b` | Qwen3 0.6B embeddings |
+
+### Legacy BERT-based Models (Serverless)
+
+| Model | Dimensions |
+|-------|------------|
+| `nomic-ai/nomic-embed-text-v1.5` | 768 |
+| `thenlper/gte-large` | 1024 |
+| `BAAI/bge-base-en-v1.5` | 768 |
+| `sentence-transformers/all-MiniLM-L6-v2` | 384 |
 
 ## Expected Results
 
 ### Successful Embeddings Response
+
 ```json
 {
   "text_embedding": [
     {
       "embedding": [0.123, -0.456, 0.789, ...]
+    },
+    {
+      "embedding": [0.321, -0.654, 0.987, ...]
     }
   ]
 }
 ```
 
-### Successful Rerank Response
+### Successful Endpoint Creation
+
 ```json
 {
-  "rerank": [
-    {
-      "index": 0,
-      "relevance_score": 0.98,
-      "text": "Paris is the capital of France"
+  "inference_id": "fireworks-embeddings",
+  "task_type": "text_embedding",
+  "service": "fireworksai",
+  "service_settings": {
+    "model_id": "fireworks/qwen3-embedding-8b",
+    "rate_limit": {
+      "requests_per_minute": 6000
     }
-  ]
+  }
 }
 ```
 
@@ -140,7 +138,7 @@ curl -X POST "localhost:9200/_inference/rerank/fireworks-rerank" \
 
 **404 Model Not Found**
 - Verify the model ID is spelled correctly
-- Check model is available on FireworksAI
+- Check model is available on FireworksAI serverless
 
 **Connection Refused**
 - Elasticsearch hasn't started yet - wait longer
@@ -155,7 +153,6 @@ curl -X POST "localhost:9200/_inference/rerank/fireworks-rerank" \
 Delete test endpoints:
 ```bash
 curl -X DELETE "localhost:9200/_inference/text_embedding/fireworks-embeddings"
-curl -X DELETE "localhost:9200/_inference/rerank/fireworks-rerank"
 ```
 
 ## Advanced Testing
@@ -174,7 +171,7 @@ curl -X PUT "localhost:9200/my-index" \
       "text": { "type": "text" },
       "text_embedding": {
         "type": "dense_vector",
-        "dims": 768,
+        "dims": 4096,
         "index": true,
         "similarity": "cosine"
       }
@@ -182,7 +179,7 @@ curl -X PUT "localhost:9200/my-index" \
   }
 }'
 
-# Index documents with embeddings
+# Index documents with embeddings using inference pipeline
 curl -X POST "localhost:9200/_ingest/pipeline/_simulate" \
 -H "Content-Type: application/json" \
 -d '{
@@ -213,16 +210,15 @@ curl -X POST "localhost:9200/_ingest/pipeline/_simulate" \
 
 - **Elasticsearch Issues**: Check logs and GitHub issues
 - **FireworksAI Issues**: Visit [fireworks.ai/support](https://fireworks.ai/support)
+- **API Documentation**: [Fireworks AI Embeddings Guide](https://docs.fireworks.ai/guides/querying-embeddings-models)
 - **PR Feedback**: See [PR #137130](https://github.com/elastic/elasticsearch/pull/137130)
 
 ## Success Checklist
 
 - [ ] API key obtained from FireworksAI
 - [ ] Elasticsearch started successfully
-- [ ] Embeddings endpoint created
+- [ ] Embeddings endpoint created with `fireworks/qwen3-embedding-8b`
 - [ ] Embeddings generated (got array of floats)
-- [ ] Rerank endpoint created
-- [ ] Documents reranked (sorted by relevance)
+- [ ] Dimension override works (got embeddings with custom size)
 - [ ] No errors in Elasticsearch logs
 - [ ] Test script runs without failures
-

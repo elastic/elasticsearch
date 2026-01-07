@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,9 +35,7 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
     public void testFromMap_WithDimensions() {
         assertEquals(
             new FireworksAiEmbeddingsTaskSettings(512),
-            FireworksAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 512))
-            )
+            FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 512)))
         );
     }
 
@@ -50,9 +47,7 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
     public void testFromMap_DimensionsIsZero_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> FireworksAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 0))
-            )
+            () -> FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 0)))
         );
 
         assertThat(
@@ -65,9 +60,7 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
         var dimensions = randomNegativeInt();
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> FireworksAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, dimensions))
-            )
+            () -> FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, dimensions)))
         );
 
         assertThat(
@@ -86,10 +79,7 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
             new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 1024))
         );
 
-        var overriddenTaskSettings = FireworksAiEmbeddingsTaskSettings.of(
-            taskSettings,
-            FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS
-        );
+        var overriddenTaskSettings = FireworksAiEmbeddingsTaskSettings.of(taskSettings, FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS);
         assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
@@ -134,8 +124,9 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
         if (newSettings.dimensions() != null) {
             newSettingsMap.put(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, newSettings.dimensions());
         }
-        FireworksAiEmbeddingsTaskSettings updatedSettings = (FireworksAiEmbeddingsTaskSettings) initialSettings
-            .updatedTaskSettings(newSettingsMap);
+        FireworksAiEmbeddingsTaskSettings updatedSettings = (FireworksAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            newSettingsMap
+        );
         // updatedTaskSettings returns a new instance from the map, not merged
         // So it will use values from the map or null
         if (newSettings.dimensions() == null) {
@@ -180,4 +171,3 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
         return new FireworksAiEmbeddingsTaskSettings(randomFrom(new Integer[] { null, randomNonNegativeInt() }));
     }
 }
-

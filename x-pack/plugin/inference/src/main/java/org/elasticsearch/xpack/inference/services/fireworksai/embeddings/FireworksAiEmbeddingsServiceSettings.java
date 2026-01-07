@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.FIREWORKS_AI_SERVICE;
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
@@ -42,6 +40,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.FIREWORKS_AI_SERVICE;
 
 /**
  * Defines the service settings for interacting with FireworksAI's embeddings API.

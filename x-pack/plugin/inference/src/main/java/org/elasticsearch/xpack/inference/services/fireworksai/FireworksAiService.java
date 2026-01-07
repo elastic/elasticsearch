@@ -308,9 +308,7 @@ public class FireworksAiService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The model ID to use for FireworksAI requests."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model ID to use for FireworksAI requests.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)

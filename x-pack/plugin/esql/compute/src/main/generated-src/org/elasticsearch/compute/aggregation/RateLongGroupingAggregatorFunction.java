@@ -220,7 +220,13 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                     lastPosition = p;
                 }
             }
-            groupedValues.appendRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);
+            groupedValues.appendRange(
+                lastGroup,
+                positionOffset + lastPosition,
+                positionOffset + positionCount,
+                valueBlock,
+                timestampVector
+            );
         }
     }
 
@@ -240,7 +246,13 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                     lastPosition = p;
                 }
             }
-            groupedValues.appendRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueVector, timestampVector);
+            groupedValues.appendRange(
+                lastGroup,
+                positionOffset + lastPosition,
+                positionOffset + positionCount,
+                valueVector,
+                timestampVector
+            );
         }
     }
 

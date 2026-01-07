@@ -36,7 +36,11 @@ public class ES93FlatVectorScorer implements FlatVectorsScorer {
         KnnVectorValues vectorValues
     ) throws IOException {
         if (FACTORY != null && vectorValues.getEncoding() == VectorEncoding.FLOAT32 && vectorValues instanceof HasIndexSlice sl) {
-            var scorer = FACTORY.getFloatVectorScorerSupplier(VectorSimilarityType.of(similarityFunction), sl.getSlice());
+            var scorer = FACTORY.getFloatVectorScorerSupplier(
+                VectorSimilarityType.of(similarityFunction),
+                sl.getSlice(),
+                (FloatVectorValues) vectorValues
+            );
             if (scorer.isPresent()) {
                 return scorer.get();
             }

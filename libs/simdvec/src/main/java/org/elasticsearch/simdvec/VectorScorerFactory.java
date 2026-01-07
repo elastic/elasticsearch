@@ -33,9 +33,14 @@ public interface VectorScorerFactory {
      * @param input the index input containing the vector data;
      *    offset of the first vector is 0,
      *    the length must be (maxOrd + Float#BYTES) * dims
+     * @param values the random access vector values
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(VectorSimilarityType similarityType, IndexInput input);
+    Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    );
 
     /**
      * Returns an optional containing a float vector scorer for

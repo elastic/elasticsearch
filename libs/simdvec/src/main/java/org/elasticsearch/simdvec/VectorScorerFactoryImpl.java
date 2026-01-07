@@ -29,7 +29,11 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     static final VectorScorerFactoryImpl INSTANCE = null;
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(VectorSimilarityType similarityType, IndexInput input) {
+    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
         throw new UnsupportedOperationException("should not reach here");
     }
 

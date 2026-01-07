@@ -205,19 +205,19 @@ public class AllocationDeciders {
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (debugMode == RoutingAllocation.DebugMode.OFF) {
-            Decision worstDecision = Decision.YES;
+            Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
-                var newDecision = deciderAction.apply(decider);
-                if (newDecision.type().isWorseForTheSameNode(worstDecision.type())) {
-                    worstDecision = newDecision;
-                    if (worstDecision.type() == Decision.Type.NO) {
-                        traceNoDecisions(decider, newDecision, logMessageCreator);
+                var decision = deciderAction.apply(decider);
+                if (decision.type().isWorseForTheSameNode(mostNegativeDecision.type())) {
+                    mostNegativeDecision = decision;
+                    if (mostNegativeDecision.type() == Decision.Type.NO) {
+                        traceNoDecisions(decider, decision, logMessageCreator);
                         break;
                     }
                 }
             }
 
-            return worstDecision;
+            return mostNegativeDecision;
         } else {
             final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {

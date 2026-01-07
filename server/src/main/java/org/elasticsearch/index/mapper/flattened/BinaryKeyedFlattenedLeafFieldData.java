@@ -24,9 +24,6 @@ import java.util.Collection;
  *
  * This class wraps the field data that is built directly on the keyed flattened field,
  * and filters out values whose prefix doesn't match the requested key.
- *
- * In order to support all usage patterns, the delegate's ordinal values are shifted
- * to range from 0 to the number of total values.
  */
 public class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
 

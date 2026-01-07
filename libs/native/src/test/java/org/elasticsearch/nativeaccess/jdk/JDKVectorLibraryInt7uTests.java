@@ -11,7 +11,6 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;

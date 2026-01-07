@@ -242,8 +242,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (e == null) {
             logger.debug(msgSupplier);
         } else {
-            logger.log(isClosed() ? Level.DEBUG : Level.WARN, msgSupplier, e);
-            if (isClosed() == false && connectionAttemptFailures != null) {
+            final var isClosed = isClosed();
+            logger.log(isClosed ? Level.DEBUG : Level.WARN, msgSupplier, e);
+            if (isClosed == false && connectionAttemptFailures != null) {
                 connectionAttemptFailures.add(
                     1,
                     Map.of(

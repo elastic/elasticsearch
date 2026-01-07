@@ -81,7 +81,7 @@ public class ESAcceptDocsTests extends ESTestCase {
             var supplier = new TestScorerSupplier(iterator);
             ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
                 supplier.get(NO_MORE_DOCS).iterator(),
-                null,
+                liveDocs,
                 10,
                 supplier.cost()
             );

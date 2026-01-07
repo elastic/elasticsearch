@@ -2903,6 +2903,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"_index","next":{"term":{"_index":{"value":"test"}}}}}]
      *         [_doc{f}#10], limit[10000], sort[] estimatedRowSize[266]
+     *
      */
     public void testPushDownMetadataIndexInEquality() {
         var plan = physicalPlan("""
@@ -2987,6 +2988,83 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             extract = as(filter.child(), FieldExtractExec.class);
             var source = source(extract.child());
         }
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[_meta_field{f}#8586, ...]<[],[]>
+     *       \_EsQueryExec[test], query={"term":{"_tier":{"value":"data_hot","boost":0.0}}}
+     */
+    public void testPushDownMetadataTierInEquality() {
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier == "data_hot"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.value(), is("data_hot"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],..]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[_meta_field{f}#9140, ...]<[],[]>
+     *       \_EsQueryExec[test], query={"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":1.0}}
+     */
+    public void testPushDownMetadataTierInNotEquality() {
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier != "data_hot"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.mustNot().size(), is(1));
+        var tq = as(bq.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.value(), is("data_hot"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[_meta_field{f}#1816, ..., _tier{m}#1808]]
+     *     \_FieldExtractExec[_meta_field{f}#1816, ...]<[],[]>
+     *       \_EsQueryExec[test], query={"wildcard":{"_tier":{"wildcard":"data_*","boost":0.0}}}
+     */
+    public void testPushDownMetadataTierInWildcard() {
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier like "data_*"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), WildcardQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.value(), is("data_*"));
     }
 
     public void testDontPushDownMetadataVersionAndId() {

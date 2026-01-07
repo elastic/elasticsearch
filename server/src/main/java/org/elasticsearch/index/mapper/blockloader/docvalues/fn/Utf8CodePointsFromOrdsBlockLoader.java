@@ -567,13 +567,13 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
         }
 
-        private void appendLength(int doc, IntBuilder builder) throws IOException {
-            if (counts.advanceExact(doc) == false) {
+        private void appendLength(int docId, IntBuilder builder) throws IOException {
+            if (counts.advanceExact(docId) == false) {
                 builder.appendNull();
             } else {
                 int valueCount = Math.toIntExact(counts.longValue());
                 if (valueCount == 1) {
-                    boolean advanced = binaryDocValues.advanceExact(doc);
+                    boolean advanced = binaryDocValues.advanceExact(docId);
                     assert advanced;
 
                     BytesRef bytes = binaryDocValues.binaryValue();
@@ -592,6 +592,9 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             } else {
                 int valueCount = Math.toIntExact(counts.longValue());
                 if (valueCount == 1) {
+                    boolean advanced = binaryDocValues.advanceExact(docId);
+                    assert advanced;
+
                     BytesRef bytes = binaryDocValues.binaryValue();
                     int length = UnicodeUtil.codePointCount(bytes);
                     return factory.constantInt(length, 1);

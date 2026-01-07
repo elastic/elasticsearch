@@ -122,6 +122,20 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
                     }
                 }
                 assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                // Testing fetching a single doc, which has a different code path
+                warnings.warnings().clear();
+                stringsReader = stringsLoader.reader(ctx);
+                codePointsReader = codePointsLoader.reader(ctx);
+                for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                    docs = TestBlock.docs(docId);
+                    try (
+                        TestBlock strings = read(stringsLoader, stringsReader, docs);
+                        TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                    ) {
+                        checkBlocks(strings, codePoints);
+                    }
+                }
+                assertThat(warnings.warnings(), equalTo(expectedWarnings));
             }
         }
     }

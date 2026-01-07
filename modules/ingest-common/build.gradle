@@ -23,8 +23,6 @@ dependencies {
   api project(':libs:grok')
   api project(':libs:dissect')
   api project(':libs:web-utils')
-  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 }
 
 restResources {

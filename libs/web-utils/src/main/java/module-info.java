@@ -9,6 +9,8 @@
 
 module org.elasticsearch.web {
     requires org.elasticsearch.base;
+    requires org.apache.httpcomponents.httpclient;
+    requires org.apache.httpcomponents.httpcore;
 
     exports org.elasticsearch.web;
 }

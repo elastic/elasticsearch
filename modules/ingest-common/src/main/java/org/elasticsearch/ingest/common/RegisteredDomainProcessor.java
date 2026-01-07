@@ -9,22 +9,18 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.apache.http.conn.util.PublicSuffixMatcher;
-import org.apache.http.conn.util.PublicSuffixMatcherLoader;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.web.RegisteredDomain;
 
 import java.util.Map;
 
 public class RegisteredDomainProcessor extends AbstractProcessor {
 
     public static final String TYPE = "registered_domain";
-    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     private final String field;
     private final String targetField;
@@ -52,7 +48,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         final String fqdn = document.getFieldValue(field, String.class, ignoreMissing);
-        final DomainInfo info = getRegisteredDomain(fqdn);
+        final RegisteredDomain.DomainInfo info = RegisteredDomain.getRegisteredDomain(fqdn);
         if (info == null) {
             if (ignoreMissing) {
                 return document;
@@ -84,52 +80,9 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return document;
     }
 
-    @Nullable
-    // visible for testing
-    static DomainInfo getRegisteredDomain(@Nullable String fqdn) {
-        if (Strings.hasText(fqdn) == false) {
-            return null;
-        }
-        String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fqdn);
-        if (registeredDomain == null) {
-            if (SUFFIX_MATCHER.matches(fqdn)) {
-                return DomainInfo.of(fqdn);
-            }
-            return null;
-        }
-        if (registeredDomain.indexOf('.') == -1) {
-            // we have domain with no matching public suffix, but "." in it
-            return null;
-        }
-        return DomainInfo.of(registeredDomain, fqdn);
-    }
-
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    // visible for testing
-    record DomainInfo(
-        String domain,
-        String registeredDomain,
-        String eTLD, // n.b. https://developer.mozilla.org/en-US/docs/Glossary/eTLD
-        String subdomain
-    ) {
-        static DomainInfo of(final String eTLD) {
-            return new DomainInfo(eTLD, null, eTLD, null);
-        }
-
-        static DomainInfo of(final String registeredDomain, final String domain) {
-            int index = registeredDomain.indexOf('.') + 1;
-            if (index > 0 && index < registeredDomain.length()) {
-                int subdomainIndex = domain.lastIndexOf("." + registeredDomain);
-                final String subdomain = subdomainIndex > 0 ? domain.substring(0, subdomainIndex) : null;
-                return new DomainInfo(domain, registeredDomain, registeredDomain.substring(index), subdomain);
-            } else {
-                return new DomainInfo(null, null, null, null);
-            }
-        }
     }
 
     public static final class Factory implements Processor.Factory {

@@ -205,6 +205,19 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
     }
 
+    public void testCancellingExistingNonReindexTaskReturns404() throws Exception {
+        final TaskId deleteByQueryTaskId = startAsyncThrottledDeleteByQuery();
+
+        final TaskInfo running = getRunningTask(deleteByQueryTaskId);
+        assertThat(running.description(), equalTo("delete-by-query [reindex_src]"));
+        assertThat(running.cancellable(), is(true));
+        assertThat(running.cancelled(), is(false));
+
+        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", deleteByQueryTaskId);
+        final var exception = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(deleteByQueryTaskId));
+        assertThat(exception.getMessage(), is(expectedExceptionMessage));
+    }
+
     private TaskId startAsyncThrottledReindex() throws Exception {
         final RestClient restClient = getRestClient();
         final Request request = new Request("POST", "/_reindex");
@@ -225,6 +238,25 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final Response response = restClient.performRequest(request);
         final String task = (String) entityAsMap(response).get("task");
         assertNotNull("reindex did not return a task id", task);
+        return new TaskId(task);
+    }
+
+    private TaskId startAsyncThrottledDeleteByQuery() throws Exception {
+        final RestClient restClient = getRestClient();
+        final Request request = new Request("POST", "/" + SOURCE_INDEX + "/_delete_by_query");
+        request.addParameter("wait_for_completion", "false");
+        request.addParameter("slices", Integer.toString(NUM_OF_SLICES));
+        request.addParameter("requests_per_second", Integer.toString(REQUESTS_PER_SECOND));
+        request.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+
+        final Response response = restClient.performRequest(request);
+        final String task = (String) entityAsMap(response).get("task");
+        assertNotNull("delete by query did not return a task id", task);
         return new TaskId(task);
     }
 

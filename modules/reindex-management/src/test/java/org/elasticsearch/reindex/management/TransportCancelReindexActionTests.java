@@ -37,14 +37,15 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         assertEquals(ReasonTaskCannotBeCancelled.IS_SUBTASK, reasonForTaskNotBeingEligibleForCancellation(task, ProjectId.DEFAULT));
     }
 
-    public void testTaskWithNoProjectIdAndRequestWithNonDefaultProjectIdIsNotEligibleForCancellation() {
+    public void testTaskWithNoProjectIdAndRequestWithNonDefaultProjectIdFailsFast() {
         final var task = taskWithActionAndParentAndProjectId(ReindexAction.NAME, TaskId.EMPTY_TASK_ID, null);
         final var requestedProjectId = ProjectId.fromId("project-b");
 
-        assertEquals(
-            ReasonTaskCannotBeCancelled.TASK_PROJECT_MISSING_REQUEST_NON_DEFAULT,
-            reasonForTaskNotBeingEligibleForCancellation(task, requestedProjectId)
+        final var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reasonForTaskNotBeingEligibleForCancellation(task, requestedProjectId)
         );
+        assertEquals(e.getMessage(), "Multi-project: task doesn't have projectId, requestProjectId should be DEFAULT but is: [project-b]");
     }
 
     public void testTaskWithDifferentProjectIdIsNotEligibleForCancellation() {

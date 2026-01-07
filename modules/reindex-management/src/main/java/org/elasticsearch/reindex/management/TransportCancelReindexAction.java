@@ -35,7 +35,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /** Transport action that cancels an in-flight reindex task and its descendants. */
 public class TransportCancelReindexAction extends TransportTasksAction<
@@ -108,20 +107,17 @@ public class TransportCancelReindexAction extends TransportTasksAction<
         final List<FailedNodeException> nodeExceptions
     ) {
         assert tasks.size() + taskFailures.size() + nodeExceptions.size() <= 1 : "currently only supports cancelling one task max";
-        final Supplier<ResourceNotFoundException> notFoundSupplier = () -> new ResourceNotFoundException(
-            "reindex task [{}] either not found or completed",
-            request.getTargetTaskId()
-        );
-        for (FailedNodeException e : nodeExceptions) {
+        // check whether node in requested TaskId doesn't exist and throw 404
+        for (final FailedNodeException e : nodeExceptions) {
             if (ExceptionsHelper.unwrap(e, NoSuchNodeException.class) != null) {
-                throw notFoundSupplier.get();
+                throw reindexWithTaskIdNotFoundException(request.getTargetTaskId());
             }
         }
 
         final var response = new CancelReindexResponse(taskFailures, nodeExceptions);
         response.rethrowFailures("cancel_reindex"); // if we haven't handled any exception already, throw here
         if (tasks.isEmpty()) {
-            throw notFoundSupplier.get();
+            throw reindexWithTaskIdNotFoundException(request.getTargetTaskId());
         }
         return response;
     }
@@ -131,7 +127,6 @@ public class TransportCancelReindexAction extends TransportTasksAction<
         MISSING,
         NOT_REINDEX,
         IS_SUBTASK,
-        TASK_PROJECT_MISSING_REQUEST_NON_DEFAULT,
         TASK_PROJECT_MISMATCH
     }
 
@@ -152,11 +147,17 @@ public class TransportCancelReindexAction extends TransportTasksAction<
         final String taskProjectId = task.getProjectId();
         if (taskProjectId == null) {
             if (ProjectId.DEFAULT.equals(requestProjectId) == false) {
-                return ReasonTaskCannotBeCancelled.TASK_PROJECT_MISSING_REQUEST_NON_DEFAULT;
+                throw new IllegalArgumentException(
+                    "Multi-project: task doesn't have projectId, requestProjectId should be DEFAULT but is: [" + requestProjectId + "]"
+                );
             }
         } else if (Objects.equals(requestProjectId.id(), taskProjectId) == false) {
             return ReasonTaskCannotBeCancelled.TASK_PROJECT_MISMATCH;
         }
         return null;
+    }
+
+    private static ResourceNotFoundException reindexWithTaskIdNotFoundException(final TaskId requestedTaskId) {
+        return new ResourceNotFoundException("reindex task [{}] either not found or completed", requestedTaskId);
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +45,7 @@ public class CancelReindexRequest extends BaseTasksRequest<CancelReindexRequest>
     }
 
     @Override
-    public org.elasticsearch.action.ActionRequestValidationException validate() {
+    public ActionRequestValidationException validate() {
         var validationException = super.validate();
         if (getTargetTaskId().isSet() == false) {
             validationException = addValidationError("task id must be provided", validationException);

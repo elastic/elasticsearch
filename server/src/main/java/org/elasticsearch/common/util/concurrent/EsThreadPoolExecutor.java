@@ -56,10 +56,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     // and can tolerate some inaccuracies.
     private volatile long startTimeOfLargeQueue = -1L;
 
-    private final FrequencyCappedAction hotThreadsLogger = new FrequencyCappedAction(
-        System::currentTimeMillis,
-        TimeValue.ZERO
-    );
+    private final FrequencyCappedAction hotThreadsLogger = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
 
     EsThreadPoolExecutor(
         String name,

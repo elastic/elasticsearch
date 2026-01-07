@@ -34,11 +34,11 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.URL_SETTING_NAME;
 
 /**
  * Settings for the Google Vertex AI chat completion service.
@@ -114,7 +114,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
             builder.field(MODEL_ID, modelId);
         }
         if (uri != null) {
-            builder.field(URL_SETTING_NAME, uri.toString());
+            builder.field(URL, uri.toString());
         }
         if (streamingUri != null) {
             builder.field(STREAMING_URL_SETTING_NAME, streamingUri.toString());
@@ -135,7 +135,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         String modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         // Extract Google Model Garden fields
-        URI uri = ServiceUtils.extractOptionalUri(map, URL_SETTING_NAME, validationException);
+        URI uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
         URI streamingUri = ServiceUtils.extractOptionalUri(map, STREAMING_URL_SETTING_NAME, validationException);
         GoogleModelGardenProvider provider = ServiceUtils.extractOptionalEnum(
             map,

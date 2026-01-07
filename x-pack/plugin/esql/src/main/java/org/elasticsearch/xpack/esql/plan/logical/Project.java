@@ -33,7 +33,8 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
     /**
      * Backward compatibility entry for reading the old "EsqlProject" type which has been consolidated into Project.
      */
-    public static final NamedWriteableRegistry.Entry ESQL_PROJECT_ENTRY = new NamedWriteableRegistry.Entry(
+    @UpdateForV10(owner = UpdateForV10.Owner.ANALYTICS)
+    public static final NamedWriteableRegistry.Entry V9_ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "EsqlProject",
         Project::new

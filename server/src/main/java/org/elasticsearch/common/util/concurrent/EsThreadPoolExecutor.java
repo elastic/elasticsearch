@@ -9,9 +9,14 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.FrequencyCappedAction;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -45,6 +50,17 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
      */
     private final String name;
 
+    private final EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig;
+
+    // There may be racing on updating this field. It's OK since hot threads logging is very coarse grained time wise
+    // and can tolerate some inaccuracies.
+    private volatile long startTimeOfLargeQueue = -1L;
+
+    private final FrequencyCappedAction hotThreadsLogger = new FrequencyCappedAction(
+        System::currentTimeMillis,
+        TimeValue.ZERO
+    );
+
     EsThreadPoolExecutor(
         String name,
         int corePoolSize,
@@ -55,7 +71,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
-        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
+        this(
+            name,
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            new EsAbortPolicy(),
+            contextHolder,
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+        );
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
@@ -68,11 +95,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
-        ThreadContext contextHolder
+        ThreadContext contextHolder,
+        EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
+        this.hotThreadsOnLargeQueueConfig = hotThreadsOnLargeQueueConfig;
+        this.hotThreadsLogger.setMinInterval(hotThreadsOnLargeQueueConfig.interval());
     }
 
     @Override
@@ -87,7 +117,42 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
+        final boolean isNotProbe = command != WORKER_PROBE;
+        final Runnable wrappedRunnable = isNotProbe ? wrapRunnable(command) : WORKER_PROBE;
+
+        if (isNotProbe && hotThreadsOnLargeQueueConfig.isEnabled()) {
+            int queueSize = getQueue().size();
+            // Use queueSize + 1 so that we start to track when queueSize is 499 and this task is most likely to be queued as well,
+            // thus reaching the threshold of 500. It won't log right away due to the duration threshold.
+            if (queueSize + 1 >= hotThreadsOnLargeQueueConfig.sizeThreshold()) {
+                final long startTime = startTimeOfLargeQueue;
+                final long now = System.currentTimeMillis();
+                if (startTime == -1) {
+                    startTimeOfLargeQueue = now;
+                } else {
+                    final long duration = now - startTime;
+                    if (duration >= hotThreadsOnLargeQueueConfig.durationThresholdInMillis()) {
+                        hotThreadsLogger.maybeExecute(() -> {
+                            HotThreads.logLocalHotThreads(
+                                logger,
+                                Level.INFO,
+                                "ThreadPoolExecutor ["
+                                    + name
+                                    + "] queue size ["
+                                    + queueSize
+                                    + "] has been over threshold for ["
+                                    + TimeValue.timeValueMillis(duration)
+                                    + "]",
+                                ReferenceDocs.LOGGING
+                            );
+                        });
+                    }
+                }
+            } else {
+                startTimeOfLargeQueue = -1L;
+            }
+        }
+
         try {
             super.execute(wrappedRunnable);
         } catch (Exception e) {

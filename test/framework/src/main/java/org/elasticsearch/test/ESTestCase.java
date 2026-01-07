@@ -2831,10 +2831,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static void safeJoin(Thread t, TimeValue timeout) {
         try {
             t.join(timeout.millis());
-            assertFalse(
-                "safeJoin: Thread is still running after the timeout",
-                t.isAlive()
-            );
+            assertFalse("safeJoin: Thread is still running after the timeout", t.isAlive());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeJoin: interrupted waiting for Thread to die");

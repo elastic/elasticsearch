@@ -1215,7 +1215,6 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
-        dumpDebug();
         // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
         assertBusy(() -> assertTrue(readinessProbe(9399)));
     }

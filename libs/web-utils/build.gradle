@@ -20,3 +20,12 @@ dependencies {
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    //commons-logging
+    'org.apache.commons.codec.binary.Base64',
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+  )
+}

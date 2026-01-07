@@ -106,7 +106,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ClusterStateResponse response = executeAction(projectResolver, request, state);
 
         assertThat(response.getClusterName(), equalTo(state.getClusterName()));
-        assertSingleProjectResponse(request, response, projectId, expectedIndices);
+        assertSingleProjectResponse(request, response, projectId, expectedIndices, false);
     }
 
     public void testGetClusterStateForOneProjectOfMany() throws Exception {
@@ -128,7 +128,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ClusterStateResponse response = executeAction(projectResolver, request, state);
 
         assertThat(response.getClusterName(), equalTo(state.getClusterName()));
-        assertSingleProjectResponse(request, response, projectId, expectedIndices);
+        assertSingleProjectResponse(request, response, projectId, expectedIndices, true);
     }
 
     public void testGetClusterStateForManyProjects() throws Exception {
@@ -186,7 +186,8 @@ public class TransportClusterStateActionTests extends ESTestCase {
         ClusterStateRequest request,
         ClusterStateResponse response,
         ProjectId projectId,
-        String[] expectedIndices
+        String[] expectedIndices,
+        boolean multiprojectEnabled
     ) {
         final Metadata metadata = response.getState().metadata();
         assertThat(metadata.projects().keySet(), contains(projectId));
@@ -200,13 +201,21 @@ public class TransportClusterStateActionTests extends ESTestCase {
                 assertNotNull(fileSettings);
                 assertThat(fileSettings.version(), equalTo(43L));
                 Map<String, ReservedStateHandlerMetadata> handlers = fileSettings.handlers();
-                assertThat(handlers, aMapWithSize(2));
+                if (multiprojectEnabled) {
+                    assertThat(handlers, aMapWithSize(2));
+                } else {
+                    assertThat(handlers, aMapWithSize(1));
+                }
                 ReservedStateHandlerMetadata clusterSettingsHandler = handlers.get("cluster_settings");
                 assertNotNull(clusterSettingsHandler);
                 assertThat(clusterSettingsHandler.keys(), containsInAnyOrder("setting_1", "setting_2"));
                 ReservedStateHandlerMetadata projectSettingsHandler = handlers.get("project_settings");
-                assertNotNull(projectSettingsHandler);
-                assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1"));
+                if (multiprojectEnabled) {
+                    assertNotNull(projectSettingsHandler);
+                    assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1"));
+                } else {
+                    assertNull(projectSettingsHandler);
+                }
             }
         } else {
             assertThat(metadata.getProject(projectId).indices(), anEmptyMap());

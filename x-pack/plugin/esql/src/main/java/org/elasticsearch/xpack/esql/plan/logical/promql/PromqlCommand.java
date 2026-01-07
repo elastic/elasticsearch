@@ -268,6 +268,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
+        // TODO(sidosera): Remove once instant query support is added.
+        if (isInstantQuery()) {
+            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
+            return;
+        }
 
         if (p instanceof RangeSelector && isRangeQuery()) {
             failures.add(

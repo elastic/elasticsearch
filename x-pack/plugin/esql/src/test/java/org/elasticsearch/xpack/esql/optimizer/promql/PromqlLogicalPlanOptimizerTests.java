@@ -430,6 +430,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#21) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#9)]
      *               \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#11, cluster{f}#8, eve..]
      */
+
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelector() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -448,6 +450,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorPrefix() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -467,6 +470,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -501,6 +505,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#293) AND RLIKE(pod{f}#281, "[a-z]+", false)]
      *               \_EsRelation[k8s][@timestamp{f}#279, client.ip{f}#283, cluster{f}#280, ..]
      */
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (

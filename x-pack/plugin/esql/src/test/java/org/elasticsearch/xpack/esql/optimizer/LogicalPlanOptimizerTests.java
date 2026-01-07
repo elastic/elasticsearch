@@ -7856,8 +7856,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
         assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
-        DateTrunc dateTrunc = as(Alias.unwrap(evalBucket.fields().get(0)), DateTrunc.class);
-        assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        Expression bucketFunction = Alias.unwrap(evalBucket.fields().get(0));
+        if (bucketFunction instanceof Bucket bucket) {
+            // if the date_trunc isn't defined in a nested EVAL, it will be a Bucket function here
+            assertThat(as(bucket.buckets(), Literal.class).value(), equalTo(Duration.ofMinutes(1)));
+            assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        } else if (bucketFunction instanceof DateTrunc dateTrunc) {
+            assertThat(as(dateTrunc.interval(), Literal.class).value(), equalTo(Duration.ofMinutes(1)));
+            assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        } else {
+            fail("Expected Bucket or DateTrunc function");
+        }
         assertTrue(lastOverTime.hasFilter());
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }

@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -158,19 +159,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     TimeSeriesAggregate,
     LogicalOptimizerContext> {
 
-    private final ReplaceAggregateNestedExpressionWithEval replaceNestedExpressionRule = new ReplaceAggregateNestedExpressionWithEval(true);
-
     public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
-        // First, replace any nested expressions in the groupings with evals to simplify the time bucket extraction.
-        // We'll not touch the aggregate functions here,
-        // as they will be processed below and we want to keep their structure intact for that.
-        // Nested expressions in the aggregates will be handled by the actual ReplaceAggregateNestedExpressionWithEval rule.
-        aggregate = (TimeSeriesAggregate) replaceNestedExpressionRule.rule(aggregate);
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
@@ -257,7 +251,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<Expression> secondPassGroupings = new ArrayList<>();
         List<Alias> unpackDimensions = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
-        aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
+        Consumer<NamedExpression> extractTimeBucket = e -> {
             for (Expression child : e.children()) {
                 if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
                     if (timeBucketRef.get() != null) {
@@ -285,20 +279,27 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                 }
             }
-        });
+        };
+        // extract time-bucket from nested expressions like evals
+        aggregate.child().forEachExpressionUp(NamedExpression.class, extractTimeBucket);
+        // extract time-bucket directly from groupings
+        aggregate.groupings()
+            .stream()
+            .filter(NamedExpression.class::isInstance)
+            .map(NamedExpression.class::cast)
+            .forEach(extractTimeBucket);
         NamedExpression timeBucket = timeBucketRef.get();
         boolean[] packPositions = new boolean[aggregate.groupings().size()];
         for (int i = 0; i < aggregate.groupings().size(); i++) {
             var group = aggregate.groupings().get(i);
-            if (group instanceof Attribute == false) {
-                throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
-            }
-            final Attribute g = (Attribute) group;
-            if (timeBucket != null && g.id().equals(timeBucket.id())) {
+            if (timeBucket != null && group instanceof Attribute g && g.id().equals(timeBucket.id())) {
                 var newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
                 secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
-            } else {
+            } else if (timeBucket != null && group instanceof Alias a && a.id().equals(timeBucket.id())) {
+                firstPassGroupings.add(timeBucket);
+                secondPassGroupings.add(new Alias(a.source(), a.name(), timeBucket.toAttribute(), a.id()));
+            } else if (group instanceof Attribute g) {
                 var valuesAgg = new Alias(g.source(), g.name(), valuesAggregate(context, g));
                 firstPassAggs.add(valuesAgg);
                 if (g.isDimension()) {
@@ -321,6 +322,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 } else {
                     secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
                 }
+            } else {
+                throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
         }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {

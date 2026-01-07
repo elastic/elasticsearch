@@ -166,7 +166,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         TransportVersion minTransportVersion = TransportVersion.max(getMinimalSupportedVersion(), TransportVersion.minimumCompatible());
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
                 minTransportVersion,
                 TransportVersionUtils.getPreviousVersion(TransportVersion.current())
             );
@@ -243,7 +242,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 remoteInferenceEndpoints,
                 remoteIndexConfigs,
                 TransportVersionUtils.randomVersionBetween(
-                    random(),
                     SEMANTIC_SEARCH_CCS_SUPPORT,
                     TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_TV)
                 )
@@ -277,7 +275,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
                 TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(TransportVersion.current())
             );
@@ -358,7 +355,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         // Test with a transport version prior to cluster alias support, which should fail
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
             NEW_SEMANTIC_QUERY_INTERCEPTORS,
             TransportVersionUtils.getPreviousVersion(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
         );

@@ -208,19 +208,19 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
+            groupedValues.appendRange(groupId, positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
         } else {
             int lastGroup = groups.getInt(0);
             int lastPosition = 0;
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
+                    groupedValues.appendRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
                     lastGroup = group;
                     lastPosition = p;
                 }
             }
-            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);
+            groupedValues.appendRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);
         }
     }
 
@@ -228,34 +228,19 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector);
+            groupedValues.appendRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector);
         } else {
             int lastGroup = groups.getInt(0);
             int lastPosition = 0;
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueVector, timestampVector);
+                    groupedValues.appendRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueVector, timestampVector);
                     lastGroup = group;
                     lastPosition = p;
                 }
             }
-            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueVector, timestampVector);
-        }
-    }
-
-    private void addSubRange(int group, int from, int to, DoubleVector valueVector, LongVector timestampVector) {
-        for (int p = from; p < to; p++) {
-            groupedValues.append(group, timestampVector.getLong(p), valueVector.getDouble(p));
-        }
-    }
-
-    private void addSubRange(int group, int from, int to, DoubleBlock valueBlock, LongVector timestampVector) {
-        for (int p = from; p < to; p++) {
-            if (valueBlock.isNull(p) == false) {
-                assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
-                groupedValues.append(group, timestampVector.getLong(p), valueBlock.getDouble(valueBlock.getFirstValueIndex(p)));
-            }
+            groupedValues.appendRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueVector, timestampVector);
         }
     }
 
@@ -538,17 +523,45 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
             this.highestSeenGroupId = 0;
         }
 
+        public void appendRange(int group, int from, int to, DoubleVector valueVector, LongVector timestampVector) {
+            assert groupStartOffsets == null : "Values have already been sorted, appending is not allowed anymore";
+            for (int p = from; p < to; p++) {
+                values.append(timestampVector.getLong(p), valueVector.getDouble(p));
+            }
+            appendGroupCount(group, to - from);
+        }
+
+        public void appendRange(int group, int from, int to, DoubleBlock valueBlock, LongVector timestampVector) {
+            assert groupStartOffsets == null : "Values have already been sorted, appending is not allowed anymore";
+            int actualCount = 0;
+            for (int p = from; p < to; p++) {
+                if (valueBlock.isNull(p) == false) {
+                    assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
+                    values.append(timestampVector.getLong(p), valueBlock.getDouble(valueBlock.getFirstValueIndex(p)));
+                    actualCount++;
+                }
+            }
+            appendGroupCount(group, actualCount);
+        }
+
         public void append(int group, long timestamp, double value) {
             assert groupStartOffsets == null : "Values have already been sorted, appending is not allowed anymore";
             values.append(timestamp, value);
-            if (groupForValue.size() == 0 || groupForValue.get(groupForValue.size() - 2) != group) {
-                groupForValue.append(group);
-                groupForValue.append(1);
-            } else {
-                int index = Math.toIntExact(groupForValue.size() - 1);
-                groupForValue.set(index, groupForValue.get(index) + 1);
+            appendGroupCount(group, 1);
+        }
+
+        private void appendGroupCount(int group, int numValues) {
+            if (numValues == 0) {
+                return;
             }
             highestSeenGroupId = Math.max(highestSeenGroupId, group);
+            if (groupForValue.size() == 0 || groupForValue.get(groupForValue.size() - 2) != group) {
+                groupForValue.append(group);
+                groupForValue.append(numValues);
+            } else {
+                int index = Math.toIntExact(groupForValue.size() - 1);
+                groupForValue.set(index, groupForValue.get(index) + numValues);
+            }
         }
 
         public void ensureSortedByGroups() {

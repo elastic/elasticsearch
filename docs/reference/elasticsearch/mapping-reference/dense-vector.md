@@ -382,7 +382,7 @@ $$$dense-vector-index-options$$$
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
 :::::{dropdown} Properties of rescore_vector
 `oversample`

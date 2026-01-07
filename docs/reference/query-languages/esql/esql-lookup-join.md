@@ -1,6 +1,6 @@
 ---
 applies_to:
-   stack: preview 9.0, ga 9.1
+   stack: preview =9.0, ga 9.1+
    serverless: ga
 navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:

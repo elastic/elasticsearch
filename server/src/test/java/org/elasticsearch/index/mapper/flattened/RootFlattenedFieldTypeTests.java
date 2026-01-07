@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
@@ -45,7 +46,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            new Mapper.IgnoreAbove(ignoreAbove)
+            new Mapper.IgnoreAbove(ignoreAbove),
+            IndexVersion.current()
         );
     }
 
@@ -72,7 +74,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            IndexVersion.current()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -85,7 +88,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            IndexVersion.current()
         );
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
@@ -95,7 +99,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            IndexVersion.current()
         );
         assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
     }

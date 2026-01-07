@@ -32,20 +32,41 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
 
     /**
-     * Backward compatibility entry for reading the old "EsqlProject" type which has been consolidated into Project.
+     * Backward compatibility entry + name for reading the consolidated `EsqlProject` plans from pre-9.4.0 nodes.
      */
+    private static final String LEGACY_PROJECT_NAME = "EsqlProject";
+
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_ANALYTICS)
     public static final NamedWriteableRegistry.Entry V9_ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
-        "EsqlProject",
-        Project::new
+        LEGACY_PROJECT_NAME,
+        Project::readLegacyEsqlProject
     );
 
+    private static Project readLegacyEsqlProject(StreamInput in) throws IOException {
+        return new Project(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            V9_ENTRY.name
+        );
+    }
+
     private final List<? extends NamedExpression> projections;
+    private final String writeableName;
 
     public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
+        this(source, child, projections, ENTRY.name);
+    }
+
+    /**
+     * Constructor that allows specifying a custom writeable name for backward compatibility.
+     * Used when deserializing legacy "EsqlProject" plans from older cluster versions.
+     */
+    private Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections, String writeableName) {
         super(source, child);
         this.projections = projections;
+        this.writeableName = writeableName;
         assert validateProjections(projections);
     }
 
@@ -66,7 +87,8 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            ENTRY.name
         );
     }
 
@@ -79,7 +101,7 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return writeableName;
     }
 
     @Override

@@ -24,18 +24,15 @@ public class GPUSupport {
     private static final Logger LOG = LogManager.getLogger(GPUSupport.class);
 
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
-    private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
-
-    public static final int MAX_DEVICE_POOL_PERCENT = 75;
-    private static final int INITIAL_DEVICE_POOL_PERCENT = 50;
+    public static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
 
     private static class Holder {
-        static final long TOTAL_GPU_MEMORY;
+        static final long TOTAL_GPU_MEMORY_IN_BYTES;
         static final boolean IS_SUPPORTED;
 
         static {
-            TOTAL_GPU_MEMORY = initializeGpuInfo();
-            IS_SUPPORTED = TOTAL_GPU_MEMORY != -1L;
+            TOTAL_GPU_MEMORY_IN_BYTES = initializeGpuInfo();
+            IS_SUPPORTED = TOTAL_GPU_MEMORY_IN_BYTES != -1L;
         }
     }
 
@@ -146,16 +143,22 @@ public class GPUSupport {
         return null;
     }
 
+    public static boolean isPoolingEnabled() {
+        assert Holder.IS_SUPPORTED;
+        var poolingPercent = POOLED_MEMORY_PERCENT.get();
+        return poolingPercent > 0;
+    }
+
     /**
      * Returns the total device memory in bytes of the first available compatible GPU.
      *
      * @return total device memory in bytes, or -1 if GPU is not available or supported
      */
-    public static long getTotalGpuMemory() {
+    public static long getTotalGpuMemoryInBytes() {
         var poolingPercent = POOLED_MEMORY_PERCENT.get();
         if (poolingPercent > 0) {
-            return (long) (Holder.TOTAL_GPU_MEMORY * (double) poolingPercent / 100.0);
+            return (long) (Holder.TOTAL_GPU_MEMORY_IN_BYTES * (double) poolingPercent / 100.0);
         }
-        return Holder.TOTAL_GPU_MEMORY;
+        return Holder.TOTAL_GPU_MEMORY_IN_BYTES;
     }
 }

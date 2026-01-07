@@ -12,6 +12,7 @@ package org.elasticsearch.gpu.codec;
 import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
+import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.gpu.GPUSupport;
@@ -95,8 +96,9 @@ public interface CuVSResourceManager {
         static class Holder {
             static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
                 MAX_RESOURCES,
-                new TrackingGPUMemoryService(GPUSupport.getTotalGpuMemory())
-                // new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
+                GPUSupport.isPoolingEnabled()
+                    ? new TrackingGPUMemoryService(GPUSupport.getTotalGpuMemoryInBytes())
+                    : new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
             );
         }
 

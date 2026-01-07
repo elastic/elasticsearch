@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.gpu.GPUSupport.MIN_DEVICE_MEMORY_IN_BYTES;
+
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
     private static final Logger log = LogManager.getLogger(GPUPlugin.class);
@@ -79,7 +81,19 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         "vectors.indexing.gpu_memory_pooling_percent",
         0,
         0,
-        95,
+        value -> {
+            if (value > 95) {
+                throw new IllegalArgumentException("GPU memory pool cannot be more than 95% of the total GPU memory");
+            }
+            if (value > 0 && ((double) GPUSupport.getTotalGpuMemoryInBytes() * (double) value / 100.0) < MIN_DEVICE_MEMORY_IN_BYTES) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        "GPU memory pool cannot be less than the minimum required memory of [%d] bytes",
+                        MIN_DEVICE_MEMORY_IN_BYTES
+                    )
+                );
+            }
+        },
         Setting.Property.NodeScope
     );
 

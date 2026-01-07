@@ -61,7 +61,7 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
     }
 
     /**
-     * Tests that the Reconciler obeys the THROTTLE decision of a node.
+     * Tests that the non-desired balance allocator obeys the THROTTLE decision of a node.
      */
     @TestLogging(
         reason = "watch for can't move message",

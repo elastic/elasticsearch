@@ -56,15 +56,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
-                JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
-                    JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.FLOAT
-                )
+                JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -110,15 +102,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
-                JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
-                    JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.FLOAT
-                )
+                JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -163,15 +147,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -208,15 +184,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -256,15 +224,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -300,15 +260,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -350,13 +302,12 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
+                    null,
+                    "modelName",
+                    JinaAIEmbeddingType.BINARY,
                     JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.BINARY
+                    "secret",
+                    null
                 )
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
@@ -398,13 +349,12 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
+                    null,
+                    "modelName",
+                    JinaAIEmbeddingType.BIT,
                     JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.BIT
+                    "secret",
+                    null
                 )
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
@@ -443,15 +393,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.BINARY
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -508,15 +450,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
-                JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
-                    JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.FLOAT
-                )
+                JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
             ),
             new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
         );

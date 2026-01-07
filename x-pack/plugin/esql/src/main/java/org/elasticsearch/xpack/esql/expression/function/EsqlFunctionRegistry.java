@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -86,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -588,9 +588,9 @@ public class EsqlFunctionRegistry {
                 def(AllFirst.class, bi(AllFirst::new), "all_first"),
                 def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
-                def(Term.class, bi(Term::new), "term"),
                 // dense vector functions
-                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
+                def(Magnitude.class, Magnitude::new, "v_magnitude"),
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

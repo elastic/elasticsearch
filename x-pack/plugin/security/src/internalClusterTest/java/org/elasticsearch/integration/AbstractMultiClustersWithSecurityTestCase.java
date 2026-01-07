@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
@@ -24,21 +23,17 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.hamcrest.CoreMatchers.is;
@@ -93,12 +88,17 @@ public abstract class AbstractMultiClustersWithSecurityTestCase extends Abstract
 
     @Override
     protected TransportAddress getTransportAddress(TransportService transportService) {
-        return apiKeyAuthenticationEnabled() ? transportService.boundRemoteAccessAddress().publishAddress() : super.getTransportAddress(transportService);
+        return apiKeyAuthenticationEnabled()
+            ? transportService.boundRemoteAccessAddress().publishAddress()
+            : super.getTransportAddress(transportService);
     }
 
     private String addCrossClusterApiKey(String clusterAlias) throws Exception {
         Client client = internalClient(clusterAlias);
-        CreateCrossClusterApiKeyRequest request = generateCreateCrossClusterApiKeyRequest("cross_cluster_access_key", crossClusterAccessJson());
+        CreateCrossClusterApiKeyRequest request = generateCreateCrossClusterApiKeyRequest(
+            "cross_cluster_access_key",
+            crossClusterAccessJson()
+        );
         var responseFuture = client.execute(CreateCrossClusterApiKeyAction.INSTANCE, request);
 
         String encodedApiKey;
@@ -182,7 +182,8 @@ public abstract class AbstractMultiClustersWithSecurityTestCase extends Abstract
             }""";
     }
 
-    private static CreateCrossClusterApiKeyRequest generateCreateCrossClusterApiKeyRequest(String name, String accessJson) throws IOException {
+    private static CreateCrossClusterApiKeyRequest generateCreateCrossClusterApiKeyRequest(String name, String accessJson)
+        throws IOException {
         CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(accessJson);
         var request = new CreateCrossClusterApiKeyRequest(name, roleDescriptorBuilder, null, null, null);
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

@@ -217,7 +217,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         ScoreDoc[] scoreDocs = topK.scoreDocs;
         vectorOpsCount = (int) topK.totalHits.value();
-        if (scoreDocs.length == 0 || scoreDocs.length < k) {
+        if (scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
         return new KnnScoreDocQuery(scoreDocs, reader);
@@ -228,16 +228,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         AcceptDocs filterDocs,
         IVFCollectorManager knnCollectorManager,
         float visitRatio,
-        int docsFound,
+        int alreadyCollectedResults,
         IntHashSet dedup
     ) throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         // Create dedup set on first call, reuse on recursive calls to filter out duplicates across passes
         if (dedup == null) {
-            dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
+            dedup = new IntHashSet(knnCollectorManager.k * 4 / 3);
         }
         ScoreDoc[] scoreDocs = results.scoreDocs;
-        int resultsFound = scoreDocs.length;
 
         boolean postFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         var iterator = postFilter ? filterDocs.iterator() : null;
@@ -245,39 +244,46 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             Arrays.sort(scoreDocs, Comparator.comparingInt(x -> x.doc));
         }
 
-        int docsAdded = 0;
+        int searchResults = 0;
         for (ScoreDoc scoreDoc : scoreDocs) {
-            if ((false == postFilter || accepted(iterator, scoreDoc.doc))) {
-                int globalDoc = scoreDoc.doc + context.docBase;
-                if (dedup.add(globalDoc)) {
-                    scoreDoc.doc = globalDoc;
-                    scoreDocs[docsAdded++] = scoreDoc;
-                }
+            if ((dedup.add(scoreDoc.doc) && (false == postFilter || accepted(iterator, scoreDoc.doc)))) {
+                scoreDoc.doc = context.docBase + scoreDoc.doc;
+                scoreDocs[searchResults++] = scoreDoc;
             }
         }
 
-        docsFound += docsAdded;
         if (postFilter) {
-            if (docsFound == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-            // Only recurse if we need more docs AND approximateSearch returned results (centroids remain)
-            if (docsFound < k && resultsFound > 0) {
-                ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
-                TopDocs additionalResults = searchLeaf(context, filterDocs, knnCollectorManager, visitRatio, docsFound, dedup);
-                ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
-                var newScoreDocs = new ScoreDoc[docsAdded + additionalScoreDocs.length];
-                System.arraycopy(scoreDocs, 0, newScoreDocs, 0, docsAdded);
-                System.arraycopy(additionalScoreDocs, 0, newScoreDocs, docsAdded, additionalScoreDocs.length);
-                scoreDocs = newScoreDocs;
-                // Update docsFound to reflect merged results
-                docsFound = docsAdded + additionalScoreDocs.length;
-            }
+            if (searchResults == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+            Arrays.sort(scoreDocs, 0, searchResults, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
 
-            docsFound = Math.min(k, docsFound);
-            Arrays.sort(scoreDocs, 0, docsFound, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
+            // Only recurse if we need more docs
+            if (alreadyCollectedResults + searchResults < k) {
+                ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
+                TopDocs additionalResults = searchLeaf(
+                    context,
+                    filterDocs,
+                    knnCollectorManager,
+                    visitRatio,
+                    alreadyCollectedResults + searchResults,
+                    dedup
+                );
+                ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
+                var newScoreDocs = new ScoreDoc[searchResults + additionalScoreDocs.length];
+                System.arraycopy(scoreDocs, 0, newScoreDocs, 0, searchResults);
+                System.arraycopy(additionalScoreDocs, 0, newScoreDocs, searchResults, additionalScoreDocs.length);
+                scoreDocs = newScoreDocs;
+                int finalResults = Math.min(k, scoreDocs.length);
+                Arrays.sort(scoreDocs, 0, finalResults, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
+                ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[finalResults];
+                System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, finalResults);
+
+                return new TopDocs(results.totalHits, deduplicatedScoreDocs);
+            }
         }
 
-        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[docsFound];
-        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, docsFound);
+        searchResults = Math.min(k, searchResults);
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[searchResults];
+        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, searchResults);
 
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }

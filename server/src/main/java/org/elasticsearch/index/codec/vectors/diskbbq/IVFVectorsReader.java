@@ -328,31 +328,26 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             ? (ESAcceptDocs.PostFilterEsAcceptDocs) esAcceptDocs
             : null;
 
-        // Track centroid index for post-filter mode
-        int centroidIndex = 0;
-
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            // Skip if this centroid was already visited (for second-pass searches)
-            if (postFilterDocs != null && postFilterDocs.visited(centroidIndex)) {
-                centroidIndex++;
-                centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+
+            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+
+            if (postFilterDocs != null && postFilterDocs.visited(offsetAndLength.centroidOrdinal)) {
                 continue;
             }
 
-            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
 
             // Mark centroid as visited for post-filter mode
             if (postFilterDocs != null) {
-                postFilterDocs.skip(centroidIndex);
+                postFilterDocs.skip(offsetAndLength.centroidOrdinal);
             }
-            centroidIndex++;
 
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -364,22 +359,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                // Skip if this centroid was already visited (for second-pass searches)
-                if (postFilterDocs != null && postFilterDocs.visited(centroidIndex)) {
-                    centroidIndex++;
-                    centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+                if (postFilterDocs != null && postFilterDocs.visited(offsetAndLength.centroidOrdinal)) {
                     continue;
                 }
-
-                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
                 scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
 
                 // Mark centroid as visited for post-filter mode
                 if (postFilterDocs != null) {
-                    postFilterDocs.skip(centroidIndex);
+                    postFilterDocs.skip(offsetAndLength.centroidOrdinal);
                 }
-                centroidIndex++;
 
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -498,7 +488,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    public record CentroidOffsetAndLength(long offset, long length) {}
+    public record CentroidOffsetAndLength(long offset, long length, int centroidOrdinal) {}
 
     public interface CentroidIterator {
         boolean hasNext();

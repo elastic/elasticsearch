@@ -66,12 +66,12 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends ESTestCase {
-    Environment env;
+    Environment testEnv;
 
     @Before
     public void setupEnv() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        env = TestEnvironment.newEnvironment(settings);
+        testEnv = TestEnvironment.newEnvironment(settings);
     }
 
     public void testSetupActionsContainsKnownBuiltin() {

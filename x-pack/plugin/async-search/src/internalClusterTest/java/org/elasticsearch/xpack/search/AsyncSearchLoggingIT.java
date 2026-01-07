@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
+import org.elasticsearch.test.ActionLoggingUtils;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.After;
@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.search.TransportSearchAction.SEARCH_ACTIONLOG_NAME;
-import static org.elasticsearch.common.logging.action.ActionLogger.SEARCH_ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,15 +61,13 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
 
     @Before
     public void enableLog() {
-        updateClusterSettings(Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("search").getKey(), true));
+        ActionLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        updateClusterSettings(
-            Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("search").getKey(), (String) null)
-        );
+        ActionLoggingUtils.disableLoggers();
     }
 
     private static final String INDEX_NAME = "test_index";

@@ -18,11 +18,11 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
+import org.elasticsearch.test.ActionLoggingUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.search.TransportSearchAction.SEARCH_ACTIONLOG_NAME;
-import static org.elasticsearch.common.logging.action.ActionLogger.SEARCH_ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -72,15 +71,13 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
     @Before
     public void enableLog() {
-        updateClusterSettings(Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("search").getKey(), true));
+        ActionLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        updateClusterSettings(
-            Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("search").getKey(), (String) null)
-        );
+        ActionLoggingUtils.disableLoggers();
     }
 
     private static final String INDEX_NAME = "test_index";

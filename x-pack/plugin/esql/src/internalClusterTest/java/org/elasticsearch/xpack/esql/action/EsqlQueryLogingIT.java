@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ActionLoggingUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;
@@ -21,7 +21,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.common.logging.action.ActionLogger.SEARCH_ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,15 +50,13 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void enableLog() {
-        updateClusterSettings(Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("esql").getKey(), true));
+        ActionLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        updateClusterSettings(
-            Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("esql").getKey(), (String) null)
-        );
+        ActionLoggingUtils.disableLoggers();
     }
 
     public void testLogging() throws Exception {

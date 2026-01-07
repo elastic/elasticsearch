@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ActionLoggingUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.VerificationException;
 import org.elasticsearch.xpack.sql.logging.SqlLogProducer;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -24,7 +24,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.common.logging.action.ActionLogger.SEARCH_ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,15 +54,13 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
 
     @Before
     public void enableLog() {
-        updateClusterSettings(Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("sql").getKey(), true));
+        ActionLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        updateClusterSettings(
-            Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("sql").getKey(), (String) null)
-        );
+        ActionLoggingUtils.disableLoggers();
     }
 
     public void testSqlLogging() {
@@ -85,6 +82,7 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         assertNotNull(appender.lastEvent());
+        assertThat(appender.events.size(), equalTo(1));
         var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
         var data = message.getIndexedReadOnlyStringMap();
         assertThat(message.get("success"), equalTo("true"));
@@ -99,6 +97,7 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
         String query = "SELECT data, count FROM test ORDER BY count";
         expectThrows(VerificationException.class, () -> new SqlQueryRequestBuilder(client()).query(query).get());
         assertNotNull(appender.lastEvent());
+        assertThat(appender.events.size(), equalTo(1));
         var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
         var data = message.getIndexedReadOnlyStringMap();
         assertThat(message.get("success"), equalTo("false"));

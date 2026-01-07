@@ -1072,7 +1072,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
-                | LIMIT 10 PER hostname
+                | LIMIT 10 PER_🐔 hostname
             """);
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
@@ -1103,7 +1103,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
-                | LIMIT 10 PER [foo].[hostname]
+                | LIMIT 10 PER_🐔 [foo].[hostname]
             """);
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;

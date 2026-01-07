@@ -10676,7 +10676,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             FROM employees
             | SORT salary DESC
-            | LIMIT 5 PER languages
+            | LIMIT 5 PER_🐔 languages
             """;
 
         var plan = optimizedPlan(query);
@@ -10702,7 +10702,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             FROM employees
             | SORT salary DESC
-            | LIMIT 5 PER [employees].[languages]
+            | LIMIT 5 PER_🐔 [employees].[languages]
             """;
 
         var plan = optimizedPlan(query);

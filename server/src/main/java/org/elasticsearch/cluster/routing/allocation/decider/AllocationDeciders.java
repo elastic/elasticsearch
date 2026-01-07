@@ -208,7 +208,7 @@ public class AllocationDeciders {
             Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (decision.type().compareToBetweenDecisions(mostNegativeDecision.type()) < 0) {
+                if (mostNegativeDecision.type().compareToBetweenDecisions(decision.type()) > 0) {
                     mostNegativeDecision = decision;
                     if (mostNegativeDecision.type() == Decision.Type.NO) {
                         traceNoDecisions(decider, decision, logMessageCreator);

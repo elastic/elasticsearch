@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import org.elasticsearch.core.RefCounted;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
@@ -28,8 +27,13 @@ public class AlwaysReferencedIndexedByShardId implements IndexedByShardId<RefCou
     }
 
     @Override
-    public Collection<? extends RefCounted> collection() {
+    public Iterable<? extends RefCounted> iterable() {
         return List.of(RefCounted.ALWAYS_REFERENCED);
+    }
+
+    @Override
+    public int size() {
+        return 1;
     }
 
     @Override

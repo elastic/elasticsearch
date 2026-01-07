@@ -40,12 +40,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NonDesiredBalanceIT extends ESIntegTestCase {
 
-    private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final Set<String> THROTTLE_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final Set<String> NOT_PREFERRED_AND_THROTTLED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(NotPreferredPlugin.class);
+        return Arrays.asList(NotPreferredAndThrottledPlugin.class);
     }
 
     @Override
@@ -58,8 +57,7 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
 
     @After
     public void clearThrottleAndNotPreferredNodes() {
-        NOT_PREFERRED_NODES.clear();
-        THROTTLE_NODES.clear();
+        NOT_PREFERRED_AND_THROTTLED_NODES.clear();
     }
 
     /**
@@ -79,8 +77,7 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
         final var sourceNodeID = getNodeId(sourceNode);
         final var targetNodeID = getNodeId(targetNode);
 
-        NOT_PREFERRED_NODES.add(targetNodeID);
-        THROTTLE_NODES.add(targetNodeID);
+        NOT_PREFERRED_AND_THROTTLED_NODES.add(targetNodeID);
 
         var mapNodeIdsToNames = nodeIdsToNames();
         final var sourceNodeName = mapNodeIdsToNames.get(sourceNodeID);
@@ -130,20 +127,20 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
         );
     }
 
-    public static class NotPreferredPlugin extends Plugin implements ClusterPlugin {
+    public static class NotPreferredAndThrottledPlugin extends Plugin implements ClusterPlugin {
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
 
             return List.of(new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                    return NOT_PREFERRED_NODES.contains(node.nodeId()) ? Decision.NOT_PREFERRED : Decision.YES;
+                    return NOT_PREFERRED_AND_THROTTLED_NODES.contains(node.nodeId()) ? Decision.NOT_PREFERRED : Decision.YES;
                 }
             }, new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // THROTTLING is not returned in simulation, so only THROTTLE for real moves in the Reconciler.
-                    return (THROTTLE_NODES.contains(node.nodeId()) && allocation.isSimulating() == false)
+                    return (NOT_PREFERRED_AND_THROTTLED_NODES.contains(node.nodeId()) && allocation.isSimulating() == false)
                         ? Decision.THROTTLE
                         : Decision.YES;
                 }

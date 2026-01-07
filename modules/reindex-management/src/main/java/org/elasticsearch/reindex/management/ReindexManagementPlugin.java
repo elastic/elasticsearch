@@ -57,10 +57,7 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (REINDEX_RESILIENCE_ENABLED) {
-            return List.of(
-                new RestGetReindexAction(clusterSupportsFeature),
-                new RestCancelReindexAction(clusterSupportsFeature)
-            );
+            return List.of(new RestGetReindexAction(clusterSupportsFeature), new RestCancelReindexAction(clusterSupportsFeature));
         } else {
             return List.of();
         }

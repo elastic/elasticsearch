@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -127,10 +126,6 @@ public enum CohereEmbeddingType {
      * @return the embedding type that is known to the version passed in
      */
     public static CohereEmbeddingType translateToVersion(CohereEmbeddingType embeddingType, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_14_0) && embeddingType == BYTE) {
-            return INT8;
-        }
-
         if (embeddingType == BIT) {
             if (version.supports(COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED)) {
                 // BIT embedding type is supported in these versions

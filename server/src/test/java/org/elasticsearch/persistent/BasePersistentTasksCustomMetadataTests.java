@@ -31,7 +31,6 @@ import java.util.Optional;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
@@ -201,14 +200,14 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
     public void testMinVersionSerialization() throws IOException {
         PersistentTasks.Builder<?> tasks = builder();
 
-        TransportVersion minVersion = getFirstVersion();
-        TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
+        TransportVersion minVersion = TransportVersion.minimumCompatible();
+        TransportVersion streamVersion = randomVersionBetween(minVersion, getPreviousVersion(TransportVersion.current()));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                randomVersionBetween(random(), minVersion, streamVersion),
+                randomVersionBetween(minVersion, streamVersion),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -218,7 +217,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.current()),
+                randomVersionBetween(getNextVersion(streamVersion), TransportVersion.current()),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()

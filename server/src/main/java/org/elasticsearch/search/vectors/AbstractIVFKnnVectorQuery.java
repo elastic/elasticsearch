@@ -33,6 +33,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -153,7 +154,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }

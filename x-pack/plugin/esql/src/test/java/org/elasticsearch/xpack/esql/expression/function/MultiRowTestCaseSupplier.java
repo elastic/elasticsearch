@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -511,6 +512,20 @@ public final class MultiRowTestCaseSupplier {
             DataType.EXPONENTIAL_HISTOGRAM,
             EsqlTestUtils::randomExponentialHistogram
         );
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> tdigestCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
+        addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> histogramCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "empty histogram", DataType.HISTOGRAM, () -> new BytesRef(""));
+        addSuppliers(cases, minRows, maxRows, "random histogram", DataType.HISTOGRAM, EsqlTestUtils::randomHistogram);
         return cases;
     }
 

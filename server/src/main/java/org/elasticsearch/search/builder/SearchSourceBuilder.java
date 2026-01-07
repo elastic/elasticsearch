@@ -1427,6 +1427,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                 } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     sort(parser.text());
+                    searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sorts.getLast().name());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
                 } else {
@@ -1508,6 +1509,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
+                        for (var sort : sorts) {
+                            searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sort.name());
+                        }
                     } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         rescoreBuilders = new ArrayList<>();
                         rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));

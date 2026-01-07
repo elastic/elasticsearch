@@ -9,4 +9,5 @@
 | exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | integer | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
 

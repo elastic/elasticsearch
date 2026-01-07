@@ -124,7 +124,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeohash(
         Source source,
@@ -154,7 +155,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public SpatialGridFunction withDocValues(boolean useDocValues) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean docValues = this.spatialDocsValues || useDocValues;
+        boolean docValues = this.spatialDocValues || useDocValues;
         return new StGeohash(source(), spatialField, parameter, bounds, docValues);
     }
 
@@ -190,7 +191,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
                     toEvaluator.apply(spatialField()),
@@ -199,7 +200,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
                 : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
         }

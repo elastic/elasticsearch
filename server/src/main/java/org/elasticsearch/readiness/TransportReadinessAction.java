@@ -12,6 +12,7 @@ package org.elasticsearch.readiness;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -23,10 +24,10 @@ import org.elasticsearch.tasks.TaskManager;
 /**
  * Exposes {@link ReadinessService readiness info} over the transport protocol to facilitate calling it form other nodes.
  */
-public class TransportReadinessAction extends TransportAction<ReadinessRequest, ReadinessResponse> {
+public class TransportReadinessAction extends TransportAction<ReadinessRequest, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportReadinessAction.class);
-    public static final ActionType<ReadinessResponse> TYPE = new ActionType<>("cluster:internal/readiness");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:internal/readiness");
 
     private final ReadinessService readinessService;
 
@@ -37,10 +38,12 @@ public class TransportReadinessAction extends TransportAction<ReadinessRequest, 
     }
 
     @Override
-    protected void doExecute(Task task, ReadinessRequest request, ActionListener<ReadinessResponse> listener) {
+    protected void doExecute(Task task, ReadinessRequest request, ActionListener<ActionResponse.Empty> listener) {
         logger.debug("readiness check requested");
         // A bound address indicates the node is ready. This transport action will not respond until the node is ready.
-        readinessService.addBoundAddressListener(address -> { listener.onResponse(new ReadinessResponse(true)); });
+        readinessService.addBoundAddressListener(address -> {
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
+        });
         logger.debug("readiness check done");
     }
 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.readiness;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,11 +23,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class TransportReadinessActionTests extends ESTestCase {
 
@@ -62,13 +61,12 @@ public class TransportReadinessActionTests extends ESTestCase {
         readinessService.startListener();
     }
 
-    private AtomicReference<ReadinessResponse> runAction() {
-        AtomicReference<ReadinessResponse> responseRef = new AtomicReference<>();
+    private AtomicBoolean runAction() {
+        AtomicBoolean responseReceived = new AtomicBoolean();
         action.execute(null, new ReadinessRequest(), new ActionListener<>() {
             @Override
-            public void onResponse(ReadinessResponse response) {
-                assertThat(response.isReady(), is(true));
-                responseRef.set(response);
+            public void onResponse(ActionResponse.Empty response) {
+                responseReceived.set(true);
             }
 
             @Override
@@ -76,19 +74,19 @@ public class TransportReadinessActionTests extends ESTestCase {
                 throw new AssertionError(e);
             }
         });
-        return responseRef;
+        return responseReceived;
     }
 
     public void testReadyImmediately() {
         setReady();
-        AtomicReference<ReadinessResponse> responseRef = runAction();
-        assertThat(responseRef.get(), notNullValue());
+        AtomicBoolean responseReceived = runAction();
+        assertThat(responseReceived.get(), is(true));
     }
 
     public void testReadyEventually() {
-        AtomicReference<ReadinessResponse> responseRef = runAction();
-        assertThat(responseRef.get(), nullValue());
+        AtomicBoolean responseReceived = runAction();
+        assertThat(responseReceived.get(), is(false));
         setReady();
-        assertThat(responseRef.get(), notNullValue());
+        assertThat(responseReceived.get(), is(true));
     }
 }

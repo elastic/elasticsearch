@@ -20,6 +20,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ListRowsBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator.SortOrder;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
@@ -37,7 +38,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -70,7 +70,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             inputValues,
             limit,
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, asc, false)),
+            List.of(new SortOrder(0, asc, false)),
             List.of(1)
         );
 
@@ -108,7 +108,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             TOP_COUNT,
             List.of(LONG, LONG),
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, true, false)),
+            List.of(new SortOrder(0, true, false)),
             List.of(1),
             pageSize
         );
@@ -185,7 +185,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                 topCount,
                 List.of(LONG, LONG),
                 List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false)),
+                List.of(new SortOrder(0, true, false)),
                 List.of(1),
                 pageSize
             ).get(context)
@@ -231,20 +231,78 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             },
             limit,
             List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(1, true, false)),
+            List.of(new SortOrder(1, true, false)),
             List.of(2)
         );
-        refCountedList.forEach(RefCounted::decRef);
+        try {
+            refCountedList.forEach(RefCounted::decRef);
 
-        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
+            assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
+            assertThat(pageToValues(pages), equalTo(computeTopN(values, 2, 1, limit, true)));
 
-        var expectedValues = computeTopN(values, 2, 1, limit, true);
-        assertThat(pageToValues(pages), equalTo(expectedValues));
-        Releasables.close(pages);
-
-        for (var rc : refCountedList) {
-            assertFalse(rc.hasReferences());
+            for (var rc : refCountedList) {
+                assertFalse(rc.hasReferences());
+            }
+        } finally {
+            Releasables.close(pages);
         }
+    }
+
+    public void testRandomMultipleColumns() {
+        DriverContext driverContext = driverContext();
+        int rows = randomIntBetween(50, 100);
+        int topCount = randomIntBetween(1, 10);
+        int blocksCount = randomIntBetween(10, 20);
+        int sortingByColumns = randomIntBetween(2, 3);
+        int groupKeysCount = randomIntBetween(2, 3);
+
+        RandomBlocksResult randomBlocksResult = generateRandomSingleValueBlocks(rows, blocksCount, driverContext);
+
+        List<Integer> sortColumns = new ArrayList<>();
+        for (int i = 0; i < sortingByColumns; i++) {
+            sortColumns.add(
+                randomValueOtherThanMany(
+                    c -> randomBlocksResult.validSortKeys[c] == false || sortColumns.contains(c),
+                    () -> randomIntBetween(0, blocksCount - 1)
+                )
+            );
+        }
+
+        List<Integer> groupKeys = new ArrayList<>();
+        for (int i = 0; i < groupKeysCount; i++) {
+            groupKeys.add(
+                randomValueOtherThanMany(
+                    c -> sortColumns.contains(c) || groupKeys.contains(c) || false == randomBlocksResult.validSortKeys[c],
+                    () -> randomIntBetween(0, blocksCount - 1)
+                )
+            );
+        }
+
+        List<SortOrder> uniqueOrders = sortColumns.stream().map(column -> new SortOrder(column, randomBoolean(), randomBoolean())).toList();
+
+        List<Page> results = drive(
+            new TopNOperator(
+                driverContext.blockFactory(),
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                topCount,
+                randomBlocksResult.elementTypes,
+                randomBlocksResult.encoders,
+                uniqueOrders.stream().toList(),
+                groupKeys,
+                rows
+            ),
+            List.of(new Page(randomBlocksResult.blocks.toArray(Block[]::new))).iterator(),
+            driverContext
+        );
+        List<List<Object>> actualValues = new ArrayList<>();
+        for (Page p : results) {
+            actualValues.addAll(readAsRowsSingleValue(p));
+            p.releaseBlocks();
+        }
+
+        List<List<Object>> topNExpectedValues = computeTopN(randomBlocksResult.expectedValues, groupKeys, uniqueOrders, topCount);
+
+        assertThat(actualValues, equalTo(topNExpectedValues));
     }
 
     private static List<Tuple<Long, Long>> computeTopN(List<Tuple<Long, Long>> inputValues, int limit, boolean ascendingOrder) {
@@ -253,30 +311,58 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             .toList();
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<List<?>> computeTopN(
+    private static List<? extends List<?>> computeTopN(
         List<? extends List<?>> inputValues,
         int groupChannel,
         int sortChannel,
         int limit,
         boolean ascendingOrder
     ) {
-        Comparator<Long> longComparator = ascendingOrder ? Comparator.nullsLast(Comparator.naturalOrder()) : Comparator.reverseOrder();
-        Comparator<List<?>> listComparator = Comparator.comparing(e -> (Long) e.get(sortChannel), longComparator);
-        Map<Long, List<? extends List<?>>> map = inputValues.stream()
-            .collect(
-                Collectors.groupingBy(
-                    l -> (Long) l.get(groupChannel),
-                    Collectors.mapping(
-                        Function.identity(),
-                        Collectors.collectingAndThen(
-                            Collectors.toList(),
-                            list -> list.stream().sorted(listComparator).limit(limit).toList()
-                        )
-                    )
-                )
-            );
-        return (List<List<?>>) map.values().stream().flatMap(Collection::stream).sorted(listComparator).toList();
+        List<List<Object>> singleValueInput = inputValues.stream().map(row -> row.stream().map(v -> (Object) v).toList()).toList();
+        List<SortOrder> sortOrders = List.of(new SortOrder(sortChannel, ascendingOrder, false));
+        return new GroupedTopNOperatorTests().computeTopN(singleValueInput, List.of(groupChannel), sortOrders, limit);
+    }
+
+    private List<List<Object>> computeTopN(
+        List<List<Object>> inputValues,
+        List<Integer> groupChannels,
+        List<SortOrder> sortOrders,
+        int limit
+    ) {
+        Comparator<List<Object>> comparator = (row1, row2) -> {
+            for (SortOrder order : sortOrders) {
+                Object v1 = row1.get(order.channel());
+                Object v2 = row2.get(order.channel());
+                boolean firstIsNull = v1 == null;
+                boolean secondIsNull = v2 == null;
+
+                if (firstIsNull || secondIsNull) {
+                    int nullCompare = Boolean.compare(firstIsNull, secondIsNull) * (order.nullsFirst() ? -1 : 1);
+                    if (nullCompare != 0) {
+                        return nullCompare;
+                    }
+                    continue;
+                }
+
+                @SuppressWarnings("unchecked")
+                int cmp = ((Comparable<Object>) v1).compareTo(v2);
+                if (cmp != 0) {
+                    return order.asc() ? cmp : -cmp;
+                }
+            }
+            return 0;
+        };
+
+        Map<List<Object>, List<List<Object>>> grouped = inputValues.stream()
+            .collect(Collectors.groupingBy(row -> groupChannels.stream().map(row::get).toList()));
+
+        List<List<Object>> topNExpectedValues = new ArrayList<>();
+        for (List<List<Object>> groupRows : grouped.values()) {
+            List<List<Object>> sortedGroup = groupRows.stream().sorted(comparator).limit(limit).toList();
+            topNExpectedValues.addAll(sortedGroup);
+        }
+        topNExpectedValues.sort(comparator);
+        return topNExpectedValues;
     }
 
     private static List<List<?>> pageToValues(List<Page> pages) {

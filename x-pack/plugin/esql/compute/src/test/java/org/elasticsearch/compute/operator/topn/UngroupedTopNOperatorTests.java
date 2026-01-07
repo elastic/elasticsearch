@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -30,20 +32,37 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
+import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
+import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.LONG;
+import static org.elasticsearch.compute.data.ElementType.LONG_RANGE;
+import static org.elasticsearch.compute.data.ElementType.TDIGEST;
+import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
+import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
+import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
+import static org.elasticsearch.compute.test.BlockTestUtils.append;
+import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -217,5 +236,50 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
         for (var rc : refCountedList) {
             assertFalse(rc.hasReferences());
         }
+    }
+
+    public void testRandomMultiValuesTopN() {
+        DriverContext driverContext = driverContext();
+        int rows = randomIntBetween(50, 100);
+        int topCount = randomIntBetween(1, rows);
+        int blocksCount = randomIntBetween(20, 30);
+        int sortingByColumns = randomIntBetween(1, 10);
+
+        RandomMultiValueBlocksResult blocksResult = generateRandomMultiValueBlocks(rows, blocksCount, driverContext);
+        Set<TopNOperator.SortOrder> uniqueOrders = generateSortOrders(
+            sortingByColumns,
+            blocksCount,
+            blocksResult.validSortKeys,
+            c -> false
+        );
+
+        List<List<List<Object>>> actualValues = new ArrayList<>();
+        List<Page> results = drive(
+            new TopNOperator(
+                driverContext.blockFactory(),
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                topCount,
+                blocksResult.elementTypes,
+                blocksResult.encoders,
+                uniqueOrders.stream().toList(),
+                groupKeys(),
+                rows
+            ),
+            List.of(new Page(blocksResult.blocks.toArray(Block[]::new))).iterator(),
+            driverContext
+        );
+        for (Page p : results) {
+            readAsRows(actualValues, p);
+            p.releaseBlocks();
+        }
+
+        List<List<List<Object>>> topNExpectedValues = blocksResult.expectedValues.stream()
+            .sorted(new NaiveTopNComparator(uniqueOrders))
+            .limit(topCount)
+            .toList();
+        List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
+        List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
+
+        assertMap(actualReducedValues, matchesList(expectedReducedValues));
     }
 }

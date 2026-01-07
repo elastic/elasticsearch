@@ -116,9 +116,7 @@ public class RemoteClusterSecurityQueryRewriteIT extends AbstractRemoteClusterSe
             }
             """);
         searchRequest.setOptions(
-            searchRequest.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
+            searchRequest.getOptions().toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
         );
 
         Response response = client().performRequest(searchRequest);

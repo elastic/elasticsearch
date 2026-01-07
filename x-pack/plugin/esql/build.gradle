@@ -170,6 +170,9 @@ tasks.named("test").configure {
     def snippetsTree = fileTree(snippetsFolder).matching {
       include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
     }
+    def settingsTree = fileTree(snippetsFolder).matching {
+      include "**/settings/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
     def commandsExamplesTree = fileTree(snippetsFolder).matching {
       include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
     }
@@ -183,9 +186,11 @@ tasks.named("test").configure {
     doLast {
       def snippets = snippetsTree.files.collect { it.name }
       int countSnippets = snippets.size()
+      def querySettings = settingsTree.files.collect { it.name }
+      int countQuerySettings = querySettings.size()
       def commandsExamples = commandsExamplesTree.files.collect { it.name }
       int countCommandsExamples = commandsExamples.size()
-      if (countSnippets == 0 && countCommandsExamples == 0) {
+      if (countSnippets == 0 && countCommandsExamples == 0 && countQuerySettings == 0) {
         logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
       } else {
         logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")

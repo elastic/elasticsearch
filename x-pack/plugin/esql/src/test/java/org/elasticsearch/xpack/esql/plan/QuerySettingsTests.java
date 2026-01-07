@@ -150,5 +150,12 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
+
+        DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
+            QuerySettings.SETTINGS_BY_NAME.values(),
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
+        toc.renderDocs();
     }
 }

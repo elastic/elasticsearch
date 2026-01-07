@@ -56,6 +56,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
+        //TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
+        // so we don't bother prefetching many lists we won't end up scoring
         return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
     }
 

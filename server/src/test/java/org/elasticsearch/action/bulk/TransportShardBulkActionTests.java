@@ -132,7 +132,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocumentParsingProvider documentParsingProvider = mock();
         XContentMeteringParserDecorator parserDecorator = mock();
         when(documentParsingProvider.newMeteringParserDecorator(any())).thenReturn(parserDecorator);
-        when(parserDecorator.decorate(any())).then(i -> i.getArgument(0));
+        when(parserDecorator.decorate(any(), any())).then(i -> i.getArgument(0));
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -199,7 +199,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         assertThat(replicaRequest, equalTo(primaryRequest));
         verify(documentParsingProvider).newMeteringParserDecorator(any());
-        verify(parserDecorator).decorate(any());
+        verify(parserDecorator).decorate(any(), any());
 
         // Assert that the document count is still 1
         assertDocCount(shard, 1);

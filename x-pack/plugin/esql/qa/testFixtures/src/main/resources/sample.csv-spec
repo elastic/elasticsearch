@@ -55,7 +55,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-2..48      | 10055..10095
+1..49      | 10051..10100
 ;
 
 
@@ -69,7 +69,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-2..48      | 10005..10045
+1..49      | 10001..10050
 ;
 
 

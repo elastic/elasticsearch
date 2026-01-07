@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -289,7 +289,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetadata if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(1, search.totalHits.value());
             }
         });
@@ -303,7 +303,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(2, search.totalHits.value());
             }
         });
@@ -311,7 +311,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(3, search.totalHits.value());
             }
         });

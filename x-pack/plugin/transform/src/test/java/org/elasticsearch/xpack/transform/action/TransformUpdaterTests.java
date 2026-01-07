@@ -216,7 +216,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
@@ -307,7 +306,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfigForDryRunUpdate = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
@@ -361,7 +359,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
@@ -404,7 +401,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )

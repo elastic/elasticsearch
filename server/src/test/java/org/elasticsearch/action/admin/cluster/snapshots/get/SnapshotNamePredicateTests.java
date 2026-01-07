@@ -57,17 +57,17 @@ public class SnapshotNamePredicateTests extends ESTestCase {
 
     public void testMatchWildcard() {
         final var predicates = createPredicate(randomBoolean(), "include-*");
-        assertTrue(predicates.test("include-" + randomIdentifier(), randomBoolean()));
-        assertFalse(predicates.test("exclude-" + randomIdentifier(), randomBoolean()));
+        assertTrue(predicates.test(randomIdentifier("include-"), randomBoolean()));
+        assertFalse(predicates.test(randomIdentifier("exclude-"), randomBoolean()));
         assertThat(predicates.requiredNames(), empty());
     }
 
     public void testMatchWildcardAndName() {
         final var requestName = randomIdentifier();
         final var predicates = createPredicate(true, "include-*", requestName);
-        assertTrue(predicates.test("include-" + randomIdentifier(), randomBoolean()));
+        assertTrue(predicates.test(randomIdentifier("include-"), randomBoolean()));
         assertTrue(predicates.test(requestName, randomBoolean()));
-        assertFalse(predicates.test("exclude-" + randomIdentifier(), randomBoolean()));
+        assertFalse(predicates.test(randomIdentifier("exclude-"), randomBoolean()));
         assertThat(predicates.requiredNames(), empty());
 
         assertEquals(createPredicate(false, "include-*", requestName).requiredNames(), Set.of(requestName));
@@ -83,16 +83,16 @@ public class SnapshotNamePredicateTests extends ESTestCase {
 
     public void testIncludeWildcardExcludeWildcard() {
         final var predicates = createPredicate(randomBoolean(), "include-*", "-include-exclude-*");
-        assertTrue(predicates.test("include-" + randomIdentifier(), randomBoolean()));
-        assertFalse(predicates.test("exclude-" + randomIdentifier(), randomBoolean()));
-        assertFalse(predicates.test("include-exclude-" + randomIdentifier(), randomBoolean()));
+        assertTrue(predicates.test(randomIdentifier("include-"), randomBoolean()));
+        assertFalse(predicates.test(randomIdentifier("exclude-"), randomBoolean()));
+        assertFalse(predicates.test(randomIdentifier("include-exclude-"), randomBoolean()));
         assertThat(predicates.requiredNames(), empty());
     }
 
     public void testIncludeCurrentExcludeWildcard() {
         final var predicates = createPredicate(randomBoolean(), currentSnapshotsSelector(), "-exclude-*");
         assertTrue(predicates.test(randomIdentifier(), true));
-        assertFalse(predicates.test("exclude-" + randomIdentifier(), randomBoolean()));
+        assertFalse(predicates.test(randomIdentifier("exclude-"), randomBoolean()));
         assertFalse(predicates.test(randomIdentifier(), false));
         assertThat(predicates.requiredNames(), empty());
     }
@@ -117,7 +117,7 @@ public class SnapshotNamePredicateTests extends ESTestCase {
     public void testHyphen() {
         // NB current behaviour, but could be considered a bug?
         final var predicates = createPredicate(false, "include-*", "-");
-        assertTrue(predicates.test("include-" + randomIdentifier(), randomBoolean()));
+        assertTrue(predicates.test(randomIdentifier("include-"), randomBoolean()));
         assertTrue(predicates.test("-", randomBoolean()));
         assertThat(predicates.requiredNames(), equalTo(Set.of("-")));
     }

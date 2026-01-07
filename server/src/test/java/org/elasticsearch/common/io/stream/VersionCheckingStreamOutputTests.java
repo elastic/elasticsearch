@@ -36,7 +36,6 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
 
     public void testCheckVersionCompatibility() throws IOException {
         TransportVersion streamVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );

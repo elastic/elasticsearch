@@ -24,7 +24,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -229,7 +228,8 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             Computes the distance between two points.
             For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
             For geographic geometries, this is the circular distance along the great circle in meters.""",
-        examples = @Example(file = "spatial", tag = "st_distance-airports")
+        examples = @Example(file = "spatial", tag = "st_distance-airports"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public StDistance(
         Source source,
@@ -282,9 +282,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        var leftGeom = makeGeometryFromLiteral(ctx, left());
-        var rightGeom = makeGeometryFromLiteral(ctx, right());
+    protected Object fold(Geometry leftGeom, Geometry rightGeom) {
         return (crsType() == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
     }
 

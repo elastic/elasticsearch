@@ -10,10 +10,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -77,7 +77,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
                 assertThat(text, equalTo(text));
             }
         } else {
-            Query expected = new MatchNoDocsQuery("unknown field [" + expectedFieldName + "]");
+            Query expected = Queries.NO_DOCS_INSTANCE;
             assertEquals(expected, query);
         }
     }

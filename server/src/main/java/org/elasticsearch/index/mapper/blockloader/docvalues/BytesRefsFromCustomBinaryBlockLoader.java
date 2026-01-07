@@ -12,12 +12,16 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
+/**
+ * This block loader should be used for "wildcard-style" binary values, which is to say fields we have encoded into a binary
+ * format that supports multivalued via an encoding on our side.  See also {@link BytesRefsFromOrdsBlockLoader} for ordinals
+ * based multivalue aware binary fields, and {@link BytesRefsFromBinaryBlockLoader} for single-valued binary fields.
+ */
 public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
 
@@ -74,11 +78,21 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
      * Read BinaryDocValues encoded by {@link BinaryFieldMapper.CustomBinaryDocValuesField}
      */
     static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
-        private final BytesRef scratch = new BytesRef();
+        private final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
         BytesRefsFromCustomBinary(BinaryDocValues docValues) {
             super(docValues);
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, true);
+                if (block != null) {
+                    return block;
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
         }
 
         @Override
@@ -88,25 +102,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
                 return;
             }
             BytesRef bytes = docValues.binaryValue();
-            assert bytes.length > 0;
-            in.reset(bytes.bytes, bytes.offset, bytes.length);
-            int count = in.readVInt();
-            scratch.bytes = bytes.bytes;
-
-            if (count == 1) {
-                scratch.length = in.readVInt();
-                scratch.offset = in.getPosition();
-                builder.appendBytesRef(scratch);
-                return;
-            }
-            builder.beginPositionEntry();
-            for (int v = 0; v < count; v++) {
-                scratch.length = in.readVInt();
-                scratch.offset = in.getPosition();
-                in.setPosition(scratch.offset + scratch.length);
-                builder.appendBytesRef(scratch);
-            }
-            builder.endPositionEntry();
+            reader.read(bytes, builder);
         }
 
         @Override

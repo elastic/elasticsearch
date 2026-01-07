@@ -8,6 +8,8 @@ applies_to:
 
 # Searching with query rules [search-using-query-rules]
 
+
+$$$query-rules$$$
 *Query rules* allow customization of search results for queries that match specified criteria metadata. This allows for more control over results, for example ensuring that promoted documents that match defined criteria are returned at the top of the result list. Metadata is defined in the query rule, and is matched against the query criteria. Query rules use metadata to match a query. Metadata is provided as part of the search request as an object and can be anything that helps differentiate the query, for example:
 
 * A user-entered query string

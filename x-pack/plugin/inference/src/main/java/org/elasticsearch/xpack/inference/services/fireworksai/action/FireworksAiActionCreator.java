@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.fireworksai.request.FireworksAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.services.fireworksai.response.FireworksAiEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;
@@ -30,9 +30,10 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
  */
 public class FireworksAiActionCreator implements FireworksAiActionVisitor {
 
+    // FireworksAI uses OpenAI-compatible embeddings format, so we reuse the OpenAI response parser
     private static final ResponseHandler EMBEDDINGS_HANDLER = new FireworksAiResponseHandler(
         "fireworksai embeddings",
-        new FireworksAiEmbeddingsResponseEntity(),
+        OpenAiEmbeddingsResponseEntity::fromResponse,
         false
     );
 

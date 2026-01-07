@@ -12,16 +12,17 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.fireworksai.response.FireworksAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 
 /**
  * Response handler for FireworksAI API calls.
  * Handles HTTP status codes and determines retry behavior for failed requests.
+ * FireworksAI uses OpenAI-compatible error response format.
  */
 public class FireworksAiResponseHandler extends BaseResponseHandler {
 
     public FireworksAiResponseHandler(String requestType, ResponseParser parseFunction, boolean supportsStreaming) {
-        super(requestType, parseFunction, FireworksAiErrorResponseEntity::fromResponse, supportsStreaming);
+        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, supportsStreaming);
     }
 
     @Override

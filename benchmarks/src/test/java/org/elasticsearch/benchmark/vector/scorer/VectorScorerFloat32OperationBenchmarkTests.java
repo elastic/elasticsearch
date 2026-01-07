@@ -47,10 +47,9 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
             bench.init();
             try {
                 float expected = switch (function) {
-                    case COSINE -> ScalarOperations.cosine(bench.floatsA, bench.floatsB);
                     case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.floatsA, bench.floatsB);
                     case EUCLIDEAN -> ScalarOperations.squareDistance(bench.floatsA, bench.floatsB);
-                    case MAXIMUM_INNER_PRODUCT -> throw new AssumptionViolatedException("Not tested");
+                    default -> throw new AssumptionViolatedException("Not tested");
                 };
                 assertEquals(expected, bench.lucene(), delta);
                 assertEquals(expected, bench.luceneWithCopy(), delta);

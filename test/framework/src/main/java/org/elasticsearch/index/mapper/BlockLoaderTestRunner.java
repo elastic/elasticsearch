@@ -43,35 +43,42 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
+    private final boolean allowDummyDocs;
 
-    public BlockLoaderTestRunner(BlockLoaderTestCase.Params params) {
+    public BlockLoaderTestRunner(BlockLoaderTestCase.Params params, boolean allowDummyDocs) {
         this.params = params;
+        this.allowDummyDocs = allowDummyDocs;
     }
 
     public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
         throws IOException {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
+        var source = new SourceToParse(
+            "1",
+            BytesReference.bytes(documentXContent),
+            XContentType.JSON,
+            null,
+            Map.of(),
+            Map.of(),
+            true,
+            XContentMeteringParserDecorator.NOOP,
+            null
+        );
+        var parsedDoc = mapperService.documentMapper().parse(source);
+        runTest(mapperService, parsedDoc, expected, blockLoaderFieldName);
+    }
 
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
+    public void runTest(MapperService mapperService, ParsedDocument parsedDoc, Object expected, String blockLoaderFieldName)
+        throws IOException {
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, parsedDoc, blockLoaderFieldName);
         assertThat(blockLoaderResult, prettyEqualTo(expected));
     }
 
-    private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {
+    private Object setupAndInvokeBlockLoader(MapperService mapperService, ParsedDocument parsedDoc, String fieldName) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
-            var source = new SourceToParse(
-                "1",
-                BytesReference.bytes(document),
-                XContentType.JSON,
-                null,
-                Map.of(),
-                Map.of(),
-                true,
-                XContentMeteringParserDecorator.NOOP,
-                null
-            );
-            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
+            LuceneDocument doc = parsedDoc.rootDoc();
 
             /*
              * Add three documents with doc id 0, 1, 2. The real document is 1.
@@ -110,7 +117,7 @@ public class BlockLoaderTestRunner {
                     } else if (i == offset) {
                         docArray[i] = 1;
                     } else {
-                        docArray[i] = 2;
+                        docArray[i] = allowDummyDocs ? 2 : 1;
                     }
                 }
             }

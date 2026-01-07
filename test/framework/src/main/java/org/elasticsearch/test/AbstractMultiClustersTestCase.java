@@ -193,7 +193,6 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         settings.putNull("cluster.remote." + clusterAlias + ".seeds");
         settings.putNull("cluster.remote." + clusterAlias + ".mode");
         settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
-        // TODO: Remove api key specific settings
         internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -220,9 +219,13 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
         final var seedAddresses = seedNodes.stream().map(node -> {
             final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
-            return transportService.boundAddress().publishAddress();
+            return getTransportAddress(transportService);
         }).toList();
         configureRemoteClusterWithSeedAddresses(clusterAlias, seedAddresses);
+    }
+
+    protected TransportAddress getTransportAddress(TransportService transportService) {
+        return transportService.boundAddress().publishAddress();
     }
 
     protected void configureRemoteClusterWithSeedAddresses(String clusterAlias, Collection<TransportAddress> seedNodes) throws Exception {
@@ -248,9 +251,6 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             settings.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
         }
 
-        customizeRemoteClusterConfig(clusterAlias);
-        customizeLocalClusterConfig(clusterAlias);
-
         ClusterUpdateSettingsResponse resp = internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -274,10 +274,6 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             assertThat(remoteConnectionInfos, not(empty()));
         });
     }
-
-    protected void customizeRemoteClusterConfig(String clusterAlias) throws Exception {}
-
-    protected void customizeLocalClusterConfig(String remoteClusterAlias) throws Exception {}
 
     static class ClusterGroup implements Closeable {
         private final Map<String, InternalTestCluster> clusters;

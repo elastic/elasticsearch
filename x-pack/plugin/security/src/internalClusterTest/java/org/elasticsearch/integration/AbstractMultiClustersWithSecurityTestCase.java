@@ -12,19 +12,27 @@ import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSe
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -36,13 +44,13 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 import static org.hamcrest.CoreMatchers.is;
 
 public abstract class AbstractMultiClustersWithSecurityTestCase extends AbstractMultiClustersTestCase {
-    // TODO: Need to clear this? How does this work with different values of reuseCluster?
-    private final Map<String, String> crossClusterApiKeys = new HashMap<>();
-
     @Override
     protected Settings nodeSettings(String clusterAlias) {
         Settings.Builder builder = Settings.builder().put(nodeSettings());
-        if (enableSecurity() && useApiKeyAuthentication()) {
+        if (apiKeyAuthenticationEnabled()) {
+            builder.put("xpack.security.authc.token.enabled", true);
+            builder.put("xpack.security.authc.api_key.enabled", true);
+
             if (clusterAlias.equals(LOCAL_CLUSTER)) {
                 builder.put("xpack.security.remote_cluster_client.ssl.enabled", false);
             } else {
@@ -66,38 +74,77 @@ public abstract class AbstractMultiClustersWithSecurityTestCase extends Abstract
     }
 
     @Override
-    protected void customizeRemoteClusterConfig(String clusterAlias) throws Exception {
-        if (enableSecurity() && useApiKeyAuthentication()) {
-            Client client = internalClient(clusterAlias);
+    protected void configureAndConnectsToRemoteClusters() throws Exception {
+        if (apiKeyAuthenticationEnabled()) {
+            Map<String, String> crossClusterApiKeys = new HashMap<>();
 
-            CreateCrossClusterApiKeyRequest request = generateCreateCrossClusterApiKeyRequest("cross_cluster_access_key", crossClusterAccessJson());
-            var responseFuture = client.execute(CreateCrossClusterApiKeyAction.INSTANCE, request);
-            assertResponse(responseFuture, r -> {
-                String encodedKey = r.getEncodedKey();
-                crossClusterApiKeys.put(clusterAlias, encodedKey);
-            });
+            for (String clusterAlias : remoteClusterAlias()) {
+                if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
+                    String encodedApiKey = addCrossClusterApiKey(clusterAlias);
+                    crossClusterApiKeys.put(clusterAlias, encodedApiKey);
+                }
+            }
+
+            setRemoteClusterCredentials(crossClusterApiKeys);
         }
+
+        super.configureAndConnectsToRemoteClusters();
     }
 
     @Override
-    protected void customizeLocalClusterConfig(String remoteClusterAlias) throws Exception {
-        if (enableSecurity() && useApiKeyAuthentication()) {
-            String crossClusterApiKey = crossClusterApiKeys.get(remoteClusterAlias);
-            if (crossClusterApiKey == null) {
-                throw new IllegalStateException("Cross-cluster API key does not exist for cluster [" + remoteClusterAlias + "]");
+    protected TransportAddress getTransportAddress(TransportService transportService) {
+        return apiKeyAuthenticationEnabled() ? transportService.boundRemoteAccessAddress().publishAddress() : super.getTransportAddress(transportService);
+    }
+
+    private String addCrossClusterApiKey(String clusterAlias) throws Exception {
+        Client client = internalClient(clusterAlias);
+        CreateCrossClusterApiKeyRequest request = generateCreateCrossClusterApiKeyRequest("cross_cluster_access_key", crossClusterAccessJson());
+        var responseFuture = client.execute(CreateCrossClusterApiKeyAction.INSTANCE, request);
+
+        String encodedApiKey;
+        var response = responseFuture.actionGet(TEST_REQUEST_TIMEOUT);
+        try {
+            encodedApiKey = response.getEncodedKey();
+        } finally {
+            response.decRef();
+        }
+
+        return encodedApiKey;
+    }
+
+    private void setRemoteClusterCredentials(Map<String, String> crossClusterApiKeys) throws Exception {
+        InternalTestCluster localCluster = cluster(LOCAL_CLUSTER);
+        for (String nodeName : localCluster.getNodeNames()) {
+            Environment environment = localCluster.getInstance(Environment.class, nodeName);
+
+            KeyStoreWrapper keystore = null;
+            try {
+                keystore = KeyStoreWrapper.load(environment.configDir());
+                if (keystore == null) {
+                    keystore = KeyStoreWrapper.create();
+                } else {
+                    keystore.decrypt(new char[0]);
+                }
+
+                for (var entry : crossClusterApiKeys.entrySet()) {
+                    keystore.setString("cluster.remote." + entry.getKey() + ".credentials", entry.getValue().toCharArray());
+                }
+                keystore.save(environment.configDir(), new char[0]);
+            } finally {
+                if (keystore != null) {
+                    keystore.close();
+                }
             }
+        }
 
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("cluster.remote." + remoteClusterAlias + ".credentials", crossClusterApiKey);
-
-            Client client = internalClient();
-            Settings.Builder settings = Settings.builder().setSecureSettings(secureSettings);
-            assertAcked(client.admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings));
-
-            NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
+        Client client = internalClient();
+        NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
+        try {
             assertResponse(client.execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadSecureSettingsRequest), r -> {
                 assertThat(r.hasFailures(), is(false));
             });
+        } finally {
+            reloadSecureSettingsRequest.decRef();
         }
     }
 
@@ -107,6 +154,10 @@ public abstract class AbstractMultiClustersWithSecurityTestCase extends Abstract
 
     protected boolean useApiKeyAuthentication() {
         return true;
+    }
+
+    protected boolean apiKeyAuthenticationEnabled() {
+        return enableSecurity() && useApiKeyAuthentication();
     }
 
     protected String crossClusterAccessJson() {

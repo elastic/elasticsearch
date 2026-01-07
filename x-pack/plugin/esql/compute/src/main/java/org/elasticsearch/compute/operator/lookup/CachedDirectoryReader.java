@@ -12,12 +12,12 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntFunction;
+import java.util.function.LongSupplier;
 
 /**
  * A DirectoryReader that caches NumericDocValues per field.
@@ -59,7 +59,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
                 // but we don't use it. This still is faster than not caching at all.
                 return null;
             }
-            return new CachedNumericDocValues(docId -> docValues.compute(field, (k, curr) -> {
+            return new CachedNumericDocValues(dv::cost, docId -> docValues.compute(field, (k, curr) -> {
                 if (curr == null || curr.docID() > docId) {
                     return dv;
                 }
@@ -80,9 +80,11 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
     static class CachedNumericDocValues extends NumericDocValues {
         private NumericDocValues delegate = null;
+        private final LongSupplier cost;
         private final IntFunction<NumericDocValues> fromCache;
 
-        CachedNumericDocValues(IntFunction<NumericDocValues> fromCache) {
+        CachedNumericDocValues(LongSupplier cost, IntFunction<NumericDocValues> fromCache) {
+            this.cost = cost;
             this.fromCache = fromCache;
         }
 
@@ -127,9 +129,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public long cost() {
-            // reset the delegate to make sure we don't use the cached one for cost calculation
-            delegate = null;
-            return fromCache.apply(DocIdSetIterator.NO_MORE_DOCS).cost();
+            return cost.getAsLong();
         }
     }
 }

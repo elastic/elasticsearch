@@ -9,29 +9,41 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.TupleDocLongBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -156,6 +168,54 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
             assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
 
             // TODO empty it again and check.
+        }
+    }
+
+    public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
+        topNShardContextManagementAux(4, Stream.generate(() -> true).limit(4).toList());
+    }
+
+    public void testShardContextManagement_notAllShardsPassTopN_shardsAreReleased() {
+        topNShardContextManagementAux(2, List.of(true, false, false, true));
+    }
+
+    private void topNShardContextManagementAux(int limit, List<Boolean> expectedOpenAfterTopN) {
+        List<Tuple<BlockUtils.Doc, Long>> values = Arrays.asList(
+            tuple(new BlockUtils.Doc(0, 10, 100), 1L),
+            tuple(new BlockUtils.Doc(1, 20, 200), 2L),
+            tuple(new BlockUtils.Doc(2, 30, 300), null),
+            tuple(new BlockUtils.Doc(3, 40, 400), -3L)
+        );
+
+        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
+        var shardRefCounters = new IndexedByShardIdFromList<>(refCountedList);
+        var pages = topNMultipleColumns(driverContext(), new TupleDocLongBlockSourceOperator(driverContext().blockFactory(), values) {
+            @Override
+            protected Block.Builder firstElementBlockBuilder(int length) {
+                return DocBlock.newBlockBuilder(blockFactory, length).shardRefCounters(shardRefCounters);
+            }
+        },
+            limit,
+            List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE),
+            List.of(new TopNOperator.SortOrder(1, true, false)),
+            groupKeys()
+        );
+        refCountedList.forEach(RefCounted::decRef);
+
+        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
+
+        var expectedValues = values.stream()
+            .sorted(Comparator.comparingLong(t -> t.v2() == null ? Long.MAX_VALUE : t.v2()))
+            .limit(limit)
+            .toList();
+        assertThat(
+            pageToTuples((b, i) -> (BlockUtils.Doc) BlockUtils.toJavaObject(b, i), (b, i) -> ((LongBlock) b).getLong(i), pages),
+            equalTo(expectedValues)
+        );
+        Releasables.close(pages);
+
+        for (var rc : refCountedList) {
+            assertFalse(rc.hasReferences());
         }
     }
 }

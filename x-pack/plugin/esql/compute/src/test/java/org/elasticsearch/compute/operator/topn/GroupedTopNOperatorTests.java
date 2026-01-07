@@ -9,28 +9,41 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.ListRowsBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.compute.data.ElementType.DOC;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.hamcrest.Matchers.both;
@@ -190,26 +203,109 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         }
     }
 
+    public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
+        topNShardContextManagementAux(2, Stream.generate(() -> true).limit(4).toList());
+    }
+
+    public void testShardContextManagement_notAllShardsPassTopN_shardsAreReleased() {
+        topNShardContextManagementAux(1, List.of(true, false, false, true));
+    }
+
+    private void topNShardContextManagementAux(int limit, List<Boolean> expectedOpenAfterTopN) {
+        List<List<?>> values = Arrays.asList(
+            Arrays.asList(new BlockUtils.Doc(0, 10, 100), 1L, 1L),
+            Arrays.asList(new BlockUtils.Doc(1, 20, 200), 2L, 2L),
+            Arrays.asList(new BlockUtils.Doc(2, 30, 300), null, 1L),
+            Arrays.asList(new BlockUtils.Doc(3, 40, 400), -3L, 2L)
+        );
+
+        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
+        var shardRefCounters = new IndexedByShardIdFromList<>(refCountedList);
+        var pages = topNMultipleColumns(
+            driverContext(),
+            new ListRowsBlockSourceOperator(driverContext().blockFactory(), List.of(DOC, LONG, LONG), values) {
+                @Override
+                protected TestBlockBuilder getTestBlockBuilder(int b) {
+                    return b == 0 ? new TestBlockBuilder.DocBlockBuilder(blockFactory, shardRefCounters) : super.getTestBlockBuilder(b);
+                }
+            },
+            limit,
+            List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
+            List.of(new TopNOperator.SortOrder(1, true, false)),
+            List.of(2)
+        );
+        refCountedList.forEach(RefCounted::decRef);
+
+        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
+
+        var expectedValues = computeTopN(values, 2, 1, limit, true);
+        assertThat(pageToValues(pages), equalTo(expectedValues));
+        Releasables.close(pages);
+
+        for (var rc : refCountedList) {
+            assertFalse(rc.hasReferences());
+        }
+    }
+
     private static List<Tuple<Long, Long>> computeTopN(List<Tuple<Long, Long>> inputValues, int limit, boolean ascendingOrder) {
-        Comparator<Long> longComparator = ascendingOrder ? Comparator.naturalOrder() : Comparator.reverseOrder();
-        Map<Long, List<Long>> map = inputValues.stream()
+        return computeTopN(inputValues.stream().map(e -> Arrays.asList(e.v1(), e.v2())).toList(), 1, 0, limit, ascendingOrder).stream()
+            .map(l -> Tuple.tuple((Long) l.get(0), (Long) l.get(1)))
+            .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<?>> computeTopN(
+        List<? extends List<?>> inputValues,
+        int groupChannel,
+        int sortChannel,
+        int limit,
+        boolean ascendingOrder
+    ) {
+        Comparator<Long> longComparator = ascendingOrder ? Comparator.nullsLast(Comparator.naturalOrder()) : Comparator.reverseOrder();
+        Comparator<List<?>> listComparator = Comparator.comparing(e -> (Long) e.get(sortChannel), longComparator);
+        Map<Long, List<? extends List<?>>> map = inputValues.stream()
             .collect(
                 Collectors.groupingBy(
-                    Tuple::v2,
+                    l -> (Long) l.get(groupChannel),
                     Collectors.mapping(
-                        Tuple::v1,
+                        Function.identity(),
                         Collectors.collectingAndThen(
                             Collectors.toList(),
-                            list -> list.stream().sorted(longComparator).limit(limit).toList()
+                            list -> list.stream().sorted(listComparator).limit(limit).toList()
                         )
                     )
                 )
             );
-        Comparator<Tuple<Long, Long>> tupleComparator = Comparator.comparing(Tuple::v1);
-        return map.entrySet()
-            .stream()
-            .flatMap(entry -> entry.getValue().stream().map(v -> Tuple.tuple(v, entry.getKey())))
-            .sorted(ascendingOrder ? tupleComparator : tupleComparator.reversed())
-            .toList();
+        return (List<List<?>>) map.values().stream().flatMap(Collection::stream).sorted(listComparator).toList();
+    }
+
+    private static List<List<?>> pageToValues(List<Page> pages) {
+        var result = new ArrayList<List<?>>();
+        for (Page page : pages) {
+            var blocks = IntStream.range(0, page.getBlockCount()).mapToObj(page::<Block>getBlock).toList();
+            result.addAll(
+                IntStream.range(0, page.getPositionCount())
+                    .mapToObj(position -> blocks.stream().map(block -> getBlockValue(block, position)).toList())
+                    .toList()
+            );
+            page.releaseBlocks();
+        }
+
+        return result;
+    }
+
+    private static Object getBlockValue(Block block, int position) {
+        return block.isNull(position) ? null : switch (block) {
+            case LongBlock longBlock -> longBlock.getLong(position);
+            case DocBlock docBlock -> {
+                var vector = docBlock.asVector();
+                yield new BlockUtils.Doc(
+                    vector.shards().getInt(position),
+                    vector.segments().getInt(position),
+                    vector.docs().getInt(position)
+                );
+            }
+            default -> throw new IllegalArgumentException("Unsupported block type: " + block.getClass());
+        };
     }
 }

@@ -16,32 +16,24 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.TupleDocLongBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
-import org.elasticsearch.compute.test.TupleAbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.compute.test.TypedAbstractBlockSourceBuilder;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ListMatcher;
@@ -61,7 +53,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
@@ -542,10 +533,9 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders,
         List<Integer> groupKeys
     ) {
-        var page = topNTwoColumns(
+        var page = topNMultipleColumns(
             driverContext,
             new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000)),
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             limit,
             encoder,
             sortOrders,
@@ -558,10 +548,9 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
-    private <T, S> List<Page> topNTwoColumns(
+    protected <T, S> List<Page> topNMultipleColumns(
         DriverContext driverContext,
-        TupleAbstractBlockSourceOperator<T, S> sourceOperator,
-        IndexedByShardId<? extends RefCounted> shardRefCounters,
+        TypedAbstractBlockSourceBuilder sourceOperator,
         int limit,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders,
@@ -593,7 +582,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         return pages;
     }
 
-    private static <T, S> List<Tuple<T, S>> pageToTuples(
+    protected static <T, S> List<Tuple<T, S>> pageToTuples(
         BiFunction<Block, Integer, T> getFirstBlockValue,
         BiFunction<Block, Integer, S> getSecondBlockValue,
         List<Page> pages
@@ -1380,55 +1369,6 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             // 1 is for the min-heap itself
             // -1 IF we're sorting ascending. We encode one less value.
             assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
-        }
-    }
-
-    public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
-        topNShardContextManagementAux(4, Stream.generate(() -> true).limit(4).toList());
-    }
-
-    public void testShardContextManagement_notAllShardsPassTopN_shardsAreReleased() {
-        topNShardContextManagementAux(2, List.of(true, false, false, true));
-    }
-
-    private void topNShardContextManagementAux(int limit, List<Boolean> expectedOpenAfterTopN) {
-        List<Tuple<BlockUtils.Doc, Long>> values = Arrays.asList(
-            tuple(new BlockUtils.Doc(0, 10, 100), 1L),
-            tuple(new BlockUtils.Doc(1, 20, 200), 2L),
-            tuple(new BlockUtils.Doc(2, 30, 300), null),
-            tuple(new BlockUtils.Doc(3, 40, 400), -3L)
-        );
-
-        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
-        var shardRefCounters = new IndexedByShardIdFromList<>(refCountedList);
-        var pages = topNTwoColumns(driverContext(), new TupleDocLongBlockSourceOperator(driverContext().blockFactory(), values) {
-            @Override
-            protected Block.Builder firstElementBlockBuilder(int length) {
-                return DocBlock.newBlockBuilder(blockFactory, length).shardRefCounters(shardRefCounters);
-            }
-        },
-            shardRefCounters,
-            limit,
-            List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(1, true, false)),
-            groupKeys()
-        );
-        refCountedList.forEach(RefCounted::decRef);
-
-        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
-
-        var expectedValues = values.stream()
-            .sorted(Comparator.comparingLong(t -> t.v2() == null ? Long.MAX_VALUE : t.v2()))
-            .limit(limit)
-            .toList();
-        assertThat(
-            pageToTuples((b, i) -> (BlockUtils.Doc) BlockUtils.toJavaObject(b, i), (b, i) -> ((LongBlock) b).getLong(i), pages),
-            equalTo(expectedValues)
-        );
-        Releasables.close(pages);
-
-        for (var rc : refCountedList) {
-            assertFalse(rc.hasReferences());
         }
     }
 

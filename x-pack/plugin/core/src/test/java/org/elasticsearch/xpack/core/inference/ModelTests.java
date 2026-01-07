@@ -144,7 +144,7 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
                 } catch (IllegalArgumentException e) {
                     validationException.addValidationError("Invalid value for service setting [similarity]: " + similarityValue);
                 }
-            }else {
+            } else {
                 similarityEnumValue = this.similarity();
             }
             var elementTypeValue = serviceSettings.get("element_type");

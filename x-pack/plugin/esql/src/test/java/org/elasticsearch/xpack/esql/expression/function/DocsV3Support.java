@@ -1129,7 +1129,7 @@ public abstract class DocsV3Support {
                 }
                 builder.append("[***");
                 builder.append(setting.name());
-                builder.append("***](#");
+                builder.append("***](");
                 builder.append(setting.name());
                 builder.append(".md)\n");
             }

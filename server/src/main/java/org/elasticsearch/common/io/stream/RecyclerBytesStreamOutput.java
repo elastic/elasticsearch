@@ -132,15 +132,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             return;
         }
 
-        int bytesNeeded = vIntLength(i);
-        if (bytesNeeded > remainingBytesInPage) {
+        if (MAX_VINT_BYTES > remainingBytesInPage && vIntLength(i) > remainingBytesInPage) {
             super.writeVInt(i);
         } else {
-            BytesRef currentPage = currentBytesRef;
-            putVInt(i, bytesNeeded, currentPage.bytes, currentPage.offset + currentPageOffset);
-            this.currentPageOffset = currentPageOffset + bytesNeeded;
+            this.currentPageOffset = StreamOutputHelper.putMultiByteVInt(currentBytesRef.bytes, i, currentPageOffset);
         }
     }
+
+    private static final int MAX_VINT_BYTES = 5;
 
     public static int vIntLength(int value) {
         int leadingZeros = Integer.numberOfLeadingZeros(value);
@@ -161,6 +160,20 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             page[offset] = (byte) i;
         } else {
             StreamOutputHelper.putMultiByteVInt(page, i, offset);
+        }
+    }
+
+    private static final int MAX_VLONG_BYTES = 9;
+
+    @Override
+    void writeVLongNoCheck(long i) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
+        final int remainingBytesInPage = pageSize - currentPageOffset;
+
+        if (MAX_VLONG_BYTES < remainingBytesInPage) {
+            this.currentPageOffset = StreamOutputHelper.putVLong(currentBytesRef.bytes, i, currentPageOffset);
+        } else {
+            super.writeVLongNoCheck(i);
         }
     }
 

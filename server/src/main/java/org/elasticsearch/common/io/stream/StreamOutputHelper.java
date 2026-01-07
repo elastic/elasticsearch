@@ -62,7 +62,7 @@ public enum StreamOutputHelper {
      */
     public static void writeString(String str, byte[] buffer, int prefixLength, OutputStream outputStream) throws IOException {
         final int charCount = str.length();
-        int offset = prefixLength + putVInt(buffer, charCount, prefixLength);
+        int offset = putVInt(buffer, charCount, prefixLength);
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
             if (c <= 0x007F) {
@@ -130,12 +130,12 @@ public enum StreamOutputHelper {
      * Put the integer {@code i} into the given {@code buffer} starting at the given {@code offset}, formatted as per
      * {@link StreamOutput#writeVInt}. Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
      *
-     * @return number of bytes written.
+     * @return updated offset.
      */
     public static int putVInt(byte[] buffer, int i, int offset) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[offset] = (byte) i;
-            return 1;
+            return offset + 1;
         }
         return putMultiByteVInt(buffer, i, offset);
     }
@@ -144,17 +144,46 @@ public enum StreamOutputHelper {
      * Put the integer {@code i} into the given {@code buffer} starting at the given {@code offset}, formatted as per
      * {@link StreamOutput#writeVInt}. Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
      *
-     * @return number of bytes written.
+     * @return updated offset.
      */
     // extracted from putVInt() to allow the hot single-byte path to be inlined
     public static int putMultiByteVInt(byte[] buffer, int i, int offset) {
-        int index = offset;
         do {
-            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
+            buffer[offset++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         } while ((i & ~0x7F) != 0);
-        buffer[index++] = (byte) i;
-        return index - offset;
+        buffer[offset++] = (byte) i;
+        return offset;
     }
 
+    /**
+     * Put the long {@code l} into the given {@code buffer} starting at the given {@code offset}, formatted as per
+     * {@link StreamOutput#writeVLong}. Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first
+     * and that {@code l} is non-negative.
+     *
+     * @return updated offset.
+     */
+    public static int putVLong(byte[] buffer, long l, int offset) {
+        if (Long.numberOfLeadingZeros(l) >= 57) {
+            buffer[offset] = (byte) l;
+            return offset + 1;
+        }
+        return putMultiByteVLong(buffer, l, offset);
+    }
+
+    /**
+     * Put the long {@code l} into the given {@code buffer} starting at the given {@code offset}, formatted as per
+     * {@link StreamOutput#writeVLong}. Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first
+     * and that {@code l} is non-negative.
+     *
+     * @return updated offset.
+     */
+    public static int putMultiByteVLong(byte[] buffer, long l, int offset) {
+        do {
+            buffer[offset++] = ((byte) ((l & 0x7f) | 0x80));
+            l >>>= 7;
+        } while ((l & 0xFFFF_FFFF_FFFF_FF80L) != 0);
+        buffer[offset++] = (byte) l;
+        return offset;
+    }
 }

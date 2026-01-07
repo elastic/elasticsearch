@@ -25,6 +25,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,6 +49,7 @@ public class RecyclerBytesStreamOutputBenchmark {
     private byte[] bytes3;
     private byte[] multiPageBytes;
     private int[] vints;
+    private long[] vlongs;
 
     @Setup
     public void initResults() throws IOException {
@@ -70,25 +72,43 @@ public class RecyclerBytesStreamOutputBenchmark {
         longString = UTF8StringBytesBenchmark.generateAsciiString(100);
         nonAsciiString = UTF8StringBytesBenchmark.generateUTF8String(200);
         veryLongString = UTF8StringBytesBenchmark.generateAsciiString(800);
-        // vint values for benchmarking
+
         vints = new int[1000];
         for (int i = 0; i < vints.length; i++) {
+            vints[i] = randomVInt(random);
+        }
+        vlongs = new long[1000];
+        for (int i = 0; i < vlongs.length; i++) {
+            vlongs[i] = randomVLong(random);
+        }
+    }
+
+    private static int randomVInt(Random random) {
+        if (random.nextBoolean()) {
+            // 1-byte 50% of the time
+            return random.nextInt(1 << 7);
+        }
+        for (int maxBits = 14; maxBits < 32; maxBits += 7) {
+            // 2-byte 25% of the time, 3-byte 12.5% of the time etc.
             if (random.nextBoolean()) {
-                // 1-byte 50% of the time
-                vints[i] = random.nextInt(128);
-            } else if (random.nextBoolean()) {
-                // 2-byte 25% of the time
-                vints[i] = random.nextInt(128, 16384);
-            } else {
-                if (random.nextBoolean()) {
-                    // 3-byte vints
-                    vints[i] = random.nextInt(16384, 2097152);
-                } else {
-                    // All vint variants
-                    vints[i] = random.nextInt();
-                }
+                return random.nextInt(1 << (maxBits - 7), 1 << maxBits);
             }
         }
+        return random.nextInt();
+    }
+
+    private static long randomVLong(Random random) {
+        if (random.nextBoolean()) {
+            // 1-byte 50% of the time
+            return random.nextLong(1L << 7);
+        }
+        for (int maxBits = 14; maxBits < 63; maxBits += 7) {
+            // 2-byte 25% of the time, 3-byte 12.5% of the time etc.
+            if (random.nextBoolean()) {
+                return random.nextLong(1L << (maxBits - 7), 1L << maxBits);
+            }
+        }
+        return random.nextLong() & 0x7FFF_FFFF_FFFF_FFFFL;
     }
 
     @Benchmark
@@ -141,6 +161,14 @@ public class RecyclerBytesStreamOutputBenchmark {
         streamOutput.seek(1);
         for (int vint : vints) {
             streamOutput.writeVInt(vint);
+        }
+    }
+
+    @Benchmark
+    public void writeVLong() throws IOException {
+        streamOutput.seek(1);
+        for (long vlong : vlongs) {
+            streamOutput.writeVLong(vlong);
         }
     }
 

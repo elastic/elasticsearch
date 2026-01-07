@@ -922,6 +922,10 @@ public class IndicesService extends AbstractLifecycleComponent
         final DocumentMapper documentMapper = Optional.ofNullable(indexService(indexMetadata.getIndex()))
             .map(IndexService::mapperService)
             .map(MapperService::documentMapper)
+            // There's a chance that the mapping from the existing IndexService is different from the one in the provided IndexMetadata,
+            // because both are updated non-atomically when a new cluster state is applied. Since reusing the DocumentMapper is merely an
+            // optimization, we only do so when we are sure they are the same.
+            .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
             .orElse(null);
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
     }
@@ -1868,7 +1872,8 @@ public class IndicesService extends AbstractLifecycleComponent
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain,
-        final boolean isProfile
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return new QueryRewriteContext(
             parserConfig,
@@ -1881,7 +1886,8 @@ public class IndicesService extends AbstractLifecycleComponent
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

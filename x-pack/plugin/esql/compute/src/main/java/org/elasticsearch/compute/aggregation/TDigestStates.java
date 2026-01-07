@@ -181,12 +181,12 @@ public final class TDigestStates {
                     TDigestState state = getOrNull(groupId);
                     if (state != null) {
                         seenBuilder.appendBoolean(true);
-                        histoBuilder.append(
+                        histoBuilder.appendTDigest(
                             new TDigestHolder(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId), counts.get(groupId))
                         );
                     } else {
                         seenBuilder.appendBoolean(false);
-                        histoBuilder.append(TDigestHolder.empty());
+                        histoBuilder.appendTDigest(TDigestHolder.empty());
                     }
                 }
                 blocks[offset] = histoBuilder.build();
@@ -200,7 +200,7 @@ public final class TDigestStates {
                     int groupId = selected.getInt(i);
                     TDigestState state = getOrNull(groupId);
                     if (state != null) {
-                        histoBuilder.append(
+                        histoBuilder.appendTDigest(
                             new TDigestHolder(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId), counts.get(groupId))
                         );
                     } else {

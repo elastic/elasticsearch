@@ -112,7 +112,6 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             TransportVersion.current()
         );

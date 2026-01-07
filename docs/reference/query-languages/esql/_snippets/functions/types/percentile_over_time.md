@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| number | percentile | result |
+| field | percentile | result |
 | --- | --- | --- |
 | double | double | double |
 | double | integer | double |
@@ -16,4 +16,7 @@
 | long | double | double |
 | long | integer | double |
 | long | long | double |
+| tdigest | double | double |
+| tdigest | integer | double |
+| tdigest | long | double |
 

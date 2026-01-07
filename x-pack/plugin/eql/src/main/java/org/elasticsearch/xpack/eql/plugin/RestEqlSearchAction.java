@@ -69,7 +69,6 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 indicesOptions = IndicesOptions.builder(indicesOptions)
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                     .build();
-                eqlRequest.projectRouting(request.param("project_routing"));
             }
             eqlRequest.indicesOptions(indicesOptions);
             if (request.hasParam("wait_for_completion_timeout")) {

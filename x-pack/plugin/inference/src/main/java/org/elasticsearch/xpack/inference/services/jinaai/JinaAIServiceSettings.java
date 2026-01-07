@@ -17,32 +17,26 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.JINA_AI_EMBEDDING_REFACTOR;
 
 public class JinaAIServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
 
     public static final String NAME = "jinaai_service_settings";
-    public static final String MODEL_ID = "model_id";
     // See https://jina.ai/contact-sales/#rate-limit
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
     public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -51,42 +45,38 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new JinaAIServiceSettings(uri, modelId, rateLimitSettings);
+        return new JinaAIServiceSettings(modelId, rateLimitSettings);
     }
 
-    private final URI uri;
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public JinaAIServiceSettings(@Nullable URI uri, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this.uri = uri;
+    public JinaAIServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public JinaAIServiceSettings(@Nullable String url, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this(createOptionalUri(url), modelId, rateLimitSettings);
-    }
-
     public JinaAIServiceSettings(StreamInput in) throws IOException {
-        uri = createOptionalUri(in.readOptionalString());
-        modelId = in.readOptionalString();
+        if (in.getTransportVersion().supports(JINA_AI_EMBEDDING_REFACTOR) == false) {
+            // URI is no longer part of service settings since it's only used for testing
+            in.readOptionalString();
+            // ModelID was incorrectly being serialized as optional
+            modelId = in.readOptionalString();
+        } else {
+            modelId = in.readString();
+        }
         rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
-    }
-
-    public URI uri() {
-        return uri;
     }
 
     @Override
@@ -120,12 +110,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
+        builder.field(ServiceFields.MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -138,9 +123,14 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
-        out.writeOptionalString(modelId);
+        if (out.getTransportVersion().supports(JINA_AI_EMBEDDING_REFACTOR) == false) {
+            // URI is no longer part of service settings since it's only used for testing
+            out.writeOptionalString(null);
+            // ModelID was incorrectly being serialized as optional
+            out.writeOptionalString(modelId);
+        } else {
+            out.writeString(modelId);
+        }
         rateLimitSettings.writeTo(out);
     }
 
@@ -149,13 +139,11 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIServiceSettings that = (JinaAIServiceSettings) o;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings);
+        return Objects.hash(modelId, rateLimitSettings);
     }
 }

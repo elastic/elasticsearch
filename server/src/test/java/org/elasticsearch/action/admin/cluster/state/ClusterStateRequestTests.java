@@ -39,7 +39,6 @@ public class ClusterStateRequestTests extends ESTestCase {
                 .indicesOptions(indicesOptions);
 
             TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
                 TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );

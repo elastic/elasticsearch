@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -36,7 +37,6 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
         HuggingFaceRateLimitServiceSettings {
 
     public static final String NAME = "hugging_face_elser_service_settings";
-    public static final String URL = "url";
     private static final int ELSER_TOKEN_LIMIT = 512;
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value his is only a guess
     // 3000 requests per minute
@@ -44,7 +44,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
 
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
-        var uri = extractUri(map, URL, validationException);
+        var uri = extractUri(map, ServiceFields.URL, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -113,7 +113,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
+        builder.field(ServiceFields.URL, uri.toString());
         builder.field(MAX_INPUT_TOKENS, ELSER_TOKEN_LIMIT);
         rateLimitSettings.toXContent(builder, params);
 

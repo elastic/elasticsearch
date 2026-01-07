@@ -19,6 +19,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -33,8 +34,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
-
-    static final String EMBEDDING_TYPE = "embedding_type";
 
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -58,7 +57,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             case REQUEST -> Objects.requireNonNullElse(
                 extractOptionalEnum(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     CohereEmbeddingType::fromString,
                     EnumSet.allOf(CohereEmbeddingType.class),
@@ -69,7 +68,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             case PERSISTENT -> {
                 var embeddingType = ServiceUtils.extractOptionalString(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     validationException
                 );
@@ -101,7 +100,12 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                     .map(value -> value.toString().toLowerCase(Locale.ROOT))
                     .toArray(String[]::new);
                 validationException.addValidationError(
-                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
+                    ServiceUtils.invalidValue(
+                        ServiceFields.EMBEDDING_TYPE,
+                        ModelConfigurations.SERVICE_SETTINGS,
+                        enumString,
+                        validValuesAsStrings
+                    )
                 );
                 return null;
             }
@@ -164,7 +168,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         builder.startObject();
 
         commonSettings.toXContentFragment(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(ServiceFields.EMBEDDING_TYPE, elementType());
 
         builder.endObject();
         return builder;
@@ -173,7 +177,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(ServiceFields.EMBEDDING_TYPE, elementType());
 
         return builder;
     }

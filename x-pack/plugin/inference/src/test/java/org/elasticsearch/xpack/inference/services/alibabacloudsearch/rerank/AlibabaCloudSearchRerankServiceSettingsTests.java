@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion;
+package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,8 +23,8 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
-    AlibabaCloudSearchCompletionServiceSettings> {
+public class AlibabaCloudSearchRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    AlibabaCloudSearchRerankServiceSettings> {
 
     private static final String TEST_SERVICE_ID = "test-service-id";
     private static final String INITIAL_TEST_SERVICE_ID = "initial-test-service-id";
@@ -37,13 +37,13 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
-    public static AlibabaCloudSearchCompletionServiceSettings createRandom() {
+    public static AlibabaCloudSearchRerankServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
-        return new AlibabaCloudSearchCompletionServiceSettings(commonSettings);
+        return new AlibabaCloudSearchRerankServiceSettings(commonSettings);
     }
 
     public void testUpdateServiceSettings_AllFields_Success() {
-        var serviceSettings = new AlibabaCloudSearchCompletionServiceSettings(
+        var serviceSettings = new AlibabaCloudSearchRerankServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -72,7 +72,7 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new AlibabaCloudSearchCompletionServiceSettings(
+                new AlibabaCloudSearchRerankServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
                         TEST_SERVICE_ID,
                         TEST_HOST,
@@ -86,7 +86,7 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
     }
 
     public void testUpdateServiceSettings_EmptyMap_Success() {
-        var serviceSettings = new AlibabaCloudSearchCompletionServiceSettings(
+        var serviceSettings = new AlibabaCloudSearchRerankServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -99,7 +99,7 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new AlibabaCloudSearchCompletionServiceSettings(
+                new AlibabaCloudSearchRerankServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
                         INITIAL_TEST_SERVICE_ID,
                         INITIAL_TEST_HOST,
@@ -113,7 +113,7 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
     }
 
     public void testFromMap_Success() {
-        var serviceSettings = AlibabaCloudSearchCompletionServiceSettings.fromMap(
+        var serviceSettings = AlibabaCloudSearchRerankServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     AlibabaCloudSearchServiceSettings.HOST,
@@ -134,7 +134,7 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new AlibabaCloudSearchCompletionServiceSettings(
+                new AlibabaCloudSearchRerankServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
                         TEST_SERVICE_ID,
                         TEST_HOST,
@@ -148,18 +148,25 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
     }
 
     @Override
-    protected Writeable.Reader<AlibabaCloudSearchCompletionServiceSettings> instanceReader() {
-        return AlibabaCloudSearchCompletionServiceSettings::new;
+    protected AlibabaCloudSearchRerankServiceSettings mutateInstanceForVersion(
+        AlibabaCloudSearchRerankServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 
     @Override
-    protected AlibabaCloudSearchCompletionServiceSettings createTestInstance() {
+    protected Writeable.Reader<AlibabaCloudSearchRerankServiceSettings> instanceReader() {
+        return AlibabaCloudSearchRerankServiceSettings::new;
+    }
+
+    @Override
+    protected AlibabaCloudSearchRerankServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected AlibabaCloudSearchCompletionServiceSettings mutateInstance(AlibabaCloudSearchCompletionServiceSettings instance)
-        throws IOException {
+    protected AlibabaCloudSearchRerankServiceSettings mutateInstance(AlibabaCloudSearchRerankServiceSettings instance) throws IOException {
         var serviceId = instance.modelId();
         var host = instance.getCommonSettings().getHost();
         var workspaceName = instance.getCommonSettings().getWorkspaceName();
@@ -175,24 +182,8 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
             // case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new AlibabaCloudSearchCompletionServiceSettings(
+        return new AlibabaCloudSearchRerankServiceSettings(
             new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings)
         );
-    }
-
-    public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {
-        var map = new HashMap<String, Object>();
-        map.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, serviceId);
-        map.put(AlibabaCloudSearchServiceSettings.HOST, host);
-        map.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, workspaceName);
-        return map;
-    }
-
-    @Override
-    protected AlibabaCloudSearchCompletionServiceSettings mutateInstanceForVersion(
-        AlibabaCloudSearchCompletionServiceSettings instance,
-        TransportVersion version
-    ) {
-        return instance;
     }
 }

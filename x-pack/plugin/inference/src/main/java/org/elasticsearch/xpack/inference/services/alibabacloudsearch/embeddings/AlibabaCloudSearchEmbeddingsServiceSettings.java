@@ -36,16 +36,14 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
     public static final String NAME = "alibabacloud_search_embeddings_service_settings";
 
     public static AlibabaCloudSearchEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context);
 
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dims = removeAsType(map, DIMENSIONS, Integer.class);
+        var maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchEmbeddingsServiceSettings(commonServiceSettings, similarity, dims, maxInputTokens);
     }
@@ -68,10 +66,10 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
     }
 
     public AlibabaCloudSearchEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        commonSettings = new AlibabaCloudSearchServiceSettings(in);
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
+        this.commonSettings = new AlibabaCloudSearchServiceSettings(in);
+        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        this.dimensions = in.readOptionalVInt();
+        this.maxInputTokens = in.readOptionalVInt();
     }
 
     public AlibabaCloudSearchServiceSettings getCommonSettings() {
@@ -108,7 +106,21 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
 
     @Override
     public AlibabaCloudSearchEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+        var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, taskType);
+
+        var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDims = removeAsType(serviceSettings, DIMENSIONS, Integer.class);
+        var extractedMaxInputTokens = removeAsType(serviceSettings, MAX_INPUT_TOKENS, Integer.class);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(
+            commonServiceSettings,
+            extractedSimilarity != null ? extractedSimilarity : similarity,
+            extractedDims != null ? extractedDims : dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : maxInputTokens
+        );
     }
 
     @Override

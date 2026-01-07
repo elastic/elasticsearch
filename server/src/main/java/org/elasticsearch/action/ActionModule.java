@@ -512,7 +512,7 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
-        actions = setupActions(actionPlugins);
+        actions = setupActions(env, actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
         this.projectIdResolver = projectIdResolver;
@@ -634,7 +634,7 @@ public class ActionModule extends AbstractModule {
         return actions;
     }
 
-    static Map<String, ActionHandler> setupActions(List<ActionPlugin> actionPlugins) {
+    static Map<String, ActionHandler> setupActions(Environment env, List<ActionPlugin> actionPlugins) {
         // Subclass NamedRegistry for easy registration
         class ActionRegistry extends NamedRegistry<ActionHandler> {
             ActionRegistry() {
@@ -654,7 +654,7 @@ public class ActionModule extends AbstractModule {
         }
         ActionRegistry actions = new ActionRegistry();
 
-        if (ReadinessService.enabled(environment)) {
+        if (ReadinessService.enabled(env)) {
             actions.register(TransportReadinessAction.TYPE, TransportReadinessAction.class);
         }
 

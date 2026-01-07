@@ -66,7 +66,7 @@ import static org.mockito.Mockito.mock;
 public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
-            ActionModule.setupActions(emptyList()),
+            ActionModule.setupActions(TestEnvironment.newEnvironment(Settings.EMPTY), emptyList()),
             hasEntry(TransportNodesInfoAction.TYPE.name(), new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class))
         );
     }
@@ -78,7 +78,10 @@ public class ActionModuleTests extends ESTestCase {
                 return singletonList(new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ActionModule.setupActions(TestEnvironment.newEnvironment(Settings.EMPTY), singletonList(dupsMainAction))
+        );
         assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 
@@ -105,7 +108,7 @@ public class ActionModuleTests extends ESTestCase {
             }
         };
         assertThat(
-            ActionModule.setupActions(singletonList(registersFakeAction)),
+            ActionModule.setupActions(TestEnvironment.newEnvironment(Settings.EMPTY), singletonList(registersFakeAction)),
             hasEntry("fake", new ActionHandler(action, FakeTransportAction.class))
         );
     }

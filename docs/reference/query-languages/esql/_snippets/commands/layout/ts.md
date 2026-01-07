@@ -12,13 +12,13 @@ source command, with the following key differences:
  - Enables the use of [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) inside the
    [STATS](/reference/query-languages/esql/commands/stats-by.md) command
 
-## Syntax
+**Syntax**
 
 ```esql
 TS index_pattern [METADATA fields]
 ```
 
-## Parameters
+**Parameters**
 
 `index_pattern`
 :   A list of indices, data streams or aliases. Supports wildcards and date math.
@@ -26,14 +26,24 @@ TS index_pattern [METADATA fields]
 `fields`
 :   A comma-separated list of [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) to retrieve.
 
-## Description
+**Description**
 
 The `TS` source command enables time series semantics and adds support for
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) to the `STATS` command, such as
 [`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-avg_over_time),
 or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-rate).
 These functions are implicitly evaluated per time series, then aggregated by group using a secondary aggregation
-function.
+function. For example:
+
+```esql
+TS metrics
+  | WHERE @timestamp >= now() - 1 hour
+  | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
+```
+
+This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()`
+function is applied per time series in hourly buckets. These rates are summed for each
+host and hourly bucket (since each host can map to multiple time series).
 
 This paradigm—a pair of aggregation functions—is standard for time series
 querying. For supported inner (time series) functions per
@@ -42,60 +52,6 @@ querying. For supported inner (time series) functions per
 apply to downsampled data, with the same semantics as for raw data.
 
 ::::{note}
-If a query is missing an inner (time series) aggregation function,
-[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-last_over_time)
-is assumed and used implicitly. See the examples below for details.
-::::
-
-## Examples
-
-### Calculate total rate of search requests per host
-
-This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()`
-function is applied per time series in hourly buckets. These rates are summed for each
-host and hourly bucket (since each host can map to multiple time series).
-
-```esql
-TS metrics
-  | WHERE @timestamp >= now() - 1 hour
-  | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
-```
-
-### Use time series aggregation functions directly
-
-You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-directly in the `STATS` command ({applies_to}`stack: preview 9.3`). For example:
-
-```esql
-TS metrics | STATS RATE(search_requests) BY host
-```
-
-```esql
-TS metrics
-| WHERE TRANGE(1 day)
-| STATS RATE(search_requests) BY TBUCKET(1 hour)
-```
-
-### Combine time series and regular aggregation functions
-
-You can also combine time series aggregation functions with regular
-[aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
-to perform additional aggregation across time series. The time series function is evaluated per time series first, then the regular aggregation function (such as `SUM()`, `AVG()`, `MAX()`, or `MIN()`) aggregates those results across multiple time series within each group. For example:
-
-```esql
-TS metrics | STATS SUM(RATE(search_requests)) BY host
-```
-
-This query calculates the rate per time series, then sums those rates for each host.
-
-```esql
-TS metrics
-| WHERE @timestamp >= now() - 1 day
-| STATS SUM(AVG_OVER_TIME(memory_usage)) BY host, TBUCKET(1 hour)
-```
-
-### Default aggregation behavior
-
 If a query is missing an inner (time series) aggregation function,
 [`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-last_over_time)
 is assumed and used implicitly. For instance, the following two queries are
@@ -113,17 +69,31 @@ the following query:
 ```esql
 TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 ```
+::::
 
-### Avoid invalid function combinations
+You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+directly in the `STATS` command ({applies_to}`stack: preview 9.3`), or combine them with regular
+[aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
+such as `SUM()`, as outer aggregation functions. For example:
 
-Using a time series aggregation function in combination with an inner time series function causes an error. For example, the
+```esql
+TS metrics | STATS RATE(search_requests) BY host
+```
+
+You can also combine time series aggregation functions with regular aggregation functions:
+
+```esql
+TS metrics | STATS SUM(RATE(search_requests)) BY host
+```
+
+However, using a time series aggregation function in combination with an inner time series function causes an error. For example, the
 following query is invalid:
 
 ```esql
 TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
 ```
 
-## Best practices
+**Best practices**
 
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
   For example, in `STATS max(rate(foo)) + rate(bar))`, if `foo` and `bar` don't share the same dimension values, the rate
@@ -137,3 +107,22 @@ TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
   [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
   applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
+
+**Examples**
+
+Using a time series aggregation function directly ({applies_to}`stack: preview 9.3`):
+
+```esql
+TS metrics
+| WHERE TRANGE(1 day)
+| STATS RATE(search_requests) BY TBUCKET(1 hour)
+```
+
+Combining a time series aggregation function with a regular aggregation function:
+
+```esql
+TS metrics
+| WHERE @timestamp >= now() - 1 day
+| STATS SUM(AVG_OVER_TIME(memory_usage)) BY host, TBUCKET(1 hour)
+```
+

@@ -9,9 +9,11 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractDocValuesForUtilBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecreasingIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.MetricsConfig;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,16 +34,17 @@ import java.util.concurrent.TimeUnit;
 @Fork(value = 1)
 @Warmup(iterations = 3)
 @Measurement(iterations = 10)
-@BenchmarkMode(value = Mode.AverageTime)
-@OutputTimeUnit(value = TimeUnit.NANOSECONDS)
-@State(value = Scope.Benchmark)
+@BenchmarkMode(Mode.SampleTime)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@State(Scope.Benchmark)
 public class EncodeDecreasingIntegerBenchmark {
     private static final int SEED = 17;
     private static final int BLOCK_SIZE = 128;
-    @Param({ "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60", "64" })
+
+    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
     private int bitsPerValue;
 
-    private final AbstractDocValuesForUtilBenchmark encode;
+    private final AbstractTSDBCodecBenchmark encode;
 
     public EncodeDecreasingIntegerBenchmark() {
         this.encode = new EncodeBenchmark();
@@ -49,16 +52,20 @@ public class EncodeDecreasingIntegerBenchmark {
 
     @Setup(Level.Invocation)
     public void setupInvocation() throws IOException {
-        encode.setupInvocation(bitsPerValue);
+        encode.setupInvocation();
     }
 
     @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        encode.setupIteration(bitsPerValue, new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+    public void setupIteration(MetricsConfig config) throws IOException {
+        encode.setupIteration(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        encode.setupInvocation();
+        encode.run();
+        config.configure(BLOCK_SIZE, encode.getEncodedBytes(), bitsPerValue);
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh) throws IOException {
-        encode.benchmark(bitsPerValue, bh);
+    public void benchmark(Blackhole bh, MetricsConfig config, CompressionMetrics metrics) throws IOException {
+        encode.benchmark(bh);
+        metrics.recordOperation(config);
     }
 }

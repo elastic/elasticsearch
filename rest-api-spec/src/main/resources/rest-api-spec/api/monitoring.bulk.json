@@ -28,14 +28,17 @@
     "params": {
       "system_id": {
         "type": "string",
+        "required": true,
         "description": "Identifier of the monitored system"
       },
       "system_api_version": {
         "type": "string",
+        "required": true,
         "description": "API Version of the monitored system"
       },
       "interval": {
         "type": "string",
+        "required": true,
         "description": "Collection interval (e.g., '10s' or '10000ms') of the payload"
       }
     },

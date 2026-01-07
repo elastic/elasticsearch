@@ -615,7 +615,13 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             resets += interval.resets;
         }
 
-        void appendIntervalsFromBlocks(LongBlock timestampsBlock, IntBlock valuesBlock, IntBlock resetsBlock, LongBlock samplesBLock, int position) {
+        void appendIntervalsFromBlocks(
+            LongBlock timestampsBlock,
+            IntBlock valuesBlock,
+            IntBlock resetsBlock,
+            LongBlock samplesBLock,
+            int position
+        ) {
             int tsFirst = timestampsBlock.getFirstValueIndex(position);
             int vsFirst = valuesBlock.getFirstValueIndex(position);
             int resetsFirst = resetsBlock.getFirstValueIndex(position);

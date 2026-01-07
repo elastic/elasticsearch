@@ -312,12 +312,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/138764
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139527
@@ -336,39 +330,27 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139848
-- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
-  method: testRescoreDocs
-  issue: https://github.com/elastic/elasticsearch/issues/139859
-- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
-  method: testRescoreSingleAndBulkEquality
-  issue: https://github.com/elastic/elasticsearch/issues/139869
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnQueryRescore
-  issue: https://github.com/elastic/elasticsearch/issues/139912
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/139974
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testReadBlobWithReadTimeouts
   issue: https://github.com/elastic/elasticsearch/issues/139995
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnRetriever
-  issue: https://github.com/elastic/elasticsearch/issues/140014
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test140CgroupOsStatsAreAvailable
   issue: https://github.com/elastic/elasticsearch/issues/131372
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnSearchRescore
-  issue: https://github.com/elastic/elasticsearch/issues/140078
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
+  issue: https://github.com/elastic/elasticsearch/issues/138480
 
 # Examples:
 #

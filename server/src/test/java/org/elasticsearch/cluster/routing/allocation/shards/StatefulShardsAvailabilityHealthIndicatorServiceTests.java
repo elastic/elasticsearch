@@ -1047,18 +1047,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 .put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())))
         ).build();
         {
-            List<Diagnosis.Resource> affectedResources = ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus
-                .getRestoreFromSnapshotAffectedResources(
-                    metadata,
-                    getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
-                    Set.of(
-                        new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
-                        new ProjectIndexName(projectId, ".feature-index"),
-                        new ProjectIndexName(projectId, "regular-index")
-                    ),
-                    10,
-                    false
-                );
+            List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
+                metadata,
+                getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
+                Set.of(
+                    new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
+                    new ProjectIndexName(projectId, ".feature-index"),
+                    new ProjectIndexName(projectId, "regular-index")
+                ),
+                10,
+                false
+            );
 
             assertThat(affectedResources.size(), is(2));
             for (Diagnosis.Resource resource : affectedResources) {
@@ -1072,18 +1071,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
 
         {
-            List<Diagnosis.Resource> affectedResources = ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus
-                .getRestoreFromSnapshotAffectedResources(
-                    metadata,
-                    getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
-                    Set.of(
-                        new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
-                        new ProjectIndexName(projectId, ".feature-index"),
-                        new ProjectIndexName(projectId, "regular-index")
-                    ),
-                    0,
-                    false
-                );
+            List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
+                metadata,
+                getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
+                Set.of(
+                    new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
+                    new ProjectIndexName(projectId, ".feature-index"),
+                    new ProjectIndexName(projectId, "regular-index")
+                ),
+                0,
+                false
+            );
 
             assertThat(affectedResources.size(), is(2));
             for (Diagnosis.Resource resource : affectedResources) {

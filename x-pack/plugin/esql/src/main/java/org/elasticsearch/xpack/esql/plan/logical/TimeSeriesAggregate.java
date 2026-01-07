@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,9 +17,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
@@ -37,35 +41,47 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
  * The grouping must be `_tsid` and `tbucket` or just `_tsid`.
  */
-public class TimeSeriesAggregate extends Aggregate {
+public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "TimeSeriesAggregate",
         TimeSeriesAggregate::new
     );
+    private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
 
     private final Bucket timeBucket;
+    private final Expression timestamp;
 
     public TimeSeriesAggregate(
         Source source,
         LogicalPlan child,
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
-        Bucket timeBucket
+        Bucket timeBucket,
+        Expression timestamp
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.timestamp = timestamp;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
+            this.timestamp = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            this.timestamp = new UnresolvedTimestamp(Source.EMPTY);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
+            out.writeOptionalNamedWriteable(timestamp);
+        }
     }
 
     @Override
@@ -75,22 +91,22 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved());
+        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && timestamp.resolved();
     }
 
     @Nullable
@@ -99,8 +115,13 @@ public class TimeSeriesAggregate extends Aggregate {
     }
 
     @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
     }
 
     @Override
@@ -117,7 +138,8 @@ public class TimeSeriesAggregate extends Aggregate {
         return Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
-            && Objects.equals(timeBucket, other.timeBucket);
+            && Objects.equals(timeBucket, other.timeBucket)
+            && Objects.equals(timestamp, other.timestamp);
     }
 
     @Override
@@ -206,6 +228,16 @@ public class TimeSeriesAggregate extends Aggregate {
                 );
             }
         });
+        if (timestamp instanceof TypedAttribute ta && ta.dataType().isDate() == false) {
+            failures.add(
+                fail(
+                    timestamp,
+                    "the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present",
+                    timestamp.sourceText(),
+                    ta.dataType().typeName()
+                )
+            );
+        }
     }
 
     @Override

@@ -101,7 +101,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
 
         final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         final ProjectMetadata.Builder project = projectBuilder(projectId, indexNames);
-        final ClusterState state = buildClusterState(project);
+        final ClusterState state = buildClusterState(false, project);
 
         final ClusterStateResponse response = executeAction(projectResolver, request, state);
 
@@ -229,7 +229,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         } else {
             assertThat(routingTables.get(projectId).indicesRouting(), anEmptyMap());
         }
-        if (request.customs()) {
+        if (request.customs() && multiprojectEnabled) {
             ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(response.getState());
             assertThat(projectStateRegistry.size(), equalTo(1));
             Settings projectSettings = projectStateRegistry.getProjectSettings(projectId);
@@ -280,6 +280,11 @@ public class TransportClusterStateActionTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterState(ProjectMetadata.Builder... projects) {
+        return buildClusterState(true, projects);
+    }
+
+    private static ClusterState buildClusterState(boolean multiprojectEnabled, ProjectMetadata.Builder... projects) {
+        assert multiprojectEnabled || projects.length == 1;
         final Metadata.Builder metadataBuilder = Metadata.builder();
         metadataBuilder.put(
             ReservedStateMetadata.builder("file_settings")
@@ -292,14 +297,16 @@ public class TransportClusterStateActionTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)));
         ProjectStateRegistry.Builder psBuilder = ProjectStateRegistry.builder();
-        for (ProjectMetadata.Builder project : projects) {
-            psBuilder.putReservedStateMetadata(
-                project.getId(),
-                ReservedStateMetadata.builder("file_settings")
-                    .version(43L)
-                    .putHandler(new ReservedStateHandlerMetadata("project_settings", Set.of("setting_1")))
-                    .build()
-            ).putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+        if (multiprojectEnabled) {
+            for (ProjectMetadata.Builder project : projects) {
+                psBuilder.putReservedStateMetadata(
+                    project.getId(),
+                    ReservedStateMetadata.builder("file_settings")
+                        .version(43L)
+                        .putHandler(new ReservedStateHandlerMetadata("project_settings", Set.of("setting_1")))
+                        .build()
+                ).putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+            }
         }
         return csBuilder.metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))

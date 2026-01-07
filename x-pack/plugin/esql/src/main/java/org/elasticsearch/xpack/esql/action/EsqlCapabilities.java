@@ -918,11 +918,6 @@ public class EsqlCapabilities {
         METADATA_SCORE,
 
         /**
-         * Term function
-         */
-        TERM_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Additional types for match function and operator
          */
         MATCH_ADDITIONAL_TYPES,

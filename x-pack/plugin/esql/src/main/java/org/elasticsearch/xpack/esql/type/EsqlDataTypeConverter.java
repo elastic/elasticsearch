@@ -707,10 +707,11 @@ public class EsqlDataTypeConverter {
         return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
-    public static LongRangeBlockBuilder.LongRange parseDateRange(String s) {
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s, ZoneId zoneId) {
         var ss = s.split("\\.\\.");
         assert ss.length == 2 : "can't parse range: " + s;
-        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0]), dateTimeToLong(ss[1]) - 1);
+        var formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
+        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0], formatter), dateTimeToLong(ss[1], formatter) - 1);
     }
 
     public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {

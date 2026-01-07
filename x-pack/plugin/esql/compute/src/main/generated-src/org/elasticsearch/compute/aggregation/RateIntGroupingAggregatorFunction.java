@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
@@ -24,12 +26,16 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +43,43 @@ import java.util.Map;
 // end generated imports
 
 public final class RateIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
+
+    private static class LocalSingletonCircuitBreakerService extends CircuitBreakerService implements Releasable {
+
+        private final LocalCircuitBreaker localCircuitBreaker;
+        private final String breakerName;
+
+        private LocalSingletonCircuitBreakerService(String breakerName, CircuitBreaker delegate) {
+            this.breakerName = breakerName;
+            this.localCircuitBreaker = new LocalCircuitBreaker(
+                delegate,
+                ByteSizeValue.ofKb(8).getBytes(),
+                ByteSizeValue.ofKb(512).getBytes()
+            );
+        }
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            assert breakerName.equals(name) : "Only a breaker with the name " + breakerName + " is supported";
+            return localCircuitBreaker;
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            // todo: assert that everything was released?
+            localCircuitBreaker.close();
+        }
+    }
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         // Overriding constructor to support isRateOverTime flag
@@ -84,6 +127,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private ObjectArray<Buffer> buffers;
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private final LocalSingletonCircuitBreakerService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
@@ -97,12 +141,13 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.bigArrays = driverContext.bigArrays();
+        localCircuitBreakerService = new LocalSingletonCircuitBreakerService("local-big-arrays", driverContext.breaker());
+        this.bigArrays = new BigArrays(null, localCircuitBreakerService, "local-big-arrays");
         this.isRateOverTime = isRateOverTime;
-        ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
+        ObjectArray<Buffer> buffers = bigArrays.newObjectArray(256);
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         try {
-            this.reducedStates = driverContext.bigArrays().newObjectArray(256);
+            this.reducedStates = bigArrays.newObjectArray(256);
             this.buffers = buffers;
             buffers = null;
         } finally {

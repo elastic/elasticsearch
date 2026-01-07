@@ -27,5 +27,5 @@
     "from colors\n| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127])\n| sort similarity desc, color asc"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

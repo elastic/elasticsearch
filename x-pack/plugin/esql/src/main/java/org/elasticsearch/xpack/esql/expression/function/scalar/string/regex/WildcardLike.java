@@ -36,36 +36,55 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     );
     public static final String NAME = "LIKE";
 
-    @FunctionInfo(returnType = "boolean", description = """
-        Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
-        usually acts on a field placed on the left-hand side of the operator, but it can
-        also act on a constant (literal) expression. The right-hand side of the operator
-        represents the pattern.
+    @FunctionInfo(
+        returnType = "boolean",
+        description = """
+            Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
+            usually acts on a field placed on the left-hand side of the operator, but it can
+            also act on a constant (literal) expression. The right-hand side of the operator
+            represents the pattern.
 
-        The following wildcard characters are supported:
+            The following wildcard characters are supported:
 
-        * `*` matches zero or more characters.
-        * `?` matches one character.""", detailedDescription = """
-        Matching the exact characters `*` and `.` will require escaping.
-        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
-        it will require further escaping.
+            * `*` matches zero or more characters.
+            * `?` matches one character.""",
 
-        <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
+        // we use an inline example here because ?pattern not supported in csv-spec test
+        detailedDescription = """
+            Matching the exact characters `*` and `.` will require escaping.
+            The escape character is backslash `\\`. Since also backslash is a special character in string literals,
+            it will require further escaping.
 
-        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+            <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
 
-        <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+            To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
-        ```{applies_to}
-        stack: ga 9.1
-        serverless: ga
-        ```
-        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
-        the expression will return true if any of the patterns match.
+            <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
 
-        <<load-esql-example, file=where-like tag=likeListDocExample>>
+            ```{applies_to}
+            stack: ga 9.1
+            serverless: ga
+            ```
+            Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+            the expression will return true if any of the patterns match.
 
-        """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
+            <<load-esql-example, file=where-like tag=likeListDocExample>>
+
+            Patterns may be specified with REST query placeholders as well
+
+            ```esql
+            FROM employees
+            | WHERE first_name LIKE ?pattern
+            | KEEP first_name, last_name
+            ```
+
+            ```{applies_to}
+            stack: ga 9.3
+            ```
+            """,
+        operator = NAME,
+        examples = @Example(file = "docs", tag = "like")
+    )
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,

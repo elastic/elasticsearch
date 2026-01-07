@@ -36,8 +36,9 @@ import org.elasticsearch.core.Releasables;
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
 public class IrateIntAggregator {
-    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta) {
-        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta);
+    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta, boolean isDateNanos) {
+        final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
+        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta, dateFactor);
     }
 
     public static void combine(IntIrateGroupingState current, int groupId, int value, long timestamp) {
@@ -88,12 +89,14 @@ public class IrateIntAggregator {
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final boolean isDelta;
+        private final int dateFactor;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta, int dateFactor) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.isDelta = isDelta;
+            this.dateFactor = dateFactor;
         }
 
         void ensureCapacity(int groupId) {
@@ -211,7 +214,7 @@ public class IrateIntAggregator {
                             ? state.lastValue - state.secondLastValue
                             : state.lastValue;
                         final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                        rates.appendDouble(ydiff / xdiff * 1000);
+                        rates.appendDouble(ydiff / xdiff * dateFactor);
                     }
                 }
                 return rates.build();

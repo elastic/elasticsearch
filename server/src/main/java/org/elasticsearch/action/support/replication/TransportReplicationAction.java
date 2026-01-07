@@ -338,6 +338,9 @@ public abstract class TransportReplicationAction<
 
     /**
      * During Resharding, we might need to split the primary request.
+     * We are here because there was mismatch between the SplitShardCountSummary in the request
+     * and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
+     * the current state.
      */
     protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
         return Map.of(request.shardId(), request);
@@ -544,7 +547,7 @@ public abstract class TransportReplicationAction<
                     splitCoordinator.coordinate();
                 } else {
                     setPhase(replicationTask, "primary");
-                    executePrimaryRequest(primaryShardReference, setFinishedListener);
+                    executePrimaryRequest(primaryShardReference, primaryRequest.getRequest(), setFinishedListener);
                 }
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference);
@@ -554,6 +557,7 @@ public abstract class TransportReplicationAction<
 
         private void executePrimaryRequest(
             final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
+            Request request,
             final ActionListener<Response> listener
         ) throws Exception {
             final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
@@ -586,7 +590,7 @@ public abstract class TransportReplicationAction<
             });
 
             new ReplicationOperation<>(
-                primaryRequest.getRequest(),
+                request,
                 primaryShardReference,
                 responseListener.map(result -> result.replicationResponse),
                 newReplicasProxy(),

@@ -47,4 +47,63 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().modelId(), is("new_model_id"));
         assertThat(overriddenModel.getTaskType(), is(TaskType.COMPLETION));
     }
+
+    public void testUriCreation() {
+        var url = "http://eis-gateway.com";
+        var model = createModel(url, "my-model-id");
+
+        var uri = model.uri();
+        assertThat(uri.toString(), is(url + "/api/v1/chat"));
+    }
+
+    public void testGetServiceSettings() {
+        var modelId = "test-model";
+        var model = createModel("http://eis-gateway.com", modelId);
+
+        var serviceSettings = model.getServiceSettings();
+        assertThat(serviceSettings.modelId(), is(modelId));
+    }
+
+    public void testGetTaskType() {
+        var model = createModel("http://eis-gateway.com", "my-model-id");
+        assertThat(model.getTaskType(), is(TaskType.COMPLETION));
+    }
+
+    public void testGetInferenceEntityId() {
+        var inferenceEntityId = "test-id";
+        var model = new ElasticInferenceServiceCompletionModel(
+            inferenceEntityId,
+            TaskType.COMPLETION,
+            "elastic",
+            new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            ElasticInferenceServiceComponents.of("http://eis-gateway.com")
+        );
+
+        assertThat(model.getInferenceEntityId(), is(inferenceEntityId));
+    }
+
+    public void testModelWithOverriddenServiceSettings() {
+        var originalModel = createModel("http://eis-gateway.com", "original-model");
+        var newServiceSettings = new ElasticInferenceServiceCompletionServiceSettings("new-model");
+
+        var overriddenModel = new ElasticInferenceServiceCompletionModel(originalModel, newServiceSettings);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("new-model"));
+        assertThat(overriddenModel.getTaskType(), is(TaskType.COMPLETION));
+        assertThat(overriddenModel.uri().toString(), is(originalModel.uri().toString()));
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId) {
+        return new ElasticInferenceServiceCompletionModel(
+            "id",
+            TaskType.COMPLETION,
+            "elastic",
+            new ElasticInferenceServiceCompletionServiceSettings(modelId),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            ElasticInferenceServiceComponents.of(url)
+        );
+    }
 }

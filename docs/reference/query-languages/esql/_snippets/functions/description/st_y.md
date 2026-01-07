@@ -2,5 +2,5 @@
 
 **Description**
 
-Extracts the `y` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
+Extracts the `y` coordinate from the supplied point. If the point is of type `geo_point` this is equivalent to extracting the `latitude` value.
 

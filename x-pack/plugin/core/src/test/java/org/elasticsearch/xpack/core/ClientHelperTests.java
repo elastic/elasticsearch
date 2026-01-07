@@ -423,7 +423,6 @@ public class ClientHelperTests extends ESTestCase {
 
         // Rewritten for older version
         final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion()
         );

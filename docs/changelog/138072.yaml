@@ -1,0 +1,5 @@
+pr: 138072
+summary: Add a new setting for s3 API call timeout
+area: Snapshot/Restore
+type: enhancement
+issues: []

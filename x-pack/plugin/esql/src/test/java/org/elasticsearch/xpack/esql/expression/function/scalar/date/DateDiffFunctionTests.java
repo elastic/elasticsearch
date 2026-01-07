@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneOffset;
+
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -20,7 +22,7 @@ public class DateDiffFunctionTests extends ESTestCase {
     public void testDateDiffFunctionErrorUnitNotValid() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DateDiff.processMillis(new BytesRef("sseconds"), 0, 0)
+            () -> DateDiff.processMillis(new BytesRef("sseconds"), 0, 0, ZoneOffset.UTC)
         );
         assertThat(
             e.getMessage(),
@@ -30,7 +32,10 @@ public class DateDiffFunctionTests extends ESTestCase {
             )
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> DateDiff.processMillis(new BytesRef("not-valid-unit"), 0, 0));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DateDiff.processMillis(new BytesRef("not-valid-unit"), 0, 0, ZoneOffset.UTC)
+        );
         assertThat(
             e.getMessage(),
             containsString(

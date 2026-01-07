@@ -349,7 +349,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] diff = generateRandomVector(vectorSize);
         float soarLambda = random().nextFloat();
-        float rnorm = random().nextFloat();
+        float rnorm = random().nextFloat(10);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
         defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);

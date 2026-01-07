@@ -27,6 +27,7 @@ module org.elasticsearch.xcore {
     requires org.apache.httpcomponents.core5.httpcore5;
     requires org.slf4j;
     requires com.ibm.icu;
+    requires org.elasticsearch.exponentialhistogram;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -70,7 +71,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
-    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
+    exports org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
     exports org.elasticsearch.xpack.core.graph;

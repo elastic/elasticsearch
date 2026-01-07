@@ -47,8 +47,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -72,6 +75,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
 import java.time.Instant;
@@ -2359,6 +2363,32 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testDeterministicShardAvailabilityKeyOrder() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ClusterState clusterState = createClusterStateWith(projectId, List.of(), List.of());
+        final ShardsAvailabilityHealthIndicatorService service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+
+        final HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        final String detailsJson = Strings.toString(result.details());
+        final Map<String, Object> details = XContentHelper.convertToMap(new BytesArray(detailsJson), true, XContentType.JSON).v2();
+
+        final List<String> actualKeys = details.entrySet().stream().map(Map.Entry::getKey).toList();
+        final List<String> expectedKeys = List.of(
+            "unassigned_primaries",
+            "initializing_primaries",
+            "creating_primaries",
+            "restarting_primaries",
+            "started_primaries",
+            "unassigned_replicas",
+            "initializing_replicas",
+            "creating_replicas",
+            "restarting_replicas",
+            "started_replicas"
+        );
+
+        assertThat(actualKeys, equalTo(expectedKeys));
     }
 
     private HealthIndicatorResult createExpectedResult(

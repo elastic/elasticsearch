@@ -81,7 +81,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * This class implements CRUD operation for the
  * datafeed configuration document
  *
- * The number of datafeeds returned in a search it limited to
+ * The number of datafeeds returned in a search is limited to
  * {@link MlConfigIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
  * In most cases we expect 10s or 100s of datafeeds to be defined and
  * a search for all datafeeds should return all.

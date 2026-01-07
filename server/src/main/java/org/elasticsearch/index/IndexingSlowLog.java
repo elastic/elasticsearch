@@ -80,10 +80,10 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * TODO: Remove in 9.0
      */
     @Deprecated
-    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".level",
-        SlowLogLevel.TRACE.name(),
-        SlowLogLevel::parse,
+        "",
+        (s) -> s,
         Property.Dynamic,
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8

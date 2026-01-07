@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.IntFunction;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Map.entry;
@@ -73,7 +74,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -172,7 +175,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
-            builder.field("time_zone", zoneId);
+            builder.field("time_zone", zoneId.toString());
             return this;
         }
 
@@ -286,7 +289,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(6, answer.size());
+        assertEquals(9, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -298,6 +301,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("values_loaded", 0)
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
+                .entry("completion_time_in_millis", greaterThan(0L))
+                .entry("expiration_time_in_millis", greaterThan(0L))
+                .entry("start_time_in_millis", greaterThan(0L))
         );
     }
 
@@ -1783,6 +1789,180 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         query = "FROM " + testIndexName() + " | WHERE field RLIKE \".*\\\\#.*\" | SORT field";
         answer = runEsql(requestObjectBuilder().query(query));
         assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
+    }
+
+    public void testMatchFunctionAcrossMultipleIndicesWithMissingField() throws IOException {
+        int numberOfIndicesWithField = randomIntBetween(11, 20);
+        int numberOfIndicesWithoutField = randomIntBetween(1, 10);
+        int totalIndices = numberOfIndicesWithField + numberOfIndicesWithoutField;
+
+        int indexNum = 0;
+        for (int i = 0; i < numberOfIndicesWithField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index with the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "message": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """);
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "message": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+        for (int i = 0; i < numberOfIndicesWithoutField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index without the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "other_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+                """);
+
+            // Index a document in each index
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "other_field": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+
+        // Query using MATCH function across all indices
+        String query = "FROM " + testIndexName() + "* | WHERE MATCH(message, \"elasticsearch\")";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        // Verify the number of results equals the number of indices that have the field
+        var values = as(result.get("values"), ArrayList.class);
+        assertEquals(
+            "Expected " + numberOfIndicesWithField + " results from indices with the 'message' field",
+            numberOfIndicesWithField,
+            values.size()
+        );
+
+        // Clean up - delete all created indices
+        for (int i = 0; i < totalIndices; i++) {
+            assertTrue(deleteIndex(testIndexName() + i).isAcknowledged());
+        }
+    }
+
+    public void testParamsWithLike() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var anonymous_query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword like ? | keep keyword | sort keyword", testIndexName())
+        ).params("[\"key*0\"]");
+        Map<String, Object> result = runEsql(anonymous_query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithLikeList() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var positional_query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword like (?1, ?2) | keep keyword | sort keyword", testIndexName())
+        ).params("[\"key*0\", \"key*1\"]");
+        Map<String, Object> result = runEsql(positional_query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithRLike() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword rlike ?pattern | keep keyword | sort keyword", testIndexName())
+        ).params("[{\"pattern\" : \"key.*0\"}]");
+        Map<String, Object> result = runEsql(query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithRLikeList() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword rlike (?p1, ?p2) | keep keyword | sort keyword", testIndexName())
+        ).params("[{\"p1\" : \"key.*0\"}, {\"p2\" : \"key.*1\"}]");
+        Map<String, Object> result = runEsql(query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
+    }
+
+    @SuppressWarnings("fallthrough")
+    public void testRandomTimezoneBuckets() throws IOException {
+        assumeTrue("timezone support for date_trunc is required", EsqlCapabilities.Cap.DATE_TRUNC_TIMEZONE_SUPPORT.isEnabled());
+
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    }
+                }
+            }
+            """);
+        bulkLoadTestData(randomIntBetween(1, 10), 0, false, i -> """
+            {"index":{"_id":"%s"}}
+            {"@timestamp": %s}
+            """.formatted(testIndexName(), randomLong()));
+
+        var timeZone = randomZone();
+        var interval = randomFrom("1 hour", "1 day", "1 month");
+        var functions = Stream.of("DATE_TRUNC(\"%s\", @timestamp)", "BUCKET(@timestamp, \"%s\")", "TBUCKET(\"%s\")")
+            .map(f -> f.formatted(interval))
+            .toList();
+
+        Object firstResultValues = null;
+
+        for (int timezoneSettingMethod = 0; timezoneSettingMethod < 3; timezoneSettingMethod++) {
+            for (var function : functions) {
+                var query = "FROM %s | STATS BY bucket=%s | SORT bucket".formatted(testIndexName(), function);
+                var builder = requestObjectBuilder();
+
+                switch (timezoneSettingMethod) {
+                    case 0: // "time_zone" request param
+                        builder.query(query).timeZone(timeZone);
+                        break;
+                    case 1: // Random "time_zone" request param with a SET overriding it
+                        builder.timeZone(randomZone());
+                        // Fall-through and set the actual timezone. This case only sets a random, to-be-overridden request timezone
+                    case 2: // SET "time_zone" param
+                        builder.query("SET time_zone=\"%s\"; %s".formatted(timeZone, query));
+                        break;
+                }
+
+                var result = runEsql(requestObjectBuilder().query(query).timeZone(timeZone));
+
+                assertResultMap(
+                    result,
+                    getResultMatcher(result),
+                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date")),
+                    hasSize(greaterThanOrEqualTo(1))
+                );
+
+                Object values = result.get("values");
+
+                if (firstResultValues == null) {
+                    firstResultValues = values;
+                } else {
+                    assertThat(
+                        "function %s for timezone %s didn't return the same values".formatted(function, timeZone),
+                        values,
+                        equalTo(firstResultValues)
+                    );
+                }
+            }
+        }
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {

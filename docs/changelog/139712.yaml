@@ -1,0 +1,7 @@
+pr: 139712
+summary: Making sure that failure store document converter does not hang on unexpected
+  exceptions
+area: Data streams
+type: bug
+issues:
+ - 139707

@@ -11,9 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.example.SpiExtensionRestTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -22,19 +20,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Integration test to test authentication with the custom realm
  */
-public class CustomRealmIT extends ESRestTestCase {
-
-    // These are configured in build.gradle
-    public static final String USERNAME = "test_user";
-    public static final String PASSWORD = "secret_password";
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME)
-            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
-            .build();
-    }
+public class CustomRealmIT extends SpiExtensionRestTestCase {
 
     public void testHttpConnectionWithNoAuthentication() {
         Request request = new Request("GET", "/");
@@ -52,8 +38,8 @@ public class CustomRealmIT extends ESRestTestCase {
     public void testHttpAuthentication() throws Exception {
         Request request = new Request("GET", "/");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(CustomRealm.USER_HEADER, USERNAME);
-        options.addHeader(CustomRealm.PW_HEADER, PASSWORD);
+        options.addHeader(CustomRealm.USER_HEADER, REALM_USERNAME);
+        options.addHeader(CustomRealm.PW_HEADER, REALM_PASSWORD);
         request.setOptions(options);
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -326,7 +325,7 @@ public class AmazonBedrockService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -370,7 +369,7 @@ public class AmazonBedrockService extends SenderService {
     }
 
     private static void checkTaskSettingsForTextEmbeddingModel(AmazonBedrockEmbeddingsModel model) {
-        if (model.provider() != AmazonBedrockProvider.COHERE && model.getTaskSettings().cohereTruncation() != null) {
+        if (model.provider() != AmazonBedrockProvider.COHERE && model.getTaskSettings().truncation() != null) {
             throw new ElasticsearchStatusException(
                 "The [{}] task type for provider [{}] does not allow [truncate] field",
                 RestStatus.BAD_REQUEST,

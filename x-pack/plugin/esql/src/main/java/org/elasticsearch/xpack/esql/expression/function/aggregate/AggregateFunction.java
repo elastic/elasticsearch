@@ -41,6 +41,23 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * - Aggregate functions can have an optional filter and window, which default to {@code Literal.TRUE} and {@code NO_WINDOW}.
  * - The aggregation function should be composed as: source, field, filter, window, parameters.
  * Extra parameters should go to the parameters after the filter and window.
+ * <p>
+ *     These function appear only in special places in the language that expect to take many inputs
+ *     and produce one output per group key:
+ * </p>
+ * <ul>
+ *     <li>{@code | STATS MAX(a)}</li>
+ *     <li>{@code | STATS MAX(a) BY ...}</li>
+ * </ul>
+ * <p>
+ *     They always process many input rows to produce their values. If they are built
+ *     without a {@code BY} they produce a single value as output. If they are built
+ *     with a {@code BY} they produce one value per group key as output.
+ * </p>
+ * <p>
+ *     See {@link org.elasticsearch.compute.aggregation.AggregatorMode} for important
+ *     information about their execution lifecycle.
+ * </p>
  */
 public abstract class AggregateFunction extends Function implements PostAnalysisPlanVerificationAware {
     public static final Literal NO_WINDOW = Literal.timeDuration(Source.EMPTY, Duration.ZERO);

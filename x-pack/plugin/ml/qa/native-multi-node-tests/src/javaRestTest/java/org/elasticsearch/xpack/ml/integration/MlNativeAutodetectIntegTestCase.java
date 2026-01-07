@@ -141,6 +141,13 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
     }
 
+    protected StopDatafeedAction.Response stopDatafeed(String datafeedId, boolean closeJob, boolean forceStop) {
+        StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedId);
+        request.setCloseJob(closeJob);
+        request.setForce(forceStop);
+        return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
+    }
+
     protected PutDatafeedAction.Response updateDatafeed(DatafeedUpdate update) {
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(update);
         return client().execute(UpdateDatafeedAction.INSTANCE, request).actionGet();
@@ -292,6 +299,28 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
         );
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            List<Annotation> annotations = new ArrayList<>();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                    annotations.add(Annotation.fromXContent(parser, null));
+                }
+            }
+            assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
+        });
+    }
+
+    protected void assertThatNumberOfAnnotationsIsEqualTo(String jobId, int expectedNumberOfAnnotations) throws Exception {
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .get();
+
+        SearchRequest searchRequest = client().prepareSearch(AnnotationIndex.READ_ALIAS_NAME)
+            .setQuery(QueryBuilders.termQuery("job_id", jobId))
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .request();
+
         assertCheckedResponse(client().search(searchRequest), searchResponse -> {
             List<Annotation> annotations = new ArrayList<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {

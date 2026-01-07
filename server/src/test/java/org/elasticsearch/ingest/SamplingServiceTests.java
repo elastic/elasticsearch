@@ -71,7 +71,7 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0, maxSize, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(1.0, maxSize, ByteSizeValue.ofKb(500), TimeValue.timeValueDays(3), null))
                 )
             );
         projectMetadata = projectBuilder.build();
@@ -138,7 +138,7 @@ public class SamplingServiceTests extends ESTestCase {
                 new SamplingMetadata(
                     Map.of(
                         indexName,
-                        new SamplingConfiguration(1.0, 100, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), TEST_CONDITIONAL_SCRIPT)
+                        new SamplingConfiguration(1.0, 100, ByteSizeValue.ofMb(5), TimeValue.timeValueDays(3), TEST_CONDITIONAL_SCRIPT)
                     )
                 )
             );
@@ -183,7 +183,7 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(0.001, 100, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(0.001, 100, ByteSizeValue.ofMb(5), TimeValue.timeValueDays(3), null))
                 )
             );
         final ProjectId projectId = projectBuilder.getId();
@@ -223,7 +223,7 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofMb(5), TimeValue.timeValueDays(3), null))
                 )
             );
         final ProjectId projectId = projectBuilder.getId();

@@ -30,6 +30,6 @@ public class PresentOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new PresentOverTime(source, args.get(0));
+        return new PresentOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 }

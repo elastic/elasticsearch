@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,12 +42,7 @@ public class OriginalIndicesTests extends ESTestCase {
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 
             assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
-            // indices options are not equivalent when sent to an older version and re-read due
-            // to the addition of selector settings. Allow selectors is always true when read
-            // from a version prior to its addition, since true is the default value.
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) || originalIndices.indicesOptions().allowSelectors()) {
-                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
-            }
+            assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
         }
     }
 

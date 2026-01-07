@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
@@ -24,7 +25,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
  * Base class to check that a query than can be pushed down gives the same result
@@ -72,7 +75,15 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
     }
 
     protected void initIndexes() {
-        assertAcked(prepareCreate("indexed").setMapping(String.format(Locale.ROOT, """
+        initIndexes(Settings.builder());
+    }
+
+    protected void initIndexes(int numberOfShards) {
+        initIndexes(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards));
+    }
+
+    protected void initIndexes(Settings.Builder indexSettings) {
+        assertAcked(prepareCreate("indexed", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s" }
@@ -80,7 +91,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             }
             """, fieldType())));
 
-        assertAcked(prepareCreate("not-indexed").setMapping(String.format(Locale.ROOT, """
+        assertAcked(prepareCreate("not-indexed", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : false, "doc_values" : true }
@@ -88,7 +99,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             }
             """, fieldType())));
 
-        assertAcked(prepareCreate("not-indexed-nor-doc-values").setMapping(String.format(Locale.ROOT, """
+        assertAcked(prepareCreate("not-indexed-nor-doc-values", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : false, "doc_values" : false }
@@ -96,7 +107,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             }
             """, fieldType())));
 
-        assertAcked(prepareCreate("no-doc-values").setMapping(String.format(Locale.ROOT, """
+        assertAcked(prepareCreate("no-doc-values", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : true, "doc_values" : false }
@@ -173,7 +184,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         public TestQueryResponseCollection(List<String> queries) {
             this.responses = queries.stream().map(query -> {
                 try {
-                    return EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get();
+                    return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).get();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

@@ -87,6 +87,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -189,7 +190,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -202,15 +203,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id++")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+++")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -219,7 +220,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             var paceCounter = new AtomicInteger(0);
@@ -229,15 +230,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id++")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+++")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -380,7 +381,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 if (pitEnabled) {
-                    assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                    assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
                 } else {
                     assertNull(response.pointInTimeId());
                 }
@@ -393,7 +394,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 if (pitEnabled) {
                     assertNull(response.pointInTimeId());
                 } else {
-                    assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                    assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
                 }
             });
         }

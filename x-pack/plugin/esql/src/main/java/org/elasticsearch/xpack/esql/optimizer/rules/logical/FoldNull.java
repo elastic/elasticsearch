@@ -25,7 +25,6 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
 
     @Override
     public Expression rule(Expression e, LogicalOptimizerContext ctx) {
-        Expression result = tryReplaceIsNullIsNotNull(e);
 
         // convert an aggregate null filter into a false
         // perform this early to prevent the rule from converting the null filter into nullifying the whole expression
@@ -36,9 +35,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             }
         }
 
-        if (result != e) {
-            return result;
-        } else if (e instanceof In in) {
+        if (e instanceof In in) {
             if (Expressions.isGuaranteedNull(in.value())) {
                 return Literal.of(in, null);
             }
@@ -46,13 +43,14 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
-            && Expressions.anyMatch(e.children(), Expressions::isGuaranteedNull)) {
+            && e.children().stream().anyMatch(FoldNull::isNull)) {
                 return Literal.of(e, null);
             }
         return e;
     }
 
-    protected Expression tryReplaceIsNullIsNotNull(Expression e) {
-        return e;
+    private static boolean isNull(Expression e) {
+        return Expressions.isGuaranteedNull(e) || e.nullable() == Nullability.TRUE && e.children().stream().anyMatch(FoldNull::isNull);
     }
+
 }

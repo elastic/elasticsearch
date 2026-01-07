@@ -14,7 +14,6 @@ mapped_pages:
 :::{include} ../_snippets/lists/mv-functions.md
 :::
 
-
 :::{include} ../_snippets/functions/layout/mv_append.md
 :::
 
@@ -34,6 +33,9 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/mv_first.md
+:::
+
+:::{include} ../_snippets/functions/layout/mv_intersection.md
 :::
 
 :::{include} ../_snippets/functions/layout/mv_last.md
@@ -64,6 +66,9 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/mv_sum.md
+:::
+
+:::{include} ../_snippets/functions/layout/mv_union.md
 :::
 
 :::{include} ../_snippets/functions/layout/mv_zip.md

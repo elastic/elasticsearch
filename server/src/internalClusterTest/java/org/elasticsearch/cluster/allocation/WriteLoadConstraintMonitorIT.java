@@ -78,7 +78,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
                 Strings.format("""
-                    Nodes [[%s]] are hot-spotting, of 4 total cluster nodes. Reroute for hot-spotting has never previously been called. \
+                    Nodes [[%s]] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
                     Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s]. \
                     Triggering reroute.
                     """, getNodeId(dataNodeOne), TimeValue.timeValueMillis(queueLatencyThresholdMillis))
@@ -113,7 +113,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
                 Strings.format("""
-                    Nodes [[*]] are hot-spotting, of 4 total cluster nodes. \
+                    Nodes [[*]] are hot-spotting, of 3 total ingest nodes. \
                     Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [[%s]]. \
                     The write thread pool queue latency threshold is [%s]. Triggering reroute.
                     """, getNodeId(dataNodeOne), TimeValue.timeValueMillis(queueLatencyThresholdMillis))

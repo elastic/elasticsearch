@@ -1,0 +1,6 @@
+pr: 137210
+summary: "Introduce INDEX_SHARD_COUNT_FORMAT"
+area: Snapshot/Restore
+type: bug
+issues:
+  - 131822

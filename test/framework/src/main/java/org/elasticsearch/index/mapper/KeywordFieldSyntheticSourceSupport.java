@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,15 +25,41 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final Integer ignoreAbove;
     private final boolean allIgnored;
     private final boolean store;
-    private final boolean docValues;
+    private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
+    private final boolean allowIgnoredSource;
 
-    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean useFallbackSyntheticSource) {
+    KeywordFieldSyntheticSourceSupport(
+        Integer ignoreAbove,
+        boolean store,
+        String nullValue,
+        boolean allowIgnoredSource,
+        FieldMapper.DocValuesParameter.Values docValues
+    ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
         this.store = store;
         this.nullValue = nullValue;
-        this.docValues = useFallbackSyntheticSource == false || ESTestCase.randomBoolean();
+        this.allowIgnoredSource = allowIgnoredSource;
+        this.docValues = docValues;
+    }
+
+    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
+        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+        if (Build.current().isSnapshot() == false) {
+            if (allowIgnoredSource && ESTestCase.randomBoolean()) {
+                return FieldMapper.DocValuesParameter.Values.DISABLED;
+            } else {
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
+            }
+        }
+
+        return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
@@ -44,7 +71,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.
-        return store == false && docValues == false;
+        return store == false && docValues.enabled() == false;
     }
 
     @Override
@@ -111,8 +138,18 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (store) {
             b.field("store", true);
         }
-        if (docValues == false) {
+
+        if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else {
+            // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+            if (Build.current().isSnapshot() == false) {
+                b.field("doc_values", true);
+            } else {
+                b.startObject("doc_values");
+                b.field("cardinality", docValues.cardinality().toString());
+                b.endObject();
+            }
         }
     }
 

@@ -1,0 +1,105 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.exponential_histogram_type" ]
+      reason: exponential_histogram field type was introduced
+  # Create an index template for the data stream with histogram field
+  - do:
+      indices.put_index_template:
+        name: test_data_stream_template
+        body:
+          index_patterns: ["test-data-stream*"]
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                tdigest_or_exp_histo:
+                  type: histogram
+
+  # Create the data stream
+  - do:
+      indices.create_data_stream:
+        name: test-data-stream
+
+  # Insert a document with T-Digest histogram value
+  - do:
+      index:
+        index: test-data-stream
+        refresh: true
+        body:
+          '@timestamp': "2023-01-01T00:00:00Z"
+          tdigest_or_exp_histo:
+            values: [1.0, 2.0, 4.0]
+            counts: [2, 2, 1]
+
+  # Update the index template to change the field type to exponential_histogram
+  - do:
+      indices.put_index_template:
+        name: test_data_stream_template
+        body:
+          index_patterns: ["test-data-stream*"]
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                tdigest_or_exp_histo:
+                  type: exponential_histogram
+
+  # Rollover the data stream to apply the new mapping
+  - do:
+      indices.rollover:
+        alias: test-data-stream
+
+  # Insert a document with exponential_histogram value
+  - do:
+      index:
+        index: test-data-stream
+        refresh: true
+        body:
+          '@timestamp': "2023-01-02T00:00:00Z"
+          tdigest_or_exp_histo:
+            scale: 1
+            sum: 100.0
+            min: 1.0
+            max: 10.0
+            zero: { count: 1 }
+            positive: { indices: [0,1], counts: [1,2] }
+            negative: { indices: [0], counts: [1] }
+
+---
+"Value count aggregation over aggregate_metric_double and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            value_count_metric:
+              value_count:
+                field: tdigest_or_exp_histo
+  - match: { aggregations.value_count_metric.value: 10.0 }
+
+---
+"Sum aggregation over aggregate_metric_double and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            sum_metric:
+              sum:
+                field: tdigest_or_exp_histo
+  - match: { aggregations.sum_metric.value: 110.0 }
+
+---
+"Average aggregation over aggregate_metric_double and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            avg_metric:
+              avg:
+                field: tdigest_or_exp_histo
+  - match: { aggregations.avg_metric.value: 11.0 }

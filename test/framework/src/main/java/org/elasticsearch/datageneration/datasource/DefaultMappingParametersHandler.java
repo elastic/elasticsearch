@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datageneration.datasource;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -83,7 +84,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
-            var mapping = commonMappingParameters();
+            var mapping = new HashMap<String, Object>();
+            mapping.put("store", ESTestCase.randomBoolean());
+            mapping.put("index", ESTestCase.randomBoolean());
+
+            if (ESTestCase.randomBoolean()) {
+                mapping.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
+            }
+
+            mapping.put("doc_values", extendedDocValuesParams());
 
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
@@ -269,6 +278,21 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         return map;
+    }
+
+    protected Object extendedDocValuesParams() {
+        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+        if (Build.current().isSnapshot() == false) {
+            return ESTestCase.randomBoolean();
+        }
+
+        return switch (ESTestCase.randomInt(3)) {
+            case 0 -> false;
+            case 1 -> Map.of("cardinality", "low");
+            case 2 -> Map.of("cardinality", "high");
+            case 3 -> true;
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override

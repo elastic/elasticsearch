@@ -42,4 +42,8 @@ public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
     public static EsqlIllegalArgumentException illegalDataType(String dataTypeName) {
         return new EsqlIllegalArgumentException("illegal data type [" + dataTypeName + "]");
     }
+
+    public static EsqlIllegalArgumentException illegalDataTypeCombination(DataType dataType1, DataType dataType2) {
+        return new EsqlIllegalArgumentException("illegal data type combination [" + dataType1 + ", " + dataType2 + "]");
+    }
 }

@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -134,7 +135,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(bulkDoc.getId(), equalTo(ids[count]));
             assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
             assertThat(bulkDoc.getIntervalMillis(), equalTo(interval));
-            assertThat(bulkDoc.getSource(), equalTo(sources[count]));
+            assertThat(bulkDoc.getSource(), equalBytes(sources[count]));
             assertThat(bulkDoc.getXContentType(), equalTo(xContentType));
             ++count;
         }

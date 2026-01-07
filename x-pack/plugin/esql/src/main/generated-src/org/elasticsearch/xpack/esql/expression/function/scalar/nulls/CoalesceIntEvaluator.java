@@ -40,7 +40,11 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceIntEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceIntEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -52,7 +56,11 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceIntLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceIntLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -170,7 +178,10 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (IntBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+                try (
+                    IntBlock.Builder result = driverContext.blockFactory() //
+                        .newIntBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (IntBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -207,7 +218,10 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
         @Override
         protected IntBlock perPosition(Page page, IntBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+            try (
+                IntBlock.Builder result = driverContext.blockFactory() //
+                    .newIntBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

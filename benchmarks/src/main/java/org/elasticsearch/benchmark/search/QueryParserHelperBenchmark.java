@@ -191,7 +191,9 @@ public class QueryParserHelperBenchmark {
                 }
             },
             query -> { throw new UnsupportedOperationException(); },
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null,
+            null
         );
 
         try {

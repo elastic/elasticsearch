@@ -18,7 +18,6 @@ import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -192,7 +191,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType dimensionField(String name) {
-        return new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true)
+        return new KeywordFieldMapper.Builder(name, defaultIndexSettings()).dimension(true)
             .docValues(true)
             .build(MapperBuilderContext.root(true, true))
             .fieldType();

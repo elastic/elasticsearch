@@ -100,6 +100,11 @@ public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
     public BucketedSort buildBucketedSort(
         SearchExecutionContext context,
         BigArrays bigArrays,

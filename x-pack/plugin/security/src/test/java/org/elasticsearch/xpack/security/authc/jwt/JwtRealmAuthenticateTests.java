@@ -286,7 +286,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             1, // audiencesRange
             1, // usersRange
             1, // rolesRange
-            1, // jwtCacheSizeRange
+            0, // jwtCacheSizeRange (disabled cache)
             httpsServer, // createHttpsServer,
             true
         );

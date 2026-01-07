@@ -19,13 +19,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -63,19 +63,18 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
     protected void doExecute(Task task, InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener) {
         try {
             ActionListener<UnparsedModel> getModelListener = listener.delegateFailureAndWrap((l, unparsedModel) -> {
-                if (unparsedModel.taskType() == TaskType.CHAT_COMPLETION) {
-                    sendUnifiedCompletionRequest(request, l);
-                } else {
-                    sendInferenceActionRequest(request, l);
+                switch (unparsedModel.taskType()) {
+                    case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, l);
+                    case EMBEDDING -> sendEmbeddingRequest(request, l);
+                    case null, default -> sendInferenceActionRequest(request, l);
                 }
             });
 
-            if (request.getTaskType() == TaskType.ANY) {
-                modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
-            } else if (request.getTaskType() == TaskType.CHAT_COMPLETION) {
-                sendUnifiedCompletionRequest(request, listener);
-            } else {
-                sendInferenceActionRequest(request, listener);
+            switch (request.getTaskType()) {
+                case ANY -> modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
+                case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, listener);
+                case EMBEDDING -> sendEmbeddingRequest(request, listener);
+                case null, default -> sendInferenceActionRequest(request, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -111,6 +110,22 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         } catch (Exception e) {
             unifiedErrorFormatListener.onFailure(e);
         }
+    }
+
+    private void sendEmbeddingRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        EmbeddingAction.Request embeddingRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            embeddingRequest = EmbeddingAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTaskType(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(EmbeddingAction.INSTANCE, embeddingRequest, listener);
     }
 
     private void sendInferenceActionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)

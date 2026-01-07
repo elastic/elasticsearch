@@ -73,7 +73,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        BytesRefBlock valuesBlock = page.getBlock(0);
+        BytesRefBlock valuesBlock = page.getBlock(channel);
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override

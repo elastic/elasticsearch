@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.inference.MlModelServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,6 +51,14 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
     );
+
+    @ClassRule
+    public static MlModelServer mlModelServer = new MlModelServer();
+
+    @Before
+    public void setMlModelRepository() throws IOException {
+        assertOK(mlModelServer.setMlModelRepository(adminClient()));
+    }
 
     public AbstractXPackRestTest(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

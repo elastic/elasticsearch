@@ -106,7 +106,6 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION
         );
         this.rawVectorDelegate = rawVectorDelegate;
-        boolean success = false;
         try {
             meta = state.directory.createOutput(metaFileName, state.context);
             binarizedVectorData = state.directory.createOutput(binarizedVectorDataFileName, state.context);
@@ -125,11 +124,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 

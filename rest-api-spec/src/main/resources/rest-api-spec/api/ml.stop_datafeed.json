@@ -41,6 +41,11 @@
         "default": false,
         "description": "True if the datafeed should be forcefully stopped."
       },
+      "close_job": {
+        "type": "boolean",
+        "default": false,
+        "description": "True if the job associated with the datafeed should be closed."
+      },
       "timeout": {
         "type": "time",
         "default": "20s",

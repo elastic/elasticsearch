@@ -19,6 +19,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -117,7 +118,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
             }
         }
         if (error == null) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         return new ErrorQuery(error, context);
@@ -189,7 +190,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
         ErrorQuery(IndexError error, SearchExecutionContext context) {
             this.indexError = error;
             this.sleepCompleted = false;
-            this.matchAllQuery = new MatchAllDocsQuery();
+            this.matchAllQuery = Queries.ALL_DOCS_INSTANCE;
 
             if (error.getShardIds() != null) {
                 boolean match = false;

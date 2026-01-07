@@ -31,7 +31,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 public class DocValuesForUtilTests extends LuceneTestCase {
-    int NUMERIC_BLOCK_SIZE = 1 << 7;
+    int NUMERIC_BLOCK_SIZE = 1 << random().nextInt(7, 14);
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);

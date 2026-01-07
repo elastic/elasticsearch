@@ -2,6 +2,9 @@
 
 **Parameters**
 
-`number`
-:   Expression for which to calculate the variance over time.
+`field`
+:   the metric field to calculate the value for
+
+`window`
+:   the time window over which to compute the variance over time
 

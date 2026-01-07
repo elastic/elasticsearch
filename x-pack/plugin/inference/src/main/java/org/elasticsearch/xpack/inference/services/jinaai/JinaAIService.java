@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionCrea
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -54,6 +55,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -64,6 +68,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class JinaAIService extends SenderService implements RerankingInferenceService {
+
+    public static final TransportVersion JINA_AI_EMBEDDING_REFACTOR = TransportVersion.fromName("jina_ai_embedding_refactor");
+
     public static final String NAME = "jinaai";
 
     private static final String SERVICE_NAME = "Jina AI";
@@ -163,14 +170,13 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         return switch (taskType) {
             case TEXT_EMBEDDING -> new JinaAIEmbeddingsModel(
                 inferenceEntityId,
-                NAME,
                 serviceSettings,
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
                 context
             );
-            case RERANK -> new JinaAIRerankModel(inferenceEntityId, NAME, serviceSettings, taskSettings, secretSettings, context);
+            case RERANK -> new JinaAIRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         };
     }
@@ -276,9 +282,16 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         JinaAIModel jinaaiModel = (JinaAIModel) model;
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
+        boolean batchChunksAcrossInputs = true;
+        if (jinaaiModel.getTaskSettings() instanceof JinaAIEmbeddingsTaskSettings jinaAIEmbeddingsTaskSettings) {
+            batchChunksAcrossInputs = jinaAIEmbeddingsTaskSettings.getLateChunking() == null
+                || jinaAIEmbeddingsTaskSettings.getLateChunking() == false;
+        }
+
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            batchChunksAcrossInputs,
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -298,14 +311,14 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
             var updatedServiceSettings = new JinaAIEmbeddingsServiceSettings(
                 new JinaAIServiceSettings(
-                    serviceSettings.getCommonSettings().uri(),
                     serviceSettings.getCommonSettings().modelId(),
                     serviceSettings.getCommonSettings().rateLimitSettings()
                 ),
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,
-                serviceSettings.getEmbeddingType()
+                serviceSettings.getEmbeddingType(),
+                serviceSettings.dimensionsSetByUser()
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -331,7 +344,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -352,7 +365,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
-                    JinaAIServiceSettings.MODEL_ID,
+                    MODEL_ID,
                     new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The name of the model to use for the inference task."
                     )
@@ -368,13 +381,48 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
                     DIMENSIONS,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
                         "The number of dimensions the resulting embeddings should have. For more information refer to "
-                            + "https://api.jina.ai/redoc#tag/embeddings/operation/create_embedding_v1_embeddings_post."
+                            + "https://api.jina.ai/docs#tag/embeddings/operation/create_embedding_v1_embeddings_post."
                     )
                         .setLabel("Dimensions")
                         .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.put(
+                    EMBEDDING_TYPE,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        Strings.format(
+                            "The type of embedding to return. One of %s. bit and binary are equivalent and are encoded as "
+                                + "bytes with signed int8 precision.",
+                            EnumSet.allOf(JinaAIEmbeddingType.class)
+                        )
+                    )
+                        .setLabel("Embedding type")
+                        .setDefaultValue("float")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    SIMILARITY,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        Strings.format(
+                            "The similarity measure. One of %s. For float embeddings, the default similarity "
+                                + "is dot_product. For bit and binary embeddings, the default similarity is l2_norm.",
+                            EnumSet.allOf(SimilarityMeasure.class)
+                        )
+                    )
+                        .setLabel("Similarity")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 

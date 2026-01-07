@@ -294,3 +294,18 @@ The Lord of the Rings - Boxed Set                                | 3.76885509490
 Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4 | 0.001396648003719747
 // end::combine-result[]
 ;
+
+reranker followed by stats
+required_capability: rerank
+required_capability: match_operator_colon
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC, book_no ASC
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| STATS count_book = COUNT(*) WHERE _score >= 0.03
+;
+
+count_book:long
+2
+;

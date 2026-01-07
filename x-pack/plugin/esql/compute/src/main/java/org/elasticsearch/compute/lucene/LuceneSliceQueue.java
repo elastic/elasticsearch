@@ -189,7 +189,7 @@ public final class LuceneSliceQueue {
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
 
         int nextSliceId = 0;
-        for (ShardContext ctx : contexts.collection()) {
+        for (ShardContext ctx : contexts.iterable()) {
             for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
                 var scoreMode = scoreModeFunction.apply(ctx);
                 Query query = queryAndExtra.query;

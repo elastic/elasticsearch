@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.zip.ZipException;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -319,7 +320,7 @@ public class DeflateCompressTests extends ESTestCase {
                 }
             } else {
                 var uncompressed = compressor.uncompress(compressed);
-                assertEquals(original, uncompressed);
+                assertThat(uncompressed, equalBytes(original));
             }
         }
     }

@@ -311,7 +311,11 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     private void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, Map<String, Object> expectedResult) {
-        MapMatcher mapMatcher = getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found")).extraOk();
+        MapMatcher mapMatcher = getResultMatcher(
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
+        ).extraOk();
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
         }

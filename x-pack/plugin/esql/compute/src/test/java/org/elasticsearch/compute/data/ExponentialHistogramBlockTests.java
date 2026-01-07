@@ -18,22 +18,14 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.test.EnumSerializationTestUtils.assertEnumSerialization;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramBlockTests extends ComputeTestCase {
 
     public void testPopulatedBlockSerialization() throws IOException {
-        int elementCount = randomIntBetween(1, 100);
-        ExponentialHistogramBlockBuilder builder = blockFactory().newExponentialHistogramBlockBuilder(elementCount);
-        for (int i = 0; i < elementCount; i++) {
-            if (randomBoolean()) {
-                builder.appendNull();
-            } else {
-                builder.append(BlockTestUtils.randomExponentialHistogram());
-            }
-        }
-        ExponentialHistogramBlock block = builder.build();
+        ExponentialHistogramBlock block = randomBlockWithNulls();
         Block deserializedBlock = serializationRoundTrip(block);
         assertThat(deserializedBlock, equalTo(block));
         Releasables.close(block, deserializedBlock);
@@ -47,7 +39,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (LongBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount)
         );
@@ -63,6 +55,75 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         try (BlockStreamInput input = new BlockStreamInput(out.bytes().streamInput(), blockFactory())) {
             return Block.readTypedBlock(input);
         }
+    }
+
+    public void testComponentAccess() {
+        ExponentialHistogramBlock block;
+        if (randomBoolean()) {
+            block = randomBlockWithNulls();
+        } else {
+            block = (ExponentialHistogramBlock) blockFactory().newConstantNullBlock(randomIntBetween(1, 100));
+        }
+        ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
+            Block componentBlock = block.buildHistogramComponentBlock(component);
+            assertThat(componentBlock.getPositionCount(), equalTo(block.getPositionCount()));
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                if (block.isNull(i)) {
+                    assertThat(componentBlock.isNull(i), equalTo(true));
+                } else {
+                    ExponentialHistogram histo = block.getExponentialHistogram(i, scratch);
+                    switch (component) {
+                        case MIN -> {
+                            double expectedMin = histo.min();
+                            if (Double.isNaN(expectedMin)) {
+                                assertThat(componentBlock.isNull(i), equalTo(true));
+                            } else {
+                                assertThat(componentBlock.getValueCount(i), equalTo(1));
+                                int valueIndex = componentBlock.getFirstValueIndex(i);
+                                assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(expectedMin));
+                            }
+                        }
+                        case MAX -> {
+                            double expectedMax = histo.max();
+                            if (Double.isNaN(expectedMax)) {
+                                assertThat(componentBlock.isNull(i), equalTo(true));
+                            } else {
+                                assertThat(componentBlock.getValueCount(i), equalTo(1));
+                                int valueIndex = componentBlock.getFirstValueIndex(i);
+                                assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(expectedMax));
+                            }
+                        }
+                        case SUM -> {
+                            if (histo.valueCount() == 0) {
+                                assertThat(componentBlock.isNull(i), equalTo(true));
+                            } else {
+                                assertThat(componentBlock.getValueCount(i), equalTo(1));
+                                int valueIndex = componentBlock.getFirstValueIndex(i);
+                                assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(histo.sum()));
+                            }
+                        }
+                        case COUNT -> {
+                            assertThat(componentBlock.getValueCount(i), equalTo(1));
+                            int valueIndex = componentBlock.getFirstValueIndex(i);
+                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.valueCount()));
+                        }
+                    }
+                }
+            }
+            Releasables.close(componentBlock);
+        }
+        Releasables.close(block);
+    }
+
+    public void testComponentEnumSerialization() {
+        assertEnumSerialization(
+            ExponentialHistogramBlock.Component.class,
+            HistogramBlock.Component.MIN,
+            HistogramBlock.Component.MAX,
+            HistogramBlock.Component.SUM,
+            HistogramBlock.Component.COUNT
+        );
     }
 
     public void testEmptyBlockEquality() {
@@ -134,5 +195,18 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         Block filtered = toFilterAndRelease.filter();
         toFilterAndRelease.close();
         return filtered;
+    }
+
+    private ExponentialHistogramBlock randomBlockWithNulls() {
+        int elementCount = randomIntBetween(0, 100);
+        ExponentialHistogramBlockBuilder builder = blockFactory().newExponentialHistogramBlockBuilder(elementCount);
+        for (int i = 0; i < elementCount; i++) {
+            if (randomBoolean()) {
+                builder.appendNull();
+            } else {
+                builder.append(BlockTestUtils.randomExponentialHistogram());
+            }
+        }
+        return builder.build();
     }
 }

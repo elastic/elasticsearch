@@ -54,17 +54,16 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    // TODO enable this test when CPS check is re-enabled.
-    // Currently, CPS is under development, so also these checks would rely on incomplete functionality.
-    // public void testValidate_ProjectRouting_noCps() {
-    // var setting = QuerySettings.PROJECT_ROUTING;
-    // assertInvalid(
-    // setting.name(),
-    // SNAPSHOT_CTX_WITH_CPS_DISABLED,
-    // Literal.keyword(Source.EMPTY, "my-project"),
-    // "Error validating setting [project_routing]: not enabled"
-    // );
-    // }
+    public void testValidate_ProjectRouting_noCps() {
+        var setting = QuerySettings.PROJECT_ROUTING;
+        assertValid(setting, Literal.keyword(Source.EMPTY, "my-project"), equalTo("my-project"), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertInvalid(
+            setting.name(),
+            SNAPSHOT_CTX_WITH_CPS_DISABLED,
+            Literal.keyword(Source.EMPTY, "my-project"),
+            "Error validating setting [project_routing]: cross-project search not enabled"
+        );
+    }
 
     public void testValidate_TimeZone() {
         var setting = QuerySettings.TIME_ZONE;
@@ -97,9 +96,18 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Literal valueLiteral, Matcher<T> parsedValueMatcher) {
+        assertValid(settingDef, valueLiteral, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+    }
+
+    private static <T> void assertValid(
+        QuerySettings.QuerySettingDef<T> settingDef,
+        Literal valueLiteral,
+        Matcher<T> parsedValueMatcher,
+        SettingsValidationContext ctx
+    ) {
         QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), valueLiteral));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
-        QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        QuerySettings.validate(statement, ctx);
 
         T value = statement.setting(settingDef);
 

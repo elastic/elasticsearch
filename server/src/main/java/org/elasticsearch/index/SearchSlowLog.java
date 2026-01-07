@@ -115,10 +115,10 @@ public final class SearchSlowLog implements SearchOperationListener {
      * TODO: Remove in 9.0
      */
     @Deprecated
-    public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
+    public static final Setting<String> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".level",
-        SlowLogLevel.TRACE.name(),
-        SlowLogLevel::parse,
+        "",
+        s -> s,
         Property.Dynamic,
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8

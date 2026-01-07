@@ -1,0 +1,5 @@
+pr: 137648
+summary: Pull `OrderBy` followed by `InlineJoin` on top of it
+area: ES|QL
+type: enhancement
+issues: []

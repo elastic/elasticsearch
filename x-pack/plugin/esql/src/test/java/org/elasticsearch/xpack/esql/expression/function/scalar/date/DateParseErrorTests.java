@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,7 +30,13 @@ public class DateParseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new DateParse(source, args.get(0), args.size() > 1 ? args.get(1) : null, args.size() > 2 ? args.get(2) : null);
+        return new DateParse(
+            source,
+            args.get(0),
+            args.size() > 1 ? args.get(1) : null,
+            args.size() > 2 ? args.get(2) : null,
+            EsqlTestUtils.TEST_CFG
+        );
     }
 
     @Override

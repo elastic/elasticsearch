@@ -1,0 +1,5 @@
+pr: 137382
+summary: Make field fusion generic
+area: ES|QL
+type: enhancement
+issues: []

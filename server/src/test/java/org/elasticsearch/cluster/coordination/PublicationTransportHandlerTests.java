@@ -235,7 +235,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 allNodes.add(node);
                 nodeTransports.put(
                     node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.minimumCompatible(), TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(TransportVersion.minimumCompatible(), TransportVersion.current())
                 );
             }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.common;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,6 +60,6 @@ public class CartesianBoundingBox extends BoundingBox<CartesianPoint> {
 
     @Override
     public final TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
@@ -67,8 +66,6 @@ public class ExponentialHistogramParser {
     private static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
     private static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
-    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
-
     private static final Set<String> ROOT_FIELD_NAMES = Set.of(
         SCALE_FIELD.getPreferredName(),
         SUM_FIELD.getPreferredName(),
@@ -113,7 +110,7 @@ public class ExponentialHistogramParser {
 
     /**
      * Parses an XContent object into an exponential histogram.
-     * The parse is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
+     * The parser is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
      *
      * @param mappedFieldName the name of the field being parsed, used for error messages
      * @param parser the parser to use

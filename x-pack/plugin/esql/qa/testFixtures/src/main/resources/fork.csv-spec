@@ -179,6 +179,32 @@ fork3         | null           | 100    | 10100     | 10001
 fork4         | null           | 100    | 10001     | null
 ;
 
+forkWithStatsCountStarDateTrunc
+required_capability: fork_v9
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+       (STATS x = COUNT(*), y = MAX(emp_no) by hd = DATE_TRUNC(1 year, hire_date))
+       (STATS x = COUNT(*), y = MIN(emp_no) by hd = DATE_TRUNC(2 year, hire_date))
+| KEEP _fork, emp_no, hd, x, y
+| SORT _fork, emp_no, hd
+| LIMIT 10
+;
+
+_fork:keyword | emp_no:integer | hd:datetime              | x:long | y:integer
+fork1         | 10048          | null                     | null   | null
+fork1         | 10081          | null                     | null   | null
+fork2         | 10081          | null                     | null   | null
+fork2         | 10087          | null                     | null   | null
+fork3         | null           | 1985-01-01T00:00:00.000Z | 11     | 10098
+fork3         | null           | 1986-01-01T00:00:00.000Z | 11     | 10095
+fork3         | null           | 1987-01-01T00:00:00.000Z | 15     | 10100
+fork3         | null           | 1988-01-01T00:00:00.000Z | 9      | 10099
+fork3         | null           | 1989-01-01T00:00:00.000Z | 13     | 10092
+fork3         | null           | 1990-01-01T00:00:00.000Z | 12     | 10097
+;
+
 forkWithDissect
 required_capability: fork_v9
 
@@ -919,4 +945,20 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 10081          | M              | M foobar  | M         | foobar    | fork1
 10081          | M              | M foobar  | M         | foobar    | fork2
 10087          | F              | F foobar  | F         | foobar    | fork2
+;
+
+limitAfterFork
+required_capability: fork_v9
+
+FROM employees
+| FORK ( WHERE emp_no == 10001 )
+       ( WHERE emp_no == 10002 )
+| LIMIT 10
+| KEEP emp_no, _fork
+| SORT emp_no
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
 ;

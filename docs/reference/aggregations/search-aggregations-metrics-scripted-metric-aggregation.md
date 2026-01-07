@@ -2,6 +2,11 @@
 navigation_title: "Scripted metric"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
+applies_to:
+  stack: ga
+  serverless: unavailable
+products:
+  - id: elasticsearch
 ---
 
 # Scripted metric aggregation [search-aggregations-metrics-scripted-metric-aggregation]

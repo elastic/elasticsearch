@@ -1,0 +1,5 @@
+pr: 135873
+summary: Adds retriever for result diversification using MMR
+area: Search
+type: enhancement
+issues: [ ]

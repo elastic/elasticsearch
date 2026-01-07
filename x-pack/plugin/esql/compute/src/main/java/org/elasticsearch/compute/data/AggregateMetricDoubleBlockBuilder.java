@@ -186,7 +186,8 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         MIN(0, "min"),
         MAX(1, "max"),
         SUM(2, "sum"),
-        COUNT(3, "value_count");
+        COUNT(3, "value_count"),
+        DEFAULT(4, "default");
 
         private final int index;
         private final String label;
@@ -202,6 +203,17 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
         public String getLabel() {
             return label;
+        }
+
+        public static Metric indexToMetric(int i) {
+            return switch (i) {
+                case 0 -> MIN;
+                case 1 -> MAX;
+                case 2 -> SUM;
+                case 3 -> COUNT;
+                case 4 -> DEFAULT;
+                default -> null;
+            };
         }
     }
 

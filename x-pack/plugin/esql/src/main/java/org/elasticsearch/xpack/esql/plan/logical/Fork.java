@@ -162,7 +162,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     @Override
     public int hashCode() {
-        return Objects.hash(Fork.class, children());
+        return Objects.hash(Fork.class, output, children());
     }
 
     @Override
@@ -175,7 +175,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork other = (Fork) o;
 
-        return Objects.equals(children(), other.children());
+        return Objects.equals(output, other.output) && Objects.equals(children(), other.children());
     }
 
     @Override

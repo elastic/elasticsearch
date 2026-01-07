@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,23 +27,24 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.util.List;
 
+import static java.lang.Double.POSITIVE_INFINITY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
  * Determines the minimum value of the x-coordinate from a geometry.
  * The function `st_xmin` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
- * Alternatively it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_XMIN.html">PostGIS:ST_XMIN</a>.
+ * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_XMIN.html">PostGIS:ST_XMIN</a>.
  */
-public class StXMin extends UnaryScalarFunction {
+public class StXMin extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StXMin", StXMin::new);
+    private static final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder = new SpatialEnvelopeResults<>();
 
     @FunctionInfo(
         returnType = "double",
@@ -61,11 +64,20 @@ public class StXMin extends UnaryScalarFunction {
                 + "If `null`, the function returns `null`."
         ) Expression field
     ) {
-        super(source, field);
+        this(source, field, false);
+    }
+
+    private StXMin(Source source, Expression field, boolean spatialDocValues) {
+        super(source, field, spatialDocValues);
     }
 
     private StXMin(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
+        return new StXMin(source(), spatialField(), useDocValues);
     }
 
     @Override
@@ -74,16 +86,18 @@ public class StXMin extends UnaryScalarFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        return isSpatial(field(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
-    }
-
-    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StXMinFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
+        if (spatialDocValues) {
+            return switch (spatialField().dataType()) {
+                case GEO_POINT -> new StXMinFromDocValuesGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case CARTESIAN_POINT -> new StXMinFromDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+            };
         }
-        return new StXMinFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
+        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
+            return new StXMinFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        }
+        return new StXMinFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -93,37 +107,38 @@ public class StXMin extends UnaryScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StXMin(source(), newChildren.get(0));
+        return new StXMin(source(), newChildren.getFirst(), spatialDocValues);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StXMin::new, field());
+        return NodeInfo.create(this, StXMin::new, spatialField());
     }
 
-    @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static double fromWellKnownBinary(BytesRef wkb) {
-        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point point) {
-            return point.getX();
-        }
-        var envelope = SpatialEnvelopeVisitor.visitCartesian(geometry);
-        if (envelope.isPresent()) {
-            return envelope.get().getMinX();
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+        results.appendDouble(rectangle.getMinX());
     }
 
-    @ConvertEvaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
-    static double fromWellKnownBinaryGeo(BytesRef wkb) {
-        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point point) {
-            return point.getX();
-        }
-        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP);
-        if (envelope.isPresent()) {
-            return envelope.get().getMinX();
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromWellKnownBinary(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+        var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMin::buildEnvelopeResults);
+    }
+
+    @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
+    static void fromWellKnownBinaryGeo(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMin::buildEnvelopeResults);
+    }
+
+    @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+        resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, POSITIVE_INFINITY, (v, e) -> Math.min(v, CARTESIAN.decodeX(e)));
+    }
+
+    @Evaluator(extraName = "FromDocValuesGeo", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValuesGeo(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
+        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMin::buildEnvelopeResults);
     }
 }

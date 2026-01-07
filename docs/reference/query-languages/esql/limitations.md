@@ -32,13 +32,14 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `dense_vector` {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
 * `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
-* {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long`
+* `unsigned_long` {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * `version`
 * Spatial types
 
@@ -46,11 +47,11 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
-* TSDB metrics {preview}`9.2`
-   * `counter` 
-   * `gauge` 
+* TSDB metrics {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * `counter`
+   * `gauge`
    * `aggregate_metric_double`
-
+   * `exponential_histogram` {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]
@@ -59,13 +60,14 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 ::::{tab-set}
 :::{tab-item} 9.0-9.1
+* `dense_vector`
 * TSDB metrics
-   * `counter` 
-   * `gauge` 
+   * `counter`
+   * `gauge`
    * `aggregate_metric_double`
 :::
 :::{tab-item} 9.2+
-This limitation no longer exists and TSDB metrics are now supported (preview).
+This limitation no longer exists and TSDB metrics and `dense_vector` are now supported (preview).
 :::
 ::::
 * Date/time
@@ -104,12 +106,19 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
     * `cartesian_shape`
 
 
-In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+- In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
-* `dense_vector` field type is partially supported. [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) queries will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when the `KNN` function is not used.
+#### Partial support in 9.2.0
 
-This means that `FROM test` will not retrieve `dense_vector` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` will retrieve data.
+* {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
+    :::{note}
+    This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
+    * `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])`
+    * `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)`
+    :::
 
 ## _source availability [esql-_source-availability]
 
@@ -271,7 +280,7 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 
 ## Kibana limitations [esql-limitations-kibana]
 
-* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
+* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/try-esql.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
@@ -279,7 +288,7 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 
 ## Cross-cluster search limitations [esql-ccs-limitations]
 
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
+{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

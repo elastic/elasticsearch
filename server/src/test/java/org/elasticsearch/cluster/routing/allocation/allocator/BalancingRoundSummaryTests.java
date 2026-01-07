@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundSummary.CombinedBalancingRoundSummary;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,8 +24,8 @@ public class BalancingRoundSummaryTests extends ESTestCase {
      * Tests the {@link BalancingRoundSummary.CombinedBalancingRoundSummary#combine(List)} method.
      */
     public void testCombine() {
-        final String NODE_1 = "node1";
-        final String NODE_2 = "node2";
+        final DiscoveryNode NODE_1 = DiscoveryNodeUtils.create("node1", "node1Id");
+        final DiscoveryNode NODE_2 = DiscoveryNodeUtils.create("node2", "node2Id");
         final var node1BaseWeights = new DesiredBalanceMetrics.NodeWeightStats(10, 20, 30, 40);
         final var node2BaseWeights = new DesiredBalanceMetrics.NodeWeightStats(100, 200, 300, 400);
         final var commonDiff = new BalancingRoundSummary.NodeWeightsDiff(1, 2, 3, 4);
@@ -78,10 +80,10 @@ public class BalancingRoundSummaryTests extends ESTestCase {
 
         assertEquals(2, combined.numberOfBalancingRounds());
         assertEquals(shardMovesSummary1 + shardMovesSummary2, combined.numberOfShardMoves());
-        assertEquals(2, combined.nodeNameToWeightChanges().size());
+        assertEquals(2, combined.nodeToWeightChanges().size());
 
-        var combinedNode1WeightsChanges = combined.nodeNameToWeightChanges().get(NODE_1);
-        var combinedNode2WeightsChanges = combined.nodeNameToWeightChanges().get(NODE_2);
+        var combinedNode1WeightsChanges = combined.nodeToWeightChanges().get(NODE_1);
+        var combinedNode2WeightsChanges = combined.nodeToWeightChanges().get(NODE_2);
 
         // The base weights for each node should match the first BalancingRoundSummary's base weight values. The diff weights will be summed
         // across all BalancingRoundSummary entries (in this case, there are two BalancingRoundSummary entries).

@@ -590,7 +590,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     private DiscoveryNodes mixedVersionNodes() {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(null, VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );

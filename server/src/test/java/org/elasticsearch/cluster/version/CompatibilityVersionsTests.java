@@ -34,7 +34,6 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testMinimumTransportVersions() {
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersionUtils.getNextVersion(version1, true),
             TransportVersion.current()
         );
@@ -81,7 +80,6 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testMinimumsAreMerged() {
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersionUtils.getNextVersion(version1, true),
             TransportVersion.current()
         );
@@ -101,7 +99,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedTransportVersion() {
         List<TransportVersion> transportVersions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
+            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random(), false))
             .toList();
         TransportVersion min = Collections.min(transportVersions);
         List<CompatibilityVersions> compatibilityVersions = transportVersions.stream()
@@ -110,21 +108,14 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
         // should not throw
         CompatibilityVersions.ensureVersionsCompatibility(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()), Map.of()),
+            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(min, TransportVersion.current()), Map.of()),
             compatibilityVersions
         );
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> CompatibilityVersions.ensureVersionsCompatibility(
-                new CompatibilityVersions(
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        TransportVersionUtils.getFirstVersion(),
-                        TransportVersionUtils.getPreviousVersion(min)
-                    ),
-                    Map.of()
-                ),
+                new CompatibilityVersions(TransportVersionUtils.getPreviousVersion(min, true), Map.of()),
                 compatibilityVersions
             )
         );

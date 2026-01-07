@@ -278,7 +278,8 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SingleSpSamlRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null),
-            session
+            session,
+            null
         );
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 

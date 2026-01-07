@@ -76,6 +76,22 @@ The following settings for Elastic Universal Profiling are supported:
 :   *Version 8.9.0+*: Specifies whether Universal Profiling related index templates should be created on startup. Defaults to *false*.
 
 
+### Elasticsearch OTLP endpoint settings
+```{applies_to}
+stack: preview 9.2
+```
+
+The following settings can be used to customize the [OTLP endoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md):
+
+`xpack.otel_data.registry.enabled`
+:   Specifies whether OpenTelemetry related index templates should be created on startup. Defaults to *true*.
+
+`xpack.otel_data.histogram_field_type` {applies_to}`stack: preview 9.3`
+:   Defines how OTLP histograms are mapped in Elasticsearch. Valid values are:
+
+* `histogram` (default): Map histograms as T-Digests using the `histogram` field type
+* `exponential_histogram`: Map histograms as exponential histograms using the `exponential_histogram` field type
+
 ## Reindex settings [reindex-settings]
 
 $$$reindex-remote-whitelist$$$

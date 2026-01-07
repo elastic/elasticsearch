@@ -14,13 +14,13 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -65,7 +65,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), indexReader, childrenToParent -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, indexReader, childrenToParent -> {
             assertEquals(0, childrenToParent.getDocCount());
             Aggregation parentAggregation = childrenToParent.getAggregations().get("in_parent");
             assertEquals(0, childrenToParent.getDocCount());
@@ -89,7 +89,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             new ShardId(new Index("foo", "_na_"), 1)
         );
         // verify with all documents
-        testCase(new MatchAllDocsQuery(), indexReader, parent -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, indexReader, parent -> {
             int expectedTotalParents = 0;
             int expectedMinValue = Integer.MAX_VALUE;
             for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
@@ -154,7 +154,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             new ShardId(new Index("foo", "_na_"), 1)
         );
         // verify a terms-aggregation inside the parent-aggregation
-        testCaseTerms(new MatchAllDocsQuery(), indexReader, parent -> {
+        testCaseTerms(Queries.ALL_DOCS_INSTANCE, indexReader, parent -> {
             assertNotNull(parent);
             assertTrue(JoinAggregationInspectionHelper.hasValue(parent));
             LongTerms valueTerms = parent.getAggregations().get("value_terms");
@@ -196,7 +196,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         );
         // verify a terms-aggregation inside the parent-aggregation which itself is inside a
         // terms-aggregation on the child-documents
-        testCaseTermsParentTerms(new MatchAllDocsQuery(), indexReader, longTerms -> {
+        testCaseTermsParentTerms(Queries.ALL_DOCS_INSTANCE, indexReader, longTerms -> {
             assertNotNull(longTerms);
 
             for (LongTerms.Bucket bucket : longTerms.getBuckets()) {

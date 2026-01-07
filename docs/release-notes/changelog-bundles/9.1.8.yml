@@ -1,0 +1,135 @@
+version: 9.1.8
+released: true
+generated: 2025-12-02T16:05:38.476655158Z
+changelogs:
+  - pr: 108875
+    summary: Break on `FieldData` when building global ordinals
+    area: Aggregations
+    type: bug
+    issues:
+      - 97075
+  - pr: 135873
+    summary: Convert `BytesTransportResponse` when proxying response from/to local node
+    area: Network
+    type: bug
+    issues: []
+  - pr: 136886
+    summary: Fix ML calendar event update scalability issues
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 137230
+    summary: Principal Extraction from Certificate RDN Attribute Value in PKI Realm
+    area: Security
+    type: bug
+    issues: []
+  - pr: 137585
+    summary: "Restore API: Fix file settings handling"
+    area: Infra/Settings
+    type: bug
+    issues:
+      - 122429
+  - pr: 137637
+    summary: Fix Bug in `RankDocRetrieverBuilder` when `from` is set to Default (-1)
+    area: Search
+    type: bug
+    issues: []
+  - pr: 137638
+    summary: "ILM Explain: valid JSON on truncated step info"
+    area: ILM+SLM
+    type: bug
+    issues:
+      - 135458
+  - pr: 137652
+    summary: Fix default value for some settings when filtered
+    area: Infra/Settings
+    type: bug
+    issues:
+      - 136333
+  - pr: 137660
+    summary: Improve concurrency design of `GeoIpDownloader`
+    area: Ingest Node
+    type: bug
+    issues:
+      - 135158
+      - 130681
+      - 135132
+      - 133597
+  - pr: 137702
+    summary: Handle index deletion while querying in ES|QL
+    area: ES|QL
+    type: bug
+    issues:
+      - 135863
+  - pr: 137712
+    summary: Add User Profile Size Limit Enforced During Profile Updates
+    area: Security
+    type: bug
+    issues: []
+  - pr: 137850
+    summary: Serverless filtering create from
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 137859
+    summary: Add length validation for `rename_replacement` parameter in snapshot restore request
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 137862
+    summary: "[Vector Search] Fix  wrong vector docvalue_fields"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 137976
+    summary: Fix for GET /_migration/deprecations doesn't check deprecated affix settings correctly
+    area: Infra/Core
+    type: bug
+    issues:
+      - 137008
+  - pr: 138053
+    summary: Upgrade UnboundID LDAP SDK to 7.0.3
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 138084
+    summary: Handle Query Timeouts During Collector Initialization in `QueryPhase`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 138094
+    summary: "[IRONSCALES] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+    issues:
+      - 138093
+  - pr: 138097
+    summary: Bump anomalies index template version to install latest
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138132
+    summary: Fix integer overflow in block memory estimation
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 138140
+    summary: Fix semantic highlighting when using a `knn` query with minimum `similarity`
+    area: Relevance
+    type: bug
+    issues: []
+  - pr: 138228
+    summary: "Fix: Downsample returns appropriate error when target index gets deleted unexpectedly."
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 138308
+    summary: Reject mappings that (eventually) set dimension and metric in the same field
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 138589
+    summary: Upgrading commons-lang3 version for repository-hdfs plugin
+    area: Snapshot/Restore
+    type: upgrade
+    issues: []

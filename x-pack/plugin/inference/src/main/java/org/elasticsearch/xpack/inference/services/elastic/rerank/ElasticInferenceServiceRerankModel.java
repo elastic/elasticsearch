@@ -17,17 +17,15 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
-import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceExecutableActionModel {
+public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceModel {
 
     private final URI uri;
 
@@ -68,11 +66,6 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
             elasticInferenceServiceComponents
         );
         this.uri = createUri();
-    }
-
-    @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this);
     }
 
     @Override

@@ -290,7 +290,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
                 projectState,
                 request.shardId.getIndex().getName(),
-                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
+                indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(projectState.metadata(), request.indexPattern)
             );
 
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);

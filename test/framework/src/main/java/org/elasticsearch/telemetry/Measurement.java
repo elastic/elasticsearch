@@ -9,11 +9,13 @@
 
 package org.elasticsearch.telemetry;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -65,5 +67,41 @@ public record Measurement(Number value, Map<String, Object> attributes, boolean 
             .stream()
             .map(entry -> new Measurement(entry.getValue(), entry.getKey(), isDouble))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Turn a list of {@link org.elasticsearch.telemetry.Measurement} into a list of its Long or Double
+     *
+     * @param measurements The measurements in question
+     * @param getMeasurementValue The measurement -> value (Long or Double) retrieval function
+     */
+    public static <T> List<T> getMeasurementValues(List<Measurement> measurements, Function<Measurement, T> getMeasurementValue) {
+        List<T> measurementValues = new ArrayList<T>(measurements.size());
+        for (Measurement measurement : measurements) {
+            T measurementValue = getMeasurementValue.apply(measurement);
+            measurementValues.add(measurementValue);
+        }
+        return measurementValues;
+    }
+
+    /**
+     * Groups a list of {@link org.elasticsearch.telemetry.Measurement} by their attribute values
+     *
+     * @param measurements The measurements
+     * @param getAttribute The attribute retrieval function. This must cast from Object to its return type
+     * @param getMeasurementValue The measurement -> value (Long or Double) retrieval function
+     */
+    public static <Attr, T> Map<Attr, List<T>> groupMeasurementsByAttribute(
+        List<Measurement> measurements,
+        Function<Map<String, Object>, Attr> getAttribute,
+        Function<Measurement, T> getMeasurementValue
+    ) {
+        Map<Attr, List<T>> measurementsByNode = new HashMap<>();
+        for (Measurement measurement : measurements) {
+            Attr attr = getAttribute.apply(measurement.attributes());
+            List<T> nodeMeasurements = measurementsByNode.computeIfAbsent(attr, (k -> new ArrayList<>()));
+            nodeMeasurements.add(getMeasurementValue.apply(measurement));
+        }
+        return measurementsByNode;
     }
 }

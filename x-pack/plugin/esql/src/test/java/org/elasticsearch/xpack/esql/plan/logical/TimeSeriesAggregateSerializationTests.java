@@ -23,7 +23,7 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = AggregateSerializationTests.randomAggregates();
-        Bucket timeBucket = BucketSerializationTests.createRandomBucket();
+        Bucket timeBucket = BucketSerializationTests.createRandomBucket(configuration());
         return new TimeSeriesAggregate(source, child, groupings, aggregates, timeBucket);
     }
 
@@ -40,7 +40,7 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
                 () -> randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList()
             );
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
-            case 3 -> timeBucket = randomValueOtherThan(timeBucket, BucketSerializationTests::createRandomBucket);
+            case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
         }
         return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket);
     }

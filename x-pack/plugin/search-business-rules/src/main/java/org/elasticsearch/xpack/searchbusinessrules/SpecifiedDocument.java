@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,8 +27,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A single specified document to be used for a {@link PinnedQueryBuilder} or query rules.
  */
 public final class SpecifiedDocument implements ToXContentObject, Writeable {
-
-    public static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersions.V_8_11_X;
 
     public static final String NAME = "specified_document";
 
@@ -61,26 +57,13 @@ public final class SpecifiedDocument implements ToXContentObject, Writeable {
      * Read from a stream.
      */
     public SpecifiedDocument(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
-            index = in.readOptionalString();
-        } else {
-            index = in.readString();
-        }
+        index = in.readOptionalString();
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
-            out.writeOptionalString(index);
-        } else {
-            if (index == null) {
-                throw new IllegalArgumentException(
-                    "[_index] needs to be specified for docs elements when cluster nodes are not in the same version"
-                );
-            }
-            out.writeString(index);
-        }
+        out.writeOptionalString(index);
         out.writeString(id);
     }
 

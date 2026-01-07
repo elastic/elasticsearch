@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,9 +42,7 @@ public class SearchProfileQueryPhaseResult implements Writeable {
     }
 
     public SearchProfileQueryPhaseResult(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
-        }
+        searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         int profileSize = in.readVInt();
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>(profileSize);
         for (int i = 0; i < profileSize; i++) {
@@ -58,9 +55,7 @@ public class SearchProfileQueryPhaseResult implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
-        }
+        out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         out.writeVInt(queryProfileResults.size());
         for (QueryProfileShardResult queryShardResult : queryProfileResults) {
             queryShardResult.writeTo(out);

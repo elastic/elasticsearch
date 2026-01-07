@@ -19,8 +19,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FieldNameUtilsTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
-
     public void testBasicFromCommand() {
         assertFieldNames("from test", ALL_FIELDS);
     }
@@ -3182,7 +3180,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query), hasEnriches);
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(EsqlParser.INSTANCE.parseQuery(query), hasEnriches);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }

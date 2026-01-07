@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -30,9 +31,9 @@ public class SamlToken implements AuthenticationToken {
      * @param allowedSamlRequestIds The request Ids for the authentication requests this SAML response is allowed to be in response to.
      * @param authenticatingRealm The realm that should autenticate this SAML message.
      */
-    public SamlToken(byte[] content, List<String> allowedSamlRequestIds, @Nullable String authenticatingRealm) {
+    public SamlToken(byte[] content, @Nullable List<String> allowedSamlRequestIds, @Nullable String authenticatingRealm) {
         this.content = content;
-        this.allowedSamlRequestIds = allowedSamlRequestIds;
+        this.allowedSamlRequestIds = allowedSamlRequestIds != null ? allowedSamlRequestIds : Collections.emptyList();
         this.authenticatingRealm = authenticatingRealm;
     }
 

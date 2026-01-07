@@ -135,6 +135,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`bytes` processor](/reference/enrich-processor/bytes-processor.md)
 :   Converts a human-readable byte value to its value in bytes (for example `1kb` becomes `1024`).
 
+[`cef` processor](/reference/enrich-processor/cef-processor.md)
+:   Extracts fields from a Common Event Format (CEF) messages.
+
 [`csv` processor](/reference/enrich-processor/csv-processor.md)
 :   Extracts a single line of CSV data from a text field.
 
@@ -216,49 +219,3 @@ Mark a plugin as mandatory by setting `plugin.mandatory` in `elasticsearch.yml`.
 ```yaml
 plugin.mandatory: my-ingest-plugin
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

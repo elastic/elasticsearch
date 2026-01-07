@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -177,9 +178,20 @@ public class Verifier {
                 // do groupings first
                 var groupings = agg.groupings();
                 groupings.forEach(unresolvedExpressions);
+
+                // We don't count _timeseries which is added implicitly to grouping but not to a list of aggs
+                boolean hasGroupByAll = false;
+                for (Expression grouping : groupings) {
+                    if (MetadataAttribute.isTimeSeriesAttribute(grouping)) {
+                        hasGroupByAll = true;
+                        break;
+                    }
+                }
+                int groupingSize = hasGroupByAll ? groupings.size() - 1 : groupings.size();
+
                 // followed by just the aggregates (to avoid going through the groups again)
                 var aggs = agg.aggregates();
-                int size = aggs.size() - groupings.size();
+                int size = aggs.size() - groupingSize;
                 aggs.subList(0, size).forEach(unresolvedExpressions);
             }
             // similar approach for Lookup

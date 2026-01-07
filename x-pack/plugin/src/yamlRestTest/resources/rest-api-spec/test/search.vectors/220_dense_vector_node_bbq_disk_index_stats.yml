@@ -1,0 +1,107 @@
+---
+"index node stats bbq_disk quantized":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "Uses bbq"
+  - requires:
+      cluster_features: ["mapper.bbq_disk_support"]
+      reason: Needs mapper.bbq_disk_support feature
+  - requires:
+      cluster_features: ["mapper.bbq_disk_stats_support"]
+      reason: Needs bbq_disk DenseVectorStats support
+
+  - do:
+      indices.create:
+        index: bbq_quantized
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector3:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_quantized
+        id: "3"
+        body:
+          vector3: [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cat.shards:
+        format: "json"
+        h: [ id ]
+        index: "bbq_quantized"
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+        node_id: $body.0.id
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: cluster_name
+  - is_true: nodes
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.indices.dense_vector
+  - match: { nodes.$node_id.indices.dense_vector.value_count: 1 }
+  - is_true: nodes.$node_id.indices.dense_vector.off_heap
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_cenivf_size_bytes: 0 }
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_clivf_size_bytes: 0 }
+  - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+  - do:
+      indices.stats: { index: _all }
+
+  - is_true:  _all.primaries.dense_vector.off_heap
+  - is_false: _all.primaries.dense_vector.off_heap.fielddata
+  - is_true:  _all.total.dense_vector.off_heap
+  - is_false: _all.total.dense_vector.off_heap.fielddata
+
+  - is_true: indices.bbq_quantized.primaries.dense_vector
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+  - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+  - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+  - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_cenivf_size_bytes: 0 }
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_clivf_size_bytes: 0 }
+  # vector3, bbq_disk
+  - is_true: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3
+  - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
+  - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.cenivf_size_bytes: 0 }
+  - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.clivf_size_bytes: 0 }
+  - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
+  - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes
+  - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes

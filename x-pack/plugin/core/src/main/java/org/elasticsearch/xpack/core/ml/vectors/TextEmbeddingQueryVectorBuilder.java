@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.ml.vectors;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,6 +35,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
+
+    public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER = new NodeFeature(
+        "text_embedding_query_vector_builder.used_by.result_diversification_mmr_retriever"
+    );
 
     public static final String NAME = "text_embedding";
 
@@ -63,11 +67,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.modelId = in.readOptionalString();
-        } else {
-            this.modelId = in.readString();
-        }
+        this.modelId = in.readOptionalString();
         this.modelText = in.readString();
     }
 
@@ -78,16 +78,12 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalString(modelId);
-        } else {
-            out.writeString(modelId);
-        }
+        out.writeOptionalString(modelId);
         out.writeString(modelText);
     }
 

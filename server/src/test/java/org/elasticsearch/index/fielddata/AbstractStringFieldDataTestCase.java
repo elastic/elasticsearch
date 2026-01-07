@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -60,7 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataImplTestCase {
-    private void addField(Document d, String name, String value) {
+    protected void addField(Document d, String name, String value) {
         d.add(new StringField(name, value, Field.Store.YES));
         d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
     }
@@ -258,7 +257,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );
@@ -316,7 +315,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );

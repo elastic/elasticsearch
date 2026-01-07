@@ -251,6 +251,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         return in.readException();
     }
 
+    private <T extends Exception> T serializeOptional(T exception) throws IOException {
+        return serializeOptional(exception, TransportVersionUtils.randomCompatibleVersion(random()));
+    }
+
+    private <T extends Exception> T serializeOptional(T exception, TransportVersion version) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        out.writeOptionalException(exception);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
+        return in.readOptionalException();
+    }
+
     public void testIllegalShardRoutingStateException() throws IOException {
         final ShardRouting routing = newShardRouting("test", 0, "xyz", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
@@ -299,6 +313,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
         assertTrue(ex.getCause() instanceof NullPointerException);
+    }
+
+    public void testOptionalSearchException() throws IOException {
+        SearchException ex = serializeOptional(new SearchException(null, "hello world", new NullPointerException()));
+        assertNull(ex.shard());
+        assertEquals(ex.getMessage(), "hello world");
+        assertTrue(ex.getCause() instanceof NullPointerException);
+        assertNull(serializeOptional(null));
     }
 
     public void testActionNotFoundTransportException() throws IOException {

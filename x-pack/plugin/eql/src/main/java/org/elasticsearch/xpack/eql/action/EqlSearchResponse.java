@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -127,11 +126,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
-        } else {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        }
+        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -146,9 +141,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeArray(shardFailures);
-        }
+        out.writeArray(shardFailures);
     }
 
     @Override
@@ -315,11 +308,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 fetchFields = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                missing = in.readBoolean();
-            } else {
-                missing = index.isEmpty();
-            }
+            missing = in.readBoolean();
         }
 
         public static Event readFrom(StreamInput in) throws IOException {
@@ -336,11 +325,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (fetchFields != null) {
                 out.writeMap(fetchFields, StreamOutput::writeWriteable);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
-                // see https://github.com/elastic/elasticsearch/pull/98130
-                out.writeBoolean(missing);
-            }
+            // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
+            // see https://github.com/elastic/elasticsearch/pull/98130
+            out.writeBoolean(missing);
         }
 
         @Override

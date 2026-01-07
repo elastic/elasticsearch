@@ -12,11 +12,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 
 public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
     protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration);
@@ -42,5 +46,17 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertNotEquals(expr, differentExpr);
+    }
+
+    protected static Configuration configurationForTimezone(ZoneId zoneId) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).zoneId(zoneId).build();
+    }
+
+    protected static Configuration configurationForLocale(Locale locale) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).locale(locale).build();
+    }
+
+    protected static Configuration configurationForTimezoneAndLocale(ZoneId zoneId, Locale locale) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).zoneId(zoneId).locale(locale).build();
     }
 }

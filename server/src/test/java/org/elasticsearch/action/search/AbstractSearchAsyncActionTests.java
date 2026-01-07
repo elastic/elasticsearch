@@ -106,7 +106,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class)
+            Mockito.mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
             @Override
             protected SearchPhase getNextPhase() {

@@ -11,7 +11,6 @@ package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,22 +19,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.AbstractObjectParser;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_FIELD;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_METHOD_FIELD;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
  * Sets the data stream lifecycle that was provided in the request to the requested data streams.
@@ -47,53 +36,6 @@ public class PutDataStreamLifecycleAction {
     private PutDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
-
-        public interface Factory {
-            Request create(
-                @Nullable TimeValue dataRetention,
-                @Nullable Boolean enabled,
-                @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling,
-                @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
-            );
-        }
-
-        @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
-            "put_data_stream_lifecycle_request",
-            false,
-            (args, factory) -> factory.create(
-                (TimeValue) args[0],
-                (Boolean) args[1],
-                (List<DataStreamLifecycle.DownsamplingRound>) args[2],
-                (DownsampleConfig.SamplingMethod) args[3]
-            )
-        );
-
-        static {
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), DATA_RETENTION_FIELD.getPreferredName()),
-                DATA_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING
-            );
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> AbstractObjectParser.parseArray(p, null, DataStreamLifecycle.DownsamplingRound::fromXContent),
-                DOWNSAMPLING_FIELD,
-                ObjectParser.ValueType.OBJECT_ARRAY
-            );
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DownsampleConfig.SamplingMethod.fromString(p.text()),
-                DOWNSAMPLING_METHOD_FIELD,
-                ObjectParser.ValueType.STRING
-            );
-        }
-
-        public static Request parseRequest(XContentParser parser, Factory factory) {
-            return PARSER.apply(parser, factory);
-        }
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
@@ -150,26 +92,12 @@ public class PutDataStreamLifecycleAction {
             @Nullable TimeValue dataRetention,
             @Nullable Boolean enabled
         ) {
-            this(masterNodeTimeout, ackTimeout, names, dataRetention, enabled, null, null);
-        }
-
-        public Request(
-            TimeValue masterNodeTimeout,
-            TimeValue ackTimeout,
-            String[] names,
-            @Nullable TimeValue dataRetention,
-            @Nullable Boolean enabled,
-            @Nullable List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
-            @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
-        ) {
-            super(masterNodeTimeout, ackTimeout);
-            this.names = names;
-            this.lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-                .dataRetention(dataRetention)
-                .enabled(enabled == null || enabled)
-                .downsamplingRounds(downsamplingRounds)
-                .downsamplingMethod(downsamplingMethod)
-                .build();
+            this(
+                masterNodeTimeout,
+                ackTimeout,
+                names,
+                DataStreamLifecycle.dataLifecycleBuilder().enabled(enabled == null || enabled).dataRetention(dataRetention).build()
+            );
         }
 
         public String[] getNames() {

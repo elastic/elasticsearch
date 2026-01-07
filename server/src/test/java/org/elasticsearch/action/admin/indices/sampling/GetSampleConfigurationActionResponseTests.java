@@ -47,7 +47,7 @@ public class GetSampleConfigurationActionResponseTests extends AbstractWireSeria
         return new SamplingConfiguration(
             randomDoubleBetween(0.1, 1.0, true),
             randomBoolean() ? randomIntBetween(1, 1000) : null,
-            randomBoolean() ? ByteSizeValue.ofMb(randomIntBetween(1, 100)) : null,
+            randomBoolean() ? null : ByteSizeValue.ofKb(randomIntBetween(50, 100)),
             randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 60)) : null,
             randomBoolean() ? "ctx?.field == 'test'" : null
         );

@@ -1,0 +1,6 @@
+pr: 138457
+summary: Intercept filters to knn queries
+area: Vector Search
+type: bug
+issues:
+ - 138410

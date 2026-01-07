@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.aggregations.metric;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -62,7 +62,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final NumericDoubleValues[] values = new NumericDoubleValues[valuesSources.fieldNames().length];
+        final DoubleValues[] values = new DoubleValues[valuesSources.fieldNames().length];
         for (int i = 0; i < values.length; ++i) {
             values[i] = valuesSources.getField(i, aggCtx.getLeafReaderContext());
         }
@@ -93,7 +93,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
             private boolean includeDocument(int doc) throws IOException {
                 // loop over fields
                 for (int i = 0; i < fieldVals.length; ++i) {
-                    final NumericDoubleValues doubleValues = values[i];
+                    final DoubleValues doubleValues = values[i];
                     if (doubleValues.advanceExact(doc)) {
                         final double value = doubleValues.doubleValue();
                         if (value == Double.NEGATIVE_INFINITY) {

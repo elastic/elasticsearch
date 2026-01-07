@@ -212,6 +212,13 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(metricName);
             assertThat(metricName, measurements, hasSize(numberOfMeasurements));
             assertThat(metricName, measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            for (var measurement : measurements) {
+                var attributes = measurement.attributes();
+                assertThat(metricName, attributes.entrySet(), hasSize(greaterThanOrEqualTo(3)));
+                assertEquals(metricName, "user", attributes.get("target"));
+                assertEquals(metricName, "hits_only", attributes.get("query_type"));
+                assertEquals(metricName, "_score", attributes.get("sort"));
+            }
         }
     }
 }

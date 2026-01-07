@@ -27,20 +27,13 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 
 public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIRerankServiceSettings> {
     public static JinaAIRerankServiceSettings createRandom() {
-        return new JinaAIRerankServiceSettings(
-            new JinaAIServiceSettings(
-                randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-                randomAlphaOfLength(10),
-                RateLimitSettingsTests.createRandom()
-            )
-        );
+        return new JinaAIRerankServiceSettings(new JinaAIServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom()));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var url = "http://www.abc.com";
         var model = "model";
 
-        var serviceSettings = new JinaAIRerankServiceSettings(new JinaAIServiceSettings(url, model, null));
+        var serviceSettings = new JinaAIRerankServiceSettings(new JinaAIServiceSettings(model, null));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -48,7 +41,6 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
         assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
             {
-                "url":"http://www.abc.com",
                 "model_id":"model",
                 "rate_limit": {
                     "requests_per_minute": 2000
@@ -79,6 +71,6 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
-        return new HashMap<>(JinaAIServiceSettingsTests.getServiceSettingsMap(url, model));
+        return new HashMap<>(JinaAIServiceSettingsTests.getServiceSettingsMap(model));
     }
 }

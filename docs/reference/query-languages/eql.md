@@ -1321,7 +1321,7 @@ This functionality is in technical preview and may be changed or removed in a fu
 ::::
 
 
-The EQL search API supports [cross-cluster search](docs-content://solutions/search/cross-cluster-search.md). However, the local and [remote clusters](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md) must use the same {{es}} version if they have versions prior to 7.17.7 (included) or prior to 8.5.1 (included).
+The EQL search API supports [cross-cluster search](docs-content://explore-analyze/cross-cluster-search.md). However, the local and [remote clusters](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md) must use the same {{es}} version if they have versions prior to 7.17.7 (included) or prior to 8.5.1 (included).
 
 The following [cluster update settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) request adds two remote clusters: `cluster_one` and `cluster_two`.
 

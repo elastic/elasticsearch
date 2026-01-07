@@ -30,6 +30,6 @@ public class CountOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new CountOverTime(source, args.get(0));
+        return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 }

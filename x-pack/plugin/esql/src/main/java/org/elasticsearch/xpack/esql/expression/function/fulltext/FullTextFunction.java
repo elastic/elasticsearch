@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -152,7 +154,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, queryBuilder);
+        return Objects.hash(super.hashCode(), query, System.identityHashCode(queryBuilder));
     }
 
     @Override
@@ -161,7 +163,9 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
+        // Compare query builders using identity because that's how they are compared during query rewriting
+        FullTextFunction other = (FullTextFunction) obj;
+        return queryBuilder == other.queryBuilder && Objects.equals(query, other.query);
     }
 
     @Override
@@ -375,10 +379,15 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
-    public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
         // Only run the check if the current node contains the full-text function
         // This is to avoid running the check multiple times in the same plan
-        if (isInCurrentNode(plan, function) == false) {
+        // Field can be null when the field does not exist in the mapping
+        if (isInCurrentNode(plan, function) == false || ((field instanceof Literal literal) && literal.value() == null)) {
+            return;
+        }
+        // Accept null as a field
+        if (Expressions.isGuaranteedNull(field)) {
             return;
         }
         var fieldAttribute = fieldAsFieldAttribute(field);
@@ -453,7 +462,7 @@ public abstract class FullTextFunction extends Function
 
     // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
     // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
-    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
+    protected String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
             // If we have multiple field types, we allow the query to be done, but getting the underlying field name
@@ -462,7 +471,7 @@ public abstract class FullTextFunction extends Function
         return fieldName;
     }
 
-    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
+    protected FieldAttribute fieldAsFieldAttribute(Expression field) {
         Expression fieldExpression = field;
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {

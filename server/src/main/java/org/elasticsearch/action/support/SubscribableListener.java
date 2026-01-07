@@ -99,6 +99,23 @@ import java.util.concurrent.Executor;
  *         .addListener(finalListener);
  * }
  * }</pre>
+ * <p>
+ * You must take care when using a chain of {@link SubscribableListener}s where one or more of the response objects have nontrivial
+ * lifecycles (e.g. they implement {@link org.elasticsearch.core.Releasable} or {@link org.elasticsearch.core.RefCounted}). For example:
+ * <ul>
+ *     <li>{@link SubscribableListener} silently discards all but one response, whether exceptional or otherwise. The caller must take steps
+ *     to release any discarded responses that need releasing.</li>
+ *     <li>When a {@link SubscribableListener} is completed it keeps hold of the response in case another listener subscribes to this
+ *     response in future (e.g. via {@link #addListener} or {@link #andThen}) but it does not formally take ownership of the response (e.g.
+ *     by calling {@link org.elasticsearch.core.RefCounted#incRef}). In particular, in the usual pattern ...
+ *     <pre>{@code
+ *         SubscribableListener.newForked(l1 -> step1(l1)).andThen((l2, r1) -> step2(r1, l2))...
+ *     }</pre>
+ *     ... if {@code r1} is ref-counted then usually {@code step1} will call {@link org.elasticsearch.core.RefCounted#decRef} immediately
+ *     after {@code l1.onResponse(r1)} returns since it no longer needs to keep the response alive itself. This is a problem because it may
+ *     happen before the {@link #andThen} adds the second step to the chain, so that by the time {@code step2} runs the response {@code r1}
+ *     may already be fully-released. The caller must take steps to keep responses alive until they are no longer needed.</li>
+ * </ul>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 

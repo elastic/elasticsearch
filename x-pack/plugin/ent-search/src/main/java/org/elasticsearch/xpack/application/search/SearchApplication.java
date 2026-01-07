@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -54,7 +52,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         + "We recommend storing a template to avoid breaking changes.";
 
     public static final String NO_ALIAS_WARNING = "Alias is missing for the search application";
-    private static final TransportVersion INDICES_REMOVED_TRANSPORT_VERSION = TransportVersions.V_8_11_X;
     private final String name;
 
     @Nullable
@@ -100,11 +97,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public SearchApplication(StreamInput in, String[] indices) throws IOException {
         this.name = in.readString();
 
-        if (in.getTransportVersion().onOrAfter(INDICES_REMOVED_TRANSPORT_VERSION)) {
-            this.indices = indices; // Uses the provided indices, as they are no longer serialized
-        } else {
-            this.indices = in.readStringArray(); // old behaviour, read it from input as it was serialized
-        }
+        this.indices = indices; // Uses the provided indices, as they are no longer serialized;
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
         this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
@@ -113,9 +106,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getTransportVersion().before(INDICES_REMOVED_TRANSPORT_VERSION)) {
-            out.writeStringArray(indices); // old behaviour. New behaviour does not serialize indices, so no need to do anything else
-        }
         out.writeOptionalString(analyticsCollectionName);
         out.writeLong(updatedAtMillis);
         out.writeOptionalWriteable(searchApplicationTemplate);

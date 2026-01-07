@@ -50,6 +50,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -140,6 +141,7 @@ public class TransportService extends AbstractLifecycleComponent
     volatile String[] tracerLogExclude;
 
     private final LinkedProjectConfigService linkedProjectConfigService;
+    private final TelemetryProvider telemetryProvider;
     private final RemoteClusterService remoteClusterService;
 
     /**
@@ -277,6 +279,7 @@ public class TransportService extends AbstractLifecycleComponent
             connectionManager,
             taskManger,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            TelemetryProvider.NOOP,
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -292,6 +295,7 @@ public class TransportService extends AbstractLifecycleComponent
         ConnectionManager connectionManager,
         TaskManager taskManger,
         LinkedProjectConfigService linkedProjectConfigService,
+        TelemetryProvider telemetryProvider,
         ProjectResolver projectResolver
     ) {
         this.transport = transport;
@@ -308,6 +312,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
         this.linkedProjectConfigService = linkedProjectConfigService;
+        this.telemetryProvider = telemetryProvider;
         remoteClusterService = new RemoteClusterService(settings, this, projectResolver);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -352,6 +357,10 @@ public class TransportService extends AbstractLifecycleComponent
 
     void setTracerLogExclude(List<String> tracerLogExclude) {
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    public TelemetryProvider getTelemetryProvider() {
+        return telemetryProvider;
     }
 
     @Override

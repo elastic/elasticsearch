@@ -31,7 +31,6 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -713,23 +712,16 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(
-                    field,
-                    NumberType.LONG,
-                    ScriptCompiler.NONE,
-                    false,
-                    false,
-                    IndexVersion.current(),
-                    null,
-                    null
-                ).build(MapperBuilderContext.root(false, false)).fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, defaultIndexSettings())
+                    .build(MapperBuilderContext.root(false, false))
+                    .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, defaultIndexSettings()).build(
                     MapperBuilderContext.root(false, false)
                 ).fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -742,11 +734,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     metric.getField(),
                     NumberType.LONG,
                     ScriptCompiler.NONE,
-                    false,
-                    false,
-                    IndexVersion.current(),
-                    null,
-                    null
+                    defaultIndexSettings()
                 ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -113,7 +114,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
                 new RerouteService() {
                     @Override
                     public void reroute(String reason, Priority priority, ActionListener<Void> listener) {}
-                }
+                },
+                MeterRegistry.NOOP
             )
         );
         clusterInfoService.addListener(usageMonitor::onNewInfo);

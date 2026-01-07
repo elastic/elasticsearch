@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCase {
+
+    public ExtractHistogramComponentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
+            TestCaseSupplier.TypedDataSupplier componentOrdinalSupplier = new TestCaseSupplier.TypedDataSupplier(
+                "<" + component + ">",
+                component::ordinal,
+                DataType.INTEGER,
+                true
+            );
+            List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = Stream.concat(
+                TestCaseSupplier.exponentialHistogramCases().stream(),
+                TestCaseSupplier.tdigestCases().stream()
+            ).toList();
+            for (TestCaseSupplier.TypedDataSupplier histoSupplier : histogramSuppliers) {
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "<" + histoSupplier.type().typeName() + "," + component + ">",
+                        List.of(histoSupplier.type(), DataType.INTEGER),
+                        () -> {
+                            TestCaseSupplier.TypedData histogram = histoSupplier.get();
+                            return new TestCaseSupplier.TestCase(
+                                List.of(histogram, componentOrdinalSupplier.get()),
+                                "ExtractHistogramComponentEvaluator[field=Attribute[channel=0],component=" + component + "]",
+                                DataType.DOUBLE,
+                                equalTo(getExpectedValue(histogram, component))
+                            );
+                        }
+                    )
+                );
+            }
+        }
+        List<TestCaseSupplier> withNulls = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> nullPosition == 1 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+        return parameterSuppliersFromTypedData(withNulls);
+    }
+
+    private static Object getExpectedValue(TestCaseSupplier.TypedData histogram, ExponentialHistogramBlock.Component component) {
+        if (histogram.getValue() == null) {
+            return null;
+        }
+        return switch (histogram.type()) {
+            case EXPONENTIAL_HISTOGRAM -> {
+                ExponentialHistogram value = (ExponentialHistogram) histogram.getValue();
+                yield switch (component) {
+                    case MIN -> {
+                        double min = value.min();
+                        yield Double.isNaN(min) ? null : min;
+                    }
+                    case MAX -> {
+                        double max = value.max();
+                        yield Double.isNaN(max) ? null : max;
+                    }
+                    case SUM -> value.valueCount() > 0 ? value.sum() : null;
+                    case COUNT -> (double) value.valueCount();
+                };
+            }
+            case TDIGEST -> {
+                TDigestHolder value = (TDigestHolder) histogram.getValue();
+                yield switch (component) {
+                    case MIN -> {
+                        double min = value.getMin();
+                        yield Double.isNaN(min) ? null : min;
+                    }
+                    case MAX -> {
+                        double max = value.getMax();
+                        yield Double.isNaN(max) ? null : max;
+                    }
+                    case SUM -> value.getValueCount() > 0 ? value.getSum() : null;
+                    case COUNT -> (double) value.getValueCount();
+                };
+            }
+            default -> throw new IllegalStateException("Unexpected histogram type [" + histogram.type() + "]");
+        };
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        assumeTrue("Test sometimes wraps literals as fields", args.get(1).foldable());
+        return new ExtractHistogramComponent(source, args.get(0), args.get(1));
+    }
+
+}

@@ -1,0 +1,5 @@
+pr: 139397
+summary: Fix slowness in `ValuesFromManyReader.estimatedRamBytesUsed`
+area: ES|QL
+type: enhancement
+issues: []

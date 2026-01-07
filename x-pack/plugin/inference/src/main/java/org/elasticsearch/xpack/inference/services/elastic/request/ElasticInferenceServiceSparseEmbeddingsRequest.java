@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -43,9 +44,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         ElasticInferenceServiceSparseEmbeddingsModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
-        InputType inputType
+        InputType inputType,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata);
+        super(metadata, authApplier);
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
@@ -99,7 +101,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
             model,
             traceContextHandler.traceContext(),
             getMetadata(),
-            inputType
+            inputType,
+            authApplier
         );
     }
 

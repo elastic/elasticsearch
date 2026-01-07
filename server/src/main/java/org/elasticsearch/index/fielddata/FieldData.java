@@ -15,6 +15,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -38,28 +39,10 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link NumericDoubleValues} that doesn't contain any value.
-     */
-    public static NumericDoubleValues emptyNumericDouble() {
-        return new NumericDoubleValues() {
-            @Override
-            public boolean advanceExact(int doc) {
-                return false;
-            }
-
-            @Override
-            public double doubleValue() {
-                throw new UnsupportedOperationException();
-            }
-
-        };
-    }
-
-    /**
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
-        return singleton(emptyNumericDouble());
+        return singleton(DoubleValues.EMPTY);
     }
 
     /**
@@ -132,7 +115,7 @@ public enum FieldData {
      * {@link org.apache.lucene.util.NumericUtils#doubleToSortableLong(double)}.
      */
     public static SortedNumericLongValues toSortableLongBits(SortedNumericDoubleValues values) {
-        final NumericDoubleValues singleton = unwrapSingleton(values);
+        final DoubleValues singleton = unwrapSingleton(values);
         if (singleton != null) {
             final LongValues longBits;
             if (singleton instanceof SortableLongBitsToNumericDoubleValues) {
@@ -158,7 +141,7 @@ public enum FieldData {
     public static SortedNumericDoubleValues sortableLongBitsToDoubles(SortedNumericLongValues values) {
         final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         if (singleton != null) {
-            final NumericDoubleValues doubles;
+            final DoubleValues doubles;
             if (singleton instanceof SortableLongBitsNumericDocValues) {
                 doubles = ((SortableLongBitsNumericDocValues) singleton).getDoubleValues();
             } else {
@@ -190,7 +173,7 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDoubleValues} instance to cast all values to longs.
      */
     public static SortedNumericLongValues castToLong(final SortedNumericDoubleValues values) {
-        final NumericDoubleValues singleton = unwrapSingleton(values);
+        final DoubleValues singleton = unwrapSingleton(values);
         if (singleton != null) {
             return SortedNumericLongValues.singleton(new LongCastedValues(singleton));
         } else {
@@ -199,9 +182,9 @@ public enum FieldData {
     }
 
     /**
-     * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
+     * Returns a multi-valued view over the provided {@link DoubleValues}.
      */
-    public static SortedNumericDoubleValues singleton(NumericDoubleValues values) {
+    public static SortedNumericDoubleValues singleton(DoubleValues values) {
         return new SingletonSortedNumericDoubleValues(values);
     }
 
@@ -210,7 +193,7 @@ public enum FieldData {
      * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues)},
      * or null.
      */
-    public static NumericDoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
+    public static DoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
         if (values instanceof SingletonSortedNumericDoubleValues) {
             return ((SingletonSortedNumericDoubleValues) values).getNumericDoubleValues();
         }
@@ -297,7 +280,7 @@ public enum FieldData {
      */
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
         {
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = FieldData.unwrapSingleton(values);
             if (singleton != null) {
                 return FieldData.singleton(toString(singleton));
             }
@@ -322,7 +305,7 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
-    public static BinaryDocValues toString(final NumericDoubleValues values) {
+    public static BinaryDocValues toString(final DoubleValues values) {
         return toString(new ToStringValue() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -505,7 +488,7 @@ public enum FieldData {
 
     }
 
-    private static class DoubleCastedValues extends NumericDoubleValues {
+    private static class DoubleCastedValues extends DoubleValues {
 
         private final LongValues values;
 
@@ -552,9 +535,9 @@ public enum FieldData {
 
     private static class LongCastedValues extends LongValues {
 
-        private final NumericDoubleValues values;
+        private final DoubleValues values;
 
-        LongCastedValues(NumericDoubleValues values) {
+        LongCastedValues(DoubleValues values) {
             this.values = values;
         }
 
@@ -614,19 +597,18 @@ public enum FieldData {
      * document, returns the same value as {@code values} if there is a value
      * for the current document and {@code missing} otherwise.
      */
-    public static LongValues replaceMissing(LongValues values, long missing) {
-        return new LongValues() {
+    public static DenseLongValues replaceMissing(LongValues values, long missing) {
+        return new DenseLongValues() {
 
             private long value;
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public void doAdvanceExact(int target) throws IOException {
                 if (values.advanceExact(target)) {
                     value = values.longValue();
                 } else {
                     value = missing;
                 }
-                return true;
             }
 
             @Override
@@ -637,23 +619,22 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link NumericDoubleValues} instance that has a value for every
+     * Return a {@link DoubleValues} instance that has a value for every
      * document, returns the same value as {@code values} if there is a value
      * for the current document and {@code missing} otherwise.
      */
-    public static NumericDoubleValues replaceMissing(NumericDoubleValues values, double missing) {
-        return new NumericDoubleValues() {
+    public static DenseDoubleValues replaceMissing(DoubleValues values, double missing) {
+        return new DenseDoubleValues() {
 
             private double value;
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public void doAdvanceExact(int target) throws IOException {
                 if (values.advanceExact(target)) {
                     value = values.doubleValue();
                 } else {
                     value = missing;
                 }
-                return true;
             }
 
             @Override

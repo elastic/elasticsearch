@@ -572,6 +572,39 @@ required_capability: agg_values
 fe80::cae2:65ff:fece:feb9 | gamma
 ;
 
+valuesGroupedMvMin
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_MIN(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+                      ::1 | a
+                127.0.0.1 | b
+fe80::cae2:65ff:fece:feb9 | e
+fe80::cae2:65ff:fece:feb9 | g
+;
+
+valuesGroupedMvMax
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_MAX(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+                127.0.0.1 | a
+                127.0.0.1 | b
+fe82::cae2:65ff:fece:fec0 | e
+fe80::cae2:65ff:fece:feb9 | g
+
+;
+
 implictCastingEqual
 required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0 | sort host;
@@ -822,4 +855,68 @@ warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not 
 
 ip0:ip      |ip1:ip    |direction:keyword
 127.0.0.1   |8.8.8.8   |null
+;
+
+mvMinRow
+  ROW ip=["192.168.0.1", "10.10.0.1"]::IP
+| EVAL ip=MV_MIN(ip)
+;
+
+  ip:ip
+10.10.0.1
+;
+
+mvMaxRow
+  ROW ip=["192.168.0.1", "10.10.0.1"]::IP
+| EVAL ip=MV_MAX(ip)
+;
+
+  ip:ip
+192.168.0.1
+;
+
+groupMv
+  FROM hosts
+| STATS COUNT(*) BY ip0=ip0
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+3             | fe80::cae2:65ff:fece:feb9
+1             | fe80::cae2:65ff:fece:fec0
+1             | fe80::cae2:65ff:fece:fec1
+1             | fe81::cae2:65ff:fece:feb9
+1             | fe82::cae2:65ff:fece:fec0
+1             | null
+;
+
+groupMvMin
+  FROM hosts
+| STATS COUNT(*) BY ip0=MV_MIN(ip0)
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+3             | fe80::cae2:65ff:fece:feb9
+1             | fe81::cae2:65ff:fece:feb9
+1             | null
+;
+
+groupMvMax
+  FROM hosts
+| STATS COUNT(*) BY ip0=MV_MAX(ip0)
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+2             | fe80::cae2:65ff:fece:feb9
+1             | fe80::cae2:65ff:fece:fec1
+1             | fe82::cae2:65ff:fece:fec0
+1             | null
 ;

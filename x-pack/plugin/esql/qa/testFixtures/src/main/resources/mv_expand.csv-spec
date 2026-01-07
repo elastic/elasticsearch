@@ -481,3 +481,26 @@ Production   | false                 | true            | -1            | 1      
 Success      | false                 | true            | -1            | 1             | null               | 1
 ;
 
+returnMultiValueFieldsWithoutExpansion
+FROM employees
+| WHERE emp_no == 10008
+| KEEP emp_no, job_positions, is_rehired, salary_change
+;
+
+emp_no:integer | job_positions:keyword                                                     | is_rehired:boolean | salary_change:double
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68]
+;
+
+returnMultiValueFieldsWithMultivalueTypeConversions
+FROM employees
+| WHERE emp_no == 10008
+| EVAL job_positions = TO_STRING(job_positions)
+| EVAL is_rehired = TO_STRING(is_rehired)
+| EVAL salary_change = TO_STRING(salary_change)
+| EVAL is_rehired_again = TO_BOOLEAN(is_rehired)
+| KEEP emp_no, job_positions, is_rehired, salary_change, is_rehired_again
+;
+
+emp_no:integer | job_positions:keyword                                                     | is_rehired:keyword | salary_change:keyword      | is_rehired_again:boolean
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68] | [false, true]
+;

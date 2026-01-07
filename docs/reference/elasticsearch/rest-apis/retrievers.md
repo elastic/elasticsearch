@@ -17,6 +17,9 @@ Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) 
 
 The following retrievers are available:
 
+`diversify` {applies_to}`serverless: preview` {applies_to}`stack: preview 9.3`
+:   The [diversify](retrievers/diversify-retriever.md) retriever reduces the results from another retriever by applying a diversification strategy to the top-N results.
+
 `knn`
 :   The [knn](retrievers/knn-retriever.md) retriever replaces the functionality of a [knn search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn).
 

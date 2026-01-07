@@ -8,6 +8,7 @@ toc:
     - file: es-connectors-confluence.md
     - file: es-connectors-dropbox.md
     - file: es-connectors-github.md
+    - file: es-connectors-gitlab.md
     - file: es-connectors-gmail.md
     - file: es-connectors-google-cloud.md
     - file: es-connectors-google-drive.md

@@ -13,16 +13,7 @@ Refer to [the high-level landing page](../../../../esql/esql-lookup-join.md) for
 
 ```esql
 FROM <source_index>
-| LOOKUP JOIN <lookup_index> ON <field_name>
-```
-
-```esql
-FROM <source_index>
-| LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>
-```
-```esql
-FROM <source_index>
-| LOOKUP JOIN <lookup_index> ON <left_field1> >= <lookup_field1> AND <left_field2> == <lookup_field2>
+| LOOKUP JOIN <lookup_index> ON <join_condition>
 ```
 
 **Parameters**
@@ -30,11 +21,12 @@ FROM <source_index>
 `<lookup_index>`
 :   The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
-`<field_name>` or `<field_name1>, <field_name2>, <field_name3>` or `<left_field1> >= <lookup_field1> AND <left_field2> == <lookup_field2>`
-:   The join condition. Can be one of the following:
+`<join_condition>`
+:   Can be one of the following:
    * A single field name
-   * A comma-separated list of field names {applies_to}`stack: ga 9.2`
-   * An expression with one or more join conditions linked by `AND`. Each condition compares a field from the left index with a field from the lookup index using [binary operators](/reference/query-languages/esql/functions-operators/operators.md#esql-binary-operators) (`==`, `>=`, `<=`, `>`, `<`, `!=`). Each field name in the join condition must exist in only one of the indexes. Use RENAME to resolve naming conflicts. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * A comma-separated list of field names, for example `<field1>, <field2>, <field3>`  {applies_to}`stack: ga 9.2`
+   * An expression with one or more predicates linked by `AND`, for example `<left_field1> >= <lookup_field1> AND <left_field2> == <lookup_field2>`. Each predicate compares a field from the left index with a field from the lookup index using [binary operators](/reference/query-languages/esql/functions-operators/operators.md#esql-binary-operators) (`==`, `>=`, `<=`, `>`, `<`, `!=`). Each field name in the join condition must exist in only one of the indexes. Use RENAME to resolve naming conflicts. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * An expression that includes [full text functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene-pushable functions, for example `MATCH(<lookup_field>, "search term") AND <left_field> == <lookup_field>`. These functions can be combined with binary operators and logical operators (`AND`, `OR`, `NOT`) to create complex join conditions. At least one condition that relates the lookup index fields to the left side of the join fields is still required. {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 :   If using join on a single field or a field list, the fields used must exist in both your current query results and in the lookup index. If the fields contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
 
 

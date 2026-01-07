@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -157,6 +158,31 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testEsqlAckTrialOrEnterpriseToNotTrialOrEnterprise() {
         for (OperationMode to : List.of(BASIC, STANDARD, GOLD, PLATINUM)) {
             assertAckMessages(XPackField.ESQL, randomFrom(TRIAL, ENTERPRISE), to, Set.of("ES|QL cross-cluster search will be disabled."));
+        }
+    }
+
+    public void testInferenceAckMessageTrialOrEnterpriseToNotTrialOrEnterprise() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(TRIAL, ENTERPRISE), to, Set.of("The Inference API will be disabled"));
+        }
+    }
+
+    public void testInferenceAckMessageToTrialOrEnterprise() {
+        var fromAll = EnumSet.allOf(License.OperationMode.class);
+        for (OperationMode from : fromAll) {
+            assertAckMessages(XPackField.INFERENCE, from, randomFrom(TRIAL, ENTERPRISE), 0);
+        }
+    }
+
+    public void testInferenceAckMessageUnlicensedToUnlicensed() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(notTrialOrEnterprise), to, 0);
         }
     }
 

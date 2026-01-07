@@ -39,6 +39,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final TimeValue keepAlive;
 
     private final boolean allowPartialSearchResults;
+    private final String projectRouting;
 
     public SqlQueryRequest(
         String query,
@@ -57,7 +58,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
         TimeValue keepAlive,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String projectRouting
     ) {
         super(requestInfo);
         this.query = query;
@@ -76,6 +78,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.keepOnCompletion = keepOnCompletion;
         this.keepAlive = keepAlive;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.projectRouting = projectRouting;
     }
 
     public SqlQueryRequest(
@@ -92,7 +95,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         boolean fieldMultiValueLeniency,
         boolean indexIncludeFrozen,
         Boolean binaryCommunication,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String projectRouting
     ) {
         this(
             query,
@@ -111,7 +115,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             CoreProtocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
             CoreProtocol.DEFAULT_KEEP_ON_COMPLETION,
             CoreProtocol.DEFAULT_KEEP_ALIVE,
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            projectRouting
         );
     }
 
@@ -121,7 +126,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         TimeValue pageTimeout,
         RequestInfo requestInfo,
         boolean binaryCommunication,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String projectRouting
     ) {
         this(
             "",
@@ -137,7 +143,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
             CoreProtocol.INDEX_INCLUDE_FROZEN,
             binaryCommunication,
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            projectRouting
         );
     }
 
@@ -225,6 +232,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
 
     public TimeValue keepAlive() {
         return keepAlive;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 
     public boolean allowPartialSearchResults() {

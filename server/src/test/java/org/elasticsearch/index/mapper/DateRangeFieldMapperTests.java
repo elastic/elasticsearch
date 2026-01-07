@@ -9,8 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -19,8 +24,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
     private static final String FROM_DATE = "2016-10-31";
@@ -101,6 +108,76 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                 return expectedFormatted;
             }
         };
+    }
+
+    /**
+     * Test loading blocks when there is no defined value. This is allowed
+     * for newly created indices that haven't received any documents that
+     * contain the field.
+     */
+    public void testNullValueBlockLoader() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "date_range");
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                return mapper.mappingLookup().sourcePaths(name);
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+        });
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
+                    .read(TestBlock.factory(), new BlockLoader.Docs() {
+                        @Override
+                        public int count() {
+                            return 1;
+                        }
+
+                        @Override
+                        public int get(int i) {
+                            return 0;
+                        }
+                    }, 0, false);
+                assertThat(block.get(0), nullValue());
+            }
+        }
     }
 
     @Override

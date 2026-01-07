@@ -561,6 +561,12 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testMarkOriginOnly() {
+        PainlessExecuteAction.Request request = createRequest("p1:blogs");
+        request.markOriginOnly();
+        assertThat(request.index(), equalTo("blogs"));
+    }
+
     private PainlessExecuteAction.Request createRequest(String indexExpression) {
         return new PainlessExecuteAction.Request(
             new Script("100.0 / 1000.0"),

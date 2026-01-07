@@ -69,6 +69,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -135,16 +136,61 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    ActionListener.runAfter(listener, () -> {
-                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                        if (reindexMetrics != null) {
-                            reindexMetrics.recordTookTime(elapsedTime);
-                        }
-                    })
+                    wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
             }
         );
+    }
+
+    // Visible for testing
+    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
+        ActionListener<BulkByScrollResponse> listener,
+        @Nullable ReindexMetrics metrics,
+        long startTime,
+        boolean isRemote
+    ) {
+        if (metrics == null) {
+            return listener;
+        }
+
+        // add completion metrics
+        var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(ScrollableHitSource.SearchFailure::getReason)
+                    .findFirst();
+                var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(BulkItemResponse.Failure::getCause)
+                    .findFirst();
+                if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
+                    // record only the first sample error in metric
+                    Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
+                    metrics.recordFailure(isRemote, e);
+                    listener.onResponse(bulkByScrollResponse);
+                } else {
+                    metrics.recordSuccess(isRemote);
+                    listener.onResponse(bulkByScrollResponse);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                metrics.recordFailure(isRemote, e);
+                listener.onFailure(e);
+            }
+        };
+
+        // add duration metric
+        return ActionListener.runAfter(withCompletionMetrics, () -> {
+            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+            metrics.recordTookTime(elapsedTime, isRemote);
+        });
     }
 
     /**

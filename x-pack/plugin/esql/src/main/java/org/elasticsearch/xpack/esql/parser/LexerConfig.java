@@ -17,6 +17,7 @@ public abstract class LexerConfig extends Lexer {
 
     // is null when running inside the IDEA plugin
     EsqlConfig config;
+    private int promqlDepth = 0;
 
     public LexerConfig() {}
 
@@ -30,5 +31,31 @@ public abstract class LexerConfig extends Lexer {
 
     void setEsqlConfig(EsqlConfig config) {
         this.config = config;
+    }
+
+    // Needed by the Promql command
+    void incPromqlDepth() {
+        promqlDepth++;
+    }
+
+    void decPromqlDepth() {
+        if (promqlDepth == 0) {
+            throw new ParsingException("Invalid PromQL command, unexpected '('");
+        }
+        promqlDepth--;
+    }
+
+    void resetPromqlDepth() {
+        if (promqlDepth != 0) {
+            throw new ParsingException(
+                "Invalid PromQL declaration, missing [{}] [{}] parenthesis",
+                Math.absExact(promqlDepth),
+                promqlDepth > 0 ? '(' : ')'
+            );
+        }
+    }
+
+    boolean isPromqlQuery() {
+        return promqlDepth > 0;
     }
 }

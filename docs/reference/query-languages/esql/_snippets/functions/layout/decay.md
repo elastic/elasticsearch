@@ -2,7 +2,7 @@
 
 ## `DECAY` [esql-decay]
 ```{applies_to}
-stack: preview 9.2.0
+stack: preview 9.3.0
 serverless: preview
 ```
 

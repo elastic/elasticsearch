@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -190,9 +189,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                knnVectorsBytes = in.readVLong();
-            }
+            knnVectorsBytes = in.readVLong();
         }
 
         @Override
@@ -203,9 +200,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeVLong(knnVectorsBytes);
-            }
+            out.writeVLong(knnVectorsBytes);
         }
 
         private void add(PerFieldDiskUsage other) {

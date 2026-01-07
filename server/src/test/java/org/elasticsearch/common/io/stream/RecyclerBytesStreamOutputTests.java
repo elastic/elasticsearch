@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.EOFException;
@@ -46,6 +47,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.stream.AbstractStreamTests.randomString;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -303,6 +306,42 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.close();
     }
 
+    public void testString() throws IOException {
+        final var s = randomString();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.setTransportVersion(TransportVersionUtils.randomVersion());
+            out.writeString(s);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+                assertEquals(s, in.readString());
+            }
+        }
+    }
+
+    public void testOptionalString() throws IOException {
+        final var s = randomBoolean() ? null : randomString();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.setTransportVersion(TransportVersionUtils.randomVersion());
+            out.writeOptionalString(s);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+                assertEquals(s, in.readOptionalString());
+            }
+        }
+    }
+
+    public void testGenericString() throws IOException {
+        final var s = randomString();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.setTransportVersion(TransportVersionUtils.randomVersion());
+            out.writeGenericValue(s);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+                assertEquals(s, in.readGenericValue());
+            }
+        }
+    }
+
     public void testSimpleStreams() throws Exception {
         assumeTrue("requires a 64-bit JRE ... ?!", Constants.JRE_IS_64BIT);
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
@@ -368,8 +407,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertThat(in.readString(), equalTo("goodbye"));
         assertThat(in.readGenericValue(), equalTo((Object) BytesRefs.toBytesRef("bytesref")));
         assertThat(in.readStringArray(), equalTo(new String[] { "a", "b", "cat" }));
-        assertThat(in.readBytesReference(), equalTo(new BytesArray("test")));
-        assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
+        assertThat(in.readBytesReference(), equalBytes(new BytesArray("test")));
+        assertThat(in.readOptionalBytesReference(), equalBytes(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
         assertEquals(ZoneId.of("CET"), in.readZoneId());
@@ -776,7 +815,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 
-            assertEquals(output.bytes(), reverseMapOutput.bytes());
+            assertThat(reverseMapOutput.bytes(), equalBytes(output.bytes()));
         }
     }
 

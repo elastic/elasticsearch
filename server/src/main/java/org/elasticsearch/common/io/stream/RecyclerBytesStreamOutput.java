@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -159,7 +160,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (bytesNeeded == 1) {
             page[offset] = (byte) i;
         } else {
-            putMultiByteVInt(page, i, offset);
+            StreamOutputHelper.putMultiByteVInt(page, i, offset);
         }
     }
 
@@ -262,7 +263,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         int bytesNeededForVInt = vIntLength(charCount);
         // maximum serialized length is 3 bytes per char + n bytes for the vint
         if (charCount * 3 + bytesNeededForVInt > (pageSize - currentPageOffset)) {
-            super.writeString(str);
+            // Technically no need for scratch buffer here, we can do the same thing directly on the pages just with bounds checks -- TODO
+            StreamOutputHelper.writeString(str, this);
             return;
         }
 
@@ -287,6 +289,22 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             }
         }
         this.currentPageOffset = offset - currentPage.offset;
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        if (str == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeString(str);
+        }
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        writeByte((byte) 0);
+        writeString(value);
     }
 
     @Override

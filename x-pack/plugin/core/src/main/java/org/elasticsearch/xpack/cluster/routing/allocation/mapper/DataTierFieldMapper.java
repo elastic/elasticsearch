@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -69,9 +70,15 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            final String tierPreference = SearchExecutionContext.getFirstTierPreference(blContext.indexSettings().getSettings(), "");
+            return BlockLoader.constantBytes(new BytesRef(tierPreference));
         }
 
         @Override

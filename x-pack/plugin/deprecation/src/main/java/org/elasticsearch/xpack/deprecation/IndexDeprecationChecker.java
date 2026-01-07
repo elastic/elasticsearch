@@ -29,8 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
@@ -93,36 +91,55 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         ProjectMetadata project,
         Map<String, List<String>> indexToTransformIds
     ) {
-        // TODO: this check needs to be revised. It's trivially true right now.
-        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, project)) {
-            var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
-            if (transforms.isEmpty() == false) {
+        if (isNotDataStreamIndex(indexMetadata, project)) {
+            // We check for percolator indices first as that will include potentially older indices as well.
+            List<String> percolatorIncompatibleFieldMappings = DeprecatedIndexPredicate.reindexRequiredForPecolatorFields(
+                indexMetadata,
+                false,
+                false
+            );
+            if (percolatorIncompatibleFieldMappings.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
-                    Strings.format(
-                        "This index was created in version [%s] and requires action before upgrading to %d.0. The following transforms are "
-                            + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
-                            + "transforms destination indices for your upgrade.",
-                        currentCompatibilityVersion.toReleaseVersion(),
-                        Version.CURRENT.major,
-                        String.join(", ", transforms)
-                    ),
+                    "Field mappings with incompatible percolator type",
+                    "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+                    "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                        + "fields. "
+                        + String.join(", ", percolatorIncompatibleFieldMappings),
                     false,
-                    Map.of("reindex_required", true, "transform_ids", transforms)
+                    Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
                 );
-            } else {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "Old index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-index-version",
-                    "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
-                    false,
-                    Map.of("reindex_required", true)
-                );
+            }
+            if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false)) {
+                IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+                var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
+                if (transforms.isEmpty() == false) {
+                    return new DeprecationIssue(
+                        DeprecationIssue.Level.CRITICAL,
+                        "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
+                        "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
+                        Strings.format(
+                            "This index was created in version [%s] and requires action before upgrading to %d.0. The following "
+                                + "transforms are configured to write to this index: [%s]. Refer to the migration guide to learn more "
+                                + "about how to prepare transforms destination indices for your upgrade.",
+                            currentCompatibilityVersion.toReleaseVersion(),
+                            Version.CURRENT.major,
+                            String.join(", ", transforms)
+                        ),
+                        false,
+                        Map.of("reindex_required", true, "transform_ids", transforms)
+                    );
+                } else {
+                    return new DeprecationIssue(
+                        DeprecationIssue.Level.CRITICAL,
+                        "Old index with a compatibility version < " + Version.CURRENT.major + ".0",
+                        "https://ela.st/es-deprecation-9-index-version",
+                        "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
+                        false,
+                        Map.of("reindex_required", true)
+                    );
+                }
             }
         }
         return null;
@@ -137,39 +154,59 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         ProjectMetadata project,
         Map<String, List<String>> indexToTransformIds
     ) {
-        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, project)) {
-            var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
-            if (transforms.isEmpty() == false) {
+        if (isNotDataStreamIndex(indexMetadata, project)) {
+            // We check for percolator indices first as that will include potentially older indices as well.
+            List<String> percolatorIncompatibleFieldMappings = DeprecatedIndexPredicate.reindexRequiredForPecolatorFields(
+                indexMetadata,
+                true,
+                false
+            );
+            if (percolatorIncompatibleFieldMappings.isEmpty() == false) {
                 return new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
-                    Strings.format(
-                        "This index was created in version [%s] and will be supported as a read-only index in %d.0. The following "
-                            + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
-                            + "about how to handle your transforms destination indices.",
-                        currentCompatibilityVersion.toReleaseVersion(),
-                        Version.CURRENT.major,
-                        String.join(", ", transforms)
-                    ),
+                    DeprecationIssue.Level.CRITICAL,
+                    "Field mappings with incompatible percolator type",
+                    "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+                    "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                        + "fields. "
+                        + String.join(", ", percolatorIncompatibleFieldMappings),
                     false,
-                    Map.of("reindex_required", true, "transform_ids", transforms)
+                    Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
                 );
-            } else {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "Old index with a compatibility version < " + Version.CURRENT.major + ".0 has been ignored",
-                    "https://ela.st/es-deprecation-9-index-version",
-                    "This read-only index has version: "
-                        + currentCompatibilityVersion.toReleaseVersion()
-                        + " and will be supported as read-only in "
-                        + Version.CURRENT.major
-                        + ".0",
-                    false,
-                    Map.of("reindex_required", true)
-                );
+            }
+            if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, project)) {
+                IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+                var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
+                if (transforms.isEmpty() == false) {
+                    return new DeprecationIssue(
+                        DeprecationIssue.Level.WARNING,
+                        "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
+                        "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
+                        Strings.format(
+                            "This index was created in version [%s] and will be supported as a read-only index in %d.0. The following "
+                                + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
+                                + "about how to handle your transforms destination indices.",
+                            currentCompatibilityVersion.toReleaseVersion(),
+                            Version.CURRENT.major,
+                            String.join(", ", transforms)
+                        ),
+                        false,
+                        Map.of("reindex_required", true, "transform_ids", transforms)
+                    );
+                } else {
+                    return new DeprecationIssue(
+                        DeprecationIssue.Level.WARNING,
+                        "Old index with a compatibility version < " + Version.CURRENT.major + ".0 has been ignored",
+                        "https://ela.st/es-deprecation-9-index-version",
+                        "This read-only index has version: "
+                            + currentCompatibilityVersion.toReleaseVersion()
+                            + " and will be supported as read-only in "
+                            + Version.CURRENT.major
+                            + ".0",
+                        false,
+                        Map.of("reindex_required", true)
+                    );
+                }
             }
         }
         return null;
@@ -272,71 +309,6 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         }
     }
 
-    /**
-     * iterates through the "properties" field of mappings and returns any predicates that match in the
-     * form of issue-strings.
-     *
-     * @param type the document type
-     * @param parentMap the mapping to read properties from
-     * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
-     * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
-     * @return a list of issues found in fields
-     */
-    @SuppressWarnings("unchecked")
-    private List<String> findInPropertiesRecursively(
-        String type,
-        Map<String, Object> parentMap,
-        Function<Map<?, ?>, Boolean> predicate,
-        BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter,
-        String fieldBeginMarker,
-        String fieldEndMarker
-    ) {
-        List<String> issues = new ArrayList<>();
-        Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
-        if (properties == null) {
-            return issues;
-        }
-        for (Map.Entry<?, ?> entry : properties.entrySet()) {
-            Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
-            if (predicate.apply(valueMap)) {
-                issues.add(fieldBeginMarker + fieldFormatter.apply(type, entry) + fieldEndMarker);
-            }
-
-            Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
-            if (values != null) {
-                for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
-                    Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
-                    if (predicate.apply(multifieldValueMap)) {
-                        issues.add(
-                            fieldBeginMarker
-                                + fieldFormatter.apply(type, entry)
-                                + ", multifield: "
-                                + multifieldEntry.getKey()
-                                + fieldEndMarker
-                        );
-                    }
-                    if (multifieldValueMap.containsKey("properties")) {
-                        issues.addAll(
-                            findInPropertiesRecursively(
-                                type,
-                                multifieldValueMap,
-                                predicate,
-                                fieldFormatter,
-                                fieldBeginMarker,
-                                fieldEndMarker
-                            )
-                        );
-                    }
-                }
-            }
-            if (valueMap.containsKey("properties")) {
-                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker));
-            }
-        }
-
-        return issues;
-    }
-
     private DeprecationIssue deprecatedCamelCasePattern(
         IndexMetadata indexMetadata,
         ProjectMetadata project,
@@ -346,7 +318,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         fieldLevelMappingIssue(
             indexMetadata,
             ((mappingMetadata, sourceAsMap) -> fields.addAll(
-                findInPropertiesRecursively(
+                DeprecatedIndexPredicate.findInPropertiesRecursively(
                     mappingMetadata.type(),
                     sourceAsMap,
                     this::isDateFieldWithCamelCasePattern,

@@ -55,35 +55,35 @@ public final class GrokCaptureConfig {
      */
     public GrokCaptureExtracter objectExtracter(Consumer<Object> emit) {
         // We could probably write this code a little more concisely but this makes it clear where we are boxing
-        return nativeExtracter(new NativeExtracterMap<GrokCaptureExtracter>() {
+        return nativeExtracter(new NativeExtracterMap<>() {
             @Override
             public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(str -> emit.accept(str));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(i -> emit.accept(Integer.valueOf(i)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(l -> emit.accept(Long.valueOf(l)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(f -> emit.accept(Float.valueOf(f)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(d -> emit.accept(Double.valueOf(d)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(b -> emit.accept(b));
+                return buildExtracter.apply(emit::accept);
             }
         });
     }
@@ -92,18 +92,18 @@ public final class GrokCaptureConfig {
      * Build an extract that has access to the "native" type of the extracter
      * match. This means that patterns like {@code %{NUMBER:bytes:float}} has
      * access to an actual {@link float}. Extracters returned from this method
-     * should be stateless stateless and can be reused. Pathological implementations
+     * should be stateless and can be reused. Pathological implementations
      * of the {@code map} parameter could violate this, but the caller should
      * take care to stay sane.
      * <p>
      * While the goal is to produce a {@link GrokCaptureExtracter} that provides
      * a primitive, the caller can produce whatever type-safe constructs it
-     * needs and return them from this method. Thus the {@code <T>} in the type
+     * needs and return them from this method. Thus, the {@code <T>} in the type
      * signature.
      *
      * @param <T> The type of the result.
      * @param map Collection of handlers for each native type. Only one method
-     *            will be called but well behaved implementers are stateless.
+     *            will be called but well-behaved implementers are stateless.
      * @return whatever was returned by the handler.
      */
     public <T> T nativeExtracter(NativeExtracterMap<T> map) {
@@ -111,7 +111,7 @@ public final class GrokCaptureConfig {
     }
 
     /**
-     * Collection of handlers for each native type. Well behaved implementations
+     * Collection of handlers for each native type. Well-behaved implementations
      * are stateless and produce stateless results.
      */
     public interface NativeExtracterMap<T> {
@@ -153,9 +153,9 @@ public final class GrokCaptureConfig {
     public GrokCaptureExtracter rangeExtracter(Consumer<Object> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
-                if (region.beg[number] >= 0) {
-                    int matchOffset = offset + region.beg[number];
-                    int matchLength = region.end[number] - region.beg[number];
+                if (region.getBeg(number) >= 0) {
+                    int matchOffset = offset + region.getBeg(number);
+                    int matchLength = region.getEnd(number) - region.getBeg(number);
                     String match = new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8);
                     emit.accept(new GrokCaptureExtracter.Range(match, matchOffset, matchLength));
                 }

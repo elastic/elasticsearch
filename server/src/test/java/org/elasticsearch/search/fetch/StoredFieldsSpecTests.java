@@ -120,7 +120,7 @@ public class StoredFieldsSpecTests extends ESTestCase {
 
         spec = spec.merge(
             new StoredFieldsSpec(
-                true,
+                false, // if set to true, then the new spec will require complete and source and so source paths would then be empty
                 false,
                 Set.of("other_field"),
                 IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
@@ -133,6 +133,24 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertThat(spec.requiredStoredFields(), containsInAnyOrder("other_field"));
         assertThat(spec.sourcePaths(), containsInAnyOrder("cat", "dog", "hamster"));
         assertThat(spec.sourcePaths(), sameInstance(pref));
+    }
+
+    public void testMergeSourcePathsRequireCompleteSource() {
+        var ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        StoredFieldsSpec spec = new StoredFieldsSpec(true, false, Set.of(), ignoredSourceFormat, Set.of("field1", "field2"));
+        assertThat(spec.ignoredSourceFormat(), equalTo(ignoredSourceFormat));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), empty());
+        assertThat(spec.sourcePaths(), containsInAnyOrder("field1", "field2"));
+
+        // Clears source paths, because this spec requires complete source (since no source paths are defined)
+        spec = spec.merge(new StoredFieldsSpec(true, false, Set.of(), ignoredSourceFormat, Set.of()));
+        assertThat(spec.ignoredSourceFormat(), equalTo(ignoredSourceFormat));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), empty());
+        assertThat(spec.sourcePaths(), empty());
     }
 
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {

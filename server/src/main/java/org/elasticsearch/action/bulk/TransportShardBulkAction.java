@@ -433,6 +433,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
+                request.getDynamicTemplateParams(),
                 request.getIncludeSourceOnError(),
                 meteringParserDecorator,
                 request.tsid()
@@ -754,6 +755,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.source(),
                     indexRequest.getContentType(),
                     indexRequest.routing(),
+                    Map.of(),
                     Map.of(),
                     true,
                     XContentMeteringParserDecorator.NOOP,

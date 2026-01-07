@@ -249,7 +249,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
-    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES = Setting.boolSetting(
+    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
         "unsafely_incompatible_with_s3_conditional_writes",
         false
     );
@@ -279,7 +279,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
      * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
-     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES} setting.
+     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
      */
     private final boolean supportsConditionalWrites;
 
@@ -359,7 +359,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
-        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.get(metadata.settings()) == Boolean.FALSE;
+        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
 
         if (supportsConditionalWrites == false) {
             logger.warn(
@@ -368,7 +368,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                     this warning, upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [{}] \
                     repository setting; for more information, see [{}]""",
                 metadata.name(),
-                UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.getKey(),
+                UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(),
                 ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
             );
         }

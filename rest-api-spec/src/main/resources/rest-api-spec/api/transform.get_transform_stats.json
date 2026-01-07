@@ -20,8 +20,8 @@
           ],
           "parts": {
             "transform_id": {
-              "type": "string",
-              "description": "The id of the transform for which to get stats. '_all' or '*' implies all transforms"
+              "type": "list",
+              "description": "Comma-separated list of transform identifiers or wildcard expressions. You can get information for all transforms by using `_all`, by specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`."
             }
           }
         }

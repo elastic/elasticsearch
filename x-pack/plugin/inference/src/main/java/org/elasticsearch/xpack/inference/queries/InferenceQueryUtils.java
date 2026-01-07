@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
@@ -675,24 +677,32 @@ public final class InferenceQueryUtils {
             ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
         ) {
             final String clusterAlias = getClusterAlias();
-            executeAsyncWithOrigin(threadContext, ML_ORIGIN, request, listener, (req, l1) -> {
-                client.getConnection(req, l1.delegateFailureAndWrap((l2, c) -> {
-                    TransportVersion transportVersion = c.getTransportVersion();
-                    if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
-                        // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
-                        // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
-                        // intercepted. We track the transport version in the response so that more thorough error checking can be
-                        // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
-                        l2.onResponse(
-                            Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
+            client.getConnection(request, listener.delegateFailureAndWrap((l1, connection) -> {
+                TransportVersion transportVersion = connection.getTransportVersion();
+                if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
+                    // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
+                    // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
+                    // intercepted. We track the transport version in the response so that more thorough error checking can be
+                    // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
+                    l1.onResponse(
+                        Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
+                    );
+                } else {
+                    // Use system context for the actual cross-cluster request to work with RCS 2.0 (API key-based authentication).
+                    // This follows the same pattern as CCR (see CcrLicenseChecker.systemClient).
+                    final Supplier<ThreadContext.StoredContext> restorableContext = threadContext.newRestorableContext(false);
+                    try (ThreadContext.StoredContext ignore = threadContext.newEmptySystemContext()) {
+                        client.execute(
+                            connection,
+                            GetInferenceFieldsAction.REMOTE_TYPE,
+                            request,
+                            new ContextPreservingActionListener<>(restorableContext, l1.delegateFailureAndWrap((l2, resp) -> {
+                                l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                            }))
                         );
-                    } else {
-                        client.execute(GetInferenceFieldsAction.REMOTE_TYPE, req, l2.delegateFailureAndWrap((l3, resp) -> {
-                            l3.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                        }));
                     }
-                }));
-            });
+                }
+            }));
         }
 
         @Override

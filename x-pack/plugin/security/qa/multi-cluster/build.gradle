@@ -16,6 +16,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:security')
   javaRestTestImplementation project(':x-pack:plugin:ccr')
+  javaRestTestImplementation project(':x-pack:plugin:inference')
   clusterModules(project(":modules:analysis-common"))
   clusterModules project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:reindex")) // need for deleting transform jobs
@@ -27,6 +28,9 @@ dependencies {
   clusterModules project(':x-pack:plugin:ml')
   clusterModules project(xpackModule('ilm'))
   clusterModules(project(":modules:ingest-common"))
+  // Inference module for semantic query CCS testing (issue #140193)
+  clusterModules project(':x-pack:plugin:inference')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 
 tasks.named("javaRestTest") {

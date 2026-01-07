@@ -2024,15 +2024,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", confidenceInterval="
+            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", bits=7, compressed=false, "
             + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
             + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), "
             + "factory="
             + (factory != null ? factory : "null")
-            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+            + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2128,13 +2128,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", confidenceInterval="
+            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : 0.0f)
             + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
             + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), factory="
             + (factory != null ? factory : "null")
-            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+            + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 

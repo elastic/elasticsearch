@@ -1813,7 +1813,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 7, false);
+            return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 7, false, false);
         }
 
         @Override
@@ -2004,7 +2004,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 4, true);
+            return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 4, true, false);
         }
 
         @Override

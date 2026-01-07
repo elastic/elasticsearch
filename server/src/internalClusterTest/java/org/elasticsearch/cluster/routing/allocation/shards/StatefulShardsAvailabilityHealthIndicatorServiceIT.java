@@ -35,7 +35,7 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase {
+public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
     public void testIsGreenDuringIndexCreate() {

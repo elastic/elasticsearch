@@ -100,25 +100,25 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_NODE_CAPACITY;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_INITIALIZATION;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.NAME;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.CREATING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_NODE_CAPACITY;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_INITIALIZATION;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService.NAME;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests.ShardState.CREATING;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
+import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.core.Tuple.tuple;
@@ -139,7 +139,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
+public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStarted() {
         ProjectId projectId = randomProjectIdOrDefault();
@@ -499,7 +499,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         /*
           A couple of tests for
-          {@link ShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnavailable(ShardRouting, ClusterState)}
+          {@link StatefulShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnavailable(ShardRouting, ClusterState)}
          */
         {
             IndexRoutingTable routingTable = indexWithTwoPrimaryOneReplicaShard(
@@ -1047,17 +1047,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 .put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())))
         ).build();
         {
-            List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
-                metadata,
-                getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
-                Set.of(
-                    new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
-                    new ProjectIndexName(projectId, ".feature-index"),
-                    new ProjectIndexName(projectId, "regular-index")
-                ),
-                10,
-                false
-            );
+            List<Diagnosis.Resource> affectedResources = ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus
+                .getRestoreFromSnapshotAffectedResources(
+                    metadata,
+                    getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
+                    Set.of(
+                        new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
+                        new ProjectIndexName(projectId, ".feature-index"),
+                        new ProjectIndexName(projectId, "regular-index")
+                    ),
+                    10,
+                    false
+                );
 
             assertThat(affectedResources.size(), is(2));
             for (Diagnosis.Resource resource : affectedResources) {
@@ -1071,17 +1072,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
 
         {
-            List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
-                metadata,
-                getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
-                Set.of(
-                    new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
-                    new ProjectIndexName(projectId, ".feature-index"),
-                    new ProjectIndexName(projectId, "regular-index")
-                ),
-                0,
-                false
-            );
+            List<Diagnosis.Resource> affectedResources = ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus
+                .getRestoreFromSnapshotAffectedResources(
+                    metadata,
+                    getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
+                    Set.of(
+                        new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
+                        new ProjectIndexName(projectId, ".feature-index"),
+                        new ProjectIndexName(projectId, "regular-index")
+                    ),
+                    0,
+                    false
+                );
 
             assertThat(affectedResources.size(), is(2));
             for (Diagnosis.Resource resource : affectedResources) {
@@ -2095,7 +2097,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        var service = new ShardsAvailabilityHealthIndicatorService(
+        var service = new StatefulShardsAvailabilityHealthIndicatorService(
             clusterService,
             mock(AllocationService.class),
             mock(SystemIndices.class),
@@ -2368,7 +2370,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testDeterministicShardAvailabilityKeyOrder() {
         final ProjectId projectId = randomProjectIdOrDefault();
         final ClusterState clusterState = createClusterStateWith(projectId, List.of(), List.of());
-        final ShardsAvailabilityHealthIndicatorService service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final StatefulShardsAvailabilityHealthIndicatorService service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         final HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         final String detailsJson = Strings.toString(result.details());
@@ -2779,18 +2781,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private record ShardRoutingKey(String index, int shard, boolean primary) {}
 
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(ProjectId projectId) {
+    private static StatefulShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(ProjectId projectId) {
         return createShardsAvailabilityIndicatorService(projectId, ClusterState.EMPTY_STATE, Collections.emptyMap());
     }
 
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+    private static StatefulShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
         ProjectId projectId,
         ClusterState clusterState
     ) {
         return createShardsAvailabilityIndicatorService(projectId, clusterState, Collections.emptyMap());
     }
 
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+    private static StatefulShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
         ProjectId projectId,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
@@ -2804,7 +2806,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+    private static StatefulShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
         ProjectId projectId,
         Settings nodeSettings,
         ClusterState clusterState,
@@ -2819,7 +2821,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
+    private static StatefulShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
         Settings nodeSettings,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions,
@@ -2839,6 +2841,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
             }
         );
-        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
+        return new StatefulShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
     }
 }

@@ -13,10 +13,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.xpack.esql.CsvTests;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -36,8 +38,13 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.junit.internal.AssumptionViolatedException;
+import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -56,7 +63,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
-@Listeners({ GoldenTestReproduceInfoPrinter.class })
+@Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
     private final Path baseFile;
@@ -312,4 +319,49 @@ public abstract class GoldenTestCase extends ESTestCase {
         throw new IllegalStateException("Could not extract test name from stack trace");
     }
 
+    /**
+     * Adds -Dgolden.bulldoze to the reproduction line for golden test failures. This has to be a nested class to get pass the
+     * {@code TestingConventionsCheckWorkAction} check, which incorrectly identifies this class as a test.
+     */
+    public static class GoldenTestReproduceInfoPrinter extends RunListener {
+        private final ReproduceInfoPrinter delegate = new ReproduceInfoPrinter();
+
+        @Override
+        public void testFailure(Failure failure) throws Exception {
+            if (failure.getException() instanceof AssumptionViolatedException) {
+                return;
+            }
+            if (isGoldenTest(failure)) {
+                printToErr(captureDelegate(failure).replace("REPRODUCE WITH:", "BULLDOZE WITH:") + " -Dgolden.bulldoze");
+            } else {
+                delegate.testFailure(failure);
+            }
+        }
+
+        @SuppressForbidden(reason = "Using System.err to redirect output")
+        private String captureDelegate(Failure failure) throws Exception {
+            PrintStream originalErr = System.err;
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            System.setErr(new PrintStream(baos, true, StandardCharsets.UTF_8));
+            try {
+                delegate.testFailure(failure);
+            } finally {
+                System.setErr(originalErr);
+            }
+            return baos.toString(StandardCharsets.UTF_8).trim();
+        }
+
+        private static boolean isGoldenTest(Failure failure) {
+            try {
+                return GoldenTestCase.class.isAssignableFrom(Class.forName(failure.getDescription().getClassName()));
+            } catch (ClassNotFoundException e) {
+                return false;
+            }
+        }
+
+        @SuppressForbidden(reason = "printing repro info")
+        private static void printToErr(String s) {
+            System.err.println(s);
+        }
+    }
 }

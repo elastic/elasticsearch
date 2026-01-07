@@ -131,18 +131,8 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
         @Override
         public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
             var validationException = new ValidationException();
-            var modelValue = serviceSettings.get("model");
-            if (modelValue == null) {
-                validationException.addValidationError("Missing required service setting: model");
-            } else if (modelValue instanceof String == false) {
-                validationException.addValidationError("Expected service setting [model] to be of type String");
-            }
-            var dimensionsValue = serviceSettings.get("dimensions");
-            if (dimensionsValue == null) {
-                validationException.addValidationError("Missing required service setting: dimensions");
-            } else if (dimensionsValue instanceof Integer == false) {
-                validationException.addValidationError("Expected service setting [dimensions] to be of type Integer");
-            }
+            var modelValue = serviceSettings.getOrDefault("model", this.modelId());
+            var dimensionsValue = serviceSettings.getOrDefault("dimensions", this.dimensions());
             var similarityValue = serviceSettings.get("similarity");
             SimilarityMeasure similarityEnumValue = null;
             if (similarityValue != null) {
@@ -154,6 +144,8 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
                 } catch (IllegalArgumentException e) {
                     validationException.addValidationError("Invalid value for service setting [similarity]: " + similarityValue);
                 }
+            }else {
+                similarityEnumValue = this.similarity();
             }
             var elementTypeValue = serviceSettings.get("element_type");
             DenseVectorFieldMapper.ElementType elementTypeEnumValue = null;
@@ -166,6 +158,8 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
                 } catch (IllegalArgumentException e) {
                     validationException.addValidationError("Invalid value for service setting [element_type]: " + elementTypeValue);
                 }
+            } else {
+                elementTypeEnumValue = this.elementType();
             }
             validationException.throwIfValidationErrorsExist();
             return new TestServiceSettings((String) modelValue, (Integer) dimensionsValue, similarityEnumValue, elementTypeEnumValue);

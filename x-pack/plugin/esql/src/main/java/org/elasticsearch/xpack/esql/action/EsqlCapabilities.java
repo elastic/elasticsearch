@@ -1837,6 +1837,10 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         /**
+         * Support for requesting the "_tier" metadata field.
+         */
+        METADATA_TIER_FIELD,
+        /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887
          */

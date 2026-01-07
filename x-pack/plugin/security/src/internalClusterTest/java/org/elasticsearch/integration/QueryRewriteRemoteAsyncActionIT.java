@@ -196,8 +196,8 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersWithSe
             assertSearchFailure(
                 r,
                 ElasticsearchSecurityException.class,
-                "action [cluster:internal/test/instrumented] towards remote cluster is unauthorized for user [test_user]" +
-                    " with assigned roles [user]"
+                "action [cluster:internal/test/instrumented] towards remote cluster is unauthorized for user [test_user]"
+                    + " with assigned roles [user]"
             );
             assertInstrumentedActionCalls(0, 0);
         };

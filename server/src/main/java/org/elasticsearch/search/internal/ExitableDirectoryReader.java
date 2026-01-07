@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Wraps an {@link IndexReader} with a {@link QueryCancellation}
@@ -138,7 +137,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(queryCancellation, vectorValues) : vectorValues;
+            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(vectorValues, queryCancellation) : vectorValues;
         }
 
         @Override
@@ -455,33 +454,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableByteVectorValues extends ByteVectorValues {
+    private static class ExitableByteVectorValues extends FilterByteVectorValues {
         private final QueryCancellation queryCancellation;
-        private final ByteVectorValues in;
 
-        private ExitableByteVectorValues(QueryCancellation queryCancellation, ByteVectorValues in) {
+        private ExitableByteVectorValues(ByteVectorValues in, QueryCancellation queryCancellation) {
+            super(in);
             this.queryCancellation = queryCancellation;
-            this.in = in;
-        }
-
-        @Override
-        public int dimension() {
-            return in.dimension();
-        }
-
-        @Override
-        public int size() {
-            return in.size();
-        }
-
-        @Override
-        public byte[] vectorValue(int ord) throws IOException {
-            return in.vectorValue(ord);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return in.ordToDoc(ord);
         }
 
         @Override
@@ -513,7 +491,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public ByteVectorValues copy() throws IOException {
-            return in.copy();
+            return new ExitableByteVectorValues(in.copy(), queryCancellation);
         }
     }
 
@@ -545,16 +523,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return in.vectorValue(ord);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return in.ordToDoc(ord);
-        }
-
-        @Override
         public VectorScorer scorer(float[] target) throws IOException {
             VectorScorer scorer = in.scorer(target);
             if (scorer == null) {
@@ -583,7 +551,10 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues copy() throws IOException {
-            return in.copy();
+            assert in instanceof BulkScorableFloatVectorValues;
+            FloatVectorValues copy = this.in.copy();
+            BulkScorableFloatVectorValues bulkScorableCopy = (BulkScorableFloatVectorValues) copy;
+            return new ExitableBulkScorableFloatVectorValues(copy, bulkScorableCopy, queryCancellation);
         }
 
         @Override
@@ -645,7 +616,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues copy() throws IOException {
-            return in.copy();
+            return new ExitableFloatVectorValues(in.copy(), queryCancellation);
         }
     }
 
@@ -745,42 +716,4 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    /** Delegates all methods to a wrapped {@link FloatVectorValues}. */
-    private abstract static class FilterFloatVectorValues extends FloatVectorValues {
-
-        /** Wrapped values */
-        protected final FloatVectorValues in;
-
-        /** Sole constructor */
-        protected FilterFloatVectorValues(FloatVectorValues in) {
-            Objects.requireNonNull(in);
-            this.in = in;
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return in.iterator();
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return in.vectorValue(ord);
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            return in.copy();
-        }
-
-        @Override
-        public int dimension() {
-            return in.dimension();
-        }
-
-        @Override
-        public int size() {
-            return in.size();
-        }
-
-    }
 }

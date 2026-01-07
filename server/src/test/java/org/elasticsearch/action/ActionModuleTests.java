@@ -88,10 +88,7 @@ public class ActionModuleTests extends ESTestCase {
                 return singletonList(new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ActionModule.setupActions(testEnv, singletonList(dupsMainAction))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(testEnv, singletonList(dupsMainAction)));
         assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 

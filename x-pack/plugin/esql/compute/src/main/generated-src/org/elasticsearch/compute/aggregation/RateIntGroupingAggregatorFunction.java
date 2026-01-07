@@ -81,7 +81,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         new IntermediateStateDesc("resets", ElementType.DOUBLE)
     );
 
-    private GroupedValuesList groupedValues;
+    private PartitionedGroupedValuesList groupedValues;
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
@@ -99,7 +99,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         this.isRateOverTime = isRateOverTime;
-        GroupedValuesList groupedValues = new GroupedValuesList();
+        PartitionedGroupedValuesList groupedValues = new PartitionedGroupedValuesList();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         try {
             this.reducedStates = driverContext.bigArrays().newObjectArray(256);
@@ -734,6 +734,55 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         @Override
         public void close() {
             Releasables.close(values, groupForValue, groupStartOffsets);
+        }
+    }
+
+    private class PartitionedGroupedValuesList implements Releasable {
+
+        private static final int NUM_PARTITIONS = 256;
+        private final GroupedValuesList[] partitions = new GroupedValuesList[NUM_PARTITIONS];
+
+        public void appendRange(int group, int from, int to, IntVector valueVector, LongVector timestampVector) {
+            int partition = group % NUM_PARTITIONS;
+            int mappedGroupId = group / NUM_PARTITIONS;
+            if (partitions[partition] == null) {
+                partitions[partition] = new GroupedValuesList();
+            }
+            partitions[partition].appendRange(mappedGroupId, from, to, valueVector, timestampVector);
+        }
+
+        public void appendRange(int group, int from, int to, IntBlock valueBlock, LongVector timestampVector) {
+            int partition = group % NUM_PARTITIONS;
+            int mappedGroupId = group / NUM_PARTITIONS;
+            if (partitions[partition] == null) {
+                partitions[partition] = new GroupedValuesList();
+            }
+            partitions[partition].appendRange(mappedGroupId, from, to, valueBlock, timestampVector);
+        }
+
+        public void append(int group, long timestamp, int value) {
+            int partition = group % NUM_PARTITIONS;
+            int mappedGroupId = group / NUM_PARTITIONS;
+            if (partitions[partition] == null) {
+                partitions[partition] = new GroupedValuesList();
+            }
+            partitions[partition].append(mappedGroupId, timestamp, value);
+        }
+
+        @Override
+        public void close() {
+            for (GroupedValuesList partition : partitions) {
+                Releasables.close(partition);
+            }
+        }
+
+        ReducedState flushGroup(int group, ReducedState state) {
+            int partition = group % NUM_PARTITIONS;
+            int mappedGroupId = group / NUM_PARTITIONS;
+            if (partitions[partition] == null) {
+                return state;
+            }
+            return partitions[partition].flushGroup(mappedGroupId, state);
         }
     }
 

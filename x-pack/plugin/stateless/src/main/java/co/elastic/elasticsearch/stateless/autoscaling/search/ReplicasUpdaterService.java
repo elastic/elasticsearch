@@ -227,6 +227,12 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
 
     private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
     private final AtomicBoolean pendingImmediateScaleDown = new AtomicBoolean(false);
+    // The latestRequestedTopologyOnly field tracks whether the most recent pending request should only perform a topology check (a subset
+    // of a full replica update). It's used in performReplicaUpdates to coordinate between concurrent calls when multiple requests arrive
+    // while a run is in progress. This stores the latest onlyScaleDownToTopologyBounds value, which is then used when the pending run
+    // executes. Unlike pendingImmediateScaleDown, losing a true value is acceptable since onlyScaleDownToTopologyBounds=false encompasses
+    // onlyScaleDownToTopologyBounds=true.
+    private final AtomicBoolean latestRequestedTopologyOnly = new AtomicBoolean(false);
 
     private volatile boolean pendingScaleDownAfterDisabling = false;
     private volatile boolean enableReplicasForInstantFailover;
@@ -506,14 +512,27 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      *                           recommendation, rather than waiting for {@link #scaledownRepetitionSetting}
      *                           repeated signals.
      */
-    void performReplicaUpdates(boolean immediateScaleDown) { // visible for testing
-        performReplicaUpdates(immediateScaleDown, 0);
+    // visible for testing
+    void performReplicaUpdates(boolean immediateScaleDown) {
+        performReplicaUpdates(immediateScaleDown, false, 0);
     }
 
-    private void performReplicaUpdates(boolean immediateScaleDown, int depth) {
+    // visible for testing
+    void performReplicaUpdates(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds) {
+        performReplicaUpdates(immediateScaleDown, onlyScaleDownToTopologyBounds, 0);
+    }
+
+    private void performReplicaUpdates(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds, int depth) {
         if (immediateScaleDown) {
             pendingImmediateScaleDown.set(true);
         }
+        // record whether this run should only do a topology check so we don't miss the intent of the run
+        // note that we're handling this a bit different to immediateScaleDown as for immediate scale down we don't want to lose a seen
+        // value of true (i.e. we must immediately scale down) whilst for onlyScaleDownToTopologyBounds we can just use the latest seen
+        // value when coming back through the recursive call as onlyScaleDownToTopologyBounds=true is a subset of
+        // onlyScaleDownToTopologyBounds=false so it's ok to lose such a request if we have 3 chained calls with
+        // onlyScaleDownToTopologyBounds=true followed by onlyScaleDownToTopologyBounds=false
+        latestRequestedTopologyOnly.set(onlyScaleDownToTopologyBounds);
         if (depth > 3) {
             // quite unlucky to get a few chained pending runs while we were already running, so let's skip chaining the runs and
             // at this point allow the run to go on the scheduled loop
@@ -531,7 +550,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 // a pending request
                 boolean shouldScaleDownImmediately = pendingImmediateScaleDown.getAndSet(false);
                 listener.onRunStart(shouldScaleDownImmediately);
-                run(shouldScaleDownImmediately);
+                run(shouldScaleDownImmediately, latestRequestedTopologyOnly.get());
                 listener.onRunComplete();
             } finally {
                 State stateAfterRun = state.getAndSet(State.IDLE);
@@ -543,7 +562,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     LOGGER.debug("triggering pending replicas update run");
                     // parameter doesn't matter here as we already captured the intent of a potential pending run
                     // and will check pendingImmediateScaleDown flag at the top
-                    performReplicaUpdates(false, depth + 1);
+                    performReplicaUpdates(false, latestRequestedTopologyOnly.getAndSet(false), depth + 1);
                 }
             }
         } else {
@@ -552,7 +571,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
     }
 
-    private void run(boolean immediateScaleDown) {
+    private void run(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds) {
         if (checkDisabledAndNeedsScaledown()) {
             return;
         }
@@ -639,17 +658,26 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 if (immediateScaleDown) {
                     publishUpdateReplicaSetting(targetReplicasCount, indices);
                     indicesScaledDown += indices.size();
-                } else {
+                } else if (onlyScaleDownToTopologyBounds == false) {
                     indicesTrackedForScaleDown.addAll(indices);
                     populateScaleDownUpdates(scaleDownUpdatesToSend, indices, targetReplicasCount);
                 }
             }
-            for (var numReplicas : scaleDownUpdatesToSend.keySet()) {
-                var indices = scaleDownUpdatesToSend.get(numReplicas);
-                publishUpdateReplicaSetting(numReplicas, indices);
-                indicesScaledDown += indices.size();
+            // Topology checks might run often (e.g. when nodes leave the cluster) so we skip the
+            // optional reduction of number of replicas when only topology check is requested because
+            // if, say, 4 nodes leave a cluster that'll increment the scale down counters for some indices by
+            // 4 only because we want to make sure we are within the topology bounds (we might end up reducing
+            // the number of replicas after just 10 minutes, as we've incremented the counter 4 times, i.e. 20 minutes
+            // due to topology checks).
+            // Mandatory / immediate scale downs will run even during topology only checks.
+            if (onlyScaleDownToTopologyBounds == false) {
+                for (var numReplicas : scaleDownUpdatesToSend.keySet()) {
+                    var indices = scaleDownUpdatesToSend.get(numReplicas);
+                    publishUpdateReplicaSetting(numReplicas, indices);
+                    indicesScaledDown += indices.size();
+                }
+                this.scaleDownState.clearStateExceptForIndices(indicesTrackedForScaleDown);
             }
-            this.scaleDownState.clearStateExceptForIndices(indicesTrackedForScaleDown);
         }
 
         LOGGER.info(
@@ -777,7 +805,11 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             int numSearchNodes = (int) nodes.stream().filter(node -> node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName())).count();
             boolean numSearchNodesChanged = this.numSearchNodes != numSearchNodes;
             this.numSearchNodes = numSearchNodes;
-            if (enableReplicasForInstantFailover && job != null) {
+            if (event.nodesRemoved() && numSearchNodesChanged) {
+                // as nodes come and go, just run topology checks on these events (includes auto-expand indices) so we
+                // don't reduce the number of replicas too soon by decrementing the scale down counters
+                performReplicaUpdates(false, true);
+            } else if (enableReplicasForInstantFailover && job != null) {
                 if (autoExpandReplicaIndices.isEmpty() == false) {
                     if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
                         if (numSearchNodesChanged) {

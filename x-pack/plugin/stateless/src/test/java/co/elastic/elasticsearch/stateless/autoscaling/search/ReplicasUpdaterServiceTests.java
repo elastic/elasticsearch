@@ -678,11 +678,15 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         replicasUpdaterService.performReplicaUpdates();
         mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1")));
 
+        // only topology checks don't reduce the number of replicas
+        assertNoUpdateAfterRepeats(repetitionsNeeded + 1, () -> this.replicasUpdaterService.performReplicaUpdates(false, true));
+
         when(searchMetricsService.getIndices()).thenReturn(
             new ConcurrentHashMap<>(
                 Map.of(new Index("index2", "uuid"), new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, 0))
             )
         );
+
         // check for SP < 100 update is immediate
         spMin = randomIntBetween(0, 99);
         updateSpMin(spMin); // this implicitely re-calculates the settings updates

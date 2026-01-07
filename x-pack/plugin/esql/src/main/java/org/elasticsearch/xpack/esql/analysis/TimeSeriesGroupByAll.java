@@ -68,10 +68,10 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         if (lastNonTSAggFunction.get() != null) {
             throw new IllegalArgumentException(
                 "Cannot mix time-series aggregate ["
-                + lastTSAggFunction.get().sourceText()
-                + "] and regular aggregate ["
-                + lastNonTSAggFunction.get().sourceText()
-                + "] in the same TimeSeriesAggregate."
+                    + lastTSAggFunction.get().sourceText()
+                    + "] and regular aggregate ["
+                    + lastNonTSAggFunction.get().sourceText()
+                    + "] in the same TimeSeriesAggregate."
 
             );
         }
@@ -84,10 +84,10 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
                 throw new IllegalArgumentException(
                     "Only grouping functions are supported (e.g. tbucket) when the time series aggregation function ["
-                    + lastTSAggFunction.get().sourceText()
-                    + "] is not wrapped with another aggregation function. Found ["
-                    + grouping.sourceText()
-                    + "]."
+                        + lastTSAggFunction.get().sourceText()
+                        + "] is not wrapped with another aggregation function. Found ["
+                        + grouping.sourceText()
+                        + "]."
                 );
             }
             groupings.add(grouping);

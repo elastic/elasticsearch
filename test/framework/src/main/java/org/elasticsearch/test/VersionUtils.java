@@ -22,6 +22,8 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
+
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
 
@@ -83,6 +85,11 @@ public class VersionUtils {
     public static Version randomCompatibleVersion(Random random, Version version) {
         final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
         return compatible.get(random.nextInt(compatible.size()));
+    }
+
+    /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    public static Version randomVersionBetween(@Nullable Version minVersion, @Nullable Version maxVersion) {
+        return randomVersionBetween(random(), minVersion, maxVersion);
     }
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

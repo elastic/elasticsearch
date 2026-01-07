@@ -59,6 +59,11 @@ public class EsqlCapabilities {
         GEO_VALIDATION,
 
         /**
+         * Fold in spatial functions should return null for null input.
+         */
+        GEO_NULL_LITERALS_FOLDING,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -1770,7 +1775,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V10(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

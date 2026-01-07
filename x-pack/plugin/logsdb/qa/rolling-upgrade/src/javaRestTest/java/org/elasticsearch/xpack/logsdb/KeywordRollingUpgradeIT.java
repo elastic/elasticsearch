@@ -7,46 +7,24 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.rest.ObjectPath;
 
-import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
+public class KeywordRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
 
-    private static final String DATA_STREAM_NAME = "logs-bwc-test";
-
-    private static final List<String> FIELD_VALUES_1 = Arrays.asList(
-        "short value 1",
-        "short value 2",
-        "this value definitely exceeds ignore_above and wont be indexed",
-        "another very long value that exceeds ignore_above",
-        "another very long value that exceeds ignore_above 2"
-    );
-
-    private static final List<String> FIELD_VALUES_2 = Arrays.asList(
-        "short value 3",
-        "short value 4",
-        "short value 5",
-        "another very long value that exceeds ignore_above 3",
-        "another very long value that exceeds ignore_above 4",
-        "another very long value that exceeds ignore_above 5"
-    );
-
-    static String ITEM_TEMPLATE = """
-        {"@timestamp": "$now", "message": "$message"}
-        """;
+    private static final String DATA_STREAM_NAME_PREFIX = "logs-keyword-bwc-test";
 
     private static final String TEMPLATE = """
         {
@@ -55,118 +33,117 @@ public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCas
                 "@timestamp" : {
                   "type": "date"
                 },
+                "length": {
+                  "type": "long"
+                },
+                "factor": {
+                  "type": "double"
+                },
                 "message": {
-                  "type": "keyword",
-                  "ignore_above": 20
+                  "type": "keyword"
                 }
               }
             }
         }""";
 
-    public void testIndexingWithIgnoreAbove() throws Exception {
-        beforeUpgrade();
-        upgradeNodes();
-        afterUpgrade();
+    private static final String TEMPLATE_WITH_IGNORE_ABOVE = """
+        {
+            "mappings": {
+              "properties": {
+                "@timestamp" : {
+                  "type": "date"
+                },
+                "length": {
+                  "type": "long"
+                },
+                "factor": {
+                  "type": "double"
+                },
+                "message": {
+                  "type": "keyword",
+                  "ignore_above": 50
+                }
+              }
+            }
+        }""";
+
+    private final String dataStreamName;
+    private final Mapper.IgnoreAbove ignoreAbove;
+
+    public KeywordRollingUpgradeIT(String template, String testScenario, Mapper.IgnoreAbove ignoreAbove) {
+        super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template);
+        this.dataStreamName = DATA_STREAM_NAME_PREFIX + "." + testScenario;
+        this.ignoreAbove = ignoreAbove;
     }
 
-    private void beforeUpgrade() throws Exception {
-        // given - enable logsdb, create a template + index
-        LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
-        String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        LogsdbIndexingRollingUpgradeIT.createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
-
-        // when - index a document
-        indexDocuments(FIELD_VALUES_1);
-
-        // then - verify that logsdb and synthetic source are enabled before proceeding further
-        String firstBackingIndex = getDataStreamBackingIndexNames(DATA_STREAM_NAME).getFirst();
-        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
-        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
-
-        LogsdbIndexingRollingUpgradeIT.assertDataStream(DATA_STREAM_NAME, templateId);
-        ensureGreen(DATA_STREAM_NAME);
-
-        // then - perform a search, expect all values to be in the response
-        search(FIELD_VALUES_1);
-    }
-
-    private void afterUpgrade() throws Exception {
-        // given - implicitly start from the leftover state after upgrading the cluster
-
-        // when - index a new document
-        indexDocuments(FIELD_VALUES_2);
-
-        // then - query the result, expect to find all new values, as well as values from before the cluster was upgraded
-        List<String> allValues = new ArrayList<>(FIELD_VALUES_1);
-        allValues.addAll(FIELD_VALUES_2);
-        search(allValues);
+    @ParametersFactory
+    public static Iterable<Object[]> data() {
+        return Arrays.asList(
+            new Object[][] {
+                { TEMPLATE, "basic", new Mapper.IgnoreAbove(null, IndexMode.LOGSDB) },
+                { TEMPLATE_WITH_IGNORE_ABOVE, "with-ignore-above", new Mapper.IgnoreAbove(50, IndexMode.LOGSDB) } }
+        );
     }
 
     /**
-    * Create an arbitrary document containing the given values.
-    */
-    private void indexDocuments(List<String> values) throws Exception {
-        var request = new Request("POST", "/" + DATA_STREAM_NAME + "/_bulk");
-        StringBuilder requestBody = new StringBuilder();
-
-        Instant startTime = Instant.now();
-
-        for (String value : values) {
-            requestBody.append("{\"create\": {}}");
-            requestBody.append('\n');
-            requestBody.append(
-                ITEM_TEMPLATE.replace("$now", AbstractLogsdbRollingUpgradeTestCase.formatInstant(startTime)).replace("$message", value)
-            );
-            requestBody.append('\n');
-
-            startTime = startTime.plusMillis(1);
-        }
-        request.setJsonEntity(requestBody.toString());
-        request.addParameter("refresh", "true");
-
-        var response = client().performRequest(request);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-    }
-
-    @SuppressWarnings("unchecked")
-    private void search(List<String> expectedValues) throws IOException {
-        Request searchRequest = new Request("GET", "/" + DATA_STREAM_NAME + "/_search");
-        searchRequest.setJsonEntity("""
+     * We override this because the behavior around ignored keyword fields is unique. More specifically, block loaders will return null for
+     * ignored values, so we must change how verifications work.
+     */
+    @Override
+    protected void query() throws Exception {
+        var queryRequest = new Request("POST", "/_query");
+        queryRequest.addParameter("pretty", "true");
+        queryRequest.setJsonEntity("""
             {
-            "query": { "match_all": {} },
-            "size": 100
+                "query": "FROM $ds | STATS max(length), max(factor) BY message | LIMIT 1000"
             }
-            """);
+            """.replace("$ds", dataStreamName));
 
-        Response response = client().performRequest(searchRequest);
+        var response = client().performRequest(queryRequest);
         assertOK(response);
 
-        // parse the response
-        Map<String, Object> responseMap = entityAsMap(response);
+        // parse response
+        var responseBody = entityAsMap(response);
+        logger.info("{}", responseBody);
 
-        Integer totalCount = ObjectPath.evaluate(responseMap, "hits.total.value");
-        assertThat(totalCount, equalTo(expectedValues.size()));
+        // verify column names
+        String column1 = ObjectPath.evaluate(responseBody, "columns.0.name");
+        assertThat(column1, equalTo("max(length)"));
+        String column2 = ObjectPath.evaluate(responseBody, "columns.1.name");
+        assertThat(column2, equalTo("max(factor)"));
+        String column3 = ObjectPath.evaluate(responseBody, "columns.2.name");
+        assertThat(column3, equalTo("message"));
 
-        List<String> values = ((List<Map<String, Object>>) ObjectPath.evaluate(responseMap, "hits.hits")).stream()
-            .map(map -> (Map<String, Object>) map.get("_source"))
-            .map(source -> {
-                assertThat(source.get("message"), notNullValue());
-                // The value of FIELD_NAME is now a single String, not a List<String>
-                return (String) source.get("message");
-            })
-            .toList();
+        // extract all values from the response and verify each row
+        List<List<Object>> values = ObjectPath.evaluate(responseBody, "values");
+        List<String> queryMessages = new ArrayList<>();
+        for (List<Object> row : values) {
+            // verify that values are non-null
+            Long maxRx = (Long) row.get(0);
+            assertThat(maxRx, notNullValue());
+            Double maxTx = (Double) row.get(1);
+            assertThat(maxTx, notNullValue());
 
-        assertThat(values, containsInAnyOrder(expectedValues.toArray()));
-    }
-
-    private void upgradeNodes() throws IOException {
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
+            // collect message for later verification
+            String message = (String) row.get(2);
+            // block loaders return null for ignored keyword fields, so we must filter those out
+            if (message != null) {
+                queryMessages.add(message);
+            }
         }
+
+        // block loaders do not return ignored keyword fields, so we need to filter them out
+        List<String> messages = getMessages();
+        List<String> nonIgnoredMessage = ignoreAbove.isSet()
+            ? messages.stream().filter(msg -> ignoreAbove.isIgnored(msg) == false).toList()
+            : messages;
+
+        // verify that every message in the messages list is present in the query response
+        assertThat(
+            "Expected messages: " + nonIgnoredMessage + "\nActual messages: " + queryMessages,
+            queryMessages,
+            containsInAnyOrder(nonIgnoredMessage.toArray())
+        );
     }
 
 }

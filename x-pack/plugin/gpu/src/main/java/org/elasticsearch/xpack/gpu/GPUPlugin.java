@@ -87,7 +87,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             }
             if (value > 0 && ((double) GPUSupport.getTotalGpuMemoryInBytes() * (double) value / 100.0) < MIN_DEVICE_MEMORY_IN_BYTES) {
                 throw new IllegalArgumentException(
-                    String.format(
+                    Strings.format(
                         "GPU memory pool cannot be less than the minimum required memory of [%d] bytes",
                         MIN_DEVICE_MEMORY_IN_BYTES
                     )

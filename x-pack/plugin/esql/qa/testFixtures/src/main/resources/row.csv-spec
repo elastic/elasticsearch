@@ -419,6 +419,14 @@ y:integer | x:integer
 10        | 11
 ;
 
+rowFieldResolutionShadowing2
+required_capability: unique_names
+ROW x = 5, x = x * 2;
+
+x:integer
+10        
+;
+
 // Test ROW field resolution - mixed types
 rowFieldResolutionMixedTypes
 ROW num = 42, text = "Answer", combined = CONCAT(text, ": ", TO_STRING(num));

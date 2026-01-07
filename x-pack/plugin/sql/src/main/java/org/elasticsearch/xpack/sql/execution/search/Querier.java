@@ -433,7 +433,7 @@ public class Querier {
             }
 
             InternalAggregations aggs = response.getAggregations();
-            if (aggs != null) {
+            if (aggs != null && aggs.asList().isEmpty() == false) {
                 InternalAggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
                 if (agg instanceof Filters filters) {
                     handleBuckets(filters.getBuckets(), response);

@@ -187,7 +187,7 @@ public class CommandLicenseTests extends ESTestCase {
                 return new Sample(source, null, child);
             }
             case "LookupJoin" -> {
-                return new LookupJoin(source, child, child, List.of(), false, null);
+                return new LookupJoin(source, child, child, List.of(), null);
             }
             case "Limit" -> {
                 return new Limit(source, null, child);

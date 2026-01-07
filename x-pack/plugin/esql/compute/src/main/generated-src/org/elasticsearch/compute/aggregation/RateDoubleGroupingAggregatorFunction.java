@@ -467,32 +467,88 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         }
     }
 
+    private final class IntList implements Releasable {
+        private static final int INITIAL_CAPACITY = 256;
+
+        private IntArray values;
+        private long size = 0;
+
+        private void increaseCapacity() {
+            if (values == null) {
+                this.values = bigArrays.newIntArray(INITIAL_CAPACITY, false);
+            } else {
+                long targetCapacity = Math.max(INITIAL_CAPACITY, capacity() * 2);
+                values = bigArrays.grow(values, targetCapacity);
+            }
+        }
+
+        public long size() {
+            return size;
+        }
+
+        public int get(long index) {
+            assert index < size;
+            return values.get(index);
+        }
+
+        public void set(long index, int value) {
+            assert index < size;
+            values.set(index, value);
+        }
+
+        public void append(int value) {
+            if (size == capacity()) {
+                increaseCapacity();
+            }
+            long index = size++;
+            set(index, value);
+        }
+
+        private long capacity() {
+            if (values == null) {
+                return 0;
+            }
+            return values.size();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(values);
+        }
+    }
+
     private final class GroupedValuesList implements Releasable {
 
         private ValuesList values;
 
-        private IntArray groupForValue;
+        private IntList groupForValue;
         private LongArray groupStartOffsets;
         private int highestSeenGroupId;
 
         private GroupedValuesList() {
-            this.values = new ValuesList();
-            this.groupForValue = null;
+            ValuesList values = new ValuesList();
+            try {
+                this.groupForValue = new IntList();
+                this.values = values;
+                values = null;
+            } finally {
+                Releasables.close(values);
+            }
             this.groupStartOffsets = null;
             this.highestSeenGroupId = 0;
         }
 
         public void append(int group, long timestamp, double value) {
             assert groupStartOffsets == null : "Values have already been sorted, appending is not allowed anymore";
-            long valueIndex = values.size();
             values.append(timestamp, value);
-            if (groupForValue == null) {
-                groupForValue = bigArrays.newIntArray(values.capacity(), false);
-            } else if (groupForValue.size() < values.capacity()) {
-                groupForValue = bigArrays.grow(groupForValue, values.capacity());
+            if (groupForValue.size() == 0 || groupForValue.get(groupForValue.size() - 2) != group) {
+                groupForValue.append(group);
+                groupForValue.append(1);
+            } else {
+                int index = Math.toIntExact(groupForValue.size() - 1);
+                groupForValue.set(index, groupForValue.get(index) + 1);
             }
             highestSeenGroupId = Math.max(highestSeenGroupId, group);
-            groupForValue.set(valueIndex, group);
         }
 
         public void ensureSortedByGroups() {
@@ -525,8 +581,10 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
                     groupCounts.set(i, 0);
                 }
 
-                for (long i = 0; i < values.size(); i++) {
-                    groupCounts.increment(groupForValue.get(i), 1);
+                for (long i = 0; i < groupForValue.size(); i += 2) {
+                    int group = groupForValue.get(i);
+                    int countForGroupSegment = groupForValue.get(i + 1);
+                    groupCounts.increment(group, countForGroupSegment);
                 }
                 // turn the counts into start offsets (= prefix sum)
                 long prefixSum = 0;
@@ -541,12 +599,18 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
                 sortedOutput.setSize(values.size());
                 // now simply put every value into the range of their group
-                for (long i = 0; i < values.size(); i++) {
+                int valueIndex = 0;
+                for (long i = 0; i < groupForValue.size(); i += 2) {
                     int group = groupForValue.get(i);
-                    long targetIndex = groupOffsets.get(group);
-                    sortedOutput.set(targetIndex, values.getTimestamp(i), values.getValue(i));
-                    groupOffsets.increment(group, 1);
+                    int numValuesInGroup = groupForValue.get(i + 1);
+                    int limit = valueIndex + numValuesInGroup;
+                    for (; valueIndex < limit; valueIndex++) {
+                        long targetIndex = groupOffsets.get(group);
+                        sortedOutput.set(targetIndex, values.getTimestamp(valueIndex), values.getValue(valueIndex));
+                        groupOffsets.increment(group, 1);
+                    }
                 }
+
                 // now groupOffsets actually points at the first element of the next group, let's correct this
                 for (long i = groupOffsets.size() - 1; i >= 1; i--) {
                     groupOffsets.set(i, groupOffsets.get(i - 1));

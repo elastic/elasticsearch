@@ -281,12 +281,13 @@ class KnnSearcher {
                     for (int i = 0; i < numQueryVectors; i++) {
                         totalVisited += results[i].totalHits.value();
                         resultIds[i] = getResultIds(results[i], storedFields);
-                        if(resultIds[i].length < searchParameters.topK()){
+                        if (resultIds[i].length < searchParameters.topK()) {
                             notEnoughResults++;
                         }
                     }
-                    if(notEnoughResults > 0){
-                        logger.warn("{} out of {} searches returned less than {} desired results",
+                    if (notEnoughResults > 0) {
+                        logger.warn(
+                            "{} out of {} searches returned less than {} desired results",
                             notEnoughResults,
                             numQueryVectors,
                             searchParameters.topK()

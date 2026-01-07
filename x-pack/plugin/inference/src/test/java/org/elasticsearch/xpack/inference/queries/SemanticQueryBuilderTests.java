@@ -440,7 +440,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
                 TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );
@@ -491,7 +490,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
                 TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );
@@ -510,7 +508,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
                 originalQuery.getMinimalSupportedVersion(),
                 TransportVersionUtils.getPreviousVersion(TransportVersion.current())
             );

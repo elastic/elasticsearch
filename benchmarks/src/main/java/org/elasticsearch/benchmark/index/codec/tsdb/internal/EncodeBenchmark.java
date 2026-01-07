@@ -10,31 +10,39 @@
 package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
-    protected ByteArrayDataOutput dataOutput;
-    protected long[] input;
-    protected byte[] output;
+public class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
+    private ByteArrayDataOutput dataOutput;
+    private long[] input;
+    private byte[] output;
 
     @Override
-    public void setupIteration(int unUsedBitsPerValue, Supplier<long[]> arraySupplier) throws IOException {
+    public void setupIteration(Supplier<long[]> arraySupplier) throws IOException {
         this.input = arraySupplier.get();
-        this.output = new byte[Long.BYTES * blockSize];
+        this.output = new byte[Long.BYTES * blockSize + 64];
         this.dataOutput = new ByteArrayDataOutput(this.output);
     }
 
     @Override
-    public void setupInvocation(int unusedBitsPerValue) {
+    public void setupInvocation() {
         dataOutput.reset(this.output);
     }
 
     @Override
-    public void benchmark(int bitsPerValue, Blackhole bh) throws IOException {
-        forUtil.encode(this.input, bitsPerValue, this.dataOutput);
-        bh.consume(this.dataOutput);
+    public void run() throws IOException {
+        encoder.encode(this.input, this.dataOutput);
+    }
+
+    @Override
+    protected Object getOutput() {
+        return this.dataOutput;
+    }
+
+    @Override
+    public int getEncodedBytes() {
+        return dataOutput.getPosition();
     }
 }

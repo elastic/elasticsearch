@@ -591,7 +591,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         }
-        KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
+        KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
         return calculateCentroids(fieldInfo, kMeansResult);
     }
 

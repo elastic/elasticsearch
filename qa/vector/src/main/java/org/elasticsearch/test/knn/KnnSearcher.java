@@ -277,9 +277,20 @@ class KnnSearcher {
 
                     // Fetch, validate and write result document ids.
                     StoredFields storedFields = reader.storedFields();
+                    int notEnoughResults = 0;
                     for (int i = 0; i < numQueryVectors; i++) {
                         totalVisited += results[i].totalHits.value();
                         resultIds[i] = getResultIds(results[i], storedFields);
+                        if(resultIds[i].length < searchParameters.topK()){
+                            notEnoughResults++;
+                        }
+                    }
+                    if(notEnoughResults > 0){
+                        logger.warn("{} out of {} searches returned less than {} desired results",
+                            notEnoughResults,
+                            numQueryVectors,
+                            searchParameters.topK()
+                        );
                     }
                     logger.info(
                         "completed {} searches in {} ms: {} QPS CPU time={}ms",

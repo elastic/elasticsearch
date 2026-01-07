@@ -36,6 +36,8 @@ import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -46,6 +48,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
@@ -208,11 +211,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
+        LongAdder longAdder = new LongAdder();
         for (VectorLeafSearchFilterMeta leafSearchMeta : leafSearchMetas) {
-            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null));
+            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null, longAdder));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
+        if(longAdder.longValue() > 0) {
+            LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester").info(
+                "Completed {} additional searches to fill results",
+                longAdder.longValue()
+            );
+        }
         // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         ScoreDoc[] scoreDocs = topK.scoreDocs;
@@ -229,7 +239,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IVFCollectorManager knnCollectorManager,
         float visitRatio,
         int alreadyCollectedResults,
-        IntHashSet dedup
+        IntHashSet dedup,
+        LongAdder longAdder
     ) throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         // Create dedup set on first call, reuse on recursive calls to filter out duplicates across passes
@@ -258,6 +269,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
             // Only recurse if we need more docs
             if (alreadyCollectedResults + searchResults < k) {
+                longAdder.add(1L);
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
                 TopDocs additionalResults = searchLeaf(
                     context,
@@ -265,7 +277,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     knnCollectorManager,
                     visitRatio,
                     alreadyCollectedResults + searchResults,
-                    dedup
+                    dedup,
+                    longAdder
                 );
                 ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
                 var newScoreDocs = new ScoreDoc[searchResults + additionalScoreDocs.length];

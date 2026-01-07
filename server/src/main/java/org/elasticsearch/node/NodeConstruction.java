@@ -1031,7 +1031,12 @@ class NodeConstruction {
         AtomicReference<TransportService> transportServiceRef = new AtomicReference<>();
         var remoteTransportClient = new RemoteTransportClient() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportResponseHandler<T> handler) {
+            public <T extends TransportResponse> void sendRequest(
+                DiscoveryNode node,
+                String action,
+                TransportRequest request,
+                TransportResponseHandler<T> handler
+            ) {
                 TransportService transportService = transportServiceRef.get();
                 if (transportService == null) {
                     throw new AssertionError("TransportService is not initialized yet");

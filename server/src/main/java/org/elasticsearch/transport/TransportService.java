@@ -78,7 +78,7 @@ public class TransportService extends AbstractLifecycleComponent
         ReportingService<TransportInfo>,
         TransportMessageListener,
         TransportConnectionListener,
-    RemoteTransportClient {
+        RemoteTransportClient {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 

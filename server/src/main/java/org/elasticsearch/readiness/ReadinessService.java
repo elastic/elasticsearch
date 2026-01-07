@@ -162,7 +162,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     protected void doStart() {
         clusterService.addListener(this);
         // Mark the service as active, we'll start the listener when ES is ready
-        //  TODO: active shouldn't be necessary since we now add the listener once the service is started
+        // TODO: active shouldn't be necessary since we now add the listener once the service is started
         this.active = true;
     }
 

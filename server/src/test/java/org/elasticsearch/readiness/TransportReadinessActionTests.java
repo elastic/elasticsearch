@@ -47,11 +47,7 @@ public class TransportReadinessActionTests extends ESTestCase {
         );
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
         readinessService = new ReadinessService(clusterService, env);
-        action = new TransportReadinessAction(
-            new ActionFilters(Set.of()),
-            null,
-            readinessService
-        );
+        action = new TransportReadinessAction(new ActionFilters(Set.of()), null, readinessService);
     }
 
     @After

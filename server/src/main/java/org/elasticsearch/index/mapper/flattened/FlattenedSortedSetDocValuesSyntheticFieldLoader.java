@@ -81,7 +81,12 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         if (indexCreatedVersion.onOrAfter(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES)) {
-            SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedFieldFullPath);
+            var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
+            if (binaryDv == null) {
+                return null;
+            }
+
+            SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedFieldFullPath, binaryDv);
             MultiValuedBinaryFieldValues loader = new MultiValuedBinaryFieldValues(dv);
             docValues = loader;
             return loader;

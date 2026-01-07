@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * Base model class for FireworksAI inference services.
  * This class extends RateLimitGroupingModel and provides common functionality
- * for both embeddings and rerank models, including API key management and rate limiting.
+ * for embeddings models, including API key management and rate limiting.
  */
 public abstract class FireworksAiModel extends RateLimitGroupingModel {
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.fireworksai;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -20,6 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -47,14 +48,14 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
         webServer.close();
     }
 
-    public void testRerankerWindowSize() {
-        var service = createFireworksAiService();
-        assertThat(service.rerankerWindowSize("any-model"), is(5500));
-    }
-
     public void testServiceName() {
         var service = createFireworksAiService();
         assertThat(service.name(), is("fireworksai"));
+    }
+
+    public void testSupportedTaskTypes() {
+        var service = createFireworksAiService();
+        assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING)));
     }
 
     private FireworksAiService createFireworksAiService() {
@@ -68,10 +69,5 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createFireworksAiService();
-    }
-
-    @Override
-    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any-model"), is(5500));
     }
 }

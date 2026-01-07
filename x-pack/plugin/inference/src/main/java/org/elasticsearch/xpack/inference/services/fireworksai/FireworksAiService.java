@@ -25,7 +25,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -44,7 +43,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.fireworksai.action.FireworksAiActionCreator;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.fireworksai.rerank.FireworksAiRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -55,23 +53,22 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 /**
- * FireworksAI inference service for embeddings and reranking tasks.
- * This service uses the FireworksAI REST API to perform text embeddings and document reranking.
+ * FireworksAI inference service for text embeddings.
+ * This service uses the FireworksAI REST API to perform text embeddings.
  */
-public class FireworksAiService extends SenderService implements RerankingInferenceService {
+public class FireworksAiService extends SenderService {
     public static final String NAME = "fireworksai";
     private static final String SERVICE_NAME = "FireworksAI";
 
     public static final TransportVersion FIREWORKS_AI_SERVICE = TransportVersion.fromName("fireworks_ai_service");
 
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING);
 
     // FireworksAI embeddings max batch size - per-user limit varies by plan, 2048 is a safe default
     private static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
@@ -109,14 +106,11 @@ public class FireworksAiService extends SenderService implements RerankingInfere
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
+            ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+            );
 
-            FireworksAiModel model = createModel(
+            FireworksAiEmbeddingsModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
@@ -136,7 +130,7 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         }
     }
 
-    private static FireworksAiModel createModel(
+    private static FireworksAiEmbeddingsModel createModel(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -145,23 +139,23 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new FireworksAiEmbeddingsModel(
-                inferenceEntityId,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new FireworksAiRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        if (taskType != TaskType.TEXT_EMBEDDING) {
+            throw ServiceUtils.createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        }
+
+        return new FireworksAiEmbeddingsModel(
+            inferenceEntityId,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
-    public FireworksAiModel parsePersistedConfigWithSecrets(
+    public FireworksAiEmbeddingsModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -171,10 +165,7 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
+        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
 
         return createModel(
             inferenceEntityId,
@@ -188,14 +179,11 @@ public class FireworksAiService extends SenderService implements RerankingInfere
     }
 
     @Override
-    public FireworksAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public FireworksAiEmbeddingsModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
+        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
 
         return createModel(
             inferenceEntityId,
@@ -216,15 +204,15 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof FireworksAiModel == false) {
+        if (model instanceof FireworksAiEmbeddingsModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
 
-        FireworksAiModel fireworksAiModel = (FireworksAiModel) model;
+        FireworksAiEmbeddingsModel embeddingsModel = (FireworksAiEmbeddingsModel) model;
         var actionCreator = new FireworksAiActionCreator(getSender(), getServiceComponents());
 
-        var action = fireworksAiModel.accept(actionCreator, taskSettings);
+        var action = embeddingsModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
     }
 
@@ -271,23 +259,8 @@ public class FireworksAiService extends SenderService implements RerankingInfere
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        if (model.getTaskType() == TaskType.RERANK) {
-            // Rerank accepts any input type
-            return;
-        }
-
         // For embeddings, validate input type is unspecified or internal
         ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
-    }
-
-    @Override
-    public int rerankerWindowSize(String modelId) {
-        // FireworksAI rerank API supports various rerank models with different context windows.
-        // Common rerank models (e.g., based on Jina rerank v2) typically support 8k tokens per document.
-        // Using 1 token ≈ 0.75 words as a rough estimate: 8000 tokens ≈ 6000 words.
-        // Setting window size to 5500 words to allow headroom for document processing and API overhead.
-        // This conservative estimate ensures compatibility across different rerank model variants.
-        return 5500;
     }
 
     @Override

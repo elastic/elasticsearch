@@ -145,7 +145,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "cohere",
                     "contextualai",
                     "elasticsearch",
-                    "fireworksai",
                     "googlevertexai",
                     "jinaai",
                     "nvidia",

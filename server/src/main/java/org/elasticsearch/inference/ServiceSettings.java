@@ -65,9 +65,9 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     String modelId();
 
     /**
-     * Update the service settings with the provided settings
+     * Update the service settings with the provided settings, combining them as necessary.
      *
-     * @param serviceSettings the service settings to update
+     * @param serviceSettings the map with new service settings
      * @param taskType the task type for which the service settings are being updated
      * @return the updated service settings
      */

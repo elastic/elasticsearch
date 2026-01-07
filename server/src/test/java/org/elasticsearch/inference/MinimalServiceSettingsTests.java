@@ -43,7 +43,7 @@ public class MinimalServiceSettingsTests extends AbstractXContentTestCase<Minima
         return MinimalServiceSettings.parse(parser);
     }
 
-    public void testUpdateServiceSettings() {
+    public void testUpdateServiceSettings_SameInstance() {
         MinimalServiceSettings minimalServiceSettings = randomInstance();
         assertThat(
             minimalServiceSettings.updateServiceSettings(Map.of("some_key", "some_value"), TaskType.TEXT_EMBEDDING),

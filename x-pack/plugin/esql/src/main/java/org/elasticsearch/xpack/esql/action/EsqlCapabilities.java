@@ -59,6 +59,11 @@ public class EsqlCapabilities {
         GEO_VALIDATION,
 
         /**
+         * Fold in spatial functions should return null for null input.
+         */
+        GEO_NULL_LITERALS_FOLDING,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -426,6 +431,16 @@ public class EsqlCapabilities {
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
          */
         ST_ENVELOPE,
+
+        /**
+         * Fix ST_ENVELOPE to support multi-values and doc-values.
+         */
+        ST_ENVELOPE_MV_FIX,
+
+        /**
+         * Support ST_NPOINTS function.
+         */
+        ST_NPOINTS,
 
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
@@ -1554,6 +1569,7 @@ public class EsqlCapabilities {
          * Rate and increase calculations use interpolation at the boundaries between time buckets
          */
         RATE_WITH_INTERPOLATION,
+        RATE_WITH_INTERPOLATION_V2,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1595,6 +1611,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Support for the DATE_RANGE field type.
+         */
+        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),
@@ -1620,14 +1641,9 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
-         * Development capability for the histogram field integration
+         * Histogram field integration
          */
-        HISTOGRAM_FIELD_SUPPORT_V0,
-
-        /**
-         * histogram to tdigest conversion function
-         */
-        HISTOGRAM_TO_TDIGEST_CAST,
+        HISTOGRAM_RELEASE_VERSION,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1759,7 +1775,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V7(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1785,6 +1801,15 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_FUNCTION,
 
         /**
+         * Fix for multi-value constant propagation after GROUP BY.
+         * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
+         * it into single values. Propagating the original multi-value literal after the Aggregate would
+         * incorrectly treat the field as still being multi-valued.
+         * https://github.com/elastic/elasticsearch/issues/135926
+         */
+        FIX_STATS_MV_CONSTANT_FOLD,
+
+        /**
          * https://github.com/elastic/elasticsearch/issues/138283
          */
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
@@ -1802,9 +1827,25 @@ public class EsqlCapabilities {
         FN_MV_INTERSECTION,
 
         /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
+
+        /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+
+        /**
+         * Fix folding of coalesce function
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_FOLD_COALESCE,
+
+        /**
+         * Exceptions parsing date-times are thrown as IllegalArgumentException
+         */
+        DATE_TIME_EXCEPTIONS_HANDLED,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

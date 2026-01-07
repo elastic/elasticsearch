@@ -19,36 +19,50 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_RESILIENCE_ENABLED;
+
 public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
 
+    public static final String CAPABILITY_REINDEX_MANAGEMENT_API = "reindex_management_api";
+
     @Override
-    public Collection<ActionHandler> getActions() {
-        return ReindexPlugin.REINDEX_RESILIENCE_ENABLED
-            ? List.of(new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class))
-            : List.of();
+    public List<ActionHandler> getActions() {
+        if (REINDEX_RESILIENCE_ENABLED) {
+            return List.of(
+                new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class),
+                new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class)
+            );
+        } else {
+            return List.of();
+        }
     }
 
     @Override
-    public Collection<RestHandler> getRestHandlers(
-        final Settings settings,
-        final NamedWriteableRegistry namedWriteableRegistry,
-        final RestController restController,
-        final ClusterSettings clusterSettings,
-        final IndexScopedSettings indexScopedSettings,
-        final SettingsFilter settingsFilter,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<DiscoveryNodes> nodesInCluster,
-        final Predicate<NodeFeature> clusterSupportsFeature
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return ReindexPlugin.REINDEX_RESILIENCE_ENABLED ? List.of(new RestCancelReindexAction(clusterSupportsFeature)) : List.of();
+        if (REINDEX_RESILIENCE_ENABLED) {
+            return List.of(
+                new RestGetReindexAction(clusterSupportsFeature),
+                new RestCancelReindexAction(clusterSupportsFeature)
+            );
+        } else {
+            return List.of();
+        }
     }
 }

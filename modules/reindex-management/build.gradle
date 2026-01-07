@@ -8,6 +8,8 @@
  */
 
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name = 'reindex-management'
@@ -19,4 +21,31 @@ esplugin {
 dependencies {
   compileOnly project(path: ':modules:reindex')
   internalClusterTestImplementation project(path: ':modules:reindex')
+
+  testImplementation project(':modules:rest-root')
+
+  clusterModules project(':modules:reindex')
+  clusterModules project(":modules:rest-root")
+}
+
+restResources {
+  restApi {
+    include '_common', 'index', 'reindex', 'reindex.get', 'delete_by_query', 'tasks', 'capabilities'
+  }
+}
+
+configurations {
+  restTests {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+testClusters.configureEach {
+  module ':modules:rest-root'
 }

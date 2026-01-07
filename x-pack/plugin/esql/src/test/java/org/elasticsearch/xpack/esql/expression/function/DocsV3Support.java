@@ -560,13 +560,18 @@ public abstract class DocsV3Support {
         callbacks.write(dir, name, "md", str, false);
     }
 
-    void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
+    protected void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir).resolve(category);
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir);
+        if (category != null) {
+            dir = dir.resolve(category);
+        }
         callbacks.write(dir, name, extension, str, true);
     }
 
-    protected abstract void renderSignature() throws IOException;
+    public void renderSignature() throws IOException {
+        // Only functions and operators currently have signatures to render, so only they should override this method.
+    }
 
     protected abstract void renderDocs() throws Exception;
 
@@ -586,7 +591,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        protected void renderSignature() throws IOException {
+        public void renderSignature() throws IOException {
             if (callbacks.supportsRendering() == false) {
                 return;
             }
@@ -1004,11 +1009,6 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        public void renderSignature() throws IOException {
-            // Unimplemented until we make command docs dynamically generated
-        }
-
-        @Override
         public void renderDocs() throws Exception {
             // Currently we only render either signatures or kibana definition files,
             // but we could expand to rendering much more if we decide to
@@ -1092,11 +1092,6 @@ public abstract class DocsV3Support {
         public SettingsDocsSupport(QuerySettingDef<?> setting, Class<?> testClass, Callbacks callbacks) {
             super("settings", setting.name(), testClass, Set::of, callbacks);
             this.setting = setting;
-        }
-
-        @Override
-        public void renderSignature() throws IOException {
-            // Unimplemented until we make setting docs dynamically generated
         }
 
         @Override

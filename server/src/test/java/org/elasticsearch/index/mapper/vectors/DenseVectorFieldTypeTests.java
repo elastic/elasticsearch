@@ -251,15 +251,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType fft = createFloatFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat(null, null));
         assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat("array", null));
-        assertEquals(DocValueFormat.BINARY, fft.docValueFormat("base64", null));
-        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("binary", null));
+        assertEquals(DocValueFormat.BINARY, fft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("base64", null));
         expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("bogus", null));
 
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat(null, null));
         assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat("array", null));
-        assertEquals(DocValueFormat.BINARY, bft.docValueFormat("base64", null));
-        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("binary", null));
+        assertEquals(DocValueFormat.BINARY, bft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("base64", null));
         expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("bogus", null));
 
         DenseVectorFieldType bitFt = new DenseVectorFieldType(
@@ -275,8 +275,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(DocValueFormat.DENSE_VECTOR, bitFt.docValueFormat(null, null));
         assertEquals(DocValueFormat.DENSE_VECTOR, bitFt.docValueFormat("array", null));
-        assertEquals(DocValueFormat.BINARY, bitFt.docValueFormat("base64", null));
-        expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("binary", null));
+        assertEquals(DocValueFormat.BINARY, bitFt.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("base64", null));
         expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("bogus", null));
 
         DenseVectorFieldType bfloat16Ft = new DenseVectorFieldType(
@@ -292,8 +292,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(DocValueFormat.DENSE_VECTOR, bfloat16Ft.docValueFormat(null, null));
         assertEquals(DocValueFormat.DENSE_VECTOR, bfloat16Ft.docValueFormat("array", null));
-        assertEquals(DocValueFormat.BINARY, bfloat16Ft.docValueFormat("base64", null));
-        expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("binary", null));
+        assertEquals(DocValueFormat.BINARY, bfloat16Ft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("base64", null));
         expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("bogus", null));
     }
 

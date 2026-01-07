@@ -177,15 +177,3 @@ setup:
   - match: { hits.hits.0.fields.vec_bit_indexed.0: [ 1, -2, 3 ] }
   - close_to: { hits.hits.0.fields.vec_bfloat16_indexed.0.0: { value: 1.5, error: 0.01 } }
 
----
-"dense_vector docvalue_fields format rejects unknown":
-  - do:
-      catch: bad_request
-      search:
-        index: dv-format
-        _source: false
-        body:
-          docvalue_fields:
-            - field: vec_float_indexed
-              format: "bogus"
-

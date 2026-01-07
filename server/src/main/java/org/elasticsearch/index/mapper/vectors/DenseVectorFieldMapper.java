@@ -2603,15 +2603,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (format == null || "array".equals(format)) {
-                return DocValueFormat.DENSE_VECTOR;
-            }
-            if ("base64".equals(format)) {
-                return DocValueFormat.BINARY;
-            }
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support format [" + format + "]."
-            );
+            return switch (format) {
+                case null -> DocValueFormat.DENSE_VECTOR;
+                case "array" -> DocValueFormat.DENSE_VECTOR;
+                case "binary" -> DocValueFormat.BINARY;
+                default -> throw new IllegalArgumentException(
+                    "Field ["
+                        + name()
+                        + "] of type ["
+                        + typeName()
+                        + "] doesn't support format ["
+                        + format
+                        + "]. Supported formats are [null,array,binary]."
+                );
+            };
         }
 
         @Override

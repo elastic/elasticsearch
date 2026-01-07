@@ -117,16 +117,22 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
      * This enumeration defines the possible types of decisions
      */
     enum Type implements Writeable {
-        // ordered by positiveness; order matters for serialization and comparison
-        NO,
-        NOT_PREFERRED,
-        // Temporarily throttled is a better choice than choosing a not-preferred node,
-        // but NOT_PREFERRED and THROTTLED are generally not comparable.
-        THROTTLE,
-        YES;
+        // order matters only for serialization, do NOT use for comparison
+        NO(0, 0),
+        NOT_PREFERRED(1, 2),
+        THROTTLE(2, 1),
+        YES(3, 3);
 
         // visible for testing
         static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName("allocation_decision_not_preferred");
+
+        private final int nodeComparisonOrdinal;
+        private final int decisionComparisonOrdinal;
+
+        Type(int nodeComparisonOrdinal, int decisionComparisonOrdinal) {
+            this.nodeComparisonOrdinal = nodeComparisonOrdinal;
+            this.decisionComparisonOrdinal = decisionComparisonOrdinal;
+        }
 
         public static Type readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
@@ -173,38 +179,29 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         }
 
         /**
-         * Compares this decision against a new decision. A temporarily THROTTLE'ed node is a better choice than a NOT_PREFERRED node.
+         * Compares this decision against another decision (for choosing a node)
          * <p>
-         * This is used in simulation, which does not encounter THROTTLE; and allocation explain, which will choose a target node that is
-         * THROTTLED temporarily (which simulation ignores and will assign to) over one that is NOT_PREFERRED. Simulation
-         * and explain both use the same code paths in the Allocator code, so this helper is used in the Allocator code.
+         * This comparison is used at the node level when deciding which node to allocate a shard to. We prefer to wait and allocate a shard
+         * to a <code>THROTTLE</code>'d node than to move a shard to a <code>NOT_PREFERRED</code> node immediately.
+         *
+         * @return 0 when this == other, 1 when this &gt; other, -1 when this &lt; other
          */
-        public boolean isBetterAcrossNodes(Type newDecision) {
-            return this.compareTo(newDecision) > 0;
+        public int compareToBetweenNodes(Type other) {
+            return Integer.compare(nodeComparisonOrdinal, other.nodeComparisonOrdinal);
         }
 
         /**
-         * Compares this decision against a new decision. THROTTLE is considered a worse decision than NOT_PREFERRED.
+         * Compares this decision against another decision (for decision-aggregation)
          * <p>
-         * A node that has both NOT_PREFERRED and THROTTLE decider results must surface THROTTLE so that the shard does not get moved.
-         * THROTTLE will go away eventually and NOT_PREFERRED will surface, and then different action can be taken. This is important for
-         * the Reconciler executing real shard movement decisions. Allocation explain will also use it for individual node explanations.
+         * This comparison is used when aggregating the results from many deciders. If one decider returns <code>THROTTLE</code> and
+         * another returns <code>NOT_PREFERRED</code>, we want to return <code>THROTTLE</code> to ensure we respect any throttling deciders.
+         * This can only occur in the reconciler or non-desired balancer, in both cases if we see a <code>THROTTLE</code> we want to
+         * respect that until it resolves.
+         *
+         * @return 0 when this == other, 1 when this &gt; other, -1 when this &lt; other
          */
-        public boolean isWorseForTheSameNode(Type decision) {
-            return switch (decision) {
-                case NO -> {
-                    yield false;
-                }
-                case NOT_PREFERRED -> {
-                    yield (this == YES) ? false /* this=YES is not worse than NOT_PREFERRED */ : true /* this=THROTTLE is worse */;
-                }
-                case THROTTLE -> {
-                    yield (this == NO) ? true : false /* all Types other than NO are better than THROTTLE */ ;
-                }
-                case YES -> {
-                    yield true;
-                }
-            };
+        public int compareToBetweenDecisions(Type other) {
+            return Integer.compare(decisionComparisonOrdinal, other.decisionComparisonOrdinal);
         }
 
         /**
@@ -314,7 +311,7 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             Decision.Type worst = Type.YES;
             for (Single decision : decisions) {
                 final var next = decision.type();
-                if (next.isWorseForTheSameNode(worst)) {
+                if (next.compareToBetweenDecisions(worst) < 0) {
                     worst = next;
                 }
             }

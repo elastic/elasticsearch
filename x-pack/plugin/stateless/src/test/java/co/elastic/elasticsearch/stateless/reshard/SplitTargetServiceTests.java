@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -56,13 +57,14 @@ public class SplitTargetServiceTests extends ESTestCase {
             Set.of(),
             null
         );
+        var indexShard = mock(IndexShard.class);
         var split = new SplitTargetService.Split(shardId, sourceNode, targetNode, 2, 2);
-        sts.putSplit(split);
+        sts.initializeSplitInCloneState(indexShard, split);
 
         // Any requests to handoff that do not exactly match stored split information should be rejected.
         var newShardId = new ShardId("foo", "1", 0);
         var request = new TransportReshardSplitAction.Request(newShardId, sourceNode, targetNode, 2, 2);
-        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(request, ActionListener.noop()));
+        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request, ActionListener.noop()));
 
         var newSourceNode = new DiscoveryNode(
             "node10",
@@ -73,7 +75,7 @@ public class SplitTargetServiceTests extends ESTestCase {
             null
         );
         var request2 = new TransportReshardSplitAction.Request(new ShardId("foo", "1", 0), newSourceNode, targetNode, 2, 2);
-        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(request2, ActionListener.noop()));
+        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request2, ActionListener.noop()));
 
         var newTargetNode = new DiscoveryNode(
             "node2",
@@ -84,12 +86,12 @@ public class SplitTargetServiceTests extends ESTestCase {
             null
         );
         var request3 = new TransportReshardSplitAction.Request(new ShardId("foo", "1", 0), sourceNode, newTargetNode, 2, 2);
-        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(request3, ActionListener.noop()));
+        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request3, ActionListener.noop()));
 
         var request4 = new TransportReshardSplitAction.Request(new ShardId("foo", "1", 0), sourceNode, targetNode, 100, 2);
-        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(request4, ActionListener.noop()));
+        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request4, ActionListener.noop()));
 
         var request5 = new TransportReshardSplitAction.Request(new ShardId("foo", "1", 0), sourceNode, targetNode, 2, 100);
-        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(request5, ActionListener.noop()));
+        assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
     }
 }

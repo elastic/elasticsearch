@@ -43,7 +43,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
-import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -183,7 +182,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
                 } else {
                     if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
-                        splitTargetService.startSplitRecovery(
+                        splitTargetService.startSplitTargetShardRecovery(
                             indexShard,
                             indexSettings.getIndexMetadata(),
                             new ThreadedActionListener<>(
@@ -476,18 +475,5 @@ class StatelessIndexEventListener implements IndexEventListener {
     @Override
     public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
         hollowShardsService.onMutableOperation(indexShard, permitAcquired, listener);
-    }
-
-    @Override
-    public void afterIndexShardStarted(IndexShard indexShard) {
-        IndexSettings indexSettings = indexShard.indexSettings();
-        IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
-        if (indexShard.routingEntry().isSearchable() == false
-            && IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), reshardingMetadata)) {
-            // Should already have advanced past CLONE
-            assert reshardingMetadata.getSplit()
-                .targetStateAtLeast(indexShard.shardId().id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
-            splitTargetService.afterSplitTargetIndexShardStarted(indexShard, reshardingMetadata);
-        }
     }
 }

@@ -36,12 +36,8 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
     public static final NamedWriteableRegistry.Entry ESQL_PROJECT_ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "EsqlProject",
-        Project::readFrom
+        Project::new
     );
-
-    private static Project readFrom(StreamInput in) throws IOException {
-        return new Project(in);
-    }
 
     private final List<? extends NamedExpression> projections;
 

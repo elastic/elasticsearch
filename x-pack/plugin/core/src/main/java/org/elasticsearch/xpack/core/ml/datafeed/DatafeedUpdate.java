@@ -87,17 +87,13 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG
         );
         PARSER.declareInt(Builder::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
-        PARSER.declareObject(Builder::setIndicesOptions, (p, c) -> {
-            Map<String, Object> map = p.map();
-            IndicesOptions baseOptions = IndicesOptions.fromMap(map, SearchRequest.DEFAULT_INDICES_OPTIONS);
-            Object crossProjectValue = map.get("resolve_cross_project_index_expression");
-            if (crossProjectValue instanceof Boolean && (Boolean) crossProjectValue) {
-                return IndicesOptions.builder(baseOptions)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build();
-            }
-            return baseOptions;
-        }, DatafeedConfig.INDICES_OPTIONS);
+        // Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
+        // not from stored datafeed configuration. The cross-project option in indices_options is ignored.
+        PARSER.declareObject(
+            Builder::setIndicesOptions,
+            (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
+            DatafeedConfig.INDICES_OPTIONS
+        );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
     }
 
@@ -251,12 +247,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
         addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
         addOptionalField(builder, DatafeedConfig.MAX_EMPTY_SEARCHES, maxEmptySearches);
+        // Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
+        // not from stored datafeed configuration. We don't serialize the cross-project option.
         if (indicesOptions != null) {
             builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
-            if (indicesOptions.resolveCrossProjectIndexExpression()) {
-                builder.field("resolve_cross_project_index_expression", true);
-            }
             builder.endObject();
         }
         addOptionalField(builder, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD, runtimeMappings);

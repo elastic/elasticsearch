@@ -330,33 +330,30 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
     }
 
-    public void testCrossProjectIndicesOptionsAllowed() {
-        IndicesOptions cpsOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-
-        DatafeedUpdate update = new DatafeedUpdate.Builder("test-df").setIndicesOptions(cpsOptions).build();
-
-        assertThat("Update should have CPS enabled", update.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
-    }
-
-    public void testCrossProjectIndicesOptionsXContentRoundTrip() throws IOException {
+    /**
+     * Tests that CPS mode in IndicesOptions is NOT persisted in datafeed update.
+     * CPS mode is now determined on-the-fly at search execution time based on cluster settings,
+     * not from stored datafeed configuration.
+     */
+    public void testCrossProjectIndicesOptionsNotPersisted() throws IOException {
         IndicesOptions cpsOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
             .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
             .build();
 
         DatafeedUpdate original = new DatafeedUpdate.Builder("test-df-cps").setIndicesOptions(cpsOptions).build();
 
+        // The original update has CPS enabled (as passed in)
         assertThat("Original should have CPS enabled", original.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
 
         // Serialize to XContent and parse back
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), org.elasticsearch.common.Strings.toString(original))) {
             DatafeedUpdate parsed = DatafeedUpdate.PARSER.apply(parser, null).build();
 
+            // CPS flag should NOT survive round-trip because it's now determined at runtime
             assertThat(
-                "CPS flag should survive XContent round-trip",
+                "CPS flag should NOT survive XContent round-trip - it's determined at runtime",
                 parsed.getIndicesOptions().resolveCrossProjectIndexExpression(),
-                is(true)
+                is(false)
             );
         }
     }

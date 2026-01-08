@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -32,10 +30,9 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
-    private final CrossProjectModeDecider crossProjectModeDecider;
-
-    public RestUpdateDatafeedAction(Settings settings) {
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestUpdateDatafeedAction() {
+        // CPS mode is now determined on-the-fly at search execution time,
+        // not at datafeed update time. No CrossProjectModeDecider needed here.
     }
 
     @Override
@@ -58,10 +55,11 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
             || restRequest.hasParam("ignore_throttled")) {
             indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
         }
-        boolean enableCps = crossProjectModeDecider.crossProjectEnabled();
+        // Note: CPS mode is now determined on-the-fly at search execution time based on cluster settings,
+        // not at datafeed update time. This enables seamless CPS activation when the cluster setting changes.
         UpdateDatafeedAction.Request updateDatafeedRequest;
         try (XContentParser parser = restRequest.contentParser()) {
-            updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, enableCps, parser);
+            updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         }
         updateDatafeedRequest.ackTimeout(getAckTimeout(restRequest));
         updateDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));

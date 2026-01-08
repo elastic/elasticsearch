@@ -1061,21 +1061,13 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         return builder.build();
     }
 
-    public void testCrossProjectIndicesOptionsAllowed() {
-        IndicesOptions cpsOptions = IndicesOptions.builder()
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-df", "test-job").setIndices(List.of("logs-*"))
-            .setIndicesOptions(cpsOptions);
-
-        DatafeedConfig config = builder.build(); // Should not throw
-        assertTrue(config.getIndicesOptions().resolveCrossProjectIndexExpression());
-    }
-
-    public void testCrossProjectIndicesOptionsXContentRoundTrip() throws IOException {
-        // Create a datafeed with CPS enabled, using SearchRequest.DEFAULT_INDICES_OPTIONS as base
-        // to match what fromMap() will use as defaults for unparsed fields
+    /**
+     * Tests that CPS mode in IndicesOptions is NOT persisted in datafeed configuration.
+     * CPS mode is now determined on-the-fly at search execution time based on cluster settings,
+     * not from stored datafeed configuration.
+     */
+    public void testCrossProjectIndicesOptionsNotPersisted() throws IOException {
+        // Create a datafeed with CPS enabled in IndicesOptions
         IndicesOptions cpsOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
             .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
             .build();
@@ -1084,6 +1076,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             .setIndicesOptions(cpsOptions);
 
         DatafeedConfig original = builder.build();
+        // The original config has CPS enabled (as passed in)
         assertTrue("Original config should have CPS enabled", original.getIndicesOptions().resolveCrossProjectIndexExpression());
 
         // Serialize to XContent
@@ -1095,9 +1088,10 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             parsed = DatafeedConfig.STRICT_PARSER.apply(xContentParser, null).build();
         }
 
-        // Verify CPS flag survives round-trip (the main goal of this test)
-        assertTrue(
-            "CPS flag should survive XContent round-trip serialization",
+        // CPS flag should NOT survive round-trip because it's now determined at runtime
+        // The parsed config should have default IndicesOptions (without CPS)
+        assertFalse(
+            "CPS flag should NOT survive XContent round-trip - it's determined at runtime",
             parsed.getIndicesOptions().resolveCrossProjectIndexExpression()
         );
     }

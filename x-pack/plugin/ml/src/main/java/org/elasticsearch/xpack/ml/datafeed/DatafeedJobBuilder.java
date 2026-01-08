@@ -149,6 +149,7 @@ public class DatafeedJobBuilder {
             job,
             xContentRegistry,
             timingStatsReporter,
+            crossProjectModeDecider,
             dataExtractorFactoryHandler
         );
     }

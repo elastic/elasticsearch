@@ -349,6 +349,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
+            crossProjectModeDecider,
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),

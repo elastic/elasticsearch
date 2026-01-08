@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -91,5 +92,18 @@ public final class DataExtractorUtils {
                 clusterResponse.getTotal()
             );
         }
+    }
+
+    /**
+     * Applies cross-project search (CPS) mode to IndicesOptions on-the-fly if CPS is enabled.
+     * @param baseOptions The base IndicesOptions from the datafeed configuration
+     * @param crossProjectEnabled Whether cross-project search is enabled at the cluster level
+     * @return IndicesOptions with CPS mode enabled if crossProjectEnabled is true, otherwise the original options
+     */
+    public static IndicesOptions applyCrossProjectModeIfEnabled(IndicesOptions baseOptions, boolean crossProjectEnabled) {
+        if (crossProjectEnabled && baseOptions.resolveCrossProjectIndexExpression() == false) {
+            return IndicesOptions.builder(baseOptions).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
+        }
+        return baseOptions;
     }
 }

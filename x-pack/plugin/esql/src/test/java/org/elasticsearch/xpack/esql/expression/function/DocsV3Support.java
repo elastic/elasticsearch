@@ -1114,11 +1114,6 @@ public abstract class DocsV3Support {
         public void renderDocs() throws Exception {
             StringBuilder builder = new StringBuilder();
 
-            builder.append("```yaml {applies_to}\n");
-            builder.append("serverless: ga\n");
-            builder.append("stack: ga\n");
-            builder.append("```\n\n");
-
             for (QuerySettingDef<?> setting : settings) {
                 if (setting.snapshotOnly()) {
                     continue;
@@ -1158,6 +1153,10 @@ public abstract class DocsV3Support {
 
             builder.append(SETTINGS_WARNING);
 
+            builder.append("***");
+            builder.append(setting.name());
+            builder.append("***\n\n");
+
             builder.append("```yaml {applies_to}\n");
             builder.append("serverless: ");
             builder.append(setting.preview() ? "preview" : "ga");
@@ -1169,9 +1168,6 @@ public abstract class DocsV3Support {
             }
             builder.append("```");
             builder.append("\n\n");
-            builder.append("***");
-            builder.append(setting.name());
-            builder.append("***\n\n");
 
             builder.append("Type: `");
             builder.append(setting.type());

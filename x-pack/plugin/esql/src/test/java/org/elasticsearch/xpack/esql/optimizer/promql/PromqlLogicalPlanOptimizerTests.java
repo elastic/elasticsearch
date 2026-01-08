@@ -627,11 +627,15 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testTopLevelBinaryArithmeticQuery() {
-        var plan = planPromql("PROMQL index=k8s step=1m in_n_out=(network.total_bytes_in + network.total_bytes_out)");
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m in_n_out=(
+                network.eth0.rx + network.eth0.tx
+              )
+            | SORT in_n_out""");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
         Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
-        assertThat(add.left().sourceText(), equalTo("network.total_bytes_in"));
-        assertThat(add.right().sourceText(), equalTo("network.total_bytes_out"));
+        assertThat(add.left().sourceText(), equalTo("network.eth0.rx"));
+        assertThat(add.right().sourceText(), equalTo("network.eth0.tx"));
     }
 
     public void testGroupByAllWithinSeriesAggregate() {

@@ -201,6 +201,27 @@ max:double
 
 // metric-metric tests
 
+addition_metric_metric_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: ts_stats_binary_ops
+
+TS k8s
+| STATS in_n_out=network.eth0.rx + network.eth0.tx
+  BY step=TBUCKET(1h)
+| SORT in_n_out DESC;
+
+in_n_out:long | _timeseries:keyword                                                   | step:datetime
+2857          | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+2778          | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+2345          | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+2331          | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2237          | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+1971          | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+1730          | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+1702          | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+1251          | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+;
 addition_metric_metric_promql
 required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=1h in_n_out=(network.eth0.rx + network.eth0.tx)
@@ -217,29 +238,6 @@ in_n_out:double | step:datetime            | _timeseries:keyword
 1702.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 1251.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"   
 ;
-
-// addition_metric_metric_ts
-// required_capability: ts_command_v0
-// required_capability: tbucket
-// 
-// TS k8s
-// | STATS in_n_out=
-//     network.eth0.rx +
-//     network.eth0.tx
-//   BY step=TBUCKET(1h), cluster, pod, region
-// | SORT in_n_out DESC;
-// 
-// in_n_out:long | step:datetime            | cluster:keyword | pod:keyword | region:keyword
-// 2857          | 2024-05-10T00:00:00.000Z | qa              | two         | null
-// 2778          | 2024-05-10T00:00:00.000Z | qa              | one         | null
-// 2345          | 2024-05-10T00:00:00.000Z | qa              | three       | null
-// 2331          | 2024-05-10T00:00:00.000Z | staging         | three       | us
-// 2237          | 2024-05-10T00:00:00.000Z | prod            | one         | eu, us
-// 1971          | 2024-05-10T00:00:00.000Z | staging         | two         | us
-// 1730          | 2024-05-10T00:00:00.000Z | prod            | three       | eu, us
-// 1702          | 2024-05-10T00:00:00.000Z | prod            | two         | eu, us
-// 1251          | 2024-05-10T00:00:00.000Z | staging         | one         | us
-// ;
 
 division_metric_metric_grouping_ts
 required_capability: ts_command_v0

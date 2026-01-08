@@ -7907,10 +7907,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateBareMetricWithImplicitLastOverTime() {
         var query = """
-            TS k8s | STATS network.bytes_in BY bucket(@timestamp, 1 minute)
+            TS k8s
+            | STATS in_n_out=network.eth0.rx + network.eth0.tx BY step=bucket(@timestamp, 1m)
+            | SORT in_n_out DESC
             | LIMIT 10
             """;
         var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), contains("in_n_out", "_timeseries", "step"));
+        TimeSeriesAggregate aggsByTsid = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+        LastOverTime left = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
+        assertThat(Expressions.attribute(left.field()).name(), equalTo("network.eth0.rx"));
+        LastOverTime right = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), LastOverTime.class);
+        assertThat(Expressions.attribute(right.field()).name(), equalTo("network.eth0.tx"));
+    }
+
+    public void testTranslateBareMetricPlusMetricWithImplicitLastOverTime() {
+        var query = """
+            TS k8s | STATS network.bytes_in BY step=bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), contains("network.bytes_in", "_timeseries", "step"));
+        TimeSeriesAggregate aggsByTsid = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().getFirst()), LastOverTime.class);
+        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
     }
 
     public void testTranslateSumWithImplicitLastOverTime() {

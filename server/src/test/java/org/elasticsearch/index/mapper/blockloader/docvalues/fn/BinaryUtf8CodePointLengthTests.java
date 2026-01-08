@@ -17,7 +17,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -140,7 +139,6 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
             }
         }
     }
-
 
     private TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
         BlockLoader.AllReader toUse = blockAtATime

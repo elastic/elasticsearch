@@ -15,10 +15,10 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * Encoding benchmark implementation for TSDB doc values.
+ * Encoding benchmark for TSDB doc values.
  *
- * <p>This class benchmarks the {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder#encode}
- * method, measuring how long it takes to encode a block of long values into a compressed byte format.
+ * <p>Measures the performance of {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder#encode},
+ * which compresses a block of long values into a byte buffer.
  *
  * @see DecodeBenchmark
  */
@@ -31,7 +31,7 @@ public class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
     @Override
     public void setupIteration(Supplier<long[]> arraySupplier) throws IOException {
         this.input = arraySupplier.get();
-        this.output = new byte[Long.BYTES * blockSize + 64];
+        this.output = new byte[Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
         this.dataOutput = new ByteArrayDataOutput(this.output);
     }
 
@@ -51,7 +51,7 @@ public class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
     }
 
     @Override
-    public int getEncodedBytes() {
+    public int getEncodedSize() {
         return dataOutput.getPosition();
     }
 }

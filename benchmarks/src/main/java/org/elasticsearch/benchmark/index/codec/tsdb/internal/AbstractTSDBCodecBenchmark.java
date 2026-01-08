@@ -27,19 +27,19 @@ import java.util.function.Supplier;
  *   <li>{@link #benchmark(Blackhole)} - Template method that combines both</li>
  * </ul>
  *
- * <h2>Encoding Pipeline</h2>
- * <p>The {@link TSDBDocValuesEncoder} applies these transformations:
- * <ol>
- *   <li>Delta encoding - computes differences between consecutive values</li>
- *   <li>Offset removal - subtracts minimum value to reduce magnitude</li>
- *   <li>GCD compression - divides by greatest common divisor if beneficial</li>
- *   <li>Bit packing - packs values using minimum required bits</li>
- * </ol>
- *
  * @see EncodeBenchmark
  * @see DecodeBenchmark
  */
 public abstract class AbstractTSDBCodecBenchmark {
+
+    /**
+     * Extra bytes allocated beyond the raw data size to accommodate encoding metadata.
+     *
+     * <p>The {@link TSDBDocValuesEncoder} writes metadata alongside bit-packed data for each
+     * encoding step (delta, offset, GCD). This buffer headroom ensures we never overflow
+     * during encoding. The theoretical maximum is ~32 bytes; we use 64 for safety.
+     */
+    protected static final int EXTRA_METADATA_SIZE = 64;
 
     /** The encoder instance used for all encode/decode operations. */
     protected final TSDBDocValuesEncoder encoder;
@@ -56,23 +56,22 @@ public abstract class AbstractTSDBCodecBenchmark {
     }
 
     /**
-     * Executes the core encode or decode operation.
-     * This method can be called independently to measure encoded size before benchmarking.
+     * Executes the core encode or decode operation. An encoder would normally implement the
+     * encoding logic while a decoder would implement the decoding logic.
      *
      * @throws IOException if encoding or decoding fails
      */
     public abstract void run() throws IOException;
 
     /**
-     * Returns the output to be consumed by the JMH blackhole.
-     * This prevents dead code elimination by the JIT compiler.
+     * Returns the output expected to be consumed by the JMH blackhole.
      *
      * @return the benchmark output (encoded bytes or decoded values)
      */
     protected abstract Object getOutput();
 
     /**
-     * Template method that runs the operation and consumes the result.
+     * Template method that runs the operation and consumes the result (encode or decode).
      * This is the method called by JMH during benchmark iterations.
      *
      * @param bh the JMH blackhole for consuming results
@@ -94,7 +93,7 @@ public abstract class AbstractTSDBCodecBenchmark {
 
     /**
      * Resets state before each benchmark invocation.
-     * Called before every single operation to reset buffers.
+     * Called before every single operation to reset buffers and initialize state.
      *
      * @throws IOException if reset fails
      */
@@ -103,7 +102,7 @@ public abstract class AbstractTSDBCodecBenchmark {
     /**
      * Returns the number of values per encoded block.
      *
-     * @return the block size (typically 128)
+     * @return the block size.
      */
     public int getBlockSize() {
         return blockSize;
@@ -114,5 +113,5 @@ public abstract class AbstractTSDBCodecBenchmark {
      *
      * @return encoded size in bytes
      */
-    public abstract int getEncodedBytes();
+    public abstract int getEncodedSize();
 }

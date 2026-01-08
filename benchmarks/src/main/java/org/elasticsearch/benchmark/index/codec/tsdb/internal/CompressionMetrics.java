@@ -57,14 +57,27 @@ public class CompressionMetrics {
     public double encodedBitsPerValue;
 
     /**
-     * Ratio of actual encoded size to theoretical minimum size.
-     * A value of 1.0 indicates optimal encoding with no overhead.
-     * Values greater than 1.0 indicate encoding overhead.
+     * Ratio of actual encoded size to theoretical minimum size at nominal bit width.
+     * <ul>
+     *   <li>{@code < 1.0}: encoder exploited patterns to compress below nominal bit width.
+     *       This happens when delta encoding, min offset removal, or GCD division reduce
+     *       the effective bits per value below the nominal input bit width.</li>
+     *   <li>{@code = 1.0}: optimal bit-packing at nominal bit width with no overhead</li>
+     *   <li>{@code > 1.0}: metadata overhead exceeds compression gains. This occurs with
+     *       incompressible data (e.g., random values) where the encoder cannot exploit
+     *       patterns but still writes encoding metadata (tokens, min offset, GCD, etc.).</li>
+     * </ul>
+     * Lower values are better. Useful for comparing encoder versions on the same data pattern.
      */
     public double overheadRatio;
 
+    /** Number of values in each encoded block. */
     private int blockSize;
+
+    /** Actual bytes produced after encoding one block. */
     private int encodedBytesPerBlock;
+
+    /** The nominal bits per value being tested (benchmark parameter). */
     private int nominalBitsPerValue;
 
     /**

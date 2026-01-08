@@ -250,6 +250,7 @@ class ValuesFromManyReader extends ValuesReader {
 
         void convertAndAccumulate() {
             if (converter == null) {
+                // We built directly into the final block so there isn't any need to convert anything
                 return;
             }
             try (Block orig = converter.convert(builder.build())) {
@@ -260,6 +261,10 @@ class ValuesFromManyReader extends ValuesReader {
         @Override
         public void close() {
             if (converter != null) {
+                /*
+                 * If there *isn't* a converter than the `builder` is just the final builder
+                 * and it's closed by the Run.
+                 */
                 builder.close();
             }
         }

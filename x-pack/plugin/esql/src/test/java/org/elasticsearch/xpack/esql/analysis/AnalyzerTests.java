@@ -17,7 +17,6 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
@@ -1643,7 +1642,7 @@ public class AnalyzerTests extends ESTestCase {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | dissect unsupported \"%{foo}\"
+            | dissect unsupported "%{foo}"
             """, errorMsg);
     }
 
@@ -1651,7 +1650,7 @@ public class AnalyzerTests extends ESTestCase {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | grok unsupported \"%{WORD:foo}\"
+            | grok unsupported "%{WORD:foo}"
             """, errorMsg);
     }
 
@@ -2059,7 +2058,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesInStats() {
         verifyUnsupported("""
-              row x = to_unsigned_long(\"10\")
+              row x = to_unsigned_long("10")
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
             Found 6 problems
@@ -2100,25 +2099,25 @@ public class AnalyzerTests extends ESTestCase {
     public void testInOnText() {
         assertProjectionWithMapping("""
             from a_index
-            | eval text in (\"a\", \"b\", \"c\")
+            | eval text in ("a", "b", "c")
             | keep text
             """, "mapping-multi-field-variation.json", "text");
 
         assertProjectionWithMapping("""
             from a_index
-            | eval text in (\"a\", \"b\", \"c\", text)
+            | eval text in ("a", "b", "c", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
 
         assertProjectionWithMapping("""
             from a_index
-            | eval text not in (\"a\", \"b\", \"c\")
+            | eval text not in ("a", "b", "c")
             | keep text
             """, "mapping-multi-field-variation.json", "text");
 
         assertProjectionWithMapping("""
             from a_index
-            | eval text not in (\"a\", \"b\", \"c\", text)
+            | eval text not in ("a", "b", "c", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
     }
@@ -2559,9 +2558,9 @@ public class AnalyzerTests extends ESTestCase {
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
         assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
 
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyze("""
             from test | eval scalar = v_magnitude([1, 2, 3])
-            """), DENSE_VECTOR_MAPPING_FILE);
+            """, DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2575,23 +2574,29 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testTimeseriesDefaultLimitIs1B() {
         Analyzer analyzer = analyzer(tsdbIndexResolution());
-        // Tuples of (query, isTimeseries)
-        for (var queryExp : List.of(
-            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in))", true),
-            Tuple.tuple("TS test", false),
-            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
-            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false)
-        )) {
-            var query = queryExp.v1();
-            var expectedLimit = queryExp.v2() ? DEFAULT_TIMESERIES_LIMIT : DEFAULT_LIMIT;
-            var plan = analyze(query, analyzer);
-            var limit = as(plan, Limit.class);
-            try {
-                assertThat(as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
-            } catch (AssertionError e) {
-                throw new AssertionError("Failed for query: " + query, e);
-            }
-        }
+        assertDefaultLimitForQuery(analyzer, "TS test | STATS avg(rate(network.bytes_in))", DEFAULT_TIMESERIES_LIMIT);
+        assertDefaultLimitForQuery(analyzer, "TS test ", DEFAULT_LIMIT);
+        assertDefaultLimitForQuery(
+            analyzer,
+            "TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket",
+            DEFAULT_TIMESERIES_LIMIT
+        );
+        assertDefaultLimitForQuery(analyzer, "FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
+    }
+
+    public void testLimitForPromQL() {
+        assumeTrue("Requires promql support", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V12.isEnabled());
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        assertDefaultLimitForQuery(analyzer, """
+            PROMQL index=test
+                step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
+                avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
+    }
+
+    private static void assertDefaultLimitForQuery(Analyzer analyzer, String query, int expectedLimit) {
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
     }
 
     public void testRateRequiresCounterTypes() {
@@ -3790,13 +3795,13 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void assertProjectionWithMapping(String query, String mapping, String... names) {
-        var plan = analyze(query, mapping.toString());
+        var plan = analyze(query, mapping);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
 
     private void assertProjectionWithMapping(String query, String mapping, QueryParams params, String... names) {
-        var plan = analyze(query, mapping.toString(), params);
+        var plan = analyze(query, mapping, params);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
@@ -4040,7 +4045,7 @@ public class AnalyzerTests extends ESTestCase {
                 VerificationException.class,
                 () -> analyze("""
                     FROM books METADATA _score
-                    | RERANK \"italian food recipe\" ON missingField WITH { "inference_id" : "reranking-inference-id" }
+                    | RERANK "italian food recipe" ON missingField WITH { "inference_id" : "reranking-inference-id" }
                     """, "mapping-books.json")
 
             );
@@ -5694,7 +5699,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var anonymous_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like ?"),
+                "from test | where first_name like ?",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*")))
             );
@@ -5708,7 +5713,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var positional_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like (?1, ?2)"),
+                "from test | where first_name like (?1, ?2)",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
             );
@@ -5723,7 +5728,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var named_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
+                "from test | where first_name rlike ?pattern",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
             );
@@ -5737,7 +5742,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var named_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
+                "from test | where first_name rlike (?p1, ?p2)",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
             );

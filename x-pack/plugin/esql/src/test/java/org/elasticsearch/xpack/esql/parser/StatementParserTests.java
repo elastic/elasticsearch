@@ -1249,10 +1249,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
     }
 
-    public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test metadata _tier", "line 1:20: unsupported metadata field [_tier]");
-    }
-
     public void testMetadataFieldUnsupportedCustomType() {
         expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
     }

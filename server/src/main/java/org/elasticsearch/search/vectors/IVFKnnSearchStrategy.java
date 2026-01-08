@@ -12,7 +12,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAccumulator;
 
@@ -45,7 +44,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         return visitRatio;
     }
 
-    public void markCentroidVisited(int ord) throws IOException {
+    public void markCentroidVisited(int ord) {
         if (centroidTracker != null) {
             centroidTracker.markVisited(ord);
         }

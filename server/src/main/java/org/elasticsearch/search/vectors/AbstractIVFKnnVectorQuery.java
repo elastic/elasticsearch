@@ -266,7 +266,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             if (searchResults == 0) return new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
             Arrays.sort(scoreDocs, 0, searchResults, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
 
-            // Only recurse if we need more docs
             if (alreadyCollectedResults + searchResults < k) {
                 longAdder.add(1L);
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();

@@ -22,3 +22,4 @@
 
 `post_filtering_threshold`
 :   (double) The minimum filter coverage for any filters to be applied as post filters. This could lead to increased performance at potentially a small hit in recall.
+

@@ -27,7 +27,7 @@ import org.openjdk.jmh.annotations.TearDown;
  * <pre>{@code
  * @Benchmark
  * public void benchmark(Blackhole bh, MetricsConfig config, CompressionMetrics metrics) {
- *     // ... perform operation ...
+ *     // ... benchmark-specific code ...
  *     metrics.recordOperation(config);
  * }
  * }</pre>
@@ -108,7 +108,7 @@ public class CompressionMetrics {
         if (this.config == null) {
             this.config = config;
         }
-        totalEncodedBytes += config.getEncodedBytesPerBlock();
+        totalEncodedBytes += config.getEncodedSizePerBlock();
         totalValuesProcessed += config.getBlockSize();
     }
 
@@ -118,12 +118,12 @@ public class CompressionMetrics {
      */
     @TearDown(Level.Iteration)
     public void computeMetrics() {
-        if (config == null || config.getBlockSize() == 0 || config.getEncodedBytesPerBlock() == 0) {
+        if (config == null || config.getBlockSize() == 0 || config.getEncodedSizePerBlock() == 0) {
             return;
         }
 
         int blockSize = config.getBlockSize();
-        int encodedBytes = config.getEncodedBytesPerBlock();
+        int encodedBytes = config.getEncodedSizePerBlock();
         int nominalBits = config.getNominalBitsPerValue();
 
         long rawBytes = (long) blockSize * Long.BYTES;

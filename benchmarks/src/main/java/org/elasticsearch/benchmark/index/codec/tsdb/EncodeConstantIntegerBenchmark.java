@@ -60,7 +60,7 @@ public class EncodeConstantIntegerBenchmark {
         encode.setupIteration(new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
         encode.setupInvocation();
         encode.run();
-        config.configure(BLOCK_SIZE, encode.getEncodedBytes(), bitsPerValue);
+        config.configure(BLOCK_SIZE, encode.getEncodedSize(), bitsPerValue);
     }
 
     @Benchmark

@@ -58,7 +58,7 @@ public class DecodeDecreasingIntegerBenchmark {
     @Setup(Level.Iteration)
     public void setupIteration(MetricsConfig config) throws IOException {
         decode.setupIteration(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
-        config.configure(BLOCK_SIZE, decode.getEncodedBytes(), bitsPerValue);
+        config.configure(BLOCK_SIZE, decode.getEncodedSize(), bitsPerValue);
     }
 
     @Benchmark

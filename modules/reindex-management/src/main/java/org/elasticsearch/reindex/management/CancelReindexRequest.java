@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -59,6 +60,6 @@ public class CancelReindexRequest extends BaseTasksRequest<CancelReindexRequest>
 
     @Override
     public boolean match(Task task) {
-        throw new UnsupportedOperationException("shouldn't be called. transport overrides function which does.");
+        return ReindexAction.NAME.equals(task.getAction()) && task.getParentTaskId().isSet() == false;
     }
 }

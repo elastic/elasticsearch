@@ -18,13 +18,10 @@ import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.action.support.tasks.TransportTasksProjectAction;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,10 +31,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Objects;
 
 /** Transport action that cancels an in-flight reindex task and its descendants. */
-public class TransportCancelReindexAction extends TransportTasksAction<
+public class TransportCancelReindexAction extends TransportTasksProjectAction<
     CancellableTask,
     CancelReindexRequest,
     CancelReindexResponse,
@@ -45,8 +41,6 @@ public class TransportCancelReindexAction extends TransportTasksAction<
 
     public static final ActionType<CancelReindexResponse> TYPE = new ActionType<>("cluster:admin/reindex/cancel");
     private static final Logger LOG = LogManager.getLogger(TransportCancelReindexAction.class);
-
-    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportCancelReindexAction(
@@ -62,24 +56,17 @@ public class TransportCancelReindexAction extends TransportTasksAction<
             actionFilters,
             CancelReindexRequest::new,
             CancelReindexTaskResponse::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            projectResolver
         );
-        this.projectResolver = Objects.requireNonNull(projectResolver, "projectResolver");
     }
 
     @Override
     protected List<CancellableTask> processTasks(final CancelReindexRequest request) {
-        final TaskId requestedTaskId = request.getTargetTaskId();
-        final CancellableTask requestedTask = taskManager.getCancellableTask(requestedTaskId.getId());
-        final ReasonTaskCannotBeCancelled reason = reasonForTaskNotBeingEligibleForCancellation(
-            requestedTask,
-            projectResolver.getProjectId()
-        );
-        if (reason != null) {
-            LOG.debug("Task not eligible for cancellation. reason={}", reason);
-            return List.of();
-        }
-        return List.of(requestedTask);
+        final CancellableTask requestedTask = taskManager.getCancellableTask(request.getTargetTaskId().getId());
+        return requestedTask != null && super.match(requestedTask) && request.match(requestedTask)
+            ? List.of(requestedTask)
+            : List.of();
     }
 
     @Override
@@ -120,41 +107,6 @@ public class TransportCancelReindexAction extends TransportTasksAction<
             throw reindexWithTaskIdNotFoundException(request.getTargetTaskId());
         }
         return response;
-    }
-
-    // visible for testing
-    enum ReasonTaskCannotBeCancelled {
-        MISSING,
-        NOT_REINDEX,
-        IS_SUBTASK,
-        TASK_PROJECT_MISMATCH
-    }
-
-    // visible for testing
-    @Nullable
-    static ReasonTaskCannotBeCancelled reasonForTaskNotBeingEligibleForCancellation(
-        @Nullable final CancellableTask task,
-        final ProjectId requestProjectId
-    ) {
-        if (task == null) {
-            return ReasonTaskCannotBeCancelled.MISSING;
-        } else if (ReindexAction.NAME.equals(task.getAction()) == false) {
-            return ReasonTaskCannotBeCancelled.NOT_REINDEX;
-        } else if (task.getParentTaskId().isSet()) {
-            return ReasonTaskCannotBeCancelled.IS_SUBTASK;
-        }
-
-        final String taskProjectId = task.getProjectId();
-        if (taskProjectId == null) {
-            if (ProjectId.DEFAULT.equals(requestProjectId) == false) {
-                throw new IllegalArgumentException(
-                    "Multi-project: task doesn't have projectId, requestProjectId should be DEFAULT but is: [" + requestProjectId + "]"
-                );
-            }
-        } else if (Objects.equals(requestProjectId.id(), taskProjectId) == false) {
-            return ReasonTaskCannotBeCancelled.TASK_PROJECT_MISMATCH;
-        }
-        return null;
     }
 
     private static ResourceNotFoundException reindexWithTaskIdNotFoundException(final TaskId requestedTaskId) {

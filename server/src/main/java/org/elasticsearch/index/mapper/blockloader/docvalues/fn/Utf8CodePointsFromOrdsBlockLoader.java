@@ -559,7 +559,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public int docId() {
-            return binaryDocValues.docID();
+            return counts.docID();
         }
 
         @Override

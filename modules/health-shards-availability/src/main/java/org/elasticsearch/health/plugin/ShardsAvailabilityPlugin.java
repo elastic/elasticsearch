@@ -12,6 +12,7 @@ package org.elasticsearch.health.plugin;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.shards.StatelessShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -38,7 +39,7 @@ public class ShardsAvailabilityPlugin extends Plugin implements HealthPlugin {
             );
         } else {
             this.shardHealthService.set(
-                new ShardsAvailabilityHealthIndicatorService(
+                new StatefulShardsAvailabilityHealthIndicatorService(
                     services.clusterService(),
                     services.allocationService(),
                     services.systemIndices(),

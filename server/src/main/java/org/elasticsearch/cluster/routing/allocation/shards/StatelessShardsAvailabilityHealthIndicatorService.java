@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -241,7 +242,7 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
             .toList();
         if (shardRoleAllocationResults.isEmpty()) {
             // No nodes were found with the specific role.
-            Optional.ofNullable(ACTION_DEBUG_NODES_LOOKUP.get(role)).ifPresent(diagnosisDefs::add);
+            Optional.ofNullable(getAddNodesWithRoleAction(role)).ifPresent(diagnosisDefs::add);
         } else {
             // Collect the nodes the index is allowed on
             Set<DiscoveryNode> candidateNodes = shardRoleAllocationResults.stream()
@@ -256,6 +257,11 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
             checkNotEnoughNodesWithRole(shardRoleAllocationResults, role).ifPresent(diagnosisDefs::add);
         }
         return diagnosisDefs;
+    }
+
+    @Nullable
+    public Diagnosis.Definition getAddNodesWithRoleAction(String role) {
+        return ACTION_DEBUG_NODES_LOOKUP.get(role);
     }
 
     @Override

@@ -206,7 +206,7 @@ public class RefCountingRunnableTests extends ESTestCase {
             for (var item : otherCollection) {
                 var itemRef = refs.acquire(); // delays completion while the background action is pending
                 executorService.execute(() -> {
-                    try (var ignored = itemRef) {
+                    try (itemRef) {
                         if (condition(item)) {
                             runOtherAsyncAction(item, refs.acquire());
                         }

@@ -124,7 +124,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeohash(
         Source source,

@@ -711,12 +711,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testRescoreVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = randomFrom(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersionUtils.getLowestReadCompatibleVersion(),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
             ),
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             )
@@ -742,12 +740,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testRescoreZeroVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = randomFrom(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersionUtils.getLowestReadCompatibleVersion(),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
             ),
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
             )
@@ -1427,7 +1423,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int dims = randomIntBetween(64, 2048);
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
         );
         float[] vector = new float[dims];
@@ -1519,7 +1515,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             VectorSimilarityFunction.COSINE,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
                 IndexVersionUtils.randomVersionBetween(
-                    random(),
                     IndexVersions.V_8_0_0,
                     IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.NORMALIZE_COSINE)
                 ),
@@ -1529,7 +1524,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
-                IndexVersionUtils.randomVersionBetween(random(), DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
                 ElementType.FLOAT
             )
         );
@@ -1929,8 +1924,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -1972,12 +1967,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 + ", compressed="
                 + quantizedFlatFormat.equals("int4_flat")
                 + ", flatVectorScorer=ESQuantizedFlatVectorsScorer("
-                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer())"
                 + ", factory="
                 + (factory != null ? factory : "null")
                 + "), "
-                + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+                + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
             assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
@@ -2019,15 +2014,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", confidenceInterval="
+            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", bits=7, compressed=false, "
             + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
-            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), "
             + "factory="
             + (factory != null ? factory : "null")
-            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+            + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2123,13 +2118,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", confidenceInterval="
+            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : 0.0f)
             + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
-            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), factory="
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), factory="
             + (factory != null ? factory : "null")
-            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+            + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 

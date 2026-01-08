@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -58,7 +59,6 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         Request bulk = new Request("POST", "/k8s/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
 
         String bulkBody = new String(
             TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-bulk-request.txt").readAllBytes(),
@@ -66,7 +66,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         );
         bulk.setJsonEntity(bulkBody);
         Response response = client().performRequest(bulk);
-        assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), Matchers.containsString("\"errors\":false"));
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");

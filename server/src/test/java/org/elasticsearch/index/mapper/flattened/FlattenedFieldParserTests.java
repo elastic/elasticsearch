@@ -40,7 +40,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            null
+            null,
+            false
         );
     }
 
@@ -303,7 +304,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             2,
             Integer.MAX_VALUE,
-            null
+            null,
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -327,7 +329,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             3,
             Integer.MAX_VALUE,
-            null
+            null,
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -346,7 +349,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
             10,
-            null
+            null,
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -371,7 +375,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             fieldType,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            "placeholder"
+            "placeholder",
+            false
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

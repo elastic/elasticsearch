@@ -150,7 +150,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     public void testLegacyDocValuesType() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            IndexVersionUtils.getPreviousVersion(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES),
             fieldMapping(this::minimalMapping)
         );
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
@@ -277,7 +277,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testLegacyDisableIndex() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(
-            IndexVersionUtils.getPreviousVersion(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES),
             fieldMapping(b -> {
                 b.field("type", "flattened");
                 b.field("index", false);

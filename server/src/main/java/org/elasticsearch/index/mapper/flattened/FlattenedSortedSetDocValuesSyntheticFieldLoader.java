@@ -14,8 +14,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -33,7 +31,7 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
     private final String keyedFieldFullPath;
     private final String keyedIgnoredValuesFieldFullPath;
     private final String leafName;
-    private final IndexVersion indexCreatedVersion;
+    private final boolean usesBinaryDocValues;
 
     private DocValuesFieldValues docValues = NO_VALUES;
     private List<Object> ignoredValues = List.of();
@@ -52,13 +50,13 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
         String keyedFieldFullPath,
         @Nullable String keyedIgnoredValuesFieldFullPath,
         String leafName,
-        IndexVersion indexCreatedVersion
+        boolean usesBinaryDocValues
     ) {
         this.fieldFullPath = fieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.leafName = leafName;
-        this.indexCreatedVersion = indexCreatedVersion;
+        this.usesBinaryDocValues = usesBinaryDocValues;
     }
 
     @Override
@@ -80,7 +78,7 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        if (indexCreatedVersion.onOrAfter(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES)) {
+        if (usesBinaryDocValues) {
             var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
             if (binaryDv == null) {
                 return null;

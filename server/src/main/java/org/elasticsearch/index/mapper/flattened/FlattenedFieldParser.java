@@ -16,7 +16,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,6 +41,8 @@ class FlattenedFieldParser {
     private final int ignoreAbove;
     private final String nullValue;
 
+    private final boolean usesBinaryDocValues;
+
     FlattenedFieldParser(
         String rootFieldFullPath,
         String keyedFieldFullPath,
@@ -49,7 +50,8 @@ class FlattenedFieldParser {
         MappedFieldType fieldType,
         int depthLimit,
         int ignoreAbove,
-        String nullValue
+        String nullValue,
+        boolean usesBinaryDocValues
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -58,6 +60,7 @@ class FlattenedFieldParser {
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
+        this.usesBinaryDocValues = usesBinaryDocValues;
     }
 
     public void parse(final DocumentParserContext documentParserContext) throws IOException {
@@ -164,10 +167,7 @@ class FlattenedFieldParser {
         }
 
         if (fieldType.hasDocValues()) {
-            if (context.documentParserContext.indexSettings()
-                .getIndexVersionCreated()
-                .onOrAfter(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES)) {
-
+            if (usesBinaryDocValues) {
                 MultiValuedBinaryDocValuesField.SeparateCount.addToFieldInDoc(
                     context.documentParserContext.doc(),
                     rootFieldFullPath,

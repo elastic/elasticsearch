@@ -21,7 +21,6 @@ import org.elasticsearch.health.plugin.ShardsAvailabilityPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIT;
-import org.junit.Ignore;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -50,7 +49,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIT {
         return plugins;
     }
 
-    @Ignore // TODO stop ignoring once stateless fully works
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140400") // TODO stop ignoring once stateless fully works
     public void testReplicaShardsAvailabilityOnStateless() throws Exception {
         startMasterAndIndexNode();
 
@@ -270,7 +269,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIT {
         });
     }
 
-    @Ignore // TODO stop ignoring once stateless fully works
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140400") // TODO stop ignoring once stateless fully works
     public void testIncreaseClusterShardLimit() throws Exception {
         startMasterAndIndexNode();
         String indexNode = startIndexNode();
@@ -340,7 +339,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIT {
         }
     }
 
-    @Ignore // TODO stop ignoring once stateless fully works
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140400") // TODO stop ignoring once stateless fully works
     public void testIncreaseIndexShardLimit() throws Exception {
         startMasterAndIndexNode();
         String indexNode = startIndexNode();
@@ -409,7 +408,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIT {
         }
     }
 
-    @Ignore // TODO stop ignoring once stateless fully works
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140400") // TODO stop ignoring once stateless fully works
     public void testAddIndexNodes() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();

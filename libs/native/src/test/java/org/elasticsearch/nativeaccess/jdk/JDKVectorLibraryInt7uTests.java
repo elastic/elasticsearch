@@ -11,11 +11,11 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.function.ToIntBiFunction;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
@@ -58,7 +58,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
             var nativeSeg1 = segment.asSlice((long) first * dims, dims);
             var nativeSeg2 = segment.asSlice((long) second * dims, dims);
 
-            // dot product
             int expected = scalarSimilarity(values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims));
             if (supportsHeapSegments()) {
@@ -273,15 +272,15 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
         switch (function) {
-            case DOT_PRODUCT -> dotProductBulkScalar(query, data, scores);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("Not implemented");
+            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryInt7uTests::dotProductScalar, query, data, scores);
+            case SQUARE_DISTANCE -> bulkScalar(JDKVectorLibraryInt7uTests::squareDistanceScalar, query, data, scores);
         }
     }
 
     void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
         switch (function) {
-            case DOT_PRODUCT -> dotProductBulkWithOffsetsScalar(query, data, offsets, scores);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("Not implemented");
+            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryInt7uTests::dotProductScalar, query, data, offsets, scores);
+            case SQUARE_DISTANCE -> bulkWithOffsetsScalar(JDKVectorLibraryInt7uTests::squareDistanceScalar, query, data, offsets, scores);
         }
     }
 
@@ -293,18 +292,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         return res;
     }
 
-    static void dotProductBulkScalar(byte[] query, byte[][] data, float[] scores) {
-        for (int i = 0; i < data.length; i++) {
-            scores[i] = dotProductScalar(query, data[i]);
-        }
-    }
-
-    static void dotProductBulkWithOffsetsScalar(byte[] query, byte[][] data, int[] offsets, float[] scores) {
-        for (int i = 0; i < data.length; i++) {
-            scores[i] = dotProductScalar(query, data[offsets[i]]);
-        }
-    }
-
     static int squareDistanceScalar(byte[] a, byte[] b) {
         // Note: this will not overflow if dim < 2^18, since max(byte * byte) = 2^14.
         int squareSum = 0;
@@ -313,6 +300,24 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
             squareSum += diff * diff;
         }
         return squareSum;
+    }
+
+    static void bulkScalar(ToIntBiFunction<byte[], byte[]> function, byte[] query, byte[][] data, float[] scores) {
+        for (int i = 0; i < data.length; i++) {
+            scores[i] = function.applyAsInt(query, data[i]);
+        }
+    }
+
+    static void bulkWithOffsetsScalar(
+        ToIntBiFunction<byte[], byte[]> function,
+        byte[] query,
+        byte[][] data,
+        int[] offsets,
+        float[] scores
+    ) {
+        for (int i = 0; i < data.length; i++) {
+            scores[i] = function.applyAsInt(query, data[offsets[i]]);
+        }
     }
 
     static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {

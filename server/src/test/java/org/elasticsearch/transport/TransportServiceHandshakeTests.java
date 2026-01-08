@@ -128,7 +128,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             settings,
             TransportVersionUtils.randomCompatibleVersion(random()),
             new VersionInformation(
-                VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
+                VersionUtils.randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current()
             ),

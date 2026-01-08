@@ -1846,6 +1846,12 @@ public class EsqlCapabilities {
          */
         DATE_TIME_EXCEPTIONS_HANDLED,
 
+        /**
+         * Supports a group of commands that result in a compound (multi-column) output as a result if a single evaluation operation (e.g.
+         * {@code URI_PARTS}).
+         */
+        COMPOUND_OUTPUT_EVAL(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

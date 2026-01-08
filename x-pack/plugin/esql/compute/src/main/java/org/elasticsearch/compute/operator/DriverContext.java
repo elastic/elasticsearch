@@ -73,7 +73,7 @@ public class DriverContext {
         this(bigArrays, blockFactory, description, WarningsMode.COLLECT);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable String description, WarningsMode warningsMode) {
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable String description, WarningsMode warningsMode) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;

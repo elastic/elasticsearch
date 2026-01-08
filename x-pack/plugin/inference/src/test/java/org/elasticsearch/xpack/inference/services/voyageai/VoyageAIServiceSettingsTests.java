@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -33,7 +34,7 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
     public void testFromMap() {
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
             ConfigurationParseContext.REQUEST
         );
 
@@ -45,7 +46,7 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
         var serviceSettings = VoyageAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    VoyageAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
@@ -60,7 +61,7 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
     public void testFromMap_WhenUsingModelId() {
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -102,7 +103,7 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
     public static Map<String, Object> getServiceSettingsMap(String model) {
         var map = new HashMap<String, Object>();
 
-        map.put(VoyageAIServiceSettings.MODEL_ID, model);
+        map.put(ServiceFields.MODEL_ID, model);
 
         return map;
     }

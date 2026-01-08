@@ -45,9 +45,10 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, BULK_SIZE, scores);
+        int7DotProductBulk(q, bulkSize, scores);
         applyCorrectionsBulk(
             queryLowerInterval,
             queryUpperInterval,
@@ -55,7 +56,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            scores
+            scores,
+            bulkSize
         );
     }
 }

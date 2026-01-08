@@ -14,9 +14,63 @@ import org.elasticsearch.core.Releasable;
 
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.common.Strings.format;
+
 public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListener<Releasable>> {
     // a simple AbstractThrottledTaskRunner which fixes the task type and uses a regular FIFO blocking queue.
     public ThrottledTaskRunner(String name, int maxRunningTasks, Executor executor) {
         super(name, maxRunningTasks, executor, ConcurrentCollections.newBlockingQueue());
+    }
+
+    /**
+     * Returns a new {@link Executor} implementation that delegates tasks to this {@link ThrottledTaskRunner}.
+     */
+    public Executor asExecutor() {
+        return new ThrottledExecutorAdapter(this);
+    }
+
+    /**
+     * Adapter from the {@link AbstractThrottledTaskRunner} interface to the {@link Executor} one.
+     */
+    static class ThrottledExecutorAdapter implements Executor {
+        private final org.elasticsearch.logging.Logger logger = org.elasticsearch.logging.LogManager.getLogger(
+            ThrottledExecutorAdapter.class
+        );
+
+        private final ThrottledTaskRunner throttledTaskRunner;
+
+        ThrottledExecutorAdapter(ThrottledTaskRunner throttledTaskRunner) {
+            this.throttledTaskRunner = throttledTaskRunner;
+        }
+
+        @Override
+        public void execute(Runnable task) {
+            throttledTaskRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        task.run();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "[%s] failed to execute task %s by executor [%s]",
+                            throttledTaskRunner.getTaskRunnerName(),
+                            task,
+                            ThrottledExecutorAdapter.class.getCanonicalName()
+                        ),
+                        e
+                    );
+                }
+
+                @Override
+                public String toString() {
+                    return task.toString();
+                }
+            });
+        }
     }
 }

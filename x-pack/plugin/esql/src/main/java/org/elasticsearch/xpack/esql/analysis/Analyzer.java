@@ -597,7 +597,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // TODO: remove this when Stats interface is removed
                 aggregate = changed.get() ? aggregate.with(aggregate.child(), groupings, newAggregates) : aggregate;
             }
-            return aggregate.transformExpressionsOnly(UnresolvedAttribute.class, resolve);
+            if (aggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
+                return ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput));
+            } else {
+                return aggregate;
+            }
         }
 
         private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {

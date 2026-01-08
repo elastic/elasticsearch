@@ -105,6 +105,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
     }
 
+    public LogicalPlan withTimestamp(Expression newTimestamp) {
+        if (newTimestamp.equals(timestamp)) {
+            return this;
+        }
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
+    }
+
     @Override
     public boolean expressionsResolved() {
         return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && timestamp.resolved();
@@ -233,9 +240,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             failures.add(
                 fail(
                     timestamp,
-                    "the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present",
-                    timestamp.sourceText(),
-                    timestamp.dataType().typeName()
+                    "the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present"
                 )
             );
         }

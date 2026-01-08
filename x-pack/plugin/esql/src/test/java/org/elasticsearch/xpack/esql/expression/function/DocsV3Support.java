@@ -1151,12 +1151,18 @@ public abstract class DocsV3Support {
             if (setting.snapshotOnly()) {
                 return;
             }
+
+            org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
+            MapParam mapParam = mapParam(setting);
+            Example example = example(setting);
+            assert param != null || mapParam != null;
+
             StringBuilder builder = new StringBuilder();
 
             builder.append(SETTINGS_WARNING);
 
             builder.append("***");
-            builder.append(setting.name());
+            builder.append(param != null ? param.name() : mapParam.name());
             builder.append("***\n\n");
 
             builder.append("```yaml {applies_to}\n");
@@ -1171,14 +1177,40 @@ public abstract class DocsV3Support {
             builder.append("```");
             builder.append("\n\n");
 
-            builder.append("Type: `");
-            builder.append(setting.type());
-            builder.append("`\n\n");
+            builder.append("Type: ");
+            String[] types = param != null ? param.type() : new String[] { "map_param" };
 
-            builder.append(setting.description());
+            for (String type : types) {
+                builder.append("`").append(type).append("` ");
+            }
             builder.append("\n\n");
 
-            // TODO examples
+            builder.append(param != null ? param.description() : mapParam.description());
+            builder.append("\n\n");
+
+            if (mapParam != null) {
+                EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
+                builder.append("Map entries: \n");
+
+                Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
+                for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
+                    builder.append("- `").append(mapArgSignature.name()).append("` ");
+                    builder.append("(`").append(mapArgSignature.type()).append("`): ");
+                    builder.append(mapArgSignature.description()).append("\n");
+                }
+            }
+
+            builder.append("\n\n");
+
+            if (example != null) {
+                String exampleContent = loadExample(example.file(), example.tag());
+                if (exampleContent != null) {
+                    builder.append("**Example**\n\n");
+                    builder.append("```esql\n");
+                    builder.append(exampleContent);
+                    builder.append("\n```\n\n");
+                }
+            }
 
             String rendered = builder.toString();
             logger.info("Writing settings definition for [{}]", name);
@@ -1238,6 +1270,19 @@ public abstract class DocsV3Support {
                 try {
                     if (declaredField != null && declaredField.get(null) == def) {
                         return declaredField.getAnnotation(org.elasticsearch.xpack.esql.expression.function.Param.class);
+                    }
+                } catch (IllegalAccessException e) {
+                    // do nothing
+                }
+            }
+            return null;
+        }
+
+        private static Example example(QuerySettingDef<?> def) {
+            for (Field declaredField : QuerySettings.class.getFields()) {
+                try {
+                    if (declaredField != null && declaredField.get(null) == def) {
+                        return declaredField.getAnnotation(Example.class);
                     }
                 } catch (IllegalAccessException e) {
                     // do nothing
@@ -1713,6 +1758,10 @@ public abstract class DocsV3Support {
                         currentTag = null;
                     }
                 } else if (currentTag != null && currentLines != null) {
+                    if (line.toLowerCase(Locale.ROOT).startsWith("set ") && line.endsWith("\\;")) {
+                        // Remove trailing backslash for settings lines
+                        line = line.substring(0, line.length() - 2) + ";";
+                    }
                     currentLines.add(line); // Collect lines within the block
                 }
             }

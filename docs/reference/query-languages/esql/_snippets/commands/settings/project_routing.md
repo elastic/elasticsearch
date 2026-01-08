@@ -6,7 +6,16 @@
 serverless: preview
 ```
 
-Type: `KEYWORD`
+Type: `keyword` 
 
 A project routing expression, used to define which projects to route the query to. Only supported if Cross-Project Search is enabled.
+
+
+
+**Example**
+
+```esql
+SET project_routing = "_alias:my_project";
+FROM apps
+```
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -33,6 +34,7 @@ public class QuerySettings {
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled."
     )
+    @Example(file = "from", tag = "project-routing")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -49,6 +51,7 @@ public class QuerySettings {
         type = { "keyword" },
         description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
     )
+    @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
         "time_zone",
         DataType.KEYWORD,
@@ -74,6 +77,7 @@ public class QuerySettings {
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
     @SuppressWarnings("unchecked")
+    // TODO add an example when approximate is implemented
     public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
         "approximate",
         null,

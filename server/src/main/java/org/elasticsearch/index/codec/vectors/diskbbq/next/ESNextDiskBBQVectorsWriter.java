@@ -591,8 +591,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         }
-        KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
-        return calculateCentroids(fieldInfo, kMeansResult);
+        return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
     /**
@@ -606,11 +605,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
      */
     @Override
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues) throws IOException {
-        KMeansResult kMeansResult = HierarchicalKMeans.ofSerial(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
-        return calculateCentroids(fieldInfo, kMeansResult);
+        HierarchicalKMeans hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
+        return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
-    private CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansResult kMeansResult) throws IOException {
+    private CentroidAssignments calculateCentroids(
+        HierarchicalKMeans hierarchicalKMeans,
+        FloatVectorValues floatVectorValues,
+        FieldInfo fieldInfo
+    ) throws IOException {
+        KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", centroids.length);

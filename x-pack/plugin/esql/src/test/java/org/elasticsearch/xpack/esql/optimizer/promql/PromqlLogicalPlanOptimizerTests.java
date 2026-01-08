@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,7 +92,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
                 emptyMap(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                TransportVersion.current()
+                TransportVersion.current(),
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );

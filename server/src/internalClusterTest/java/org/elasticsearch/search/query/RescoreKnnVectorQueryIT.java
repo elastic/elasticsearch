@@ -58,7 +58,6 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     public static final String VECTOR_FIELD = "vector";
     public static final String VECTOR_SCORE_SCRIPT = "vector_scoring";
     public static final String QUERY_VECTOR_PARAM = "query_vector";
-    public static final double DELTA = 1e-5;
 
     /*
      * Original KNN scoring and rescoring can use slightly different calculation methods,

@@ -100,6 +100,60 @@ a:integer
 2
 ;
 
+multipleRowsSparseRows
+required_capability: multiple_row_source_commands
+ROW a = 1, b= 2, c= 3\;
+ROW b = 4
+;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+null      | 4         | null
+;
+
+multipleRowsSparseRowsLateIntroductionField
+required_capability: multiple_row_source_commands
+ROW a = 1, b=2 \;
+ROW b = 3 \; 
+ROW c = 4
+;
+
+a:integer | b:integer | c:integer
+1         | 2         | null
+null      | 3         | null
+null      | null      | 4
+;
+
+multipleRowsSparseRowsNonAlphabetic
+required_capability: multiple_row_source_commands
+ROW b = 1\;
+ROW c = 2\;
+ROW a = 0\; 
+ROW b = 3, c = 4, d = 5\;
+;
+
+b:integer | c:integer | a:integer | d:integer
+1         | null      | null      | null
+null      | 2         | null      | null
+null      | null      | 0         | null
+3         | 4         | null      | 5
+;
+
+multipleRowsSparseRowsNonAlphabeticVariant2
+required_capability: multiple_row_source_commands
+ROW b = 1\; 
+ROW c = 2\;
+ROW a = 0\; 
+ROW b = 3, d = 5\;
+;
+
+b:integer | c:integer | a:integer | d:integer
+1         | null      | null      | null
+null      | 2         | null      | null
+null      | null      | 0         | null
+3         | null      | null      | 5       
+;
+
 implicitNames
 row 100, 10, c = 1;
 

@@ -1177,7 +1177,6 @@ public abstract class DocsV3Support {
             builder.append(setting.type());
             builder.append("`\n\n");
 
-            builder.append(":  ");
             builder.append(setting.description());
             builder.append("\n\n");
 

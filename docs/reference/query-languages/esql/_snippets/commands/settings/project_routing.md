@@ -8,5 +8,5 @@ serverless: preview
 
 Type: `KEYWORD`
 
-:  A project routing expression, used to define which projects to route the query to. Only supported if Cross-Project Search is enabled.
+A project routing expression, used to define which projects to route the query to. Only supported if Cross-Project Search is enabled.
 

@@ -67,7 +67,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public abstract BytesRef binaryValue();
 
     public static class IntegratedCount extends MultiValuedBinaryDocValuesField {
-        IntegratedCount(String name, Collection<BytesRef> valuesCollection) {
+        public IntegratedCount(String name, Collection<BytesRef> valuesCollection) {
             super(name, valuesCollection);
         }
 

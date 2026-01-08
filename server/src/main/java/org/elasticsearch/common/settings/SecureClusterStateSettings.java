@@ -62,6 +62,7 @@ public class SecureClusterStateSettings implements SecureSettings {
 
     // nullable (if closed), but otherwise immutable secrets map
     private @Nullable Map<String, Secret> secrets;
+    private final Set<String> secretNames;
 
     // Use for testing only!
     @SuppressWarnings("unchecked")
@@ -76,12 +77,18 @@ public class SecureClusterStateSettings implements SecureSettings {
         );
     }
 
-    SecureClusterStateSettings(StreamInput in) throws IOException {
+    public SecureClusterStateSettings(StreamInput in) throws IOException {
         this(in.readImmutableMap(v -> new Secret(in.readByteArray(), in.readByteArray())));
     }
 
     private SecureClusterStateSettings(Map<String, Secret> immutableSecrets) {
         this.secrets = immutableSecrets;
+        this.secretNames = Set.of(immutableSecrets.keySet().toArray(new String[0]));
+    }
+
+    private SecureClusterStateSettings(SecureClusterStateSettings secureSettings) {
+        this.secrets = secureSettings.secrets;
+        this.secretNames = secureSettings.secretNames;
     }
 
     /**
@@ -89,7 +96,7 @@ public class SecureClusterStateSettings implements SecureSettings {
      * but allowing the copy to be closed without impacting the original.
      */
     public static SecureClusterStateSettings copyOf(SecureClusterStateSettings secureSettings) {
-        return new SecureClusterStateSettings(secureSettings.secrets);
+        return new SecureClusterStateSettings(secureSettings);
     }
 
     /**
@@ -130,7 +137,7 @@ public class SecureClusterStateSettings implements SecureSettings {
 
     @Override
     public Set<String> getSettingNames() {
-        return validSecrets().keySet();
+        return secretNames;
     }
 
     @Override

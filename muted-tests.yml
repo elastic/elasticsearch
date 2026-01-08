@@ -506,6 +506,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testNodeShutdown {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/140414
 
 # Examples:
 #

@@ -24,7 +24,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Loads values from a single leaf. Much more efficient than {@link ValuesFromManyReader}.

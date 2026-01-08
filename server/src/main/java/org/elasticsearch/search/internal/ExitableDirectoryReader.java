@@ -139,7 +139,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(vectorValues, queryCancellation) : vectorValues;
+            return wrapIfNeeded(vectorValues, queryCancellation);
         }
 
         @Override
@@ -457,7 +457,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     private static class ExitableByteVectorValues extends FilterByteVectorValues {
-        private final QueryCancellation queryCancellation;
+        protected final QueryCancellation queryCancellation;
 
         private ExitableByteVectorValues(ByteVectorValues in, QueryCancellation queryCancellation) {
             super(in);
@@ -494,6 +494,38 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public ByteVectorValues copy() throws IOException {
             return new ExitableByteVectorValues(in.copy(), queryCancellation);
+        }
+    }
+
+    static class ExitableSliceableByteVectorValues extends ExitableByteVectorValues implements HasIndexSlice {
+
+        private final HasIndexSlice delegate;
+
+        protected ExitableSliceableByteVectorValues(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
+            super(vectorValues, queryCancellation);
+            delegate = (HasIndexSlice) in;
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return delegate.getSlice();
+        }
+
+        @Override
+        public ByteVectorValues copy() throws IOException {
+            return new ExitableSliceableByteVectorValues(in.copy(), queryCancellation);
+        }
+    }
+
+    private static ByteVectorValues wrapIfNeeded(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
+        if (queryCancellation.isEnabled()) {
+            if (vectorValues instanceof HasIndexSlice) {
+                return new ExitableSliceableByteVectorValues(vectorValues, queryCancellation);
+            } else {
+                return new ExitableByteVectorValues(vectorValues, queryCancellation);
+            }
+        } else {
+            return vectorValues;
         }
     }
 
@@ -625,6 +657,26 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
+    static class ExitableSliceableFloatVectorValues extends ExitableFloatVectorValues implements HasIndexSlice {
+
+        private final HasIndexSlice delegate;
+
+        protected ExitableSliceableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+            super(vectorValues, queryCancellation);
+            delegate = (HasIndexSlice) in;
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return delegate.getSlice();
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return new ExitableSliceableFloatVectorValues(in.copy(), queryCancellation);
+        }
+    }
+
     /** Wraps the iterator in an exitable iterator, specializing for KnnVectorValues.DocIndexIterator. */
     static DocIdSetIterator exitableIterator(DocIdSetIterator iterator, QueryCancellation queryCancellation) {
         if (iterator instanceof KnnVectorValues.DocIndexIterator docIndexIterator) {
@@ -718,26 +770,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                 this.queryCancellation.checkCancelled();
             }
-        }
-    }
-
-    static class ExitableSliceableFloatVectorValues extends ExitableFloatVectorValues implements HasIndexSlice {
-
-        HasIndexSlice delegate;
-
-        protected ExitableSliceableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
-            super(vectorValues, queryCancellation);
-            delegate = (HasIndexSlice) in;
-        }
-
-        @Override
-        public IndexInput getSlice() {
-            return delegate.getSlice();
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            return new ExitableSliceableFloatVectorValues(in.copy(), queryCancellation);
         }
     }
 }

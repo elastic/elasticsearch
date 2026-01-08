@@ -236,6 +236,10 @@ keyword with non-lowercase normalizer:
 
 ---
 keyword with normalizer and skip store original value:
+  - requires:
+      cluster_features: [ "mapper.sorted_binary_doc_values" ]
+      reason: "fallback keyword fields now use sorted binary doc values"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer
@@ -325,6 +329,10 @@ keyword with normalizer and skip store original value:
 ---
 
 keyword with built-in normalizer:
+  - requires:
+      cluster_features: [ "mapper.sorted_binary_doc_values" ]
+      reason: "fallback text fields now use sorted binary doc values"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer

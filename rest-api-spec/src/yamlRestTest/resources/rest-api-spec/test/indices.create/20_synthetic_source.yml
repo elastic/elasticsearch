@@ -1071,6 +1071,10 @@ synthetic_source with disabled doc_values:
 
 ---
 fallback synthetic_source for text field:
+  - requires:
+      cluster_features: ["mapper.sorted_binary_doc_values"]
+      reason: "fallback text fields now use sorted binary doc values"
+
   - do:
       indices.create:
         index: test

@@ -69,6 +69,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.keyword.store_high_cardinality_in_binary_doc_values"
     );
     static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
+    static final NodeFeature SORTED_BINARY_DOC_VALUES = new NodeFeature("mapper.sorted_binary_doc_values");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -119,7 +120,8 @@ public class MapperFeatures implements FeatureSpecification {
             GENERIC_VECTOR_FORMAT,
             EXPONENTIAL_HISTOGRAM_TYPE,
             STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
-            TDIGEST_TYPE
+            TDIGEST_TYPE,
+            SORTED_BINARY_DOC_VALUES
         );
     }
 }

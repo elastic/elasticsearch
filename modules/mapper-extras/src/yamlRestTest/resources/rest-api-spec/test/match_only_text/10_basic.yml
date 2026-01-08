@@ -438,8 +438,8 @@ synthetic_source match_only_text as multi-field:
 ---
 synthetic_source match_only_text as multi-field with ignored keyword as parent:
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
-      reason: "Source mode configured through index setting"
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.sorted_binary_doc_values" ]
+      reason: "Source mode configured through index setting. Fallback keyword fields now use sorted binary doc values"
 
   - do:
       indices.create:

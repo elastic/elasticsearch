@@ -72,7 +72,7 @@ public enum AllocationDecision implements Writeable {
 
     final byte id;
 
-    private static final TransportVersion ADD_NOT_PREFERRED_ALLOCATION_DECISION = TransportVersion.fromName(
+    public static final TransportVersion ADD_NOT_PREFERRED_ALLOCATION_DECISION = TransportVersion.fromName(
         "add_not_preferred_allocation_decision"
     );
 

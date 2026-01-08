@@ -333,7 +333,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     /**
      * Returns a DatafeedConfig with cross-project search (CPS) mode enabled in its IndicesOptions
-     * if CPS is enabled at the cluster level. 
+     * if CPS is enabled at the cluster level.
      *
      * @param datafeed The original datafeed configuration
      * @param crossProjectModeDecider The decider that determines if CPS is enabled

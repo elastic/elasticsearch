@@ -48,7 +48,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         final String fqdn = document.getFieldValue(field, String.class, ignoreMissing);
-        final RegisteredDomain.DomainInfo info = RegisteredDomain.getRegisteredDomain(fqdn);
+        final Map<String, String> info = RegisteredDomain.getRegisteredDomainInfo(fqdn);
         if (info == null) {
             if (ignoreMissing) {
                 return document;
@@ -60,22 +60,22 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         if (fieldPrefix.isEmpty() == false) {
             fieldPrefix += ".";
         }
-        String domainTarget = fieldPrefix + "domain";
-        String registeredDomainTarget = fieldPrefix + "registered_domain";
-        String subdomainTarget = fieldPrefix + "subdomain";
-        String topLevelDomainTarget = fieldPrefix + "top_level_domain";
 
-        if (info.domain() != null) {
-            document.setFieldValue(domainTarget, info.domain());
+        String domain = info.get(RegisteredDomain.DOMAIN);
+        if (domain != null) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.DOMAIN, domain);
         }
-        if (info.registeredDomain() != null) {
-            document.setFieldValue(registeredDomainTarget, info.registeredDomain());
+        String registeredDomain = info.get(RegisteredDomain.REGISTERED_DOMAIN);
+        if (registeredDomain != null) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.REGISTERED_DOMAIN, registeredDomain);
         }
-        if (info.eTLD() != null) {
-            document.setFieldValue(topLevelDomainTarget, info.eTLD());
+        String eTLD = info.get(RegisteredDomain.ETLD);
+        if (eTLD != null) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.ETLD, eTLD);
         }
-        if (info.subdomain() != null) {
-            document.setFieldValue(subdomainTarget, info.subdomain());
+        String subdomain = info.get(RegisteredDomain.SUBDOMAIN);
+        if (subdomain != null) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.SUBDOMAIN, subdomain);
         }
         return document;
     }

@@ -10,7 +10,9 @@
 package org.elasticsearch.health.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.StatelessShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -19,21 +21,31 @@ import java.util.Collection;
 import java.util.Set;
 
 public class ShardsAvailabilityPlugin extends Plugin implements HealthPlugin {
-
     private final SetOnce<ShardsAvailabilityHealthIndicatorService> shardHealthService = new SetOnce<>();
 
     public ShardsAvailabilityPlugin() {}
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        this.shardHealthService.set(
-            new ShardsAvailabilityHealthIndicatorService(
-                services.clusterService(),
-                services.allocationService(),
-                services.systemIndices(),
-                services.projectResolver()
-            )
-        );
+        if (DiscoveryNode.isStateless(services.environment().settings())) {
+            this.shardHealthService.set(
+                new StatelessShardsAvailabilityHealthIndicatorService(
+                    services.clusterService(),
+                    services.allocationService(),
+                    services.systemIndices(),
+                    services.projectResolver()
+                )
+            );
+        } else {
+            this.shardHealthService.set(
+                new ShardsAvailabilityHealthIndicatorService(
+                    services.clusterService(),
+                    services.allocationService(),
+                    services.systemIndices(),
+                    services.projectResolver()
+                )
+            );
+        }
         return Set.of(this.shardHealthService.get());
     }
 

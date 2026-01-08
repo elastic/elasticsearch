@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -79,6 +81,14 @@ public interface NativeAccess {
      * Returns an accessor for native functions only available on Windows, or {@code null} if not on Windows.
      */
     default WindowsFunctions getWindowsFunctions() {
+        return null;
+    }
+
+    /**
+     * Returns an accessor for POSIX-native C library functions on supported systems (macOS and Linux), or {@code null} if the current
+     * platform does not support POSIX.
+     */
+    default PosixCLibrary getPosixCLibrary() {
         return null;
     }
 

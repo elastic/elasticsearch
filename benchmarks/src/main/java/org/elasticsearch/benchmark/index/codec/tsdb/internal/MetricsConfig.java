@@ -25,7 +25,7 @@ import org.openjdk.jmh.annotations.State;
  * @Setup(Level.Iteration)
  * public void setupIteration(MetricsConfig config) {
  *     // ... setup encoder and run once to measure encoded size ...
- *     config.configure(BLOCK_SIZE, encoder.getEncodedBytes(), bitsPerValue);
+ *     config.configure(BLOCK_SIZE, encoder.getEncodedSize(), bitsPerValue);
  * }
  * }</pre>
  *
@@ -37,9 +37,21 @@ import org.openjdk.jmh.annotations.State;
 @State(Scope.Benchmark)
 public class MetricsConfig {
 
-    private int blockSize;
-    private int encodedBytesPerBlock;
-    private int nominalBitsPerValue;
+    /*
+     * These fields are volatile to ensure visibility across threads.
+     *
+     * JMH lifecycle with Scope.Benchmark:
+     * 1. A single thread writes these fields during @Setup(Level.Iteration)
+     * 2. Multiple benchmark threads read these fields during @Benchmark execution
+     * 3. No concurrent writes occur - setup completes before benchmark threads start
+     *
+     * Volatile guarantees that writes by the setup thread are visible to all reader threads
+     * (happens-before relationship), without needing synchronization since there is no
+     * write contention.
+     */
+    private volatile int blockSize;
+    private volatile int encodedBytesPerBlock;
+    private volatile int nominalBitsPerValue;
 
     /**
      * Configures the metrics parameters for the current benchmark iteration.
@@ -64,7 +76,7 @@ public class MetricsConfig {
     /**
      * Returns the actual bytes produced after encoding one block.
      */
-    public int getEncodedBytesPerBlock() {
+    public int getEncodedSizePerBlock() {
         return encodedBytesPerBlock;
     }
 

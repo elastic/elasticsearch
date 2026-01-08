@@ -31,11 +31,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        /**
-         * Parses a request to create a datafeed.
-         * Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
-         * not at datafeed creation time. This enables seamless CPS activation when the cluster setting changes.
-         */
         public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
             if (datafeed.getIndicesOptions() == null) {

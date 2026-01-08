@@ -30,11 +30,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
-    public RestUpdateDatafeedAction() {
-        // CPS mode is now determined on-the-fly at search execution time,
-        // not at datafeed update time. No CrossProjectModeDecider needed here.
-    }
-
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, BASE_PATH + "datafeeds/{" + ID + "}/_update"));
@@ -55,8 +50,6 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
             || restRequest.hasParam("ignore_throttled")) {
             indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
         }
-        // Note: CPS mode is now determined on-the-fly at search execution time based on cluster settings,
-        // not at datafeed update time. This enables seamless CPS activation when the cluster setting changes.
         UpdateDatafeedAction.Request updateDatafeedRequest;
         try (XContentParser parser = restRequest.contentParser()) {
             updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);

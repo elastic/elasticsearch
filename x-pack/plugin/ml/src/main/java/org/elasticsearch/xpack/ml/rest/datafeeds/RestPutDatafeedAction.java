@@ -30,11 +30,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDatafeedAction extends BaseRestHandler {
 
-    public RestPutDatafeedAction() {
-        // CPS mode is now determined on-the-fly at search execution time,
-        // not at datafeed creation time. No CrossProjectModeDecider needed here.
-    }
-
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, BASE_PATH + "datafeeds/{" + ID + "}"));
@@ -49,8 +44,6 @@ public class RestPutDatafeedAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
-        // Note: CPS mode is now determined on-the-fly at search execution time based on cluster settings,
-        // not at datafeed creation time. This enables seamless CPS activation when the cluster setting changes.
         PutDatafeedAction.Request putDatafeedRequest;
         try (XContentParser parser = restRequest.contentParser()) {
             putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);

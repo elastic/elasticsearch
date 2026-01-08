@@ -53,6 +53,8 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
+    public static final int POST_FILTERING_SEGMENT_SIZE_THRESHOLD = 100_000;
+
     record VectorLeafSearchFilterMeta(LeafReaderContext context, AcceptDocs filter) {}
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
@@ -156,7 +158,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         float selectivity = (float) filterCost / floatVectorValues.size();
                         var iterator = supplier.get(NO_MORE_DOCS).iterator();
                         // TODO: is this enough to check if we picked this up from cache?
-                        if ((false == iterator instanceof BitSetIterator) && selectivity >= postFilteringThreshold) {
+                        if ((false == iterator instanceof BitSetIterator)
+                            && selectivity >= postFilteringThreshold
+                            && floatVectorValues.size() > POST_FILTERING_SEGMENT_SIZE_THRESHOLD) {
                             // for filters with coverage greater than the provided postFilteringThreshold, we:
                             // * oversample by (1 + (1 - selectivity)) * k)
                             // * skip centroid filtering (most centroids will be valid either way)

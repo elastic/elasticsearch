@@ -193,7 +193,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
         // build a preconditioner if necessary, only need one given that this writer is tied to a format that has a fixed dim and block dim
-        createPreconditioner();
+        createPreconditioner();  // create and write preconditioner
         for (FieldWriter fieldWriter : fieldWriters) {
             if (fieldWriter.delegate == null) {
                 // field is not float, we just write meta information
@@ -250,17 +250,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 globalCentroid
             );
         }
-
-        // writePreconditioner(dimension, blockDimension);
-
-    }
-
-    private static FloatVectorValues getFloatVectorValues(
-        FieldInfo fieldInfo,
-        FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
-        int maxDoc
-    ) throws IOException {
-        return getFloatVectorValues(fieldInfo, fieldVectorsWriter, maxDoc, Function.identity());
     }
 
     private static FloatVectorValues getFloatVectorValues(

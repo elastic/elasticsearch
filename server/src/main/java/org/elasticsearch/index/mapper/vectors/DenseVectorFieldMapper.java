@@ -3372,7 +3372,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    elementType
+                    elementType,
+                    fieldType().getVectorDimensions()
                 );
                 if (extraKnnFormat != null) {
                     break;

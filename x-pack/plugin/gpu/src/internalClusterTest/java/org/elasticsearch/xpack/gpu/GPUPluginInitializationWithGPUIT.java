@@ -85,7 +85,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNotNull(format);
     }
@@ -104,7 +105,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }
@@ -128,7 +130,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            unsupportedElementType
+            unsupportedElementType,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }
@@ -148,7 +151,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }
@@ -168,7 +172,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNotNull(format);
     }
@@ -187,7 +192,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }
@@ -211,7 +217,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            unsupportedElementType
+            unsupportedElementType,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }
@@ -231,7 +238,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }
@@ -251,7 +259,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomIntBetween(1, 4096)
         );
         assertNull(format);
     }

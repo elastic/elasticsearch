@@ -38,7 +38,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        return (indexSettings, options, similarity, elementType) -> {
+        return (indexSettings, options, similarity, elementType, dimensions) -> {
             if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
                     && DISK_BBQ_FEATURE.check(getLicenseState()) == false) {
@@ -48,9 +48,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 boolean onDiskRescore = diskbbq.isOnDiskRescore();
                 boolean doPrecondition = diskbbq.doPrecondition();
                 if (Build.current().isSnapshot()) {
-                    // FIXME: hardcoded dims
                     return new ESNextDiskBBQVectorsFormat(
-                        64,
+                        dimensions,
                         ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
                         clusterSize,
                         ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,

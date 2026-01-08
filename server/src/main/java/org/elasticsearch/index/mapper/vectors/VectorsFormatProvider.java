@@ -26,12 +26,14 @@ public interface VectorsFormatProvider {
      * @param indexOptions The dense vector index options.
      * @param similarity The vector similarity function.
      * @param elementType The type of elements in the vector.
+     * @param dimensions The number of dimensions in the vector.
      * @return A KnnVectorsFormat instance.
      */
     KnnVectorsFormat getKnnVectorsFormat(
         IndexSettings indexSettings,
         DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
         DenseVectorFieldMapper.VectorSimilarity similarity,
-        DenseVectorFieldMapper.ElementType elementType
+        DenseVectorFieldMapper.ElementType elementType,
+        Integer dimensions
     );
 }

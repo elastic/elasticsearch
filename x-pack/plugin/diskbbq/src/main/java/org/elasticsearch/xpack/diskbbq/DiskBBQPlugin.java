@@ -61,7 +61,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore
+                    onDiskRescore,
+                    mergingExecutorService,
+                    maxMergingWorkers
                 );
             }
             return null;

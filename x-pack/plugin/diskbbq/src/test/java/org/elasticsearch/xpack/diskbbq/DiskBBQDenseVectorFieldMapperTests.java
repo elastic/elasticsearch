@@ -68,7 +68,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             }
             String expectedString = Build.current().isSnapshot()
                 ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")"
-                : "ES920DiskBBQVectorsFormat(vectorPerCluster=384)";
+                : "ES920DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
     }

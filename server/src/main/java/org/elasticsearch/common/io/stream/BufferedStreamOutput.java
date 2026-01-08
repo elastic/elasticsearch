@@ -100,6 +100,7 @@ public class BufferedStreamOutput extends StreamOutput {
     }
 
     private int capacity() {
+        // Probably faster to copy position into a local variable rather than using this method - TODO investigate further
         return endPosition - position;
     }
 
@@ -268,6 +269,7 @@ public class BufferedStreamOutput extends StreamOutput {
     @Override
     public void writeZLong(long i) throws IOException {
         long value = BitUtil.zigZagEncode(i);
+        // NB not quite the same as writeVLongNoCheck because MAX_ZLONG_BYTES != MAX_VLONG_BYTES
         if (MAX_ZLONG_BYTES <= capacity()) {
             int position = this.position;
             while ((value & 0xFFFF_FFFF_FFFF_FF80L) != 0) {

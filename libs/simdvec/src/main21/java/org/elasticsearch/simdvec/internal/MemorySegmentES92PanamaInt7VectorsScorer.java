@@ -267,8 +267,6 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float[] scores,
         int bulkSize
     ) throws IOException {
-        // we always use BULK_SIZE to make use of lanes as much as possible, even when {@code bulkSize < BULK_SIZE}.
-        // the size of the {@code scores} array needs to be {@code BULK_SIZE} too.
         int limit = FLOAT_SPECIES.loopBound(bulkSize);
         int i = 0;
         long offset = in.getFilePointer();

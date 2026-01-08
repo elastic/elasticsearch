@@ -73,6 +73,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         super.tearDown();
     }
 
+    protected void restartHttpServer() throws IOException {
+        InetSocketAddress currentAddress = httpServer.getAddress();
+        httpServer.stop(0);
+        httpServer = MockHttpServer.createHttp(currentAddress, 0);
+        httpServer.start();
+    }
+
     /**
      * Override to add any headers you expect on a successful download
      */

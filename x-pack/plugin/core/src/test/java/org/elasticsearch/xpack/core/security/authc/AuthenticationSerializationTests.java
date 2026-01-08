@@ -114,7 +114,6 @@ public class AuthenticationSerializationTests extends ESTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-                random(),
                 TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)
             );

@@ -105,9 +105,7 @@ public class CompressionMetrics {
      * @param config the metrics configuration containing block size and encoded bytes
      */
     public void recordOperation(MetricsConfig config) {
-        if (this.config == null) {
-            this.config = config;
-        }
+        this.config = config;
         totalEncodedBytes += config.getEncodedSizePerBlock();
         totalValuesProcessed += config.getBlockSize();
     }

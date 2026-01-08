@@ -46,13 +46,18 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 }
                 int clusterSize = diskbbq.getClusterSize();
                 boolean onDiskRescore = diskbbq.isOnDiskRescore();
+                boolean doPrecondition = diskbbq.doPrecondition();
                 if (Build.current().isSnapshot()) {
+                    // FIXME: hardcoded dims
                     return new ESNextDiskBBQVectorsFormat(
+                        64,
                         ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
                         clusterSize,
                         ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
-                        onDiskRescore
+                        onDiskRescore,
+                        doPrecondition,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
                     );
                 }
                 return new ES920DiskBBQVectorsFormat(

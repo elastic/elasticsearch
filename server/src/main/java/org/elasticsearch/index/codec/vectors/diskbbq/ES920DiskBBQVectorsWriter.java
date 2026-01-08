@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 
@@ -377,6 +378,24 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    public boolean createPreconditioner() throws IOException {
+        // no-op
+        return false;
+    }
+
+    @Override
+    public FloatVectorValues preconditionVectors(FloatVectorValues floatVectorValues) throws IOException {
+        // no-op
+        return floatVectorValues;
+    }
+
+    @Override
+    public List<float[]> preconditionVectors(List<float[]> vectors) {
+        // no-op
+        return vectors;
+    }
+
+    @Override
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -540,6 +559,16 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
         assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
         indexOutput.writeShort((short) corrections.quantizedComponentSum());
+    }
+
+    @Override
+    public void doFinish() throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void doClose() throws IOException {
+        // no-op
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {

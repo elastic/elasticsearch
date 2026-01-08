@@ -72,6 +72,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
     public static final int MIN_CENTROIDS_PER_PARENT_CLUSTER = 2;
     public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = 1 << 8; // 256
+    public static final int DEFAULT_PRECONDITIONING_BLOCK_DIMENSION = 32;
+    public static final int MIN_PRECONDITIONING_BLOCK_DIMS = 8;
+    public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
+    public static final int MAX_DIMENSIONS = 4096;
+    public static final String PRECONDITIONING_EXTENSION = "pivf";
 
     public enum QuantEncoding {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
@@ -213,21 +218,36 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
+    private final boolean doPrecondition;
+    private final int preconditioningBlockDimension;
+    private final int dimensions;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
+        this(0, QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
-    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
-        this(quantEncoding, vectorPerCluster, centroidsPerParentCluster, DenseVectorFieldMapper.ElementType.FLOAT, false);
+    public ESNextDiskBBQVectorsFormat(int dimensions, QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
+        this(
+            dimensions,
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+        );
     }
 
     public ESNextDiskBBQVectorsFormat(
+        int dimensions,
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO
+        boolean useDirectIO,
+        boolean doPrecondition,
+        int preconditioningBlockDimension
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -250,15 +270,32 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + centroidsPerParentCluster
             );
         }
+        if (doPrecondition
+            && (preconditioningBlockDimension < MIN_PRECONDITIONING_BLOCK_DIMS
+                || preconditioningBlockDimension > MAX_PRECONDITIONING_BLOCK_DIMS)) {
+            throw new IllegalArgumentException(
+                "preconditioningBlockDimension must be between "
+                    + MIN_PRECONDITIONING_BLOCK_DIMS
+                    + " and "
+                    + MAX_PRECONDITIONING_BLOCK_DIMS
+                    + ", got: "
+                    + preconditioningBlockDimension
+            );
+        }
+
+        this.dimensions = dimensions;
+        this.quantEncoding = quantEncoding;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
-        this.quantEncoding = quantEncoding;
         this.rawVectorFormat = switch (elementType) {
             case FLOAT -> float32VectorFormat;
             case BFLOAT16 -> bfloat16VectorFormat;
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
         this.useDirectIO = useDirectIO;
+
+        this.preconditioningBlockDimension = preconditioningBlockDimension;
+        this.doPrecondition = doPrecondition;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -275,7 +312,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             rawVectorFormat.fieldsWriter(state),
             quantEncoding,
             vectorPerCluster,
-            centroidsPerParentCluster
+            centroidsPerParentCluster,
+            dimensions,
+            preconditioningBlockDimension,
+            doPrecondition
         );
     }
 
@@ -290,7 +330,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public int getMaxDimensions(String fieldName) {
-        return 4096;
+        return MAX_DIMENSIONS;
     }
 
     @Override

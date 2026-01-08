@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -41,6 +44,7 @@ import java.util.Map;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.PRECONDITIONING_EXTENSION;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
 
 /**
@@ -49,9 +53,18 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
+    private PreconditioningProvider preconditioningProvider;
+
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(state, getFormatReader);
+    }
+
+    private IndexInput ivfPreconditioning;
+
+    @Override
+    public void doInitExtraFiles(SegmentReadState state, int versionMeta, FieldInfos field) throws IOException {
+        ivfPreconditioning = openDataInput(state, versionMeta, PRECONDITIONING_EXTENSION, ESNextDiskBBQVectorsFormat.NAME, state.context);
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
@@ -192,6 +205,19 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
+    protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) throws IOException {
+        FieldEntry entry = fields.get(fieldInfo.number);
+        long startOffset = ((NextFieldEntry) entry).preconditionerStartOffset();
+        ivfPreconditioning.seek(startOffset);
+        if (ivfPreconditioning.readByte() == 0) {
+            return vector;
+        } else {
+            PreconditioningProvider.Preconditioner preconditioner = PreconditioningProvider.read(ivfPreconditioning);
+            return preconditioner.applyTransform(vector);
+        }
+    }
+
+    @Override
     protected FieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
@@ -207,6 +233,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float globalCentroidDp
     ) throws IOException {
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        long preconditionerStartOffset = input.readLong();
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -219,12 +246,19 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            quantEncoding
+            quantEncoding,
+            preconditionerStartOffset
         );
+    }
+
+    @Override
+    protected void doAdditionalIntegrityChecks() throws IOException {
+        CodecUtil.checksumEntireFile(ivfPreconditioning);
     }
 
     static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        private final long preconditionerStartOffset;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -238,7 +272,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding
+            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            long preconditionerStartOffset
         ) {
             super(
                 rawVectorFormat,
@@ -254,10 +289,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 globalCentroidDp
             );
             this.quantEncoding = quantEncoding;
+            this.preconditionerStartOffset = preconditionerStartOffset;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
+        }
+
+        public long preconditionerStartOffset() {
+            return preconditionerStartOffset;
         }
     }
 
@@ -543,6 +583,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
         // TODO: override if adding new files
         return super.getOffHeapByteSize(fieldInfo);
+    }
+
+    @Override
+    protected List<IndexInput> getAdditionalCloseables() {
+        return List.of(ivfPreconditioning);
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {

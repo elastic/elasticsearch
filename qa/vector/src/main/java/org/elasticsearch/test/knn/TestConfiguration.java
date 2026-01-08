@@ -52,6 +52,8 @@ record TestConfiguration(
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
+    boolean doPrecondition,
+    int preconditioningDims,
     List<SearchParameters> searchParams
 ) {
 
@@ -85,6 +87,8 @@ record TestConfiguration(
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+    static final ParseField DO_PRECONDITION = new ParseField("do_precondition");
+    static final ParseField PRECONDITIONING_DIMS = new ParseField("preconditioning_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
 
@@ -137,6 +141,8 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
+        PARSER.declareBoolean(Builder::setDoPrecondition, DO_PRECONDITION);
+        PARSER.declareInt(Builder::setPreconditioningDims, PRECONDITIONING_DIMS);
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
     }
@@ -184,6 +190,8 @@ record TestConfiguration(
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
+        private boolean doPrecondition = false;
+        private int preconditioningDims = 64;
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
 
@@ -342,6 +350,16 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setDoPrecondition(boolean doPrecondition) {
+            this.doPrecondition = doPrecondition;
+            return this;
+        }
+
+        public Builder setPreconditioningDims(int preconditioningDims) {
+            this.preconditioningDims = preconditioningDims;
+            return this;
+        }
+
         public Builder setFilterCached(List<Boolean> filterCached) {
             this.filterCached = filterCached;
             return this;
@@ -419,6 +437,8 @@ record TestConfiguration(
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
+                doPrecondition,
+                preconditioningDims,
                 searchRuns
             );
         }

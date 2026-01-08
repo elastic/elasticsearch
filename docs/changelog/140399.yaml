@@ -1,6 +1,6 @@
 pr: 140399
 summary: Use System User To Execute Cross-Cluster Inference Actions
-area: "Security, Search"
+area: Search
 type: bug
 issues:
  - 140193

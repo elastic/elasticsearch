@@ -100,7 +100,7 @@ public class CreateIndexTimeoutIT extends ESIntegTestCase {
     public void testReducePriorities() throws Exception {
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var restClient = getRestClient();
-        final var indexName = "index-" + randomIdentifier();
+        final var indexName = randomIndexName();
 
         try (var ignored = withBlockedMasterService(masterClusterService)) {
             final var createIndexRequest = new CreateIndexRequest(indexName);

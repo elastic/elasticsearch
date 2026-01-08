@@ -33,6 +33,7 @@ setup:
         wait_for_completion: true
         human: true
   - is_true: completed
+  - match: { id: $taskId }
   - match: { cancelled: false }
   - exists: start_time
   - exists: start_time_in_millis

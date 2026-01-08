@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -71,7 +70,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             this.timestamp = in.readOptionalNamedWriteable(Expression.class);
         } else {
-            this.timestamp = new UnresolvedTimestamp(Source.EMPTY);
+            // We only need the timestamp during analysis and logical optimization on the coordinator.
+            // Using null (when deserialized from an old node) in this case should be okay.
+            this.timestamp = null;
         }
     }
 
@@ -228,13 +229,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 );
             }
         });
-        if (timestamp instanceof TypedAttribute ta && ta.dataType().isDate() == false) {
+        if ((timestamp instanceof TypedAttribute) == false || timestamp.dataType().isDate() == false) {
             failures.add(
                 fail(
                     timestamp,
                     "the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present",
                     timestamp.sourceText(),
-                    ta.dataType().typeName()
+                    timestamp.dataType().typeName()
                 )
             );
         }

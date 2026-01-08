@@ -176,9 +176,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
         }
-        if (aggregate.timestamp() instanceof UnresolvedAttribute) {
-            throw new IllegalArgumentException("@timestamp field is missing from the time-series source");
-        }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();

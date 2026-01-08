@@ -13,6 +13,7 @@ import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBe
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -30,11 +31,14 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Benchmark for encoding increasing integer patterns.
+ */
 @Fork(value = 1)
 @Warmup(iterations = 3)
-@Measurement(iterations = 10)
-@BenchmarkMode(Mode.SampleTime)
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@Measurement(iterations = 5)
+@BenchmarkMode(Mode.Throughput)
+@OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
 public class EncodeIncreasingIntegerBenchmark {
     private static final int SEED = 17;
@@ -62,7 +66,13 @@ public class EncodeIncreasingIntegerBenchmark {
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh, CompressionMetrics metrics) throws IOException {
+    public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
+        encode.benchmark(bh);
+        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+    }
+
+    @Benchmark
+    public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
         metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), bitsPerValue);
     }

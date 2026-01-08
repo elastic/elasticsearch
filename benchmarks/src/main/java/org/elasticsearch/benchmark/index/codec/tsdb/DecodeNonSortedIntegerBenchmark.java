@@ -10,9 +10,9 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.NonSortedIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -30,11 +30,14 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Benchmark for decoding non-sorted integer patterns.
+ */
 @Fork(value = 1)
 @Warmup(iterations = 3)
-@Measurement(iterations = 10)
-@BenchmarkMode(Mode.SampleTime)
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@Measurement(iterations = 5)
+@BenchmarkMode(Mode.Throughput)
+@OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
 public class DecodeNonSortedIntegerBenchmark {
     private static final int SEED = 17;
@@ -47,7 +50,6 @@ public class DecodeNonSortedIntegerBenchmark {
 
     public DecodeNonSortedIntegerBenchmark() {
         this.decode = new DecodeBenchmark();
-
     }
 
     @Setup(Level.Invocation)
@@ -61,8 +63,8 @@ public class DecodeNonSortedIntegerBenchmark {
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh, CompressionMetrics metrics) throws IOException {
+    public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize(), bitsPerValue);
+        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
     }
 }

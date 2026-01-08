@@ -116,10 +116,6 @@ public class CompressionMetrics {
      */
     @TearDown(Level.Iteration)
     public void computeMetrics() {
-        if (config == null || config.getBlockSize() == 0 || config.getEncodedSizePerBlock() == 0) {
-            return;
-        }
-
         int blockSize = config.getBlockSize();
         int encodedBytes = config.getEncodedSizePerBlock();
         int nominalBits = config.getNominalBitsPerValue();

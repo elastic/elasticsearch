@@ -512,6 +512,9 @@ tests:
 - class: org.elasticsearch.upgrades.RunningSnapshotIT
   method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/140415
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/140416
 
 # Examples:
 #

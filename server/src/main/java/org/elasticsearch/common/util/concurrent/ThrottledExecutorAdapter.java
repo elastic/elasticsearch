@@ -18,6 +18,9 @@ import java.util.concurrent.Executor;
 
 import static org.elasticsearch.common.Strings.format;
 
+/**
+ * Adapter from the {@link ThrottledTaskRunner} interface to the {@link Executor} one.
+ */
 public class ThrottledExecutorAdapter implements Executor {
     private final Logger logger = LogManager.getLogger(ThrottledExecutorAdapter.class);
 

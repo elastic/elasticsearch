@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -61,7 +61,7 @@ public enum FeatureMetric {
     EXPLAIN(Explain.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
-    ROW(Row.class::isInstance),
+    ROW(Rows.class::isInstance),
     FROM(x -> x instanceof EsRelation relation && relation.indexMode() != IndexMode.TIME_SERIES),
     TS(x -> x instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES),
     DROP(Drop.class::isInstance),
@@ -90,7 +90,8 @@ public enum FeatureMetric {
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
-        Aggregate.class // STATS is managed in another way, see above
+        Aggregate.class, // STATS is managed in another way, see above
+        Rows.Row.class // ROW captured once using Rows, see above
     );
 
     private Predicate<LogicalPlan> planCheck;

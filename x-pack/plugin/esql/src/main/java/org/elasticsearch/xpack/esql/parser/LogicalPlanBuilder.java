@@ -77,7 +77,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
+import org.elasticsearch.xpack.esql.plan.logical.Rows.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -350,7 +351,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
+        List<Row> rows = new ArrayList<>();
+        for (EsqlBaseParser.FieldsContext fields : ctx.fields()) {
+            Row row = new Row(source(fields), (List<Alias>) (List<?>) mergeOutputExpressions(visitFields(fields), List.of()));
+            rows.add(row);
+        }
+        return new Rows(source(ctx), rows);
     }
 
     private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {

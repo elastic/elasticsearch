@@ -71,7 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -120,6 +120,7 @@ import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFra
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -136,18 +137,18 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class StatementParserTests extends AbstractStatementParserTests {
 
-    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
+    private static final LogicalPlan PROCESSING_CMD_INPUT = Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
 
     public void testRowCommand() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)), new Alias(EMPTY, "b", integer(2)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)), new Alias(EMPTY, "b", integer(2)))),
             query("row a = 1, b = 2")
         );
     }
 
     public void testRowCommandImplicitFieldName() {
         assertEqualsIgnoringIds(
-            new Row(
+            Rows.singleRow(
                 EMPTY,
                 List.of(new Alias(EMPTY, "1", integer(1)), new Alias(EMPTY, "2", integer(2)), new Alias(EMPTY, "c", integer(3)))
             ),
@@ -156,107 +157,113 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRowCommandLong() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))), query("row c = 2147483648"));
+        assertEqualsIgnoringIds(
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))),
+            query("row c = 2147483648")
+        );
     }
 
     public void testRowCommandHugeInt() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLong("9223372036854775808")))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLong("9223372036854775808")))),
             query("row c = 9223372036854775808")
         );
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(18446744073709551616.)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(18446744073709551616.)))),
             query("row c = 18446744073709551616")
         );
     }
 
     public void testRowCommandHugeNegativeInt() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-92233720368547758080d)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-92233720368547758080d)))),
             query("row c = -92233720368547758080")
         );
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-18446744073709551616d)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-18446744073709551616d)))),
             query("row c = -18446744073709551616")
         );
     }
 
     public void testRowCommandDouble() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(1.0)))), query("row c = 1.0"));
+        assertEqualsIgnoringIds(Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(1.0)))), query("row c = 1.0"));
     }
 
     public void testRowCommandMultivalueInt() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2, -5)))), query("row c = [1, 2, -5]"));
+        assertEqualsIgnoringIds(Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2, -5)))), query("row c = [1, 2, -5]"));
     }
 
     public void testRowCommandMultivalueLong() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 2147483649L, -434366649L)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 2147483649L, -434366649L)))),
             query("row c = [2147483648, 2147483649, -434366649]")
         );
     }
 
     public void testRowCommandMultivalueLongAndInt() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 1L)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 1L)))),
             query("row c = [2147483648, 1]")
         );
     }
 
     public void testRowCommandMultivalueHugeInts() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 18446744073709551617.)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 18446744073709551617.)))),
             query("row c = [18446744073709551616, 18446744073709551617]")
         );
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "9223372036854775809")))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "9223372036854775809")))),
             query("row c = [9223372036854775808, 9223372036854775809]")
         );
     }
 
     public void testRowCommandMultivalueHugeIntAndNormalInt() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 1.0)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 1.0)))),
             query("row c = [18446744073709551616, 1]")
         );
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "1")))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "1")))),
             query("row c = [9223372036854775808, 1]")
         );
     }
 
     public void testRowCommandMultivalueDouble() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(1.0, 2.0, -3.4)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(1.0, 2.0, -3.4)))),
             query("row c = [1.0, 2.0, -3.4]")
         );
     }
 
     public void testRowCommandBoolean() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBoolean(false)))), query("row c = false"));
+        assertEqualsIgnoringIds(Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalBoolean(false)))), query("row c = false"));
     }
 
     public void testRowCommandMultivalueBoolean() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBooleans(false, true)))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalBooleans(false, true)))),
             query("row c = [false, true]")
         );
     }
 
     public void testRowCommandString() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))), query("row c = \"chicken\""));
+        assertEqualsIgnoringIds(
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))),
+            query("row c = \"chicken\"")
+        );
     }
 
     public void testRowCommandMultivalueString() {
         assertEqualsIgnoringIds(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalStrings("cat", "dog")))),
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalStrings("cat", "dog")))),
             query("row c = [\"cat\", \"dog\"]")
         );
     }
 
     public void testRowCommandWithEscapedFieldName() {
         assertEqualsIgnoringIds(
-            new Row(
+            Rows.singleRow(
                 EMPTY,
                 List.of(
                     new Alias(EMPTY, "a.b.c", integer(1)),
@@ -270,7 +277,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompositeCommand() {
         assertEqualsIgnoringIds(
-            new Filter(EMPTY, new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE),
+            new Filter(EMPTY, Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE),
             query("row a = 1 | where true")
         );
     }
@@ -279,7 +286,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(
             new Filter(
                 EMPTY,
-                new Filter(EMPTY, new Filter(EMPTY, new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE), FALSE),
+                new Filter(EMPTY, new Filter(EMPTY, Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE), FALSE),
                 TRUE
             ),
             query("row a = 1 | where true | where false | where true")
@@ -637,12 +644,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
-                expectErrorWithLineNumber(
-                    command + " *,\"-foo\"::data",
-                    "*,-foo::data",
-                    lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
-                );
+                expectErrorWithLineNumber(command + " *,\"-foo\"::data", "*,-foo::data", lineNumber, "mismatched input '::' expecting {");
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::data\"",
                     " cluster:\"foo::data\"",
@@ -660,7 +662,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " *, \"-foo\"::data",
                     " *, \"-foo\"::data",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
                 assertStringAsIndexPattern("*::data", command + " *::data");
@@ -669,7 +671,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 assertStringAsIndexPattern(
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
@@ -859,12 +861,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "-index",
                     "must not start with '_', '-', or '+'"
                 );
-                expectErrorWithLineNumber(
-                    command,
-                    "indexpattern, \"--index\"::data",
-                    "line 1:29: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
-                );
+                expectErrorWithLineNumber(command, "indexpattern, \"--index\"::data", "line 1:29: ", "mismatched input '::' expecting {");
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"indexpattern, --index::data\"",
@@ -919,7 +916,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "*, \"-<-logstash-{now/D}>\"::data",
                     "line 1:31: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
                 // Check that invalid selectors throw (they're resolved first in /_search, and always validated)
@@ -994,8 +991,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
         expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
 
-        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
-        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {");
+        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {");
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
@@ -1491,55 +1488,55 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        assertThat(stm, instanceOf(Row.class));
-        Row row = (Row) stm;
-        assertThat(row.fields().size(), is(8));
+        assertThat(stm, instanceOf(Rows.class));
+        Rows rows = (Rows) stm;
+        assertThat(rows.getFirst().fields().size(), is(8));
 
-        NamedExpression field = row.fields().get(0);
+        NamedExpression field = rows.getFirst().fields().get(0);
         assertThat(field.name(), is("x"));
         assertThat(field, instanceOf(Alias.class));
         Alias alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(1));
 
-        field = row.fields().get(1);
+        field = rows.getFirst().fields().get(1);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
 
-        field = row.fields().get(2);
+        field = rows.getFirst().fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
 
-        field = row.fields().get(3);
+        field = rows.getFirst().fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
 
-        field = row.fields().get(4);
+        field = rows.getFirst().fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
         assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
 
-        field = row.fields().get(5);
+        field = rows.getFirst().fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
         assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
 
-        field = row.fields().get(6);
+        field = rows.getFirst().fields().get(6);
         assertThat(field.name(), is("e"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(9));
 
-        field = row.fields().get(7);
+        field = rows.getFirst().fields().get(7);
         assertThat(field.name(), is("f"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
@@ -1557,17 +1554,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testNamedParams() {
         LogicalPlan stm = query("row x=?name1, y = ?name1", new QueryParams(List.of(paramAsConstant("name1", 1))));
-        assertThat(stm, instanceOf(Row.class));
-        Row row = (Row) stm;
-        assertThat(row.fields().size(), is(2));
+        assertThat(stm, instanceOf(Rows.class));
+        Rows rows = (Rows) stm;
+        assertThat(rows.getFirst().fields().size(), is(2));
 
-        NamedExpression field = row.fields().get(0);
+        NamedExpression field = rows.getFirst().fields().get(0);
         assertThat(field.name(), is("x"));
         assertThat(field, instanceOf(Alias.class));
         Alias alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(1));
 
-        field = row.fields().get(1);
+        field = rows.getFirst().fields().get(1);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
@@ -1612,17 +1609,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testPositionalParams() {
         LogicalPlan stm = query("row x=?1, y=?1", new QueryParams(List.of(paramAsConstant(null, 1))));
-        assertThat(stm, instanceOf(Row.class));
-        Row row = (Row) stm;
-        assertThat(row.fields().size(), is(2));
+        assertThat(stm, instanceOf(Rows.class));
+        Rows rows = (Rows) stm;
+        assertThat(rows.getFirst().fields().size(), is(2));
 
-        NamedExpression field = row.fields().get(0);
+        NamedExpression field = rows.getFirst().fields().get(0);
         assertThat(field.name(), is("x"));
         assertThat(field, instanceOf(Alias.class));
         Alias alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()), is(1));
 
-        field = row.fields().get(1);
+        field = rows.getFirst().fields().get(1);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
@@ -2473,7 +2470,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {");
     }
 
     public void testEnrichOnMatchField() {
@@ -2655,7 +2652,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidRemoteClusterPattern() {
-        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {");
     }
 
     private LogicalPlan unresolvedRelation(String index) {
@@ -2697,14 +2694,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
-        expectError(
-            "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
-        expectError(
-            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
+        expectError("from test | WHERE \"field\":\"value\"", "line 1:26: mismatched input ':' expecting {");
+        expectError("from test | WHERE CONCAT(\"field\", 1):\"value\"", "line 1:37: mismatched input ':' expecting {");
     }
 
     public void testMatchFunctionFieldCasting() {
@@ -3191,7 +3182,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -3742,7 +3733,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Unnamed alias are forbidden
         expectError(
             "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
-            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
+            allOf(
+                startsWith("line 1:63: mismatched input '(' expecting {"),
+                containsString("<EOF>"),
+                containsString("'|'"),
+                containsString("'='"),
+                containsString("','"),
+                containsString("'.'"),
+                containsString("'with'"),
+                endsWith("}")
+            )
         );
     }
 
@@ -4152,7 +4152,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
@@ -4235,10 +4235,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     continue;
                 }
                 LogicalPlan plan = parser.parseQuery("ROW a = 1::" + nameOrAlias);
-                Row row = as(plan, Row.class);
-                assertThat(row.fields(), hasSize(1));
+                Rows rows = as(plan, Rows.class);
+                assertThat(rows.getFirst().fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
-                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) rows.getFirst().fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
             }

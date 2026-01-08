@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -174,11 +175,19 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
         expectError(query, null, errorMessage);
     }
 
+    void expectError(String query, Matcher<String> errorMessage) {
+        expectError(query, null, errorMessage);
+    }
+
     void expectError(String query, List<QueryParam> params, String errorMessage) {
+        expectError(query, params, containsString(errorMessage));
+    }
+
+    void expectError(String query, List<QueryParam> params, Matcher<String> errorMessage) {
         expectThrows(
             "Query [" + query + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
             ParsingException.class,
-            containsString(errorMessage),
+            errorMessage,
             () -> query(query, new QueryParams(params))
         );
     }

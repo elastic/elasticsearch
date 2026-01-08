@@ -42,8 +42,8 @@ public class JoinTests extends ESTestCase {
             rightAttributes.add(right.toAttribute());
         }
 
-        Row left = new Row(Source.EMPTY, leftFields);
-        Row right = new Row(Source.EMPTY, rightFields);
+        Rows left = Rows.singleRow(Source.EMPTY, leftFields);
+        Rows right = Rows.singleRow(Source.EMPTY, rightFields);
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, leftAttributes, rightAttributes, null);
         Join join = new Join(Source.EMPTY, left, right, joinConfig);
@@ -78,8 +78,8 @@ public class JoinTests extends ESTestCase {
             rightAttributes.add(right.toAttribute());
         }
 
-        Row left = new Row(Source.EMPTY, leftFields);
-        Row right = new Row(Source.EMPTY, rightFields);
+        Rows left = Rows.singleRow(Source.EMPTY, leftFields);
+        Rows right = Rows.singleRow(Source.EMPTY, rightFields);
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, leftAttributes, rightAttributes, null);
         Join join = new Join(Source.EMPTY, left, right, joinConfig);

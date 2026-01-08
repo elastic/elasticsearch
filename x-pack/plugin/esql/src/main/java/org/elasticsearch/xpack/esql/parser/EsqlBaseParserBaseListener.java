@@ -529,6 +529,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLimitPerGroupKey(EsqlBaseParser.LimitPerGroupKeyContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLimitPerGroupKey(EsqlBaseParser.LimitPerGroupKeyContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSortCommand(EsqlBaseParser.SortCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1472,6 +1484,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterQualifiedNameExpression(EsqlBaseParser.QualifiedNameExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedNameExpression(EsqlBaseParser.QualifiedNameExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

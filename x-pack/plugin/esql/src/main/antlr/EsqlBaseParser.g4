@@ -220,7 +220,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitPerGroupKey?
+    ;
+
+limitPerGroupKey:
+    {this.isDevVersion()}? PER qualifiedNameExpression
     ;
 
 sortCommand

@@ -76,7 +76,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -90,7 +90,6 @@ import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,6 +119,7 @@ import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.StatusChecks.multiName;
 import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.StatusChecks.singleName;
+import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.blContext;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.empty;
@@ -561,48 +561,6 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             false,
             shardIdx -> getBlockLoaderFor(shardIdx, fieldName, toType)
         );
-    }
-
-    private static MappedFieldType.BlockLoaderContext blContext() {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return "test_index";
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                var imd = IndexMetadata.builder("test_index")
-                    .settings(ValueSourceReaderTypeConversionTests.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
-                    .build();
-                return new IndexSettings(imd, Settings.EMPTY);
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return Set.of(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return null;
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-            }
-        };
     }
 
     private void loadSimpleAndAssert(

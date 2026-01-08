@@ -1,0 +1,5 @@
+pr: 140392
+summary: "Configure `slo-observability.health` index permissions for reserved roles and kibana internal user"
+area: Authentication
+type: enhancement
+issues: []

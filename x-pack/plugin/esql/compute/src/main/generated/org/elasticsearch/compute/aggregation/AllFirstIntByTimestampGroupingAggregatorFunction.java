@@ -26,9 +26,10 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class AllFirstIntByTimestampGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("observed", ElementType.BOOLEAN),
+      new IntermediateStateDesc("timestampsPresent", ElementType.BOOLEAN),
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.INT),
-      new IntermediateStateDesc("hasValues", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("values", ElementType.INT)  );
 
   private final AllFirstIntByTimestampAggregator.GroupingState state;
 
@@ -60,23 +61,23 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    LongBlock timestampsBlock = page.getBlock(channels.get(1));
+    maybeEnableGroupIdTracking(seenGroupIds, valuesBlock, timestampsBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, valuesBlock, timestampsBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, valuesBlock, timestampsBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, valuesBlock, timestampsBlock);
       }
 
       @Override
@@ -85,8 +86,8 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock valueBlock,
-      LongBlock timestampBlock) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock valuesBlock,
+      LongBlock timestampsBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -96,7 +97,7 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        AllFirstIntByTimestampAggregator.combine(state, groupId, valuesPosition, valueBlock, timestampBlock);
+        AllFirstIntByTimestampAggregator.combine(state, groupId, valuesPosition, valuesBlock, timestampsBlock);
       }
     }
   }
@@ -105,22 +106,15 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      return;
-    }
+    Block observedUncast = page.getBlock(channels.get(0));
+    BooleanBlock observed = (BooleanBlock) observedUncast;
+    Block timestampsPresentUncast = page.getBlock(channels.get(1));
+    BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
+    Block timestampsUncast = page.getBlock(channels.get(2));
     LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
+    Block valuesUncast = page.getBlock(channels.get(3));
     IntBlock values = (IntBlock) valuesUncast;
-    Block hasValuesUncast = page.getBlock(channels.get(2));
-    if (hasValuesUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock hasValues = (BooleanBlock) hasValuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == hasValues.getPositionCount();
+    assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -130,13 +124,13 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        AllFirstIntByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, hasValues, valuesPosition);
+        AllFirstIntByTimestampAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock valueBlock,
-      LongBlock timestampBlock) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock valuesBlock,
+      LongBlock timestampsBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -146,7 +140,7 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        AllFirstIntByTimestampAggregator.combine(state, groupId, valuesPosition, valueBlock, timestampBlock);
+        AllFirstIntByTimestampAggregator.combine(state, groupId, valuesPosition, valuesBlock, timestampsBlock);
       }
     }
   }
@@ -155,22 +149,15 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      return;
-    }
+    Block observedUncast = page.getBlock(channels.get(0));
+    BooleanBlock observed = (BooleanBlock) observedUncast;
+    Block timestampsPresentUncast = page.getBlock(channels.get(1));
+    BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
+    Block timestampsUncast = page.getBlock(channels.get(2));
     LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
+    Block valuesUncast = page.getBlock(channels.get(3));
     IntBlock values = (IntBlock) valuesUncast;
-    Block hasValuesUncast = page.getBlock(channels.get(2));
-    if (hasValuesUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock hasValues = (BooleanBlock) hasValuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == hasValues.getPositionCount();
+    assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -180,17 +167,17 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        AllFirstIntByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, hasValues, valuesPosition);
+        AllFirstIntByTimestampAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock valueBlock,
-      LongBlock timestampBlock) {
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock valuesBlock,
+      LongBlock timestampsBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      AllFirstIntByTimestampAggregator.combine(state, groupId, valuesPosition, valueBlock, timestampBlock);
+      AllFirstIntByTimestampAggregator.combine(state, groupId, valuesPosition, valuesBlock, timestampsBlock);
     }
   }
 
@@ -198,35 +185,28 @@ public final class AllFirstIntByTimestampGroupingAggregatorFunction implements G
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      return;
-    }
+    Block observedUncast = page.getBlock(channels.get(0));
+    BooleanBlock observed = (BooleanBlock) observedUncast;
+    Block timestampsPresentUncast = page.getBlock(channels.get(1));
+    BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
+    Block timestampsUncast = page.getBlock(channels.get(2));
     LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
+    Block valuesUncast = page.getBlock(channels.get(3));
     IntBlock values = (IntBlock) valuesUncast;
-    Block hasValuesUncast = page.getBlock(channels.get(2));
-    if (hasValuesUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock hasValues = (BooleanBlock) hasValuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == hasValues.getPositionCount();
+    assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      AllFirstIntByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, hasValues, valuesPosition);
+      AllFirstIntByTimestampAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
     }
   }
 
-  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valueBlock,
-      LongBlock timestampBlock) {
-    if (valueBlock.mayHaveNulls()) {
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valuesBlock,
+      LongBlock timestampsBlock) {
+    if (valuesBlock.mayHaveNulls()) {
       state.enableGroupIdTracking(seenGroupIds);
     }
-    if (timestampBlock.mayHaveNulls()) {
+    if (timestampsBlock.mayHaveNulls()) {
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

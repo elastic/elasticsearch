@@ -53,14 +53,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         TaskInfo taskInfo = task.getTask();
         builder.startObject();
         builder.field("completed", task.isCompleted());
-        // TODO: revisit if we should expose taskInfo.description, since it may contain sensitive information like ip and username
-        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
-        if (builder.humanReadable()) {
-            builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
-        }
-        builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
-        builder.field("cancelled", taskInfo.cancelled());
-        builder.field("status", taskInfo.status(), params);
+        taskInfoToXContent(builder, params, taskInfo);
         if (task.getError() != null) {
             XContentHelper.writeRawField("error", task.getError(), builder.contentType(), builder, params);
         }
@@ -68,6 +61,23 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
             XContentHelper.writeRawField("response", task.getResponse(), builder.contentType(), builder, params);
         }
         builder.endObject();
+        return builder;
+    }
+
+    // reindex specific TaskInfo serialization
+    static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
+        // TODO: revisit if we should expose taskInfo.description, since it may contain sensitive information like ip and username
+        builder.field("id", taskInfo.node() + ":" + taskInfo.id());
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
+        if (builder.humanReadable()) {
+            builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
+        }
+        builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
+        builder.field("cancelled", taskInfo.cancelled());
+        if (taskInfo.status() != null) {
+            builder.field("status", taskInfo.status(), params);
+        }
+
         return builder;
     }
 

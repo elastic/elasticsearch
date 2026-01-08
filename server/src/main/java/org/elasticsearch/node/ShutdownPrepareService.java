@@ -60,6 +60,7 @@ public class ShutdownPrepareService {
 
     private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
     private final TimeValue maxTimeout;
+    private final TerminationHandler terminationHandler;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
 
@@ -71,6 +72,7 @@ public class ShutdownPrepareService {
         TerminationHandler terminationHandler
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
+        this.terminationHandler = terminationHandler;
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
@@ -100,6 +102,11 @@ public class ShutdownPrepareService {
     public void prepareForShutdown() {
         assert isShuttingDown == false;
         isShuttingDown = true;
+
+        // first make sure the node can safely be shutdown
+        if (terminationHandler != null) {
+            terminationHandler.blockTermination();
+        }
 
         record Stopper(String name, SubscribableListener<Void> listener) {
             boolean isIncomplete() {

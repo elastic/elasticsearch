@@ -157,7 +157,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         var filterCost = Math.toIntExact(supplier.cost());
                         float selectivity = (float) filterCost / floatVectorValues.size();
                         var iterator = supplier.get(NO_MORE_DOCS).iterator();
-                        // TODO: is this enough to check if we picked this up from cache?
                         if ((false == iterator instanceof BitSetIterator)
                             && selectivity >= postFilteringThreshold
                             && floatVectorValues.size() > POST_FILTERING_SEGMENT_SIZE_THRESHOLD) {
@@ -165,7 +164,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             // * oversample by (1 + (1 - selectivity)) * k)
                             // * skip centroid filtering
                             // * skip filtering docs as we score them (to take advantage of bulk scoring)
-                            // * apply post filtering at the end ad re-run searchLeaf if needed
+                            // * apply post filtering at the end and re-run searchLeaf if needed
                             // * trim down to k results
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(

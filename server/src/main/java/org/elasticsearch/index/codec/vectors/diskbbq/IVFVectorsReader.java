@@ -279,6 +279,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         } else {
             esAcceptDocs = null;
         }
+        final boolean postFilter = esAcceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
         // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
@@ -320,9 +321,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio,
             centroidVisitedIterator
         );
-        if (centroidPrefetchingIterator == null) {
-            return;
-        }
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
@@ -335,19 +333,20 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
 
-            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+            CentroidMeta centroidMeta = centroidPrefetchingIterator.nextPostingListCentroidMeta();
 
-            if (knnCollector.getSearchStrategy() != null
-                && ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).centroidAlreadyVisited(offsetAndLength.centroidOrdinal)) {
+            if (postFilter
+                && knnCollector.getSearchStrategy() != null
+                && ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).centroidAlreadyVisited(centroidMeta.centroidOrdinal)) {
                 continue;
             }
 
-            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
+            expectedDocs += scorer.resetPostingsScorer(centroidMeta.offset());
             actualDocs += scorer.visit(knnCollector);
 
             // mark centroid as visited for post-filter mode
-            if (knnCollector.getSearchStrategy() != null) {
-                ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
+            if (postFilter && knnCollector.getSearchStrategy() != null) {
+                ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(centroidMeta.centroidOrdinal);
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
         }
@@ -357,8 +356,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-                if (knnCollector.getSearchStrategy() != null
+                CentroidMeta offsetAndLength = centroidPrefetchingIterator.nextPostingListCentroidMeta();
+                if (postFilter
+                    && knnCollector.getSearchStrategy() != null
                     && ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).centroidAlreadyVisited(offsetAndLength.centroidOrdinal)) {
                     continue;
                 }
@@ -366,7 +366,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 actualDocs += scorer.visit(knnCollector);
 
                 // mark centroid as visited for post-filter mode
-                if (knnCollector.getSearchStrategy() != null) {
+                if (postFilter && knnCollector.getSearchStrategy() != null) {
                     ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
@@ -484,12 +484,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    public record CentroidOffsetAndLength(long offset, long length, int centroidOrdinal) {}
+    public record CentroidMeta(long offset, long length, int centroidOrdinal) {}
 
     public interface CentroidIterator {
         boolean hasNext();
 
-        CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
+        CentroidMeta nextPostingListCentroidMeta() throws IOException;
     }
 
     public interface PostingVisitor {

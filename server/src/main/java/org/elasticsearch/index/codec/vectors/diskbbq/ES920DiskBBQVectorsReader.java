@@ -49,9 +49,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
         throws IOException {
         return new CentroidIterator() {
-            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
-                ? centroidIterator.nextPostingListOffsetAndLength()
-                : null;
+            CentroidMeta nextOffsetAndLength = centroidIterator.hasNext() ? centroidIterator.nextPostingListCentroidMeta() : null;
 
             {
                 // prefetch the first one
@@ -60,7 +58,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                 }
             }
 
-            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
+            void prefetch(CentroidMeta offsetAndLength) throws IOException {
                 postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
             }
 
@@ -70,10 +68,10 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
+            public CentroidMeta nextPostingListCentroidMeta() throws IOException {
+                CentroidMeta offsetAndLength = nextOffsetAndLength;
                 if (centroidIterator.hasNext()) {
-                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
+                    nextOffsetAndLength = centroidIterator.nextPostingListCentroidMeta();
                     prefetch(nextOffsetAndLength);
                 } else {
                     nextOffsetAndLength = null;  // indicate we reached the end
@@ -204,12 +202,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+            public CentroidMeta nextPostingListCentroidMeta() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength, centroidOrdinal);
+                return new CentroidMeta(postingListOffset, postingListLength, centroidOrdinal);
             }
         };
     }
@@ -277,12 +275,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+            public CentroidMeta nextPostingListCentroidMeta() throws IOException {
                 int centroidOrdinal = nextCentroid();
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength, centroidOrdinal);
+                return new CentroidMeta(postingListOffset, postingListLength, centroidOrdinal);
             }
 
             private int nextCentroid() throws IOException {

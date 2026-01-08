@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -49,8 +50,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
  * In a single-parameter mode, the function always uses the current time as the end of the range.
@@ -94,14 +98,14 @@ public class TRange extends EsqlConfigurationFunction
         Source source,
         @Param(
             name = START_TIME_OR_OFFSET_PARAMETER,
-            type = { "time_duration", "date_period", "date", "date_nanos", "long" },
+            type = { "time_duration", "date_period", "date", "date_nanos", "keyword", "long" },
             description = """
                  Offset from NOW for the single parameter mode. Start time for two parameter mode.
-                 In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds.
+                 In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds.
                 """
         ) Expression first,
-        @Param(name = END_TIME_PARAMETER, type = { "long", "date", "date_nanos" }, description = """
-            Explicit end time that can be a date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
+        @Param(name = END_TIME_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
+            Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
         Expression timestamp,
         Configuration configuration
     ) {
@@ -169,10 +173,17 @@ public class TRange extends EsqlConfigurationFunction
             return resolution;
         }
 
-        // the 2nd parameter has the same type as the 1st, which can be long (epoch millis), date or date_nanos
-        resolution = isType(first, dt -> isMillisOrNanos(dt) || dt == LONG, operationName, FIRST, "long", "date", "date_nanos").and(
-            isType(second, dt -> dt == first.dataType(), operationName, SECOND, first.dataType().esType())
-        );
+        // the 2nd parameter has the same type as the 1st, which can be string (datetime), long (epoch millis), date or date_nanos
+        resolution = isType(
+            first,
+            dt -> isMillisOrNanos(dt) || dt == KEYWORD || dt == LONG,
+            operationName,
+            FIRST,
+            "string",
+            "long",
+            "date",
+            "date_nanos"
+        ).and(isType(second, dt -> dt == first.dataType(), operationName, SECOND, first.dataType().esType()));
 
         if (resolution.unresolved()) {
             return resolution;
@@ -255,6 +266,15 @@ public class TRange extends EsqlConfigurationFunction
     private Instant parseToInstant(Object value, String paramName, boolean nanos) {
         if (value instanceof Literal literal) {
             value = literal.fold(FoldContext.small());
+        }
+
+        if (value instanceof BytesRef bytesRef) {
+            try {
+                long millis = dateTimeToLong(bytesRef.utf8ToString(), DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()));
+                return Instant.ofEpochMilli(millis);
+            } catch (Exception e) {
+                throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);
+            }
         }
 
         if (value instanceof Long longValue) {

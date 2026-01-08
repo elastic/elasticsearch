@@ -34,6 +34,8 @@ import static java.time.Instant.ofEpochSecond;
 import static java.time.Instant.parse;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -67,6 +69,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         Object argument2Value,
         DataType timestampDataType,
         Instant timestampValue,
+        ZoneId timezone,
         boolean expectedResult
     ) {}
 
@@ -301,6 +304,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         testParameter[1].value,
                         timestampDataType,
                         timestampInsideRange,
+                        null,
                         true
                     )
                 );
@@ -314,10 +318,57 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         testParameter[1].value,
                         timestampDataType,
                         timestampOutsideRange,
+                        null,
                         false
                     )
                 );
             }
+
+            // String parameters cases
+            testCases.addAll(
+                List.of(
+                    new TwoParameterCase(
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:03.123456789Z",
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:04.123456789Z",
+                        timestampDataType,
+                        parse("2020-02-02T01:02:03.223456789Z"),
+                        ZoneId.of("+11:45"),
+                        true
+                    ),
+                    new TwoParameterCase(
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:03.123456789+03:00",
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:04.123456789+03:00",
+                        timestampDataType,
+                        parse("2020-02-02T01:02:03.223456789+03:00"),
+                        ZoneId.of("-11:45"),
+                        true
+                    ),
+                    new TwoParameterCase(
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:03.123456789",
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:04.123456789",
+                        timestampDataType,
+                        parse("2020-02-02T01:02:03.223456789+01:00"),
+                        ZoneId.of("Europe/Paris"),
+                        true
+                    ),
+                    new TwoParameterCase(
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:03.123456789",
+                        DataType.KEYWORD,
+                        "2020-02-02T01:02:04.123456789",
+                        timestampDataType,
+                        parse("2020-02-02T01:02:03.223456789Z"),
+                        ZoneId.of("Europe/Paris"),
+                        false
+                    )
+                )
+            );
         }
         return testCases;
     }
@@ -325,23 +376,37 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
     private static void twoParameterTRangeSuppliers(List<TestCaseSupplier> suppliers, List<TwoParameterCase> testCases) {
         for (TwoParameterCase testCase : testCases) {
             boolean isTimestampNanos = testCase.timestampDataType == DataType.DATE_NANOS;
-            long value1 = toAbsoluteTime(testCase.argument1Value, testCase.argument1DataType, null, isTimestampNanos, ZoneOffset.UTC);
-            long value2 = toAbsoluteTime(testCase.argument2Value, testCase.argument2DataType, null, isTimestampNanos, ZoneOffset.UTC);
+            boolean isStringParam = testCase.argument1DataType == DataType.KEYWORD;
+            long longValue1 = toAbsoluteTime(
+                testCase.argument1Value,
+                testCase.argument1DataType,
+                null,
+                isTimestampNanos,
+                testCase.timezone
+            );
+            long longValue2 = toAbsoluteTime(
+                testCase.argument2Value,
+                testCase.argument2DataType,
+                null,
+                isTimestampNanos,
+                testCase.timezone
+            );
             long timestampValue = toAbsoluteTime(
                 testCase.timestampValue,
                 testCase.timestampDataType,
                 null,
                 isTimestampNanos,
-                ZoneOffset.UTC
+                testCase.timezone
             );
+            Object value1 = isStringParam ? testCase.argument1Value : longValue1;
+            Object value2 = isStringParam ? testCase.argument2Value : longValue2;
 
             // Values are converted to the timestamp's type
-            long expectedValue1 = makeExpectedValue(value1, testCase.argument1DataType == DataType.DATE_NANOS, isTimestampNanos);
-            long expectedValue2 = makeExpectedValue(value2, testCase.argument2DataType == DataType.DATE_NANOS, isTimestampNanos);
+            long expectedValue1 = makeExpectedValue(longValue1, testCase.argument1DataType == DataType.DATE_NANOS, isTimestampNanos);
+            long expectedValue2 = makeExpectedValue(longValue2, testCase.argument2DataType == DataType.DATE_NANOS, isTimestampNanos);
             suppliers.add(
-                new TestCaseSupplier(
-                    List.of(testCase.argument1DataType, testCase.argument2DataType, testCase.timestampDataType),
-                    () -> new TestCaseSupplier.TestCase(
+                new TestCaseSupplier(List.of(testCase.argument1DataType, testCase.argument2DataType, testCase.timestampDataType), () -> {
+                    var tc = new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(value1, testCase.argument1DataType, "start_time").forceLiteral(),
                             new TestCaseSupplier.TypedData(value2, testCase.argument2DataType, "end_time").forceLiteral(),
@@ -357,8 +422,9 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         ),
                         DataType.BOOLEAN,
                         equalTo(testCase.expectedResult)
-                    )
-                )
+                    );
+                    return testCase.timezone == null ? tc : tc.withConfiguration(TEST_SOURCE, configurationForTimezone(testCase.timezone));
+                })
             );
         }
     }
@@ -380,6 +446,9 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                 return nanos
                     ? DateUtils.toLong(zonedNow.minus((TemporalAmount) argument).toInstant())
                     : DateUtils.toLongMillis(zonedNow.minus((TemporalAmount) argument).toInstant());
+            }
+            case KEYWORD -> {
+                return dateTimeToLong((String) argument, DEFAULT_DATE_TIME_FORMATTER.withZone(timezone));
             }
             case DATETIME, LONG -> {
                 return DateUtils.toLongMillis((Instant) argument);

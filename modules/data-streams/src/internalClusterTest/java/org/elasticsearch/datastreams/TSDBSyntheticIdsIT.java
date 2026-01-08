@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -69,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
@@ -592,75 +595,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
                             Translog.Operation operation;
                             while ((operation = translogSnapshot.next()) != null) {
-                                if (operation instanceof Translog.Index index) {
-                                    final var expectedDocId = docsIdsBySeqNo.get(index.seqNo());
-                                    assertThat(Uid.decodeId(index.uid()), equalTo(expectedDocId));
-
-                                    final var expectedDocIdEncoded = Uid.encodeId(expectedDocId);
-                                    assertThat(index.uid(), equalTo(expectedDocIdEncoded));
-
-                                    assertThat(docsIndicesById.get(expectedDocId), equalTo(indexService.index().getName()));
-                                    assertThat(index.primaryTerm(), equalTo(1L));
-                                    assertThat(index.routing(), nullValue());
-
-                                    // Reproduce the parsing of the translog operations when they are replayed during recovery
-                                    var parsedDocument = indexShard.mapperService()
-                                        .documentMapper()
-                                        .parse(
-                                            new SourceToParse(
-                                                Uid.decodeId(index.uid()),
-                                                index.source(),
-                                                XContentHelper.xContentType(index.source()),
-                                                index.routing()
-                                            )
-                                        );
-                                    assertThat(parsedDocument.id(), equalTo(expectedDocId));
-                                    assertThat(parsedDocument.routing(), nullValue());
-                                    assertThat(parsedDocument.docs(), hasSize(1));
-
-                                    var luceneDocument = parsedDocument.docs().get(0);
-                                    assertThat(
-                                        "Lucene document [" + expectedDocId + "] has wrong value for _id field",
-                                        luceneDocument.getField(IdFieldMapper.NAME).binaryValue(),
-                                        equalTo(expectedDocIdEncoded)
-                                    );
-                                    assertThat(
-                                        "Lucene document [" + expectedDocId + "] has wrong value for _tsid field",
-                                        luceneDocument.getField(TimeSeriesIdFieldMapper.NAME).binaryValue(),
-                                        equalTo(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(expectedDocIdEncoded))
-                                    );
-                                    assertThat(
-                                        "Lucene document [" + expectedDocId + "] has wrong value for @timestamp field",
-                                        luceneDocument.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue(),
-                                        equalTo(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(expectedDocIdEncoded))
-                                    );
-                                    assertThat(
-                                        "Lucene document [" + expectedDocId + "] has wrong value for _ts_routing_hash field",
-                                        luceneDocument.getField(TimeSeriesRoutingHashFieldMapper.NAME).binaryValue(),
-                                        equalTo(
-                                            Uid.encodeId(
-                                                TimeSeriesRoutingHashFieldMapper.encode(
-                                                    TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(expectedDocIdEncoded)
-                                                )
-                                            )
-                                        )
-                                    );
-                                    continue;
-                                }
-
-                                if (operation instanceof Translog.Delete delete) {
-                                    final var expectedDocId = docsIdsBySeqNo.get(delete.seqNo());
-                                    assertThat(Uid.decodeId(delete.uid()), equalTo(expectedDocId));
-
-                                    final var expectedDocIdEncoded = Uid.encodeId(expectedDocId);
-                                    assertThat(delete.uid(), equalTo(expectedDocIdEncoded));
-
-                                    assertThat(docsIndicesById.get(expectedDocId), equalTo(indexService.index().getName()));
-                                    assertThat(delete.primaryTerm(), equalTo(1L));
-                                    continue;
-                                }
-
-                                throw new AssertionError("Unsupported translog operation: " + operation);
+                                assertTranslogOperation(
+                                    indexService.index().getName(),
+                                    indexShard.mapperService().documentMapper(),
+                                    operation,
+                                    docsIdsBySeqNo::get,
+                                    docsIndicesById::get
+                                );
                             }
                         }
 
@@ -775,6 +716,87 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     }
                 );
             }
+        }
+    }
+
+    private static void assertTranslogOperation(
+        String indexName,
+        DocumentMapper documentMapper,
+        Translog.Operation operation,
+        Function<Long, String> expectedDocIdSupplier,
+        Function<String, String> expectedDocIndexSupplier
+    ) {
+        final String expectedDocId;
+        final BytesRef expectedDocIdEncoded;
+        switch (operation.opType()) {
+            case INDEX:
+                final var index = asInstanceOf(Translog.Index.class, operation);
+                expectedDocId = expectedDocIdSupplier.apply(index.seqNo());
+                assertThat(Uid.decodeId(index.uid()), equalTo(expectedDocId));
+
+                expectedDocIdEncoded = Uid.encodeId(expectedDocId);
+                assertThat(index.uid(), equalTo(expectedDocIdEncoded));
+
+                assertThat(expectedDocIndexSupplier.apply(expectedDocId), equalTo(indexName));
+                assertThat(index.primaryTerm(), equalTo(1L));
+                assertThat(index.routing(), nullValue());
+
+                // Reproduce the parsing of the translog operations when they are replayed during recovery
+                var parsedDocument = documentMapper.parse(
+                    new SourceToParse(
+                        Uid.decodeId(index.uid()),
+                        index.source(),
+                        XContentHelper.xContentType(index.source()),
+                        index.routing()
+                    )
+                );
+                assertThat(parsedDocument.id(), equalTo(expectedDocId));
+                assertThat(parsedDocument.routing(), nullValue());
+                assertThat(parsedDocument.docs(), hasSize(1));
+
+                var luceneDocument = parsedDocument.docs().get(0);
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for _id field",
+                    luceneDocument.getField(IdFieldMapper.NAME).binaryValue(),
+                    equalTo(expectedDocIdEncoded)
+                );
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for _tsid field",
+                    luceneDocument.getField(TimeSeriesIdFieldMapper.NAME).binaryValue(),
+                    equalTo(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(expectedDocIdEncoded))
+                );
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for @timestamp field",
+                    luceneDocument.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue(),
+                    equalTo(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(expectedDocIdEncoded))
+                );
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for _ts_routing_hash field",
+                    luceneDocument.getField(TimeSeriesRoutingHashFieldMapper.NAME).binaryValue(),
+                    equalTo(
+                        Uid.encodeId(
+                            TimeSeriesRoutingHashFieldMapper.encode(
+                                TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(expectedDocIdEncoded)
+                            )
+                        )
+                    )
+                );
+                break;
+
+            case DELETE:
+                final var delete = asInstanceOf(Translog.Delete.class, operation);
+                expectedDocId = expectedDocIdSupplier.apply(delete.seqNo());
+                assertThat(Uid.decodeId(delete.uid()), equalTo(expectedDocId));
+
+                expectedDocIdEncoded = Uid.encodeId(expectedDocId);
+                assertThat(delete.uid(), equalTo(expectedDocIdEncoded));
+
+                assertThat(expectedDocIndexSupplier.apply(expectedDocId), equalTo(indexName));
+                assertThat(delete.primaryTerm(), equalTo(1L));
+                break;
+
+            default:
+                throw new AssertionError("Unsupported operation type: " + operation);
         }
     }
 

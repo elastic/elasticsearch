@@ -105,36 +105,13 @@ public class ES92Int7VectorsScorer {
      * compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      *
-     * <p>The number of vectors to score is defined by {@link #BULK_SIZE}. The expected format of the
+     * <p>The number of vectors to score is defined by {@code #bulkSize}. The expected format of the
      * input is as follows: First the quantized vectors are read from the input,then all the lower
      * intervals as floats, then all the upper intervals as floats, then all the target component sums
      * as shorts, and finally all the additional corrections as floats.
      *
      * <p>The results are stored in the provided scores array.
      */
-    public void scoreBulk(
-        byte[] q,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        float[] scores
-    ) throws IOException {
-        scoreBulk(
-            q,
-            queryLowerInterval,
-            queryUpperInterval,
-            queryComponentSum,
-            queryAdditionalCorrection,
-            similarityFunction,
-            centroidDp,
-            scores,
-            BULK_SIZE
-        );
-    }
-
     public void scoreBulk(
         byte[] q,
         float queryLowerInterval,

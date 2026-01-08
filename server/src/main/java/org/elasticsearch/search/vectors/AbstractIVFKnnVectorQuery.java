@@ -52,8 +52,8 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
-    public static final int POST_FILTERING_SEGMENT_SIZE_THRESHOLD = 1;
-    private static final int MAX_POST_FILTER_ITERATIONS = 10;
+    public static final int POST_FILTERING_SEGMENT_SIZE_THRESHOLD = 100_000;
+    private static final int MAX_POST_FILTER_ITERATIONS = 5;
 
     record VectorLeafSearchFilterMeta(LeafReaderContext context, AcceptDocs filter) {}
 

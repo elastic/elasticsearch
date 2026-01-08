@@ -10,19 +10,19 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.MockBlockFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,12 +34,11 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
 
     /**
      * Set the breaker limit low enough, and test that adding many(1000) groups of BYTES_REF into bytes {@code BreakingBytesRefBuilder}
-     * , which is reused for each grouping set will trigger CBE. CBE happens when adding around 25th group to bytes.
+     * , which is reused for each grouping set, will trigger CBE. CBE happens when adding around 11th group to bytes.
      */
     public void testCircuitBreakerWithManyGroups() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(220000));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        CircuitBreaker bytesBreaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(1));
+        BlockFactory blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
 
         // 1000 group keys of BYTES_REF
         List<BlockHash.GroupSpec> groupSpecs = new ArrayList<>();
@@ -48,7 +47,7 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
         }
 
         try (
-            PackedValuesBlockHash blockHash = new PackedValuesBlockHash(groupSpecs, blockFactory, 32);
+            PackedValuesBlockHash blockHash = new PackedValuesBlockHash(groupSpecs, blockFactory, bytesBreaker, 32);
             BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)
         ) {
             builder.appendBytesRef(new BytesRef("test"));
@@ -76,8 +75,6 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
                 })
             );
             assertThat(e.getMessage(), equalTo(ERROR_MESSAGE));
-        } finally {
-            blockFactory.ensureAllBlocksAreReleased();
         }
     }
 }

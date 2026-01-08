@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -71,13 +72,35 @@ final class PackedValuesBlockHash extends BlockHash {
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
         this.nullTrackingBytes = (specs.size() + 7) / 8;
+        boolean success = false;
         try {
             this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
             this.bytes = new BreakingBytesRefBuilder(blockFactory.breaker(), "PackedValuesBlockHash", this.nullTrackingBytes);
-        } catch (Exception e) {
+            success = true;
+        } finally {
             // close bytesRefHash and bytes to prevent memory leaks in case of the initialization fails
-            close();
-            throw e;
+            if (success == false) {
+                close();
+            }
+        }
+    }
+
+    // For circuit breaker testing only {@code PackedValuesBlockHashCircuitBreakerTests}
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
+        super(blockFactory);
+        this.specs = specs;
+        this.emitBatchSize = emitBatchSize;
+        this.nullTrackingBytes = (specs.size() + 7) / 8;
+        boolean success = false;
+        try {
+            this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
+            this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", this.nullTrackingBytes);
+            success = true;
+        } finally {
+            // close bytesRefHash and bytes to prevent memory leaks in case of the initialization fails
+            if (success == false) {
+                close();
+            }
         }
     }
 

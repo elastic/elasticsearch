@@ -1570,12 +1570,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
 
-                    assert rebalanceDecision.type() == Type.YES || rebalanceDecision.type() == Type.THROTTLE
-                        : "We should only see YES/THROTTLE decisions here";
-                    assert allocationDecision.type() == Type.YES || allocationDecision.type() == Type.THROTTLE
-                        : "We should only see YES/THROTTLE decisions here";
-                    final Decision.Type canAllocateOrRebalance = allocationDecision.type() == Type.THROTTLE
-                        || rebalanceDecision.type() == Type.THROTTLE ? Type.THROTTLE : Type.YES;
+                    final Decision.Type canAllocateOrRebalance = Decision.minimumDecisionTypeThrottleOrYes(
+                        allocationDecision,
+                        rebalanceDecision
+                    );
 
                     maxNode.removeShard(projectIndex(shard), shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

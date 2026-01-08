@@ -407,7 +407,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
                     .size(0)
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -419,7 +419,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(1))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
                     .size(2)
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -446,7 +446,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
             ).scroll(new TimeValue(1000));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -457,7 +457,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(9))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -471,7 +471,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(3))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
                     .size(3)
                     .from(4)
             );
@@ -482,7 +482,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
                     .addRescorer(new QueryRescorerBuilder(QueryBuilders.termQuery("rescore", "another term")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -494,7 +494,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null)))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, 10f, null, null, null)))
                     .suggest(new SuggestBuilder().setGlobalText("test").addSuggestion("suggestion", new TermSuggestionBuilder("term")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();

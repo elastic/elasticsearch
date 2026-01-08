@@ -53,6 +53,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
+    public static final ParseField POST_FILTERING_THRESHOLD_FIELD = new ParseField("post_filtering_threshold");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<KnnRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -76,7 +77,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 (int) args[4],
                 (Float) args[5],
                 (RescoreVectorBuilder) args[7],
-                (Float) args[6]
+                (Float) args[6],
+                (Float) args[8]
             );
         }
     );
@@ -99,6 +101,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             RESCORE_VECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
+        PARSER.declareFloat(optionalConstructorArg(), POST_FILTERING_THRESHOLD_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -114,6 +117,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     private final Float visitPercentage;
     private final RescoreVectorBuilder rescoreVectorBuilder;
     private final Float similarity;
+    private final Float postFilteringThreshold;
 
     public KnnRetrieverBuilder(
         String field,
@@ -123,7 +127,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float similarity
+        Float similarity,
+        Float postFilteringThreshold
     ) {
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
@@ -142,6 +147,14 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 )
             );
         }
+        if (postFilteringThreshold != null && (postFilteringThreshold < 0.0f || postFilteringThreshold > 1.0f)) {
+            throw new IllegalArgumentException(
+                "["
+                    + POST_FILTERING_THRESHOLD_FIELD.getPreferredName()
+                    + "] must be between 0.0 and 1.0, but got: "
+                    + postFilteringThreshold
+            );
+        }
         this.field = field;
         this.queryVector = queryVector != null ? () -> queryVector : null;
         this.queryVectorBuilder = queryVectorBuilder;
@@ -150,6 +163,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.visitPercentage = visitPercentage;
         this.similarity = similarity;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
+        this.postFilteringThreshold = postFilteringThreshold;
     }
 
     private KnnRetrieverBuilder(KnnRetrieverBuilder clone, Supplier<float[]> queryVector, QueryVectorBuilder queryVectorBuilder) {
@@ -163,6 +177,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.retrieverName = clone.retrieverName;
         this.preFilterQueryBuilders = clone.preFilterQueryBuilders;
         this.rescoreVectorBuilder = clone.rescoreVectorBuilder;
+        this.postFilteringThreshold = clone.postFilteringThreshold;
     }
 
     @Override
@@ -245,7 +260,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            similarity
+            similarity,
+            postFilteringThreshold
         );
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
@@ -289,6 +305,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         if (rescoreVectorBuilder != null) {
             builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
+        if (postFilteringThreshold != null) {
+            builder.field(POST_FILTERING_THRESHOLD_FIELD.getPreferredName(), postFilteringThreshold);
+        }
     }
 
     @Override
@@ -302,12 +321,22 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 || (queryVector != null && that.queryVector != null && Arrays.equals(queryVector.get(), that.queryVector.get())))
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
             && Objects.equals(similarity, that.similarity)
-            && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder);
+            && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder)
+            && Objects.equals(postFilteringThreshold, that.postFilteringThreshold);
     }
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(field, queryVectorBuilder, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
+        int result = Objects.hash(
+            field,
+            queryVectorBuilder,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity,
+            postFilteringThreshold
+        );
         result = 31 * result + Arrays.hashCode(queryVector != null ? queryVector.get() : null);
         return result;
     }

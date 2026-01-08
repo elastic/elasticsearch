@@ -54,6 +54,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         int numCands = randomIntBetween(k + 20, 1000);
         Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         Float similarity = randomBoolean() ? null : randomFloat();
+        Float postFilteringThreshold = randomBoolean() ? null : randomFloat();
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null
             : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
@@ -66,7 +67,8 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            similarity
+            similarity,
+            postFilteringThreshold
         );
 
         List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();

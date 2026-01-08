@@ -2,6 +2,12 @@
 
 **Supported function named parameters**
 
+`rescore_oversample`
+:   (double) Applies the specified oversampling for rescoring quantized vectors. See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+
+`similarity`
+:   (double) The minimum similarity required for a document to be considered a match. The similarity value calculated relates to the raw similarity used, not the document score.
+
 `boost`
 :   (float) Floating point number used to decrease or increase the relevance scores of the query.Defaults to 1.0.
 
@@ -14,9 +20,5 @@
 `min_candidates`
 :   (integer) The minimum number of nearest neighbor candidates to consider per shard while doing knn search.  KNN may use a higher number of candidates in case the query can't use a approximate results. Cannot exceed 10,000. Increasing min_candidates tends to improve the accuracy of the final results. Defaults to 1.5 * k (or LIMIT) used for the query.
 
-`rescore_oversample`
-:   (double) Applies the specified oversampling for rescoring quantized vectors. See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
-
-`similarity`
-:   (double) The minimum similarity required for a document to be considered a match. The similarity value calculated relates to the raw similarity used, not the document score.
-
+`post_filtering_threshold`
+:   (double) The minimum filter coverage for any filters to be applied as post filters. This could lead to increased performance at potentially a small hit in recall.

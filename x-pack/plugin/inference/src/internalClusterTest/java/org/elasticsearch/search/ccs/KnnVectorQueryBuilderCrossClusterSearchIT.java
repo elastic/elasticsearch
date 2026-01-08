@@ -56,7 +56,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null, null),
             QUERY_INDICES,
             List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
             new ClusterFailure(
@@ -72,7 +72,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query an inference field on a remote cluster
         assertSearchResponse(
-            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null, null),
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
             null,
@@ -81,14 +81,14 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected failure
         assertSearchFailure(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null, null),
             QUERY_INDICES,
             IllegalArgumentException.class,
             "[model_id] must not be null.",
             s -> s.setCcsMinimizeRoundtrips(false)
         );
         assertSearchFailure(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null, null),
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             IllegalArgumentException.class,
             "[model_id] must not be null.",
@@ -103,7 +103,15 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
             assertSearchResponse(
-                new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "   "), 10, 100, 10f, null),
+                new KnnVectorQueryBuilder(
+                    COMMON_INFERENCE_ID_FIELD,
+                    new TextEmbeddingQueryVectorBuilder(null, "   "),
+                    10,
+                    100,
+                    10f,
+                    null,
+                    null
+                ),
                 QUERY_INDICES,
                 List.of(
                     new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
@@ -120,6 +128,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                     10,
                     100,
                     10f,
+                    null,
                     null
                 ),
                 QUERY_INDICES,
@@ -138,6 +147,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                     10,
                     100,
                     10f,
+                    null,
                     null
                 ),
                 QUERY_INDICES,
@@ -156,6 +166,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                     10,
                     100,
                     10f,
+                    null,
                     null
                 ),
                 QUERY_INDICES,
@@ -174,6 +185,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                     10,
                     100,
                     10f,
+                    null,
                     null
                 ),
                 QUERY_INDICES,
@@ -193,7 +205,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query a field that has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
-            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null, null),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
@@ -205,7 +217,15 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query a field that has different inference ID values across clusters
         assertSearchResponse(
-            new KnnVectorQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "b"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(
+                VARIABLE_INFERENCE_ID_FIELD,
+                new TextEmbeddingQueryVectorBuilder(null, "b"),
+                10,
+                100,
+                10f,
+                null,
+                null
+            ),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
@@ -217,7 +237,15 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_1, new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "z"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_1,
+                new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "z"),
+                10,
+                100,
+                10f,
+                null,
+                null
+            ),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
@@ -227,7 +255,15 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             searchRequestModifier
         );
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "c"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "c"),
+                10,
+                100,
+                10f,
+                null,
+                null
+            ),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
@@ -242,7 +278,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)
         );
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_1, queryVector, 10, 100, 10f, null, null),
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_1, queryVector, 10, 100, 10f, null, null, null),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
@@ -252,7 +288,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             searchRequestModifier
         );
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, queryVector, 10, 100, 10f, null, null),
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, queryVector, 10, 100, 10f, null, null, null),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
@@ -264,7 +300,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query using index patterns
         assertSearchResponse(
-            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
+            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null, null),
             List.of("local-*", fullyQualifiedIndexName("cluster_*", "remote-*")),
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
@@ -283,6 +319,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 100,
                 10f,
                 null,
+                null,
                 null
             ),
             QUERY_INDICES,
@@ -300,6 +337,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 10,
                 100,
                 10f,
+                null,
                 null,
                 null
             ),

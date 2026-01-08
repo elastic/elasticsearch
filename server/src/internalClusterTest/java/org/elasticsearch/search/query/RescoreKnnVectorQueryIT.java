@@ -121,7 +121,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         int k,
         int numCands,
         Float visitPercentage,
-        RescoreVectorBuilder rescoreVectorBuilder
+        RescoreVectorBuilder rescoreVectorBuilder,
+        Float postFilteringThreshold
     ) {
         public static TestParams generate() {
             int numDims = randomIntBetween(32, 512) * 2; // Ensure even dimensions
@@ -134,7 +135,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 k,
                 (int) (k * randomFloatBetween(1.0f, 10.0f, true)),
                 randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
-                new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true))
+                new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true)),
+                randomBoolean() ? null : randomFloat()
             );
         }
     }
@@ -148,7 +150,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.numCands,
                 testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
-                null
+                null,
+                testParams.postFilteringThreshold
             );
             return requestBuilder.setKnnSearch(List.of(knnSearch));
         };
@@ -164,7 +167,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.numCands,
                 testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
-                null
+                null,
+                testParams.postFilteringThreshold
             );
             return requestBuilder.setQuery(knnQuery);
         };
@@ -181,7 +185,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.numCands,
                 testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
-                null
+                null,
+                testParams.postFilteringThreshold
             );
             return requestBuilder.setSource(new SearchSourceBuilder().retriever(knnRetriever));
         };

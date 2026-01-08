@@ -157,6 +157,7 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
             100,
             null,
             null,
+            null,
             null
         );
         source.retriever(

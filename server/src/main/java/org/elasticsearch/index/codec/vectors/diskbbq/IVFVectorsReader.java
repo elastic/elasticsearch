@@ -315,22 +315,40 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             values,
             visitRatio
         );
+        if (centroidPrefetchingIterator == null) {
+            return;
+        }
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;
+
+        // Check if we're in post-filter mode with centroid tracking
+        ESAcceptDocs.PostFilterEsAcceptDocs postFilterDocs = esAcceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs
+            ? (ESAcceptDocs.PostFilterEsAcceptDocs) esAcceptDocs
+            : null;
+
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            // todo do we actually need to know the score???
+
             CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-            // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-            // is enough?
+
+            if (postFilterDocs != null && postFilterDocs.visited(offsetAndLength.centroidOrdinal)) {
+                continue;
+            }
+
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
+
+            // Mark centroid as visited for post-filter mode
+            if (postFilterDocs != null) {
+                postFilterDocs.skip(offsetAndLength.centroidOrdinal);
+            }
+
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
@@ -342,8 +360,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+                if (postFilterDocs != null && postFilterDocs.visited(offsetAndLength.centroidOrdinal)) {
+                    continue;
+                }
                 scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
+
+                // Mark centroid as visited for post-filter mode
+                if (postFilterDocs != null) {
+                    postFilterDocs.skip(offsetAndLength.centroidOrdinal);
+                }
+
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
@@ -461,7 +488,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    public record CentroidOffsetAndLength(long offset, long length) {}
+    public record CentroidOffsetAndLength(long offset, long length, int centroidOrdinal) {}
 
     public interface CentroidIterator {
         boolean hasNext();

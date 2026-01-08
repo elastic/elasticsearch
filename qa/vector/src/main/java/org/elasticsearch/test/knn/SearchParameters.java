@@ -27,7 +27,8 @@ public record SearchParameters(
     float filterSelectivity,
     boolean filterCached,
     boolean earlyTermination,
-    long seed
+    long seed,
+    float postFilteringThreshold
 ) {
 
     static final ObjectParser<SearchParameters.Builder, Void> PARSER = new ObjectParser<>(
@@ -47,6 +48,7 @@ public record SearchParameters(
         PARSER.declareBoolean(Builder::setFilterCached, TestConfiguration.FILTER_CACHED);
         PARSER.declareFloat(Builder::setFilterSelectivity, TestConfiguration.FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, TestConfiguration.SEED_FIELD);
+        PARSER.declareLong(Builder::setPostFilteringThreshold, TestConfiguration.POST_FILTERING_THRESHOLD);
     }
 
     static SearchParameters.Builder fromXContent(XContentParser parser) {
@@ -68,6 +70,7 @@ public record SearchParameters(
         private Boolean filterCached;
         private Boolean earlyTermination;
         private Long seed;
+        private Float postFilteringThreshold;
 
         public Builder setNumCandidates(int numCandidates) {
             this.numCandidates = numCandidates;
@@ -119,6 +122,11 @@ public record SearchParameters(
             return this;
         }
 
+        public Builder setPostFilteringThreshold(float postFilteringThreshold) {
+            this.postFilteringThreshold = postFilteringThreshold;
+            return this;
+        }
+
         private Builder setNullValues(SearchParameters params) {
             // Only set the null members, don't overwrite the set values
             this.numCandidates = Optional.ofNullable(numCandidates).orElse(params.numCandidates());
@@ -131,6 +139,7 @@ public record SearchParameters(
             this.filterSelectivity = Optional.ofNullable(filterSelectivity).orElse(params.filterSelectivity());
             this.earlyTermination = Optional.ofNullable(earlyTermination).orElse(params.earlyTermination());
             this.seed = Optional.ofNullable(seed).orElse(params.seed());
+            this.postFilteringThreshold = Optional.ofNullable(postFilteringThreshold).orElse(params.postFilteringThreshold());
             return this;
         }
 
@@ -158,7 +167,8 @@ public record SearchParameters(
                 filterSelectivity,
                 filterCached,
                 earlyTermination,
-                seed
+                seed,
+                postFilteringThreshold
             );
         }
 
@@ -194,6 +204,9 @@ public record SearchParameters(
             }
             if (seed != null) {
                 builder.field(TestConfiguration.SEED_FIELD.getPreferredName(), seed);
+            }
+            if (postFilteringThreshold != null) {
+                builder.field(TestConfiguration.POST_FILTERING_THRESHOLD.getPreferredName(), postFilteringThreshold);
             }
             return builder.endObject();
         }

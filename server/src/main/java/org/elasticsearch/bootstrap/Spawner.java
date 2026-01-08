@@ -11,7 +11,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -135,7 +134,8 @@ final class Spawner implements Closeable {
          */
         final String command = NativeAccess.onWindows(
             windowsNativeAccess -> windowsNativeAccess.getShortPathName(spawnPath.toString()),
-            spawnPath.toString());
+            spawnPath.toString()
+        );
 
         final ProcessBuilder pb = new ProcessBuilder(command);
 

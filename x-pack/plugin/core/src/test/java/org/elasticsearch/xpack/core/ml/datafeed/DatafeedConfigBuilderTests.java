@@ -151,8 +151,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
     /**
      * Tests that CPS mode in IndicesOptions can be set in the builder and is present in the in-memory config.
      * Note: CPS mode is applied on-the-fly at runtime via {@link DatafeedConfig#withCrossProjectModeIfEnabled},
-     * so the CPS flag in the stored configuration is not used. See {@link DatafeedConfigTests#testCrossProjectIndicesOptionsNotPersisted}
-     * for tests verifying that CPS mode is not persisted through serialization.
+     * so the CPS flag in the stored configuration is not used.
      */
     public void testCrossProjectModeOptionsAccepted() {
         var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);

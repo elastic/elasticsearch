@@ -203,8 +203,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             DELAYED_DATA_CHECK_CONFIG
         );
         parser.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
-        // Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
-        // not from stored datafeed configuration. The cross-project option in indices_options is ignored.
         parser.declareObject(
             Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
@@ -314,7 +312,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     /**
      * Returns a DatafeedConfig with cross-project search (CPS) mode enabled in its IndicesOptions
-     * if CPS is enabled at the cluster level. 
+     * if CPS is enabled at the cluster level.
      *
      * @param datafeed The original datafeed configuration
      * @param crossProjectModeDecider The decider that determines if CPS is enabled
@@ -583,8 +581,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (chunkingConfig != null) {
                 builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
             }
-            // Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
-            // not from stored datafeed configuration. We don't serialize the cross-project option.
             builder.startObject(INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
             builder.endObject();
@@ -689,7 +685,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
             && Objects.equals(this.runtimeMappings, that.runtimeMappings);
-        // CPS: Add new cross-project search fields here (e.g., projectRouting)
     }
 
     @Override
@@ -710,7 +705,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             maxEmptySearches,
             indicesOptions,
             runtimeMappings
-            // CPS: Add new cross-project search fields here (e.g., projectRouting)
         );
     }
 

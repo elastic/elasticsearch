@@ -87,8 +87,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG
         );
         PARSER.declareInt(Builder::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
-        // Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
-        // not from stored datafeed configuration. The cross-project option in indices_options is ignored.
         PARSER.declareObject(
             Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
@@ -247,8 +245,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
         addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
         addOptionalField(builder, DatafeedConfig.MAX_EMPTY_SEARCHES, maxEmptySearches);
-        // Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
-        // not from stored datafeed configuration. We don't serialize the cross-project option.
         if (indicesOptions != null) {
             builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
@@ -599,10 +595,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         public Builder setIndicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
             return this;
-        }
-
-        public IndicesOptions getIndicesOptions() {
-            return indicesOptions;
         }
 
         public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {

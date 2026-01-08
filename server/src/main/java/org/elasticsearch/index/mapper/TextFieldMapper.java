@@ -1544,7 +1544,7 @@ public final class TextFieldMapper extends FieldMapper {
                 // store the value in a binary doc values field, create one if it doesn't exist
                 MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
                 if (field == null) {
-                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, new ArrayList<>());
+                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
                     context.doc().addWithKey(fallbackFieldName, field);
                 }
                 field.add(bytesRef);

@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -64,7 +63,7 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", new TreeSet<>());
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".repeat(i % cardinality)));
                 NumericDocValuesField countField;
                 if (multiValues && i % cardinality == 0) {

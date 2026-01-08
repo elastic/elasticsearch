@@ -617,7 +617,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current()
             );
-            discoverableNodeTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
+            discoverableNodeTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
         } else {
             discoverableNodeVersion = VersionInformation.CURRENT;
             discoverableNodeTransportVersion = TransportVersion.current();

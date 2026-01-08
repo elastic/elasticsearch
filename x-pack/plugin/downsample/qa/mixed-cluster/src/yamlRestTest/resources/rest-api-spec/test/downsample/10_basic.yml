@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: ["gte_v8.10.0"]
-      reason: "Downsampling executed using persistent task framework from version 8.10"
-
   - do:
       indices.create:
         index: test

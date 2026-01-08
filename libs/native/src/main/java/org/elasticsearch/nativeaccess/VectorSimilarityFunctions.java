@@ -82,7 +82,7 @@ public interface VectorSimilarityFunctions {
      * its first and second arguments will be {@code MemorySegment}, whose contents is the
      * vector data bytes. The third argument is the length of the vector data.
      */
-    MethodHandle dotProductHandleI4B1();
+    MethodHandle dotProductHandleI1I4();
 
     /**
      * Produces a method handle which computes the dot product of several vectors.
@@ -97,7 +97,7 @@ public interface VectorSimilarityFunctions {
      * first argument. The type of the final argument is a MemorySegment, into which the
      * computed dot product float values will be stored.
      */
-    MethodHandle dotProductHandleI4B1Bulk();
+    MethodHandle dotProductHandleI1I4Bulk();
 
     /**
      * Produces a method handle which computes the dot product of several vectors.
@@ -121,7 +121,7 @@ public interface VectorSimilarityFunctions {
      *     <li>a {@code MemorySegment}, into which the computed dot product float values will be stored</li>
      * </ol>
      */
-    MethodHandle dotProductHandleI4B1BulkWithOffsets();
+    MethodHandle dotProductHandleI1I4BulkWithOffsets();
 
     /**
      * Produces a method handle returning the square distance of byte (unsigned int7) vectors.

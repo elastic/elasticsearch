@@ -114,6 +114,19 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     List<Decision> getDecisions();
 
     /**
+     * Determines the minimum of two decisions that are both either <code>THROTTLE</code> or <code>YES</code>.
+     *
+     * @param decision1 the first decision (must have type <code>YES</code> or <code>THROTTLE</code>)
+     * @param decision2 the second decision (must have type <code>YES</code> or <code>THROTTLE</code>)
+     * @return <code>THROTTLE</code> if either decision is a <code>THROTTLE</code>, <code>YES</code> otherwise.
+     */
+    static Decision.Type minimumDecisionTypeThrottleOrYes(Decision decision1, Decision decision2) {
+        assert decision1.type() == Type.YES || decision1.type() == Type.THROTTLE : "We should only see YES/THROTTLE decisions here";
+        assert decision2.type() == Type.YES || decision2.type() == Type.THROTTLE : "We should only see YES/THROTTLE decisions here";
+        return decision1.type() == Type.THROTTLE || decision2.type() == Type.THROTTLE ? Type.THROTTLE : Type.YES;
+    }
+
+    /**
      * This enumeration defines the possible types of decisions
      */
     enum Type implements Writeable {

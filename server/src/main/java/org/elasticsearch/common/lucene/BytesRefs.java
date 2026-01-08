@@ -97,7 +97,7 @@ public class BytesRefs {
         int limit = bytes.offset + bytes.length;
         int continuations = 0;
 
-        for (; pos <= limit - 8; pos+=8) {
+        for (; pos <= limit - 8; pos += 8) {
             long data = (long) BitUtil.VH_NATIVE_LONG.get(bytes.bytes, pos);
             long high = data & 0x8080808080808080L;
             if (high != 0) {

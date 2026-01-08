@@ -163,9 +163,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             && floatVectorValues.size() > POST_FILTERING_SEGMENT_SIZE_THRESHOLD) {
                             // for filters with coverage greater than the provided postFilteringThreshold, we:
                             // * oversample by (1 + (1 - selectivity)) * k)
-                            // * skip centroid filtering (most centroids will be valid either way)
+                            // * skip centroid filtering
                             // * skip filtering docs as we score them (to take advantage of bulk scoring)
-                            // * apply post filtering at the end
+                            // * apply post filtering at the end ad re-run searchLeaf if needed
                             // * trim down to k results
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
@@ -175,8 +175,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                         filterWeight,
                                         iterator,
                                         liveDocs,
-                                        supplier.cost(),
-                                        leafReader.maxDoc()
+                                        supplier.cost()
                                     )
                                 )
                             );

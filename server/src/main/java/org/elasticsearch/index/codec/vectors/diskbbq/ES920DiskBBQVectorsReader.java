@@ -15,6 +15,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -92,7 +93,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio
+        float visitRatio,
+        DocIdSetIterator centroidVisitedIterator
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();

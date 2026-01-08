@@ -8,9 +8,13 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SetOnce;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAccumulator;
 
@@ -18,10 +22,18 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final float visitRatio;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
+    private final FixedBitSet centroids;
 
     public IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
         this.visitRatio = visitRatio;
         this.accumulator = accumulator;
+        this.centroids = null;
+    }
+
+    public IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator, int maxDoc) {
+        this.visitRatio = visitRatio;
+        this.accumulator = accumulator;
+        this.centroids = new FixedBitSet(maxDoc);
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {
@@ -35,17 +47,31 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         return visitRatio;
     }
 
+    public void markCentroidVisited(int ord) throws IOException {
+        if (centroids != null) {
+            this.centroids.set(ord);
+        }
+    }
+
+    public boolean centroidAlreadyVisited(int ord) {
+        return centroids != null && centroids.get(ord);
+    }
+
+    public DocIdSetIterator centroidIterator() {
+        return centroids != null ? new BitSetIterator(centroids, centroids.cardinality()) : null;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IVFKnnSearchStrategy that = (IVFKnnSearchStrategy) o;
-        return visitRatio == that.visitRatio;
+        return visitRatio == that.visitRatio && Objects.equals(centroids, that.centroids);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(visitRatio);
+        return Objects.hash(visitRatio, centroids);
     }
 
     /**

@@ -249,18 +249,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final LeafReaderContext leafReaderContext;
         private final Weight filterWeight;
         private final Bits liveDocs;
-        private final long cost;
-        private final FixedBitSet docIdSet;
+        private final long supplierCost;
 
-        PostFilterEsAcceptDocs(LeafReaderContext ctx, Weight weight, DocIdSetIterator disi, Bits liveDocs, long cost, int maxDoc)
-            throws IOException {
+        PostFilterEsAcceptDocs(LeafReaderContext ctx, Weight weight, DocIdSetIterator disi, Bits liveDocs, long supplierCost) {
             assert disi.docID() == -1;
             this.leafReaderContext = ctx;
             this.filterWeight = weight;
             this.iterator = disi;
             this.liveDocs = liveDocs;
-            this.cost = cost;
-            this.docIdSet = new FixedBitSet(maxDoc);
+            this.supplierCost = supplierCost;
         }
 
         @Override
@@ -281,7 +278,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int approximateCost() throws IOException {
-            return Math.toIntExact(cost);
+            return Math.toIntExact(supplierCost);
         }
 
         @Override
@@ -292,26 +289,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         public void refreshIterator() throws IOException {
             this.iterator = filterWeight.scorer(leafReaderContext).iterator();
             assert this.iterator.docID() == -1;
-        }
-
-        public void skip(FixedBitSet fixedBitSet) throws IOException {
-            this.docIdSet.or(fixedBitSet);
-        }
-
-        public void skip(int ord) throws IOException {
-            this.docIdSet.set(ord);
-        }
-
-        public boolean visited(int ord) {
-            return docIdSet.get(ord);
-        }
-
-        public int centroidCardinality() {
-            return docIdSet.cardinality();
-        }
-
-        public DocIdSetIterator centroidIterator() {
-            return new BitSetIterator(docIdSet, docIdSet.cardinality());
         }
     }
 }

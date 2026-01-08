@@ -23,6 +23,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -105,7 +106,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio
+        float visitRatio,
+        DocIdSetIterator centroidsVisited
     ) throws IOException;
 
     private static IndexInput openDataInput(
@@ -285,9 +287,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
+        DocIdSetIterator centroidVisitedIterator = null;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
+            centroidVisitedIterator = ivfSearchStrategy.centroidIterator();
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
@@ -313,7 +317,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             acceptDocs,
             approximateCost,
             values,
-            visitRatio
+            visitRatio,
+            centroidVisitedIterator
         );
         if (centroidPrefetchingIterator == null) {
             return;
@@ -337,7 +342,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
             CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
 
-            if (postFilterDocs != null && postFilterDocs.visited(offsetAndLength.centroidOrdinal)) {
+            if (knnCollector.getSearchStrategy() != null
+                && ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).centroidAlreadyVisited(offsetAndLength.centroidOrdinal)) {
                 continue;
             }
 
@@ -345,8 +351,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             actualDocs += scorer.visit(knnCollector);
 
             // Mark centroid as visited for post-filter mode
-            if (postFilterDocs != null) {
-                postFilterDocs.skip(offsetAndLength.centroidOrdinal);
+            if (postFilterDocs != null && knnCollector.getSearchStrategy() != null) {
+                ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
             }
 
             if (knnCollector.getSearchStrategy() != null) {
@@ -360,15 +366,16 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-                if (postFilterDocs != null && postFilterDocs.visited(offsetAndLength.centroidOrdinal)) {
+                if (knnCollector.getSearchStrategy() != null
+                    && ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).centroidAlreadyVisited(offsetAndLength.centroidOrdinal)) {
                     continue;
                 }
                 scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
 
                 // Mark centroid as visited for post-filter mode
-                if (postFilterDocs != null) {
-                    postFilterDocs.skip(offsetAndLength.centroidOrdinal);
+                if (knnCollector.getSearchStrategy() != null) {
+                    ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
                 }
 
                 if (knnCollector.getSearchStrategy() != null) {

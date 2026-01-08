@@ -31,12 +31,12 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -118,11 +118,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio
+        float visitRatio,
+        DocIdSetIterator centroidVisitedIterator
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float approximateDocsPerCentroid = approximateCost / numCentroids;
-        final boolean postFilter = acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         if (approximateDocsPerCentroid <= 1.25) {
             // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
             approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
@@ -131,19 +131,18 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if ((false == postFilter || ((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidCardinality() == 0)
-            && (approximateDocsPerCentroid > 1.25 || numCentroids == 1)) {
+        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;
         } else {
             acceptCentroids = new FixedBitSet(numCentroids);
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
-            final DocIdSetIterator iterator = false == postFilter
-                ? ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator))
-                : ConjunctionUtils.intersectIterators(
-                    List.of(((ESAcceptDocs.PostFilterEsAcceptDocs) acceptDocs).centroidIterator(), docIndexIterator)
-                );
+            List<DocIdSetIterator> iterators = Arrays.asList(acceptDocs.iterator(), docIndexIterator);
+            if (centroidVisitedIterator != null) {
+                iterators.add(centroidVisitedIterator);
+            }
+            final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(iterators);
             final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
             for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {

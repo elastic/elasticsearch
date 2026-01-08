@@ -244,6 +244,7 @@ in_n_out:double | step:datetime            | _timeseries:keyword
 division_metric_metric_grouping_ts
 required_capability: ts_command_v0
 required_capability: tbucket
+required_capability: ts_stats_binary_ops
 TS k8s
 | STATS div=max(network.total_bytes_in / network.total_bytes_in) BY step=TBUCKET(1h), cluster
 | SORT cluster;

@@ -17,7 +17,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -236,7 +236,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = UnicodeUtil.codePointCount(v);
+            int count = BytesRefs.codePointCount(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -371,7 +371,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = UnicodeUtil.codePointCount(v);
+            int count = BytesRefs.codePointCount(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -521,7 +521,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
          * The {@code ord} must be {@code >= 0} or this will fail.
          */
         private int codePointsAtOrd(long ord) throws IOException {
-            return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
+            return BytesRefs.codePointCount(ordinals.lookupOrd(ord));
         }
     }
 
@@ -577,7 +577,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     assert advanced;
 
                     BytesRef bytes = binaryDocValues.binaryValue();
-                    int length = UnicodeUtil.codePointCount(bytes);
+                    int length = BytesRefs.codePointCount(bytes);
                     builder.appendInt(length);
                 } else {
                     registerSingleValueWarning(warnings);
@@ -596,7 +596,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     assert advanced;
 
                     BytesRef bytes = binaryDocValues.binaryValue();
-                    int length = UnicodeUtil.codePointCount(bytes);
+                    int length = BytesRefs.codePointCount(bytes);
                     return factory.constantInt(length, 1);
                 } else {
                     registerSingleValueWarning(warnings);
@@ -662,4 +662,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     private static long sizeOfArray(int count) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * (long) count);
     }
+
+
 }

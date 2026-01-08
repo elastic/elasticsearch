@@ -10,6 +10,7 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 
@@ -89,5 +90,30 @@ public class BytesRefs {
         } catch (Exception e) {
             return prefix.toString();
         }
+    }
+
+    public static int codePointCount(BytesRef bytes) {
+        int pos = bytes.offset;
+        int limit = bytes.offset + bytes.length;
+        int continuations = 0;
+
+        for (; pos <= limit - 8; pos+=8) {
+            long data = (long) BitUtil.VH_NATIVE_LONG.get(bytes.bytes, pos);
+            long high = data & 0x8080808080808080L;
+            if (high != 0) {
+                // High bit is set in mask if first bit set and second bit not set
+                // Matches bytes of form: 0b10......
+                long mask = high & (~data << 1);
+                continuations += Long.bitCount(mask);
+            }
+        }
+
+        // Last 7 or fewer bytes
+        while (pos < limit) {
+            continuations += (bytes.bytes[pos] & 0xC0) == 0x80 ? 1 : 0;
+            pos++;
+        }
+
+        return bytes.length - continuations;
     }
 }

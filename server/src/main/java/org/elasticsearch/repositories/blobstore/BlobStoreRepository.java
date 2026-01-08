@@ -2850,7 +2850,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // Last resort check: we shouldn't have been able to mark the repository as readonly while the operation that led to
                     // this writeIndexGen() call was in progress, and conversely shouldn't have started any such operation if the repo
                     // was already readonly, but these invariants are not obviously true and it is disastrous to proceed here.
-                    throw new RepositoryException(meta.name(), "repository is readonly, cannot update root blob");
+                    throw new IllegalArgumentException("[" + meta.name() + "] repository is readonly, cannot update root blob");
                 }
 
                 final long genInState = meta.generation();

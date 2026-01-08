@@ -9907,7 +9907,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Functions [last_over_time(network.cost), last_over_time(network.eth0.rx)] require a @timestamp field of type date or \
+                Functions [network.cost, network.eth0.rx] require a @timestamp field of type date or \
                 date_nanos to be present when run with the TS command, but it was not present.""")
         );
 
@@ -9921,7 +9921,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Function [last_over_time(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                Function [network.eth0.currently_connected_clients] requires a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
 
@@ -9936,7 +9936,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Function [last_over_time(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                Function [network.eth0.currently_connected_clients] requires a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
     }

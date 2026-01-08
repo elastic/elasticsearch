@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
@@ -32,7 +31,6 @@ import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -42,7 +40,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INC
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -79,66 +76,6 @@ public class StatefulShardsAvailabilityHealthIndicatorService extends ShardsAvai
     public ShardAllocationStatus createNewStatus(Metadata metadata, int maxAffectedResourcesCount) {
         return new StatefulShardAllocationStatus(metadata, maxAffectedResourcesCount);
     }
-
-    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "https://ela.st/restore-snapshot";
-    public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
-        NAME,
-        "restore_from_snapshot",
-        "Elasticsearch isn't allowed to allocate some shards because there are no copies of the shards in the cluster. Elasticsearch will "
-            + "allocate these shards when nodes holding good copies of the data join the cluster.",
-        "If no such node is available, restore these indices from a recent snapshot.",
-        RESTORE_FROM_SNAPSHOT_ACTION_GUIDE
-    );
-
-    public static final String FIX_DELAYED_SHARDS_GUIDE = "https://ela.st/fix-delayed-shard-allocation";
-    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
-        NAME,
-        "delayed_shard_allocations",
-        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that have become "
-            + "unavailable are usually marked for delayed allocation because it is more efficient to wait and see if the shards return "
-            + "on their own than to recover the shard immediately.",
-        "Elasticsearch will reallocate the shards when the delay has elapsed. No action is required by the user.",
-        FIX_DELAYED_SHARDS_GUIDE
-    );
-
-    public static final String WAIT_FOR_INITIALIZATION_GUIDE = "https://ela.st/wait-for-shard-initialization";
-    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_INITIALIZATION = new Diagnosis.Definition(
-        NAME,
-        "initializing_shards",
-        "Elasticsearch is currently initializing the unavailable shards. Please wait for the initialization to finish.",
-        "The shards will become available when the initialization completes. No action is required by the user, you can"
-            + " monitor the progress of the initializing shards at "
-            + WAIT_FOR_INITIALIZATION_GUIDE
-            + ".",
-        WAIT_FOR_INITIALIZATION_GUIDE
-    );
-
-    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "https://ela.st/fix-index-allocation";
-    public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
-        NAME,
-        "enable_index_allocations",
-        "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
-            + "the index level.",
-        "Check that the ["
-            + INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
-            + "] index settings are set to ["
-            + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
-            + "].",
-        ENABLE_INDEX_ALLOCATION_GUIDE
-    );
-    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "https://ela.st/fix-cluster-allocation";
-    public static final Diagnosis.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new Diagnosis.Definition(
-        NAME,
-        "enable_cluster_allocations",
-        "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
-            + "the cluster level.",
-        "Check that the ["
-            + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
-            + "] cluster setting is set to ["
-            + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
-            + "].",
-        ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE
-    );
 
     private static final Map<String, Diagnosis.Definition> ACTION_ENABLE_TIERS_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
         .collect(

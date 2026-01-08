@@ -20,9 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.PlanningProfile;
@@ -36,7 +33,6 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
@@ -92,7 +88,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     public void testPrioritiesOnSuccess() {
-        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockFieldProvider());
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -139,32 +135,8 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     }
 
-    private SlowLogFieldProvider mockFieldProvider() {
-        return new SlowLogFieldProvider() {
-            @Override
-            public SlowLogFields create(IndexSettings indexSettings) {
-                return create();
-            }
-
-            @Override
-            public SlowLogFields create() {
-                return new SlowLogFields() {
-                    @Override
-                    public Map<String, String> indexFields() {
-                        return Map.of();
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return Map.of();
-                    }
-                };
-            }
-        };
-    }
-
     public void testPrioritiesOnFailure() {
-        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockFieldProvider());
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {

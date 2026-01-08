@@ -528,12 +528,12 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     private static class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
         private final Warnings warnings;
         private final NumericDocValues counts;
-        private final BinaryDocValues binaryDocValues;
+        private final BinaryDocValues values;
 
-        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues binaryDocValues) {
+        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
             this.warnings = warnings;
             this.counts = counts;
-            this.binaryDocValues = binaryDocValues;
+            this.values = values;
         }
 
         @Override
@@ -559,7 +559,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public int docId() {
-            return binaryDocValues.docID();
+            return counts.docID();
         }
 
         @Override
@@ -573,10 +573,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             } else {
                 int valueCount = Math.toIntExact(counts.longValue());
                 if (valueCount == 1) {
-                    boolean advanced = binaryDocValues.advanceExact(docId);
+                    boolean advanced = values.advanceExact(docId);
                     assert advanced;
 
-                    BytesRef bytes = binaryDocValues.binaryValue();
+                    BytesRef bytes = values.binaryValue();
                     int length = UnicodeUtil.codePointCount(bytes);
                     builder.appendInt(length);
                 } else {
@@ -592,10 +592,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             } else {
                 int valueCount = Math.toIntExact(counts.longValue());
                 if (valueCount == 1) {
-                    boolean advanced = binaryDocValues.advanceExact(docId);
+                    boolean advanced = values.advanceExact(docId);
                     assert advanced;
 
-                    BytesRef bytes = binaryDocValues.binaryValue();
+                    BytesRef bytes = values.binaryValue();
                     int length = UnicodeUtil.codePointCount(bytes);
                     return factory.constantInt(length, 1);
                 } else {

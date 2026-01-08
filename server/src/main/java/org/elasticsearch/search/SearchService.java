@@ -157,6 +157,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -1023,6 +1024,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardFetchRequest request,
         CancellableTask task,
         FetchPhaseResponseChunk.Writer writer,
+        AtomicReference<Throwable> sendFailure,
         ActionListener<FetchSearchResult> listener
     ) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
@@ -1042,7 +1044,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     var opsListener = searchContext.indexShard().getSearchOperationListener();
                     opsListener.onPreFetchPhase(searchContext);
                     try {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), /* memoryChecker */ null, writer);
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), /* memoryChecker */ null, sendFailure, writer);
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }

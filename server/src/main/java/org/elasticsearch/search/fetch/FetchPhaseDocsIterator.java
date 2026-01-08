@@ -24,13 +24,17 @@ import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -213,17 +217,22 @@ abstract class FetchPhaseDocsIterator {
                 }
             }
         } catch (SearchTimeoutException e) {
+            if (lastChunk != null) {
+                lastChunk.decRef();
+            }
             throw e;
         } catch (CircuitBreakingException e) {
             purgeSearchHits(searchHits);
-            if (streamingEnabled) {
-                purgeChunkBuffer(chunkBuffer);
+
+            if (lastChunk != null) {
+                lastChunk.decRef();
             }
             throw e;
         } catch (Exception e) {
             purgeSearchHits(searchHits);
-            if (streamingEnabled) {
-                purgeChunkBuffer(chunkBuffer);
+
+            if (lastChunk != null) {
+                lastChunk.decRef();
             }
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
@@ -233,7 +242,9 @@ abstract class FetchPhaseDocsIterator {
 
     /**
      * Streaming iteration: Fetches docs in sorted order (per reader) but preserves
-     * score order for chunk streaming.
+     * score order for chunk streaming. Tracks successfully sent hits in sentIndices
+     * to prevent double-decRef during cleanup if circuit breaker trips after some chunks
+     * have been successfully transmitted.
      */
     private void iterateStreaming(
         DocIdToIndex[] docs,
@@ -258,6 +269,10 @@ abstract class FetchPhaseDocsIterator {
         // Semaphore with maxInFlightChunks permits
         Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
 
+        // Track indices of hits that have been successfully sent to prevent double-cleanup
+        // if circuit breaker trips after some chunks are transmitted.
+        Set<Integer> sentIndices = new HashSet<>();
+
         // Store hits with their original score position
         SearchHit[] hitsInScoreOrder = new SearchHit[docs.length];
 
@@ -275,6 +290,11 @@ abstract class FetchPhaseDocsIterator {
                     if (docs[i].docId >= docBase && docs[i].docId < leafEndDoc) {
                         docsInReader.add(new DocPosition(docs[i].docId, i));
                     }
+                }
+
+                Throwable failure = sendFailure.get();
+                if (failure != null) {
+                    throw new TaskCancelledException("Fetch cancelled");
                 }
 
                 if (docsInReader.isEmpty()) {
@@ -296,7 +316,7 @@ abstract class FetchPhaseDocsIterator {
                         return;
                     }
                     if (allowPartialResults == false) {
-                        purgePartialHits(hitsInScoreOrder);
+                        purgePartialHits(hitsInScoreOrder, Collections.emptySet());
                     }
                     SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                     assert allowPartialResults;
@@ -310,7 +330,7 @@ abstract class FetchPhaseDocsIterator {
                         hitsInScoreOrder[dp.scorePosition] = hit;
                     } catch (ContextIndexSearcher.TimeExceededException e) {
                         if (allowPartialResults == false) {
-                            purgePartialHits(hitsInScoreOrder);
+                            purgePartialHits(hitsInScoreOrder, Collections.emptySet());
                         }
                         SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                         assert allowPartialResults;
@@ -325,6 +345,11 @@ abstract class FetchPhaseDocsIterator {
                 SearchHit hit = hitsInScoreOrder[i];
                 if (hit == null) {
                     continue; // Defensive
+                }
+
+                Throwable failure = sendFailure.get();
+                if (failure != null) {
+                    throw new TaskCancelledException("Fetch cancelled during streaming"); // CHANGED
                 }
 
                 hit.incRef();
@@ -342,7 +367,7 @@ abstract class FetchPhaseDocsIterator {
                 if (chunkBuffer.size() >= chunkSize && isLastDoc == false) {
                     Throwable knownFailure = sendFailure.get();
                     if (knownFailure != null) {
-                        throw new RuntimeException("Fetch chunk failed", knownFailure);
+                        throw new TaskCancelledException("Fetch chunk failed");
                     }
 
                     try {
@@ -350,6 +375,15 @@ abstract class FetchPhaseDocsIterator {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw new RuntimeException("Interrupted while waiting for transmit permit", e);
+                    }
+
+                    // Track which indices are being sent in this chunk
+                    int chunkStartIdx = i - chunkBuffer.size() + 1;
+                    int chunkEndIdx = i + 1;
+
+                    // Mark indices as sent BEFORE the async call, since sendChunk immediately decRefs them
+                    for (int idx = chunkStartIdx; idx < chunkEndIdx; idx++) {
+                        sentIndices.add(idx);
                     }
 
                     pendingChunks.addLast(
@@ -370,7 +404,22 @@ abstract class FetchPhaseDocsIterator {
                 }
             }
         } catch (Exception e) {
-            purgePartialHits(hitsInScoreOrder);
+            for (SearchHit bufferHit : chunkBuffer) {
+                if (bufferHit != null) {
+                    for (int j = 0; j < hitsInScoreOrder.length; j++) {
+                        if (hitsInScoreOrder[j] == bufferHit) {
+                            // DecRef twice: once for buffer incRef, once for base reference
+                            bufferHit.decRef();
+                            bufferHit.decRef();
+                            sentIndices.add(j);
+                            break;
+                        }
+                    }
+                }
+            }
+            chunkBuffer.clear();
+
+            purgePartialHits(hitsInScoreOrder, sentIndices);
             throw e;
         }
     }
@@ -389,19 +438,21 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
-     * Clean up partially fetched hits
+     * Clean up partially fetched hits, skipping hits that were successfully sent in chunks.
+     * This prevents double-decRef when circuit breaker trips after some chunks were transmitted.
      */
-    private static void purgePartialHits(SearchHit[] hits) {
-        for (SearchHit hit : hits) {
-            if (hit != null) {
-                hit.decRef();
+    private static void purgePartialHits(SearchHit[] hits, Set<Integer> sentIndices) {
+       for (int i = 0; i < hits.length; i++) {
+           if (hits[i] != null && sentIndices.contains(i) == false) {
+               hits[i].decRef();
             }
         }
     }
 
     /**
      * Sends a chunk of hits to the coordinator with sequence information for ordering.
-     * Releases a transmit permit when complete (success or failure).
+     * Releases a transmit permit when complete (success or failure). On successful transmission,
+     * adds the sent hit indices to sentIndices to prevent double-cleanup if a later circuit breaker trip occurs.
      */
     private static PlainActionFuture<Void> sendChunk(
         FetchPhaseResponseChunk.Writer writer,
@@ -449,7 +500,7 @@ abstract class FetchPhaseDocsIterator {
             );
 
             writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                // Coordinator now owns the hits, decRef to release local reference
+                // Coordinator now owns the hits
                 transmitPermits.release();
                 finalChunkHits.decRef();
                 future.onResponse(null);
@@ -535,15 +586,28 @@ abstract class FetchPhaseDocsIterator {
      * Result class that carries hits array, last chunk, and sequence information.
      * The lastChunkSequenceStart is used by the coordinator to properly order the last chunk's hits.
      */
-    static class IterateResult {
+    static class IterateResult implements AutoCloseable {
         final SearchHit[] hits;
         final SearchHits lastChunk;  // null for non-streaming mode
         final long lastChunkSequenceStart;  // -1 if no last chunk
+        private boolean closed = false;
 
         IterateResult(SearchHit[] hits, SearchHits lastChunk, long lastChunkSequenceStart) {
             this.hits = hits;
             this.lastChunk = lastChunk;
             this.lastChunkSequenceStart = lastChunkSequenceStart;
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (closed) {
+                return;
+            }
+            closed = true;
+
+            if (lastChunk != null) {
+                lastChunk.decRef();
+            }
         }
     }
 }

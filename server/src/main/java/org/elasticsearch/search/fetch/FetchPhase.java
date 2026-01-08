@@ -81,7 +81,7 @@ public final class FetchPhase {
      * @param rankDocs ranking information
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
-        execute(context, docIdsToLoad, rankDocs, null, null);
+        execute(context, docIdsToLoad, rankDocs, null, new AtomicReference<>(), null);
     }
 
     /**
@@ -93,7 +93,7 @@ public final class FetchPhase {
      * @param memoryChecker optional callback for memory tracking, may be null
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
-        execute(context, docIdsToLoad, rankDocs, memoryChecker, null);
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, new AtomicReference<>(), null);
     }
 
     /**
@@ -116,6 +116,7 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         RankDocShardInfo rankDocs,
         @Nullable IntConsumer memoryChecker,
+        AtomicReference<Throwable> sendFailure,
         @Nullable FetchPhaseResponseChunk.Writer writer
     ) {
         if (LOGGER.isTraceEnabled()) {
@@ -143,7 +144,6 @@ public final class FetchPhase {
             // Collect all pending chunk futures
             final int maxInFlightChunks = 3; // TODO make configurable
             final ArrayDeque<PlainActionFuture<Void>> pendingChunks = new ArrayDeque<>();
-            final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
             hits = buildSearchHits(
                 context,
                 docIdsToLoad,
@@ -161,6 +161,9 @@ public final class FetchPhase {
                 try {
                     // Wait for all pending chunks sequentially
                     for (PlainActionFuture<Void> future : pendingChunks) {
+                        if (context.isCancelled()) {
+                            throw new TaskCancelledException("cancelled");
+                        }
                         future.actionGet();
                     }
                 } catch (Exception e) {
@@ -339,8 +342,8 @@ public final class FetchPhase {
             }
         };
 
-        try {
-            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
+        SearchHits resultToReturn = null;
+        try (FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
@@ -353,7 +356,7 @@ public final class FetchPhase {
                 sendFailure,
                 context.getTotalHits(),
                 context.getMaxScore()
-            );
+            )) {
 
             if (context.isCancelled()) {
                 // Clean up hits array
@@ -362,10 +365,6 @@ public final class FetchPhase {
                         hit.decRef();
                     }
                 }
-                // Clean up last chunk if present
-                if (result.lastChunk != null) {
-                    result.lastChunk.decRef();
-                }
                 throw new TaskCancelledException("cancelled");
             }
 
@@ -373,7 +372,7 @@ public final class FetchPhase {
 
             if (writer == null) {
                 // Non-streaming mode: return all hits
-                return new SearchHits(result.hits, totalHits, context.getMaxScore());
+                resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
             } else {
                 // Streaming mode: return last chunk (may be empty)
                 // Clean up the hits array
@@ -390,11 +389,20 @@ public final class FetchPhase {
 
                 // Return last chunk or empty
                 if (result.lastChunk != null) {
-                    return result.lastChunk;
+                    result.lastChunk.incRef();
+                    resultToReturn = result.lastChunk;
                 } else {
-                    return SearchHits.empty(totalHits, context.getMaxScore());
+                    resultToReturn = SearchHits.empty(totalHits, context.getMaxScore());
                 }
             }
+
+            return resultToReturn;
+        } catch (Exception e) {
+            if (resultToReturn != null) {
+                resultToReturn.decRef();
+                resultToReturn = null;
+            }
+            throw new RuntimeException(e);
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
             if (writer == null && bytes > 0L) {
@@ -405,7 +413,6 @@ public final class FetchPhase {
                     context.getSearchExecutionContext().getShardId(),
                     context.circuitBreaker().getUsed()
                 );
-
             }
         }
     }

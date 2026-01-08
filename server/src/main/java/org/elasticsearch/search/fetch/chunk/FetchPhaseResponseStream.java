@@ -23,6 +23,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -54,6 +55,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong totalBreakerBytes = new AtomicLong(0);
 
+    // Cancellation
+    private volatile boolean cancelled = false;
+
     /**
      * Creates a new response stream for accumulating hits from a single shard.
      *
@@ -77,6 +81,12 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param releasable a releasable to close after processing (typically releases the acquired stream reference)
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
+       // Check cancellation before accepting chunk
+        if (cancelled) {
+            releasable.close();
+            throw new TaskCancelledException("Fetch phase cancelled");
+        }
+
         boolean success = false;
         try {
             if (chunk.hits() != null) {
@@ -194,19 +204,23 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         return queue.size();
     }
 
+    void markCancelled() {
+        this.cancelled = true;
+    }
+
     /**
      * Releases accumulated hits and circuit breaker bytes when hits are released from memory.
      */
     @Override
     protected void closeInternal() {
-        // if (logger.isTraceEnabled()) {
-        logger.info(
-            "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
-            shardIndex,
-            queue.size(),
-            totalBreakerBytes.get()
-        );
-        // }
+        if (logger.isTraceEnabled()) {
+            logger.info(
+                "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
+                shardIndex,
+                queue.size(),
+                totalBreakerBytes.get()
+            );
+        }
 
         if (ownershipTransferred == false) {
             for (SequencedHit sequencedHit : queue) {

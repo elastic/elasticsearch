@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -36,11 +37,13 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TransportFetchPhaseCoordinationAction extends HandledTransportAction<
     TransportFetchPhaseCoordinationAction.Request,
@@ -205,8 +208,24 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedDocs, circuitBreaker);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
+        // Monitor coordinator task cancellation
+        final AtomicBoolean cancelled = new AtomicBoolean(false);
+        if (task instanceof SearchShardTask searchTask) {
+            searchTask.addListener(() -> {
+                if (searchTask.isCancelled()) {
+                    cancelled.set(true);
+                    responseStream.markCancelled(); // Signal to stop accepting chunks
+                }
+            });
+        }
+
         // Listener that builds final result from accumulated chunks
         ActionListener<FetchSearchResult> childListener = ActionListener.wrap(dataNodeResult -> {
+            if (cancelled.get()) {
+                listener.onFailure(new TaskCancelledException("cancelled"));
+                return;
+            }
+
             try {
                 // Process the embedded last chunk if present
                 SearchHits lastChunk = dataNodeResult.hits();

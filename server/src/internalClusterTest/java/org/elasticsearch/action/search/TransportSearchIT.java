@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -569,7 +570,17 @@ public class TransportSearchIT extends ESIntegTestCase {
         latch.await();
         assertThat(exceptions.asList().size(), equalTo(10));
         for (Exception exc : exceptions.asList()) {
-            assertThat(exc.getCause().getMessage(), containsString("boom"));
+            // Check if "boom" appears anywhere in the exception chain
+            boolean foundBoom = false;
+            Throwable current = exc;
+            while (current != null) {
+                if (current.getMessage() != null && current.getMessage().contains("boom")) {
+                    foundBoom = true;
+                    break;
+                }
+                current = current.getCause();
+            }
+            assertTrue("Expected 'boom' in exception chain but got: " + exc, foundBoom);
         }
         assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
     }

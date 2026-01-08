@@ -99,32 +99,6 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
                 }
             });
         }
-
-        // TODO clean up the commented code after fully testing subqueries without implicit limit
-        // Check InlineStats is not in the parent plan of UnionAll, as Limit is not allowed in the child plans of InlineStats.
-        // Refer to Verifier.checkLimitBeforeInlineStats for details, provide a clear error message for subqueries here.
-        /*
-        if (plan instanceof InlineStats inlineStats) {
-            Holder<UnionAll> inlineStatsDescendantUnionAll = new Holder<>();
-            inlineStats.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof UnionAll unionAll) {
-                    inlineStatsDescendantUnionAll.set(unionAll);
-                    breakEarly.set(true);
-                    return;
-                }
-            });
-
-            if (inlineStatsDescendantUnionAll.get() != null) {
-                failures.add(
-                    Failure.fail(
-                        inlineStatsDescendantUnionAll.get(),
-                        "INLINE STATS after subquery is not supported, "
-                            + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-                    )
-                );
-            }
-        }
-         */
     }
 
     @Override

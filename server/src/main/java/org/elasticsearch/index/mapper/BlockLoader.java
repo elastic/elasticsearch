@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader;
@@ -163,6 +164,14 @@ import java.util.Map;
  * </p>
  */
 public interface BlockLoader {
+    /**
+     * @deprecated remove me once serverless migrates
+     */
+    @Deprecated
+    static BlockLoader constantBytes(BytesRef value) {
+        return new ConstantBytes(value);
+    }
+
     interface Reader {
         /**
          * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.

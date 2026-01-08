@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -52,7 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
@@ -688,14 +686,9 @@ public final class InferenceQueryUtils {
                         Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
                     );
                 } else {
-                    client.execute(
-                        connection,
-                        GetInferenceFieldsAction.REMOTE_TYPE,
-                        request,
-                        l1.delegateFailureAndWrap((l2, resp) -> {
-                            l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                        })
-                    );
+                    client.execute(connection, GetInferenceFieldsAction.REMOTE_TYPE, request, l1.delegateFailureAndWrap((l2, resp) -> {
+                        l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                    }));
                 }
             }));
         }

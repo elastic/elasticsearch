@@ -25,9 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

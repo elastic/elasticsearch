@@ -70,7 +70,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     public final LongAdder recurseCounter;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, float postFilteringThreshold) {
-        this(field, visitRatio, k, numCands, filter, postFilteringThreshold, null);
+        this(field, visitRatio, k, numCands, filter, postFilteringThreshold, new LongAdder());
     }
 
     protected AbstractIVFKnnVectorQuery(

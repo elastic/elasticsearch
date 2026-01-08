@@ -13,6 +13,8 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.SparseFixedBitSet;
 
+import java.util.Objects;
+
 /**
  * Tracks which centroids have been visited during IVF vector search.
  *
@@ -52,5 +54,18 @@ public final class CentroidTracker {
      */
     public DocIdSetIterator iterator() {
         return visited.cardinality() > 0 ? new BitSetIterator(visited, 0) : null;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CentroidTracker that = (CentroidTracker) o;
+        return Objects.equals(visited, that.visited);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(visited);
     }
 }

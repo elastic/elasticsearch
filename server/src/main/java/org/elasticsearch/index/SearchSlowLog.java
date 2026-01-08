@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
@@ -160,27 +161,29 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
+        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos);
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            queryLogger.warn(messageProducer.get());
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            queryLogger.info(messageProducer.get());
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            queryLogger.debug(messageProducer.get());
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            queryLogger.trace(messageProducer.get());
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
+        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos);
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            fetchLogger.warn(messageProducer.get());
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            fetchLogger.info(messageProducer.get());
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            fetchLogger.debug(messageProducer.get());
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace(SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos));
+            fetchLogger.trace(messageProducer.get());
         }
     }
 

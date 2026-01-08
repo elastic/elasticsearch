@@ -59,7 +59,7 @@ public final class EsqlQueryLog {
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
 
-        SlowLogContext logContext = new SlowLogContext(false);
+        SlowLogContext logContext = new SlowLogContext();
         settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
 
         this.additionalFields = slowLogFieldProvider.create(logContext);

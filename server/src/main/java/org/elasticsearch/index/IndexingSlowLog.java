@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -182,22 +183,22 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
+            Supplier<ESLogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
+                slowLogFields.logFields(),
+                index,
+                doc,
+                tookInNanos,
+                reformat,
+                maxSourceCharsToLog
+            );
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn(
-                    IndexingSlowLogMessage.of(slowLogFields.logFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.warn(messageProducer.get());
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(
-                    IndexingSlowLogMessage.of(slowLogFields.logFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.info(messageProducer.get());
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(
-                    IndexingSlowLogMessage.of(slowLogFields.logFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.debug(messageProducer.get());
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace(
-                    IndexingSlowLogMessage.of(slowLogFields.logFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.trace(messageProducer.get());
             }
         }
     }

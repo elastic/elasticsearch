@@ -1,6 +1,6 @@
 ---
 applies_to:
-   stack: preview 9.0, ga 9.1
+   stack: preview =9.0, ga 9.1+
    serverless: ga
 navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:
@@ -43,9 +43,9 @@ The command requires two parameters:
 * The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
 * The join condition. Can be one of the following:
    * A single field name
-   * A comma-separated list of field names {applies_to}`stack: ga 9.2`
-   * An expression with one or more join conditions linked by `AND`. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
-   * An expression that includes [Full Text Functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene pushable functions applied to fields from the lookup index {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+   * A comma-separated list of field names {applies_to}`stack: ga 9.2+`
+   * An expression with one or more join conditions linked by `AND`. {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
+   * An expression that includes [Full Text Functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene pushable functions applied to fields from the lookup index {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
 
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field

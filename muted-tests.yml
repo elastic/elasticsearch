@@ -509,6 +509,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testNodeShutdown {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/140414
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/140415
 
 # Examples:
 #

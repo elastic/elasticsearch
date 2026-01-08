@@ -501,8 +501,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         if (queryCancellation.isEnabled()) {
             if (vectorValues instanceof BulkScorableFloatVectorValues bsfvv) {
                 return new ExitableBulkScorableFloatVectorValues(vectorValues, bsfvv, queryCancellation);
+            } else if (vectorValues instanceof HasIndexSlice) {
+                return new ExitableSliceableFloatVectorValues(vectorValues, queryCancellation);
+            } else {
+                return new ExitableFloatVectorValues(vectorValues, queryCancellation);
             }
-            return new ExitableFloatVectorValues(vectorValues, queryCancellation);
         } else {
             return vectorValues;
         }
@@ -570,16 +573,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    static FloatVectorValues exitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
-        if (vectorValues instanceof HasIndexSlice) {
-            return new ExitableSliceableFloatVectorValues(vectorValues, queryCancellation);
-        } else {
-            return new ExitableFloatVectorValues(vectorValues, queryCancellation);
-        }
-    }
-
     private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
-        private final QueryCancellation queryCancellation;
+        protected final QueryCancellation queryCancellation;
 
         ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
             super(vectorValues);
@@ -726,45 +721,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    /** Delegates all methods to a wrapped {@link FloatVectorValues}. */
-    private abstract static class FilterFloatVectorValues extends FloatVectorValues {
-
-        /** Wrapped values */
-        protected final FloatVectorValues in;
-
-        /** Sole constructor */
-        protected FilterFloatVectorValues(FloatVectorValues in) {
-            Objects.requireNonNull(in);
-            this.in = in;
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return in.iterator();
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return in.vectorValue(ord);
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            return in.copy();
-        }
-
-        @Override
-        public int dimension() {
-            return in.dimension();
-        }
-
-        @Override
-        public int size() {
-            return in.size();
-        }
-
-    }
-
     static class ExitableSliceableFloatVectorValues extends ExitableFloatVectorValues implements HasIndexSlice {
 
         HasIndexSlice delegate;
@@ -777,6 +733,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public IndexInput getSlice() {
             return delegate.getSlice();
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return new ExitableSliceableFloatVectorValues(in.copy(), queryCancellation);
         }
     }
 }

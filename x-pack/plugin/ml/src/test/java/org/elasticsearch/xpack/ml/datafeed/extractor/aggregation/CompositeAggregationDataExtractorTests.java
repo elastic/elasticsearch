@@ -102,9 +102,9 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"));
         runtimeMappings = Collections.emptyMap();
         timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
-        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(client).setSource(searchSourceBuilder)
-            .setAllowPartialSearchResults(false)
-            .setIndices(indices.toArray(String[]::new));
+        aggregatedSearchRequestBuilder = (searchSourceBuilder, indicesOptions) -> new SearchRequestBuilder(client).setSource(
+            searchSourceBuilder
+        ).setAllowPartialSearchResults(false).setIndices(indices.toArray(String[]::new));
     }
 
     public void testExtraction() throws IOException {

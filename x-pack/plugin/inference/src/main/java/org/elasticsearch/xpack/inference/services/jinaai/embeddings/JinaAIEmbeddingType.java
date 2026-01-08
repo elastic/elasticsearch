@@ -28,15 +28,15 @@ public enum JinaAIEmbeddingType {
     /**
      * Use this when you want to get back binary embeddings.
      */
-    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT),
+    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BINARY),
     /**
      * This is a synonym for BIT
      */
-    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT);
+    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BINARY);
 
     private static final class RequestConstants {
         private static final String FLOAT = "float";
-        private static final String BIT = "binary";
+        private static final String BINARY = "binary";
     }
 
     private static final Map<DenseVectorFieldMapper.ElementType, JinaAIEmbeddingType> ELEMENT_TYPE_TO_JINA_AI_EMBEDDING = Map.of(

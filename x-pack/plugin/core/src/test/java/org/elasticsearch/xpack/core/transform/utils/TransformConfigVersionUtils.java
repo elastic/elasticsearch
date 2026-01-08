@@ -18,6 +18,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
+
 public class TransformConfigVersionUtils {
     private static final List<TransformConfigVersion> ALL_VERSIONS = KnownTransformConfigVersions.ALL_VERSIONS;
 
@@ -44,6 +46,14 @@ public class TransformConfigVersionUtils {
     /** Returns a random {@link TransformConfigVersion} from all available versions. */
     public static TransformConfigVersion randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+    }
+
+    /** Returns a random {@link TransformConfigVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    public static TransformConfigVersion randomVersionBetween(
+        @Nullable TransformConfigVersion minVersion,
+        @Nullable TransformConfigVersion maxVersion
+    ) {
+        return randomVersionBetween(random(), minVersion, maxVersion);
     }
 
     /** Returns a random {@link TransformConfigVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

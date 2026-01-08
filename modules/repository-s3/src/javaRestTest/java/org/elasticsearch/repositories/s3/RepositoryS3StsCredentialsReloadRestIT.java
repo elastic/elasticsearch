@@ -100,7 +100,8 @@ public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
     public void testReloadCredentials() throws IOException {
         final var repositoryName = "repo-" + randomIdentifier();
 
-        // token file starts out invalid, so we cannot create the repository
+        // Token file starts out invalid, causing the STS fixture to return 403s rather than the credentials the SDK asks for, so we cannot
+        // create the repository:
         assertThat(
             expectThrows(ResponseException.class, () -> client().performRequest(getPutRepositoryRequest(repositoryName))).getResponse()
                 .getStatusLine()
@@ -108,27 +109,31 @@ public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
             equalTo(500)
         );
 
-        // filling in the expected file contents yields success immediately, so we must be re-reading this file correctly
+        // However the S3 SDK just keeps on attempting to get credentials, including re-reading the token file, which we can confirm by
+        // replacing the file with valid contents so that the STS fixture starts to return credentials:
         final var webIdentityTokenFilePath = cluster.getNodeConfigPath(0)
             .resolve(S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION);
         Files.writeString(webIdentityTokenFilePath, expectedWebIdentityTokenFileContents);
         client().performRequest(getPutRepositoryRequest(repositoryName));
         assertVerifySuccess(repositoryName);
 
-        // doesn't matter if the current credentials all become invalid, because they're so close to expiry that the SDK is refreshing them
-        // (as confirmed by the success of the verify command)
+        // Moreover the STS fixture is configured to return credentials which have almost expired, so the S3 SDK uses these credentials but
+        // also attempts to refresh them. We can confirm this by invalidating all the credentials returned so far and observing that these
+        // API calls still succeed.
         dynamicCredentials.clearValidCredentials();
         assertVerifySuccess(repositoryName);
 
-        // if the refresh fails (incorrect token file contents) we keep on re-using the last good credentials
+        // Also, if we reconfigure the STS fixture to expect a different token in the token file then it'll start returning 403s to these
+        // token-refresh requests, and in this case the SDK continues to use the last-known-good credentials.
         expectedWebIdentityTokenFileContents = randomAlphanumericOfLength(100);
         assertVerifySuccess(repositoryName);
 
-        // if the last good credentials stop working then verification starts to fail
+        // However if we now invalidate the last-known-good credentials while the STS fixture is returning 403s then API requests must fail.
         dynamicCredentials.clearValidCredentials();
         assertVerifyFailure(repositoryName);
 
-        // however we keep on trying to refresh and once the token file contents are correct it will succeed
+        // But the SDK keeps on trying, which we can confirm by restore the STS fixture to health again and observe that this is enough to
+        // allow API requests to succeed.
         Files.writeString(webIdentityTokenFilePath, expectedWebIdentityTokenFileContents);
         assertVerifySuccess(repositoryName);
 

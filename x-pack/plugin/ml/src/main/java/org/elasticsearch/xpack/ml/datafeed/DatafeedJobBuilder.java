@@ -143,14 +143,16 @@ public class DatafeedJobBuilder {
             listener.onFailure(e);
         });
 
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
+
         DataExtractorFactory.create(
             parentTaskAssigningClient,
-            datafeedConfig,
+            effectiveDatafeedConfig,
             null,
             job,
             xContentRegistry,
             timingStatsReporter,
-            crossProjectModeDecider,
             dataExtractorFactoryHandler
         );
     }

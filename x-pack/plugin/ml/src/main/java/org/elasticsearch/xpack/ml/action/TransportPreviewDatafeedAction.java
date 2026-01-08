@@ -157,15 +157,19 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
+            // Apply cross-project search mode to IndicesOptions before creating the factory
+            DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+                previewDatafeedConfig,
+                crossProjectModeDecider
+            );
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
-                previewDatafeedConfig,
+                effectiveDatafeedConfig,
                 extraFilters,
                 job,
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                crossProjectModeDecider,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewDatafeedConfig,

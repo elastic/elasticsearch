@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValue
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -309,6 +310,27 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static String documentId(String datafeedId) {
         return TYPE + "-" + datafeedId;
+    }
+
+    /**
+     * Returns a DatafeedConfig with cross-project search (CPS) mode enabled in its IndicesOptions
+     * if CPS is enabled at the cluster level. 
+     *
+     * @param datafeed The original datafeed configuration
+     * @param crossProjectModeDecider The decider that determines if CPS is enabled
+     * @return A new DatafeedConfig with CPS-enabled IndicesOptions if CPS is enabled, otherwise the original config
+     */
+    public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            IndicesOptions baseOptions = datafeed.getIndicesOptions();
+            if (baseOptions.resolveCrossProjectIndexExpression() == false) {
+                IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
+            }
+        }
+        return datafeed;
     }
 
     public String getId() {

@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -34,6 +32,9 @@ public interface DataExtractorFactory {
 
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
+     * <p>
+     * Note: Callers should apply cross-project search (CPS) mode to the datafeed's IndicesOptions
+     * before calling this method using {@link DatafeedConfig#withCrossProjectModeIfEnabled}.
      */
     static void create(
         Client client,
@@ -42,24 +43,14 @@ public interface DataExtractorFactory {
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
-        CrossProjectModeDecider crossProjectModeDecider,
         ActionListener<DataExtractorFactory> listener
     ) {
-        // Apply CPS mode to IndicesOptions at the entry point, following the TransportSearchAction pattern
-        final DatafeedConfig effectiveDatafeed;
-        if (crossProjectModeDecider.crossProjectEnabled()) {
-            IndicesOptions modifiedOptions = DataExtractorUtils.applyCrossProjectModeIfEnabled(datafeed.getIndicesOptions(), true);
-            effectiveDatafeed = new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
-        } else {
-            effectiveDatafeed = datafeed;
-        }
-
-        final boolean hasAggs = effectiveDatafeed.hasAggregations();
-        final boolean isComposite = hasAggs && effectiveDatafeed.hasCompositeAgg(xContentRegistry);
+        final boolean hasAggs = datafeed.hasAggregations();
+        final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
             (l, factory) -> l.onResponse(
-                effectiveDatafeed.getChunkingConfig().isEnabled()
-                    ? new ChunkedDataExtractorFactory(effectiveDatafeed, job, xContentRegistry, factory)
+                datafeed.getChunkingConfig().isEnabled()
+                    ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
                     : factory
             )
         );
@@ -73,7 +64,7 @@ public interface DataExtractorFactory {
             if (hasAggs == false) {
                 ScrollDataExtractorFactory.create(
                     client,
-                    effectiveDatafeed,
+                    datafeed,
                     extraFilters,
                     job,
                     xContentRegistry,
@@ -82,7 +73,7 @@ public interface DataExtractorFactory {
                 );
                 return;
             }
-            if (hasRollup && effectiveDatafeed.getRuntimeMappings().isEmpty() == false) {
+            if (hasRollup && datafeed.getRuntimeMappings().isEmpty() == false) {
                 // TODO Rollup V2 will support runtime fields
                 listener.onFailure(
                     new IllegalArgumentException(
@@ -92,20 +83,20 @@ public interface DataExtractorFactory {
                 return;
             }
             if (isComposite) {
-                String[] indices = effectiveDatafeed.getIndices().toArray(new String[0]);
+                String[] indices = datafeed.getIndices().toArray(new String[0]);
                 AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup
                     ? RollupDataExtractorFactory.requestBuilder(client, indices)
                     : AggregationDataExtractorFactory.requestBuilder(client, indices);
                 final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
                     client,
-                    effectiveDatafeed,
+                    datafeed,
                     extraFilters,
                     job,
                     xContentRegistry,
                     timingStatsReporter,
                     aggregatedSearchRequestBuilder
                 );
-                if (effectiveDatafeed.getChunkingConfig().isManual()) {
+                if (datafeed.getChunkingConfig().isManual()) {
                     factoryHandler.onResponse(dataExtractorFactory);
                 } else {
                     listener.onResponse(dataExtractorFactory);
@@ -116,7 +107,7 @@ public interface DataExtractorFactory {
             if (hasRollup) {
                 RollupDataExtractorFactory.create(
                     client,
-                    effectiveDatafeed,
+                    datafeed,
                     extraFilters,
                     job,
                     response.getJobs(),
@@ -126,7 +117,7 @@ public interface DataExtractorFactory {
                 );
             } else {
                 factoryHandler.onResponse(
-                    new AggregationDataExtractorFactory(client, effectiveDatafeed, extraFilters, job, xContentRegistry, timingStatsReporter)
+                    new AggregationDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter)
                 );
             }
         }, e -> {
@@ -142,7 +133,7 @@ public interface DataExtractorFactory {
             }
         });
 
-        if (RemoteClusterLicenseChecker.containsRemoteIndex(effectiveDatafeed.getIndices())) {
+        if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
             // Rollups + CCS is not supported
             getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
@@ -151,10 +142,7 @@ public interface DataExtractorFactory {
                 client,
                 ClientHelper.ML_ORIGIN,
                 GetRollupIndexCapsAction.INSTANCE,
-                new GetRollupIndexCapsAction.Request(
-                    effectiveDatafeed.getIndices().toArray(new String[0]),
-                    effectiveDatafeed.getIndicesOptions()
-                ),
+                new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]), datafeed.getIndicesOptions()),
                 getRollupIndexCapsActionHandler
             );
         }

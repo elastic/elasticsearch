@@ -54,7 +54,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
         // sort the ArrayList variant of the collection prior to serializing it into a binary array
         if (values instanceof ArrayList<BytesRef> list) {
-           list.sort(Comparator.naturalOrder());
+            list.sort(Comparator.naturalOrder());
         }
 
         for (BytesRef value : values) {

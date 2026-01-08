@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClusterSecurityTestCase {
+public class RemoteClusterSecurityCCSCrossClusterInferenceIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
@@ -74,7 +74,7 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testQueryRemoteInferenceField() throws Exception {
+    public void testCrossClusterInference() throws Exception {
         configureRemoteCluster();
 
         // Create an inference endpoint on the remote cluster
@@ -119,7 +119,7 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
 
         // Execute a basic match query with ccs_minimize_roundtrips=false.
         // This will be intercepted by the inference plugin and rewritten to a semantic query on the content field, which will trigger
-        // an inference action on the remote cluster.
+        // a cross-cluster inference action.
         Request searchRequest = new Request("GET", "/my_remote_cluster:test-index/_search");
         searchRequest.addParameter("ccs_minimize_roundtrips", "false");
         searchRequest.setJsonEntity("""

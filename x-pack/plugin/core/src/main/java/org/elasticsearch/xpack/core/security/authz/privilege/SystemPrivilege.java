@@ -54,7 +54,7 @@ public final class SystemPrivilege extends Privilege {
         TransportUpdateSettingsAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportSearchShardsAction.TYPE.name(), // added so this API can be called with the system user by other APIs
         ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name(), // needed for Security plugin reload of remote cluster credentials
-        GetInferenceFieldsAction.NAME // needed for cross-cluster inference for semantic search
+        GetInferenceFieldsAction.NAME // needed for semantic search cross-cluster inference
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

@@ -100,7 +100,7 @@ public class ParsedDocument {
         document.add(versionField);
         if (useSyntheticId) {
             // Use a synthetic _id field which is not indexed nor stored
-            document.add(IdFieldMapper.syntheticIdField(id));
+            document.add(IdFieldMapper.syntheticIdField(uid));
 
             // Add doc values fields that are used to synthesize the synthetic _id.
             // Note: It is not strictly required for tombstones documents but we decided to add them so that iterating and seeking synthetic

@@ -1,5 +1,5 @@
 pr: 140384
-summary: Move union types out of `BlockLoader`
+summary: Improve memory usage and tracking by moving union types into `ValuesSourceReaderOperator`
 area: ES|QL
 type: enhancement
 issues: []

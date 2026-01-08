@@ -86,9 +86,9 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 skipBranch.set(true);
                 yield filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp));
             }
-            case TypedAttribute ta -> {
+            case FieldAttribute field -> {
                 skipBranch.set(true);
-                yield createDefaultInnerAggregation(ta, timestamp);
+                yield createDefaultInnerAggregation(field, timestamp);
             }
             default -> expr;
         });

@@ -22,12 +22,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducer.MAX_NO_VALUE;
-import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducer.MIN_NO_VALUE;
-
 /**
- * A producer that can be used for downsampling aggregate metric double fields whether is a metric or a label. We need a separate producer
- * for each a sub-metric of an aggregate metric double, this means to downsample an aggregate metric double we will need 4.
+ * A downsampler that can be used for downsampling aggregate metric double fields whether is a metric or a label. We need a separate
+ * downsampler for each a sub-metric of an aggregate metric double, this means to downsample an aggregate metric double we will need 4.
  * This is mainly used when downsampling already downsampled indices.
  */
 abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetricFieldDownsampler {
@@ -70,7 +67,6 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
                         case min -> min = Math.min(value, min);
                         case max -> max = Math.max(value, max);
                         case sum -> sum.add(value);
-                        // This is the reason why we can't use GaugeMetricFieldProducer
                         // For downsampled indices aggregate metric double's value count field needs to be summed.
                         // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
                         case value_count -> count += Math.round(value);
@@ -162,7 +158,7 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
     }
 
     /**
-     * We use a specialised serializer because we are combining all the available submetric producers.
+     * We use a specialised serializer because we are combining all the available submetric downsamplers.
      */
     static class Serializer implements DownsampleFieldSerializer {
         private final Collection<AbstractFieldDownsampler<?>> downsamplers;
@@ -187,13 +183,13 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
 
             builder.startObject(name);
             for (AbstractFieldDownsampler<?> fieldDownsampler : downsamplers) {
-                assert name.equals(fieldDownsampler.name()) : "producer has a different name";
+                assert name.equals(fieldDownsampler.name()) : "downsampler has a different name";
                 if (fieldDownsampler.isEmpty()) {
                     continue;
                 }
                 if (fieldDownsampler instanceof AggregateMetricDoubleFieldDownsampler == false) {
                     throw new IllegalStateException(
-                        "Unexpected field producer class: " + fieldDownsampler.getClass().getSimpleName() + " for " + name + " field"
+                        "Unexpected field downsampler class: " + fieldDownsampler.getClass().getSimpleName() + " for " + name + " field"
                     );
                 }
                 fieldDownsampler.write(builder);

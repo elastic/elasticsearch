@@ -22,10 +22,10 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TDigestHistogramFieldProducerTests extends ESTestCase {
+public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
 
     public void testLastValueProducer() throws IOException {
-        var producer = TDigestHistogramFieldProducer.create("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
+        var producer = TDigestHistogramFieldDownsampler.create("my-histogram", null, null, DownsampleConfig.SamplingMethod.LAST_VALUE);
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -47,7 +47,7 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
     }
 
     public void testAggregateProducer() throws IOException {
-        var producer = TDigestHistogramFieldProducer.create("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
+        var producer = TDigestHistogramFieldDownsampler.create("my-histogram", null, null, DownsampleConfig.SamplingMethod.AGGREGATE);
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 

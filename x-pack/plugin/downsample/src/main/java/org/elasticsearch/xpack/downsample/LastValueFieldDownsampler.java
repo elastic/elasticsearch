@@ -39,9 +39,9 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     static LastValueFieldDownsampler create(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "field type cannot be aggregate metric double: " + fieldType.typeName() + " for field " + name;
-        assert ExponentialHistogramFieldProducer.TYPE.equals(fieldType.typeName()) == false
+        assert ExponentialHistogramFieldDownsampler.TYPE.equals(fieldType.typeName()) == false
             : "field type cannot be exponential histogram: " + fieldType.typeName() + " for field " + name;
-        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType.typeName()) == false
+        assert TDigestHistogramFieldDownsampler.TYPE.equals(fieldType.typeName()) == false
             : "field type cannot be histogram: " + fieldType.typeName() + " for field " + name;
         if ("flattened".equals(fieldType.typeName())) {
             return new LastValueFieldDownsampler.FlattenedFieldProducer(name, fieldType, fieldData);

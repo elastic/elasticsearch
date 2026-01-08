@@ -48,7 +48,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     }
 
     /**
-     * Resets the producer to an empty value.
+     * Resets the downsampler to an empty value.
      */
     public abstract void reset();
 
@@ -68,6 +68,12 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
 
     public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
 
+    /**
+     * Utility class used for fetching field values by reading field data.
+     * For fields whose type is multivalued the 'name' matches the parent field
+     * name (normally used for indexing data), while the actual multiField
+     * name is accessible by means of {@link MappedFieldType#name()}.
+     */
     abstract static class FieldValueFetcher<T> {
         protected final String name;
         protected final MappedFieldType fieldType;
@@ -127,10 +133,10 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     ) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
-        if (TDigestHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
+        if (TDigestHistogramFieldDownsampler.TYPE.equals(fieldType.typeName())) {
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
-        if (ExponentialHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
+        if (ExponentialHistogramFieldDownsampler.TYPE.equals(fieldType.typeName())) {
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (fieldType.getMetricType() != null) {

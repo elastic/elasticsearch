@@ -31,12 +31,12 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -138,11 +138,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         } else {
             acceptCentroids = new FixedBitSet(numCentroids);
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
-            List<DocIdSetIterator> iterators = Arrays.asList(acceptDocs.iterator(), docIndexIterator);
-            if (centroidVisitedIterator != null) {
-                iterators.add(centroidVisitedIterator);
+            final boolean postFilter = acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
+            final DocIdSetIterator iterator;
+            if (false == postFilter) {
+                iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
+            } else if (centroidVisitedIterator != null) {
+                iterator = ConjunctionUtils.intersectIterators(List.of(centroidVisitedIterator, docIndexIterator));
+            } else {
+                iterator = docIndexIterator;
             }
-            final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(iterators);
             final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
             for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {

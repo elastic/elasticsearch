@@ -107,7 +107,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         float approximateCost,
         FloatVectorValues values,
         float visitRatio,
-        DocIdSetIterator centroidsVisited
+        DocIdSetIterator centroidsVisitedIterator
     ) throws IOException;
 
     private static IndexInput openDataInput(
@@ -328,11 +328,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long expectedDocs = 0;
         long actualDocs = 0;
 
-        // Check if we're in post-filter mode with centroid tracking
-        ESAcceptDocs.PostFilterEsAcceptDocs postFilterDocs = esAcceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs
-            ? (ESAcceptDocs.PostFilterEsAcceptDocs) esAcceptDocs
-            : null;
-
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
@@ -350,12 +345,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
 
-            // Mark centroid as visited for post-filter mode
-            if (postFilterDocs != null && knnCollector.getSearchStrategy() != null) {
-                ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
-            }
-
+            // mark centroid as visited for post-filter mode
             if (knnCollector.getSearchStrategy() != null) {
+                ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
         }
@@ -373,12 +365,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
 
-                // Mark centroid as visited for post-filter mode
+                // mark centroid as visited for post-filter mode
                 if (knnCollector.getSearchStrategy() != null) {
                     ((IVFKnnSearchStrategy) knnCollector.getSearchStrategy()).markCentroidVisited(offsetAndLength.centroidOrdinal);
-                }
-
-                if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
             }

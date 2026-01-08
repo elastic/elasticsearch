@@ -58,7 +58,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     }
 
     public DocIdSetIterator centroidIterator() {
-        return centroids != null ? new BitSetIterator(centroids, centroids.cardinality()) : null;
+        return centroids != null && centroids.cardinality() > 0 ? new BitSetIterator(centroids, 0) : null;
     }
 
     @Override

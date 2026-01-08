@@ -689,6 +689,8 @@ public final class InferenceQueryUtils {
                     );
                 } else {
                     // Use system context for the actual cross-cluster request to work with RCS 2.0 (API key-based authentication).
+                    // This has the effect of using the _system user to execute the cross-cluster action, which is the only internal user
+                    // allowed to execute such actions.
                     // This follows the same pattern as CCR (see CcrLicenseChecker.systemClient).
                     final Supplier<ThreadContext.StoredContext> restorableContext = threadContext.newRestorableContext(false);
                     try (ThreadContext.StoredContext ignore = threadContext.newEmptySystemContext()) {

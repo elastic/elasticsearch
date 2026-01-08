@@ -217,7 +217,7 @@ public class ClusterPrivilegeResolver {
         "cluster:monitor/stats/remote",
         "cluster:monitor/stats",
         "cluster:monitor/stats[n]",
-        // inference fields for semantic search cross-cluster query rewrite
+        // cross-cluster inference for semantic search
         GetInferenceFieldsAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(

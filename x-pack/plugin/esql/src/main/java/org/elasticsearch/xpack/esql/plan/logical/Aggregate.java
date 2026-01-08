@@ -364,7 +364,7 @@ public class Aggregate extends UnaryPlan
 
     // traverse the expression and look either for an agg function or a grouping match
     // stop either when no children are left, the leafs are literals or a reference attribute is given
-    private void checkInvalidNamedExpressionUsage(
+    private static void checkInvalidNamedExpressionUsage(
         Expression e,
         List<Expression> groups,
         AttributeSet groupRefs,
@@ -438,8 +438,7 @@ public class Aggregate extends UnaryPlan
                     break;
                 }
             }
-            // TimeSeriesAggregates allow bare named expressions as they are implicitly wrapped in a time series aggregate function
-            if (foundInGrouping == false && (this instanceof TimeSeriesAggregate) == false) {
+            if (foundInGrouping == false) {
                 failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
             }
         }

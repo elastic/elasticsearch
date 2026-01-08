@@ -1722,7 +1722,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                 projectState.metadata(),
                 searchRequest.indices()
             );

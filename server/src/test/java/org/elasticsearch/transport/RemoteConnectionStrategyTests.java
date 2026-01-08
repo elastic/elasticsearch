@@ -33,8 +33,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.elasticsearch.test.MockLog.awaitLogger;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
@@ -286,6 +288,43 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                     }
                 }
             }
+
+            // Now verify connection errors when closing (node shutting down) are logged at debug and not warn.
+            final var strategy = new FakeConnectionStrategy(originProjectId, linkedProjectId, alias, transportService, connectionManager);
+            waitForConnect(strategy);
+            metricRecorder.resetCalls();
+            strategy.setShouldConnectFail(true);
+            strategy.setWaitInConnect(true);
+            final var expectedLogLevel = Level.DEBUG;
+            final var expectedLogMessage = Strings.format(
+                "Origin project [%s] failed to connect to linked project [%s] with alias [%s] on a reconnection attempt",
+                originProjectId,
+                linkedProjectId,
+                alias
+            );
+            awaitLogger(() -> assertThrows(RuntimeException.class, () -> {
+                PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
+                // Initiate the connection, this will block the connecting thread.
+                strategy.connect(connectFuture);
+                // Close the strategy and manager (similar to RemoteClusterConnection.close()), then let the connection attempt complete.
+                strategy.close();
+                connectionManager.close();
+                strategy.releaseWaitingConnect();
+                connectFuture.actionGet();
+            }),
+                strategy.getClass(),
+                new MockLog.SeenEventExpectation(
+                    "connection strategy should log at " + expectedLogLevel + " after a failed reconnection attempt",
+                    strategy.getClass().getCanonicalName(),
+                    expectedLogLevel,
+                    expectedLogMessage
+                )
+            );
+            // Expect no metric change if the strategy has been closed.
+            metricRecorder.collect();
+            final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
+            final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, counterName);
+            assertTrue(measurements.isEmpty());
         }
     }
 
@@ -320,6 +359,8 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         private final ConnectionStrategy strategy;
         private boolean shouldConnectFail;
+        private boolean waitInConnect;
+        private final CountDownLatch waitLatch;
 
         FakeConnectionStrategy(
             ProjectId originProjectId,
@@ -365,10 +406,20 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             }, transportService, connectionManager);
             this.strategy = strategy;
             this.shouldConnectFail = false;
+            this.waitInConnect = false;
+            this.waitLatch = new CountDownLatch(1);
         }
 
         void setShouldConnectFail(boolean shouldConnectFail) {
             this.shouldConnectFail = shouldConnectFail;
+        }
+
+        void setWaitInConnect(boolean waitInConnect) {
+            this.waitInConnect = waitInConnect;
+        }
+
+        void releaseWaitingConnect() {
+            this.waitLatch.countDown();
         }
 
         @Override
@@ -388,6 +439,9 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         @Override
         protected void connectImpl(ActionListener<Void> listener) {
+            if (waitInConnect) {
+                safeAwait(waitLatch);
+            }
             if (shouldConnectFail) {
                 listener.onFailure(new RuntimeException("simulated failure"));
             } else {

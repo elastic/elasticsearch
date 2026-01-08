@@ -59,6 +59,11 @@ public class EsqlCapabilities {
         GEO_VALIDATION,
 
         /**
+         * Fold in spatial functions should return null for null input.
+         */
+        GEO_NULL_LITERALS_FOLDING,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -918,11 +923,6 @@ public class EsqlCapabilities {
         METADATA_SCORE,
 
         /**
-         * Term function
-         */
-        TERM_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Additional types for match function and operator
          */
         MATCH_ADDITIONAL_TYPES,
@@ -1770,7 +1770,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V10(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1832,10 +1832,19 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         /**
+         * Support for requesting the "_tier" metadata field.
+         */
+        METADATA_TIER_FIELD,
+        /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887
          */
         FIX_FOLD_COALESCE,
+
+        /**
+         * Exceptions parsing date-times are thrown as IllegalArgumentException
+         */
+        DATE_TIME_EXCEPTIONS_HANDLED,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

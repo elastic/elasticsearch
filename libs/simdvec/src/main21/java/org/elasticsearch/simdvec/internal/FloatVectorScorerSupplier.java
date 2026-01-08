@@ -114,8 +114,8 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
         final int length = dims * Float.BYTES;
-        long firstByteOffset = (long) firstOrd * Float.BYTES;
-        long secondByteOffset = (long) secondOrd * Float.BYTES;
+        long firstByteOffset = (long) firstOrd * length;
+        long secondByteOffset = (long) secondOrd * length;
 
         MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, length);
         if (firstSeg == null) {

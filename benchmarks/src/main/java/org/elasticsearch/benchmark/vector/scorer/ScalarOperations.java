@@ -25,10 +25,27 @@ class ScalarOperations {
         return res;
     }
 
+    static float dotProduct(float[] a, float[] b) {
+        float res = 0;
+        for (int i = 0; i < a.length; i++) {
+            res += a[i] * b[i];
+        }
+        return res;
+    }
+
     static int squareDistance(byte[] a, byte[] b) {
         int res = 0;
         for (int i = 0; i < a.length; i++) {
             int diff = a[i] - b[i];
+            res += diff * diff;
+        }
+        return res;
+    }
+
+    static float squareDistance(float[] a, float[] b) {
+        float res = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
             res += diff * diff;
         }
         return res;

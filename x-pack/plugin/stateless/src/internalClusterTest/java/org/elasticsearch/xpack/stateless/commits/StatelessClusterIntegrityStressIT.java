@@ -62,7 +62,6 @@ import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -136,17 +135,6 @@ public class StatelessClusterIntegrityStressIT extends AbstractServerlessStatele
             .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms");
     }
 
-    @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug,"
-            + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
-            + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
-            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:debug,"
-            + "org.elasticsearch.index.engine.Engine:trace,"
-            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:trace,"
-            + "org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction:trace,"
-            + "org.elasticsearch.indices.recovery:debug",
-        reason = "ensure shard file deletion on DEBUG level"
-    )
     public void testRandomActivities() throws InterruptedException {
         final var trackedCluster = new TrackedCluster();
         trackedCluster.run();

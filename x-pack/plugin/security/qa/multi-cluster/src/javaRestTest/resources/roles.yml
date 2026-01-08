@@ -1,4 +1,4 @@
-remote_search:
+remote_search_cross_cluster_inference:
   cluster:
     - monitor
   indices:

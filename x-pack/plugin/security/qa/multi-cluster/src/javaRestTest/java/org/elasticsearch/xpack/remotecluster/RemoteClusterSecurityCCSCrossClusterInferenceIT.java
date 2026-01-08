@@ -67,7 +67,7 @@ public class RemoteClusterSecurityCCSCrossClusterInferenceIT extends AbstractRem
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_SEARCH_USER, PASS.toString(), "remote_search", false)
+            .user(REMOTE_SEARCH_USER, PASS.toString(), "remote_search_cross_cluster_inference", false)
             .build();
     }
 

@@ -444,7 +444,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }
-                        return new ValuesSourceReaderOperator.LoaderAndConverter(loader, null);
+                        return ValuesSourceReaderOperator.load(loader);
                     }
                 )
             );

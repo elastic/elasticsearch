@@ -214,25 +214,24 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
-            return new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader, null);
+            return ValuesSourceReaderOperator.load(blockLoader);
 
         }
         // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
         String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
         Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
-            return new ValuesSourceReaderOperator.LoaderAndConverter(BlockLoader.CONSTANT_NULLS, null);
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
             if (e != null) {
-                return new ValuesSourceReaderOperator.LoaderAndConverter(
-                    shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config()),
-                    null
+                return ValuesSourceReaderOperator.load(
+                    shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config())
                 );
             }
         }
-        return new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+        return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
     }
 
     /** A hack to pretend an unmapped field still exists. */

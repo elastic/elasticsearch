@@ -228,12 +228,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MappedFieldType ft,
         ElementType elementType
     ) {
-        return factory(
-            shardContexts,
-            ft.name(),
-            elementType,
-            new ValuesSourceReaderOperator.LoaderAndConverter(ft.blockLoader(blContext()), null)
-        );
+        return factory(shardContexts, ft.name(), elementType, ValuesSourceReaderOperator.load(ft.blockLoader(blContext())));
     }
 
     private static Operator.OperatorFactory factory(
@@ -894,7 +889,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(BlockLoader.constantBytes(new BytesRef("foo")), null)
+                    shardIdx -> ValuesSourceReaderOperator.load(BlockLoader.constantBytes(new BytesRef("foo")))
                 ),
                 checks::constantBytes,
                 StatusChecks::constantBytes
@@ -906,7 +901,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "null",
                     ElementType.NULL,
                     false,
-                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(BlockLoader.CONSTANT_NULLS, null)
+                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 ),
                 checks::constantNulls,
                 StatusChecks::constantNulls
@@ -1422,13 +1417,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                                 "null1",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(BlockLoader.CONSTANT_NULLS, null)
+                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             ),
                             new ValuesSourceReaderOperator.FieldInfo(
                                 "null2",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(BlockLoader.CONSTANT_NULLS, null)
+                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             )
                         ),
                         new IndexedByShardIdFromList<>(shardContexts),
@@ -1513,7 +1508,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 ByteSizeValue.ofGb(1),
                 List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
                     seenShards.add(shardIdx);
-                    return new ValuesSourceReaderOperator.LoaderAndConverter(ft.blockLoader(blContext()), null);
+                    return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 0
@@ -1635,7 +1630,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         }
         BlockLoader blockLoader = ft.blockLoader(blContext());
         if (ftX != null && ftX.typeName().equals(ft.typeName()) == false) {
-            return new ValuesSourceReaderOperator.LoaderAndConverter(
+            return ValuesSourceReaderOperator.loadAndConvert(
                 blockLoader,
                 TestDataTypeConverters.converterFactory(ft.typeName(), ftX.typeName())
             );
@@ -1643,13 +1638,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             TestIndexMappingConfig mappingConfig = INDICES.get("index" + (shardIdx + 1));
             TestFieldType<?> testFieldType = mappingConfig.fieldTypes.get(ft.name());
             if (testFieldType != null) {
-                return new ValuesSourceReaderOperator.LoaderAndConverter(
+                return ValuesSourceReaderOperator.loadAndConvert(
                     blockLoader,
                     TestDataTypeConverters.converterFactory(testFieldType.typeName, "keyword")
                 );
             }
         }
-        return new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader, null);
+        return ValuesSourceReaderOperator.load(blockLoader);
     }
 
     /**
@@ -1668,7 +1663,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MapperService mapper = mapperService(indexKey);
         MappedFieldType ft = mapper.fieldType(fieldName);
         BlockLoader blockLoader = ft.blockLoader(blContext());
-        return new ValuesSourceReaderOperator.LoaderAndConverter(
+        return ValuesSourceReaderOperator.loadAndConvert(
             blockLoader,
             TestDataTypeConverters.converterFactory(testFieldType.typeName, toType)
         );

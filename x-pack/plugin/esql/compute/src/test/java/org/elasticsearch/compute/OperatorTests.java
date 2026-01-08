@@ -188,7 +188,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         "v",
                         ElementType.LONG,
                         false,
-                        f -> new ValuesSourceReaderOperator.LoaderAndConverter(new LongsBlockLoader("v"), null)
+                        f -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
                     )
                 ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {

@@ -158,19 +158,19 @@ public class ValuesSourceReaderBenchmark {
                     "keyword_1",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader("stored_keyword_1"), null)
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_2",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader("stored_keyword_2"), null)
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_3",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader("stored_keyword_3"), null)
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
                 )
             );
             default -> List.of(
@@ -178,7 +178,7 @@ public class ValuesSourceReaderBenchmark {
                     name,
                     elementType(name),
                     false,
-                    shardIdx -> new ValuesSourceReaderOperator.LoaderAndConverter(blockLoader(name), null)
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader(name))
                 )
             );
         };

@@ -22,7 +22,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
@@ -198,7 +197,7 @@ class ValuesFromManyReader extends ValuesReader {
                 } finally {
                     currentWork.close();
                     /*
-                     * Calling current[f].close() here is redundant. Once you call
+                     * Calling currentWork.close() here is redundant. Once you call
                      * `BlockBuilder#build`, `BlockBuilder#close` becomes a noop. Safe to call
                      * but not required. But calling it is more idiomatic, so we do it.
                      *

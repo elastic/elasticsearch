@@ -51,7 +51,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, IndexedByShardId<ShardContext> shardContexts, int docChannel)
         implements
             OperatorFactory {
-        public Factory {
+        public Factory
+
+        {
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
             }
@@ -97,6 +99,26 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<LoaderAndConverter> loaderAndConverter) {}
 
+    /**
+     * Singleton to load constant {@code null}s.
+     */
+    public static final LoaderAndConverter LOAD_CONSTANT_NULLS = new LoaderAndConverter(BlockLoader.CONSTANT_NULLS, null);
+
+    /**
+     * Loads directly from the {@code loader}.
+     */
+    public static LoaderAndConverter load(BlockLoader loader) {
+        return new LoaderAndConverter(loader, null);
+    }
+
+    /**
+     * Loads from the {@code loader} and then converts the values using the {@code converter}.
+     *
+     */
+    public static LoaderAndConverter loadAndConvert(BlockLoader loader, ConverterFactory converter) {
+        return new LoaderAndConverter(loader, converter);
+    }
+
     public record ShardContext(
         IndexReader reader,
         Function<Set<String>, SourceLoader> newSourceLoader,
@@ -107,7 +129,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     /**
      * Owns the "evaluators" of type conversions that be performed on load.
-     * Converters a built on first need and kept until the {@link ValuesSourceReaderOperator}
+     * Converters are built on first need and kept until the {@link ValuesSourceReaderOperator}
      * is {@link #close closed}.
      */
     private final ConverterEvaluators converterEvaluators = new ConverterEvaluators();
@@ -369,10 +391,23 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
     }
 
-    /**
-     * @param converter an optional conversion function to apply on load
-     */
-    public record LoaderAndConverter(BlockLoader loader, @Nullable ConverterFactory converter) {}
+    public static class LoaderAndConverter {
+        private final BlockLoader loader;
+        /**
+         * An optional conversion function to apply after loading
+         */
+        @Nullable
+        private final ConverterFactory converter;
+
+        private LoaderAndConverter(BlockLoader loader, @Nullable ConverterFactory converter) {
+            this.loader = loader;
+            this.converter = converter;
+        }
+
+        public BlockLoader loader() {
+            return loader;
+        }
+    }
 
     public interface ConverterFactory {
         ConverterEvaluator build(DriverContext context);

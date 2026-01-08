@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.junit.ClassRule;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -31,7 +32,7 @@ public class CCMCrudForbiddenIT extends CCMRestBaseIT {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.inference.elastic.allow_configuring_ccm", "false")
+        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "false")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 

@@ -13,6 +13,14 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.2.3 [connectors-9.2.3-release-notes]
+
+### Fixes [connectors-9.2.3-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
+## 9.2.2 [connectors-9.2.2-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
 ## 9.2.1 [connectors-9.2.1-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
@@ -22,6 +30,14 @@ There are no new features, enhancements, fixes, known issues, or deprecations as
 * Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
 
 * Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.1.9 [connectors-9.1.9-release-notes]
+
+### Fixes [connectors-9.1.9-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
+## 9.1.8 [connectors-9.1.8-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
 ## 9.1.7 [connectors-9.1.7-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.

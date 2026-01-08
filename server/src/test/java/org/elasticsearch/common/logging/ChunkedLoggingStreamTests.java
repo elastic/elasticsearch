@@ -23,6 +23,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class ChunkedLoggingStreamTests extends ESTestCase {
 
     public static final Logger logger = LogManager.getLogger(ChunkedLoggingStreamTests.class);
@@ -56,14 +58,11 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
         final var bytes = randomByteArrayOfLength(between(0, 10000));
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
         final var referenceDocs = randomFrom(ReferenceDocs.values());
-        assertEquals(
-            new BytesArray(bytes),
-            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, level, "prefix", referenceDocs, () -> {
-                try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", referenceDocs)) {
-                    writeRandomly(stream, bytes);
-                }
-            })
-        );
+        assertThat(ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, level, "prefix", referenceDocs, () -> {
+            try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", referenceDocs)) {
+                writeRandomly(stream, bytes);
+            }
+        }), equalBytes(new BytesArray(bytes)));
     }
 
     private static void writeRandomly(OutputStream stream, byte[] bytes) throws IOException {

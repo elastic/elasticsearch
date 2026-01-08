@@ -227,7 +227,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertDimension(true, BooleanFieldMapper.BooleanFieldType::isDimension);
         assertDimension(false, BooleanFieldMapper.BooleanFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {

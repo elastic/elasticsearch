@@ -12,7 +12,6 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -44,7 +43,7 @@ public class RankDoc extends ScoreDoc implements VersionedNamedWriteable, ToXCon
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

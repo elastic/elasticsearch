@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -21,7 +22,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -78,6 +79,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         reconnect
     }
 
+    static final String linkedProjectIdLabel = "es_linked_project_id";
+    static final String linkedProjectAliasLabel = "es_linked_project_alias";
+    static final String connectionAtemptLabel = "es_linked_project_attempt";
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -86,7 +91,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
     private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
-    private final LongCounter connectionAttemptFailures;
+    private final LongUpDownCounter connectionAttemptFailures;
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
@@ -105,9 +110,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    private LongCounter lookupConnectionFailureMetric(TelemetryProvider telemetryProvider) {
+    private LongUpDownCounter lookupConnectionFailureMetric(TelemetryProvider telemetryProvider) {
         final var meterRegistry = telemetryProvider == null ? null : telemetryProvider.getMeterRegistry();
-        return meterRegistry == null ? null : meterRegistry.getLongCounter(RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME);
+        return meterRegistry == null
+            ? null
+            : meterRegistry.getLongUpDownCounter(RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME);
     }
 
     static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
@@ -235,19 +242,18 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (e == null) {
             logger.debug(msgSupplier);
         } else {
-            logger.warn(msgSupplier, e);
-            if (connectionAttemptFailures != null) {
-                connectionAttemptFailures.incrementBy(
+            final var isClosed = isClosed();
+            logger.log(isClosed ? Level.DEBUG : Level.WARN, msgSupplier, e);
+            if (isClosed == false && connectionAttemptFailures != null) {
+                connectionAttemptFailures.add(
                     1,
                     Map.of(
-                        "linked_project_id",
+                        linkedProjectIdLabel,
                         linkedProjectId.toString(),
-                        "linked_project_alias",
+                        linkedProjectAliasLabel,
                         clusterAlias,
-                        "attempt",
-                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString(),
-                        "strategy",
-                        strategyType().toString()
+                        connectionAtemptLabel,
+                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString()
                     )
                 );
             }

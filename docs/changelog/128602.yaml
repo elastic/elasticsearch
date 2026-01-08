@@ -1,0 +1,6 @@
+pr: 128602
+summary: ChangePointDetector now correctly detects when a constant function returns a different value
+area: Machine Learning
+type: bug
+issues:
+ - 127517

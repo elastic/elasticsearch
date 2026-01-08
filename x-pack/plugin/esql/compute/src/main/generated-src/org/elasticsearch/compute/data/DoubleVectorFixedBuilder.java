@@ -50,7 +50,7 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         return size == 1
             ? ConstantDoubleVector.RAM_BYTES_USED
             : DoubleArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Double.BYTES
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * Double.BYTES
             );
     }
 

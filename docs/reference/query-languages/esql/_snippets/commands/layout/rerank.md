@@ -7,6 +7,53 @@ stack: preview 9.2.0
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
 
+:::::{important}
+**RERANK processes each row through an inference model, which impacts performance and costs.**
+
+::::{tab-set}
+
+:::{tab-item} 9.3.0+
+
+Starting in version 9.3.0, `RERANK` automatically limits processing to **1000 rows by default** to prevent accidental high consumption. This limit is applied before the `RERANK` command executes.
+
+If you need to process more rows, you can adjust the limit using the cluster setting:
+```
+PUT _cluster/settings
+{
+  "persistent": {
+    "esql.command.rerank.limit": 5000
+  }
+}
+```
+
+You can also disable the command entirely if needed:
+```
+PUT _cluster/settings
+{
+  "persistent": {
+    "esql.command.rerank.enabled": false
+  }
+}
+```
+:::
+
+:::{tab-item} 9.2.x
+
+No automatic row limit is applied. **You should always use `LIMIT` before or after `RERANK` to control the number of documents processed**, to avoid accidentally reranking large datasets which can result in high latency and increased costs.
+
+For example:
+```esql
+FROM books
+| WHERE title:"search query"
+| SORT _score DESC
+| LIMIT 100  // Limit to top 100 results before reranking
+| RERANK "search query" ON title WITH { "inference_id" : "my_rerank_endpoint" }
+```
+:::
+
+::::
+:::::
+
 **Syntax**
 
 ```esql

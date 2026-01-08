@@ -10,6 +10,7 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
@@ -24,7 +25,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
  */
 public final class HistogramMergeExponentialHistogramAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM)  );
+      new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
 
@@ -119,8 +121,14 @@ public final class HistogramMergeExponentialHistogramAggregatorFunction implemen
     }
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
     assert value.getPositionCount() == 1;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
-    HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, value.getExponentialHistogram(value.getFirstValueIndex(0), valueScratch));
+    HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, value.getExponentialHistogram(value.getFirstValueIndex(0), valueScratch), seen.getBoolean(0));
   }
 
   @Override

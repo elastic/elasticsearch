@@ -82,7 +82,8 @@ public class EvalMapperTests extends ESTestCase {
         System.nanoTime(),
         false,
         10000000,
-        100000
+        100000,
+        null
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -127,7 +128,7 @@ public class EvalMapperTests extends ESTestCase {
             new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
-            new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
+            new DateTrunc(Source.EMPTY, dateInterval, DATE, TEST_CONFIG) }) {
             params.add(new Object[] { e.nodeString(), e });
         }
 

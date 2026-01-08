@@ -41,6 +41,7 @@
               "type": "list",
               "options": [
                 "_all",
+                "aggregations",
                 "rest_actions"
               ],
               "description": "Limit the information returned to the specified metrics"
@@ -57,6 +58,7 @@
               "type": "list",
               "options": [
                 "_all",
+                "aggregations",
                 "rest_actions"
               ],
               "description": "Limit the information returned to the specified metrics"

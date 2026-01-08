@@ -37,7 +37,10 @@ dependencies {
   implementation project(':libs:native')
   implementation project(':libs:logging')
   implementation project(':server')
-  implementation project(':x-pack:plugin:gpu')
+  implementation project(':libs:gpu-codec')
+
+  testImplementation project(":libs:x-content")
+  testImplementation project(":test:framework")
 }
 /**
  * Task to run the KnnIndexTester with the provided parameters.

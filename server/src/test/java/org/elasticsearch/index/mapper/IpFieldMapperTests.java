@@ -96,6 +96,30 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testIPv6WithMaxHextets() throws Exception {
+        // IPv6 addresses starting with "::" followed by exactly 7 hextets.
+        // These are valid addresses that should be indexed correctly.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        final String[] ipAddresses = {
+            "::1:2:3:4:5:6:7",
+            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            "::1:0:0:0:0:0:1",
+            "::0:0:0:0:0:0:1",
+            "::1:1:1:1:1:1:1" };
+
+        for (final String ipAddress : ipAddresses) {
+            final ParsedDocument doc = mapper.parse(source(b -> b.field("field", ipAddress)));
+
+            final List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.size());
+            final IndexableField pointField = fields.get(0);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), pointField.binaryValue());
+            final IndexableField dvField = fields.get(1);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), dvField.binaryValue());
+        }
+    }
+
     public void testNotIndexed() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -225,7 +249,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertDimension(true, IpFieldMapper.IpFieldType::isDimension);
         assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {

@@ -8,10 +8,9 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -32,9 +31,9 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
             for (IndexMode other : IndexMode.values()) {
                 Query query = ft.termQuery(other.getName(), context);
                 if (other.equals(mode)) {
-                    assertEquals(new MatchAllDocsQuery(), query);
+                    assertEquals(Queries.ALL_DOCS_INSTANCE, query);
                 } else {
-                    assertEquals(new MatchNoDocsQuery(), query);
+                    assertEquals(Queries.NO_DOCS_INSTANCE, query);
                 }
             }
         }
@@ -43,17 +42,17 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
     public void testWildcardQuery() {
         MappedFieldType ft = getMappedFieldType();
 
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.STANDARD)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGSDB)));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("stand*", null, createContext(IndexMode.STANDARD)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("stand*", null, createContext(IndexMode.TIME_SERIES)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGSDB)));
 
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.STANDARD)));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.LOGSDB)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("time*", null, createContext(IndexMode.STANDARD)));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("time*", null, createContext(IndexMode.TIME_SERIES)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("time*", null, createContext(IndexMode.LOGSDB)));
 
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.STANDARD)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGSDB)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.STANDARD)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.TIME_SERIES)));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGSDB)));
     }
 
     @Override

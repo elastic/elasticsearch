@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
@@ -85,7 +86,15 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries;
+
+            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.anyMatch(
+                a -> a instanceof TimeSeriesAggregate ts
+                    && ts.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
+                    && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute)
+            );
+
+            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeSeriesReplacingTsId;
             if (ignoreError == false) {
                 failures.add(
                     fail(

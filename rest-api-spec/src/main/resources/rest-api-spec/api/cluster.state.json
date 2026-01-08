@@ -30,6 +30,7 @@
               "options": [
                 "_all",
                 "blocks",
+                "customs",
                 "metadata",
                 "nodes",
                 "routing_table",
@@ -56,6 +57,7 @@
               "options": [
                 "_all",
                 "blocks",
+                "customs",
                 "metadata",
                 "nodes",
                 "routing_table",
@@ -71,7 +73,10 @@
     },
     "params": {
       "local": {
-        "deprecated": true,
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This parameter has no effect, is now deprecated, and will be removed in a future version."
+        },
         "type": "boolean",
         "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"

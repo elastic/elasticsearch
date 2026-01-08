@@ -26,8 +26,8 @@
           ],
           "parts": {
             "feature": {
-              "type": "string",
-              "description": "A feature of the cluster, as returned by the top-level health API"
+              "type": "list",
+              "description": "Comma-separated list of cluster features, as returned by the top-level health report API."
             }
           }
         }

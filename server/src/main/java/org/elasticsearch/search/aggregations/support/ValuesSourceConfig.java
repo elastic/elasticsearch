@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -430,11 +431,12 @@ public class ValuesSourceConfig {
      * the ordering.
      */
     public boolean alignsWithSearchIndex() {
-        boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
+        var ft = fieldType();
+        boolean hasDocValuesSkipper = ft instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
         return script() == null
             && missing() == null
-            && fieldType() != null
-            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper);
+            && ft != null
+            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts() || hasDocValuesSkipper);
     }
 
     /**

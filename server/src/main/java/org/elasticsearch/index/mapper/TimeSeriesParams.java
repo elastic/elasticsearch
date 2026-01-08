@@ -36,6 +36,7 @@ public final class TimeSeriesParams {
     public enum MetricType {
         GAUGE(new String[] { "max", "min", "value_count", "sum" }),
         COUNTER(new String[] { "last_value" }),
+        HISTOGRAM(new String[] {}, false),
         POSITION(new String[] {}, false);
 
         private final String[] supportedAggs;

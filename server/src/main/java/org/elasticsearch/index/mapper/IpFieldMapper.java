@@ -17,13 +17,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -33,7 +33,10 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -57,6 +60,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
 /**
@@ -175,10 +179,14 @@ public class IpFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
             }
-            if (dimension.get()
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
+            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 return IndexType.skippers();
+            }
+            if (indexed.get() == false && hasDocValues.get()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             return IndexType.points(indexed.get(), hasDocValues.get());
         }
@@ -433,7 +441,7 @@ public class IpFieldMapper extends FieldMapper {
                 lower = parse(lowerTerm);
                 if (includeLower == false) {
                     if (lower.equals(InetAddressPoint.MAX_VALUE)) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     lower = InetAddressPoint.nextUp(lower);
                 }
@@ -446,7 +454,7 @@ public class IpFieldMapper extends FieldMapper {
                 upper = parse(upperTerm);
                 if (includeUpper == false) {
                     if (upper.equals(InetAddressPoint.MIN_VALUE)) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     upper = InetAddressPoint.nextDown(upper);
                 }
@@ -458,7 +466,15 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BytesRefsFromOrdsBlockLoader(name());
+                BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (cfg == null) {
+                    return new BytesRefsFromOrdsBlockLoader(name());
+                }
+                return switch (cfg.function()) {
+                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name());
+                    case MV_MIN -> new MvMinBytesRefsFromOrdsBlockLoader(name());
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                };
             }
 
             if (isStored()) {
@@ -474,6 +490,17 @@ public class IpFieldMapper extends FieldMapper {
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext), lookup);
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return switch (config.function()) {
+                    case MV_MAX, MV_MIN -> true;
+                    default -> false;
+                };
+            }
+            return true;
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
@@ -640,11 +667,11 @@ public class IpFieldMapper extends FieldMapper {
             context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
         LuceneDocument doc = context.doc();
-        if (indexed) {
+        if (fieldType().indexType.hasPoints()) {
             doc.add(address);
         }
-        if (hasDocValues) {
-            if (indexed == false) {
+        if (fieldType().indexType.hasDocValues()) {
+            if (fieldType().indexType.hasDocValuesSkipper()) {
                 doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
             } else {
                 doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));

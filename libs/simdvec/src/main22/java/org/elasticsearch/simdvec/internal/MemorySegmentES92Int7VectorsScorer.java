@@ -48,14 +48,19 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         return res;
     }
 
+    private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
+        final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
+        final MemorySegment querySegment = MemorySegment.ofArray(q);
+        Similarities.dotProduct7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+        in.skipBytes(dimensions * count);
+    }
+
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
         if (NATIVE_SUPPORTED) {
-            // TODO: can we speed up bulks in native code?
-            for (int i = 0; i < count; i++) {
-                scores[i] = nativeInt7DotProduct(q);
-            }
+            nativeInt7DotProductBulk(q, count, scores);
         } else {
             panamaInt7DotProductBulk(q, count, scores);
         }

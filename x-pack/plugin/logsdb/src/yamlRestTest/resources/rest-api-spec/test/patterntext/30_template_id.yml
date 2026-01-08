@@ -18,46 +18,20 @@ setup:
                 type: pattern_text
 
   - do:
-      index:
+      bulk:
         index: test
-        id:    "1"
+        refresh: true
         body:
-          "@timestamp": 2025-07-17T00:00:00Z
-
-  - do:
-      index:
-        index: test
-        id:    "2"
-        body:
-          "foo": "Found 5 errors for service [cheddar1]"
-          "@timestamp": 2025-07-17T00:00:01Z
-
-  - do:
-      index:
-        index: test
-        id:    "3"
-        body:
-          "foo": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]"
-          "@timestamp": 2025-07-17T00:00:02Z
-
-  - do:
-      index:
-        index: test
-        id:    "4"
-        body:
-          "foo": "Found some errors for cheddar data service"
-          "@timestamp": 2025-07-17T00:00:03Z
-
-  - do:
-      index:
-        index: test
-        id:    "5"
-        body:
-          "foo": "Found 123 errors for service [gorgonzola-24]"
-          "@timestamp": 2025-07-17T00:00:04Z
-
-  - do:
-      indices.refresh: {}
+          - { "index": { "_id": "1" } }
+          - { "@timestamp": "2025-07-17T00:00:00Z" }
+          - { "index": { "_id": "2" } }
+          - { "@timestamp": "2025-07-17T00:00:01Z", "foo": "Found 5 errors for service [cheddar1]" }
+          - { "index": { "_id": "3" } }
+          - { "@timestamp": "2025-07-17T00:00:02Z", "foo": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
+          - { "index": { "_id": "4" } }
+          - { "@timestamp": "2025-07-17T00:00:03Z", "foo": "Found some errors for cheddar data service" }
+          - { "index": { "_id": "5" } }
+          - { "@timestamp": "2025-07-17T00:00:04Z", "foo": "Found 123 errors for service [gorgonzola-24]" }
 
 ---
 Field caps:

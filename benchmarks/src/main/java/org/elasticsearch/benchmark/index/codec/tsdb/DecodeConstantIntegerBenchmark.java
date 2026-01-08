@@ -13,7 +13,6 @@ import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBe
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ConstantIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.MetricsConfig;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -56,14 +55,13 @@ public class DecodeConstantIntegerBenchmark {
     }
 
     @Setup(Level.Iteration)
-    public void setupIteration(MetricsConfig config) throws IOException {
+    public void setupIteration() throws IOException {
         decode.setupIteration(new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
-        config.configure(BLOCK_SIZE, decode.getEncodedSize(), bitsPerValue);
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh, MetricsConfig config, CompressionMetrics metrics) throws IOException {
+    public void benchmark(Blackhole bh, CompressionMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(config);
+        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize(), bitsPerValue);
     }
 }

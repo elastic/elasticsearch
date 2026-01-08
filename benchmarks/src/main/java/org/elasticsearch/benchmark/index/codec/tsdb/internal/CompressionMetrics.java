@@ -26,16 +26,11 @@ import org.openjdk.jmh.annotations.TearDown;
  * <h2>Usage</h2>
  * <pre>{@code
  * @Benchmark
- * public void benchmark(Blackhole bh, MetricsConfig config, CompressionMetrics metrics) {
- *     // ... benchmark-specific code ...
- *     metrics.recordOperation(config);
+ * public void benchmark(Blackhole bh, CompressionMetrics metrics) {
+ *     encode.benchmark(bh);
+ *     metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), bitsPerValue);
  * }
  * }</pre>
- *
- * <p>Inject this class into {@code @Benchmark} methods only. For setup methods,
- * use {@link MetricsConfig} instead to avoid JMH injection conflicts.
- *
- * @see MetricsConfig
  */
 @AuxCounters(AuxCounters.Type.EVENTS)
 @State(Scope.Thread)
@@ -82,7 +77,9 @@ public class CompressionMetrics {
      */
     public long totalValuesProcessed;
 
-    private MetricsConfig config;
+    private int blockSize;
+    private int encodedBytesPerBlock;
+    private int nominalBitsPerValue;
 
     /**
      * Resets all metrics at the start of each iteration.
@@ -95,19 +92,25 @@ public class CompressionMetrics {
         overheadRatio = 0;
         totalEncodedBytes = 0;
         totalValuesProcessed = 0;
-        config = null;
+        blockSize = 0;
+        encodedBytesPerBlock = 0;
+        nominalBitsPerValue = 0;
     }
 
     /**
      * Records metrics for a single benchmark operation.
      * Call this method at the end of each {@code @Benchmark} method.
      *
-     * @param config the metrics configuration containing block size and encoded bytes
+     * @param blockSize number of values per encoded block
+     * @param encodedBytes actual bytes produced after encoding one block
+     * @param nominalBits the nominal bits per value being tested
      */
-    public void recordOperation(MetricsConfig config) {
-        this.config = config;
-        totalEncodedBytes += config.getEncodedSizePerBlock();
-        totalValuesProcessed += config.getBlockSize();
+    public void recordOperation(int blockSize, int encodedBytes, int nominalBits) {
+        this.blockSize = blockSize;
+        this.encodedBytesPerBlock = encodedBytes;
+        this.nominalBitsPerValue = nominalBits;
+        totalEncodedBytes += encodedBytes;
+        totalValuesProcessed += blockSize;
     }
 
     /**
@@ -116,17 +119,17 @@ public class CompressionMetrics {
      */
     @TearDown(Level.Iteration)
     public void computeMetrics() {
-        int blockSize = config.getBlockSize();
-        int encodedBytes = config.getEncodedSizePerBlock();
-        int nominalBits = config.getNominalBitsPerValue();
+        if (blockSize == 0) {
+            return;
+        }
 
         long rawBytes = (long) blockSize * Long.BYTES;
-        long theoreticalMin = ceilDiv((long) blockSize * nominalBits, BITS_PER_BYTE);
+        long theoreticalMin = ceilDiv((long) blockSize * nominalBitsPerValue, BITS_PER_BYTE);
 
-        encodedBytesPerValue = (double) encodedBytes / blockSize;
-        compressionRatio = (double) rawBytes / encodedBytes;
+        encodedBytesPerValue = (double) encodedBytesPerBlock / blockSize;
+        compressionRatio = (double) rawBytes / encodedBytesPerBlock;
         encodedBitsPerValue = encodedBytesPerValue * BITS_PER_BYTE;
-        overheadRatio = theoreticalMin > 0 ? (double) encodedBytes / theoreticalMin : 0;
+        overheadRatio = theoreticalMin > 0 ? (double) encodedBytesPerBlock / theoreticalMin : 0;
     }
 
     private static long ceilDiv(long dividend, int divisor) {

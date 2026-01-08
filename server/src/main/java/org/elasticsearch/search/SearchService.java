@@ -1042,13 +1042,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     var opsListener = searchContext.indexShard().getSearchOperationListener();
                     opsListener.onPreFetchPhase(searchContext);
                     try {
-                        fetchPhase.execute(
-                            searchContext,
-                            request.docIds(),
-                            request.getRankDocks(),
-                            /* memoryChecker */ null,
-                            writer
-                        );
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), /* memoryChecker */ null, writer);
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }

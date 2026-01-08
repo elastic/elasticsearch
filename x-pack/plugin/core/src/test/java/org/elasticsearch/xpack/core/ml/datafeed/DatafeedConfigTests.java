@@ -1071,4 +1071,163 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             json.streamInput()
         );
     }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNullDatafeed() {
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY);
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, decider)
+        );
+        assertThat(e.getMessage(), equalTo("datafeed must not be null"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNullCrossProjectModeDecider() {
+        DatafeedConfig datafeed = createTestInstance();
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, null)
+        );
+        assertThat(e.getMessage(), equalTo("crossProjectModeDecider must not be null"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenBothNull() {
+        NullPointerException e = expectThrows(NullPointerException.class, () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, null));
+        assertThat(e.getMessage(), equalTo("datafeed must not be null"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectDisabled() {
+        DatafeedConfig datafeed = createTestInstance();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", false).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should return the same instance when CPS is disabled
+        assertThat(result, equalTo(datafeed));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("index1"));
+        // Explicitly set IndicesOptions without CPS enabled
+        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should return a new instance with CPS enabled
+        assertThat(result, not(equalTo(datafeed)));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndAlreadySet() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("index1"));
+        // Set IndicesOptions with CPS already enabled
+        IndicesOptions cpsEnabledOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        builder.setIndicesOptions(cpsEnabledOptions);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should return the same instance when CPS is already enabled (optimization)
+        assertThat(result, equalTo(datafeed));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectModeDeciderThrowsException() {
+        DatafeedConfig datafeed = createTestInstance();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY) {
+                @Override
+                public boolean crossProjectEnabled() {
+                    throw new RuntimeException("Simulated exception from crossProjectEnabled()");
+                }
+            };
+
+        RuntimeException e = expectThrows(RuntimeException.class, () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider));
+        assertThat(e.getMessage(), equalTo("Simulated exception from crossProjectEnabled()"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_PreservesAllDatafeedProperties() {
+        // Create a datafeed with various properties set
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Arrays.asList("index1", "index2"));
+        builder.setQueryDelay(TimeValue.timeValueSeconds(30));
+        builder.setFrequency(TimeValue.timeValueMinutes(5));
+        builder.setScrollSize(2000);
+        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        DatafeedConfig originalDatafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(originalDatafeed, decider);
+
+        // Verify all properties except IndicesOptions are preserved
+        assertThat(result.getId(), equalTo(originalDatafeed.getId()));
+        assertThat(result.getJobId(), equalTo(originalDatafeed.getJobId()));
+        assertThat(result.getIndices(), equalTo(originalDatafeed.getIndices()));
+        assertThat(result.getQueryDelay(), equalTo(originalDatafeed.getQueryDelay()));
+        assertThat(result.getFrequency(), equalTo(originalDatafeed.getFrequency()));
+        assertThat(result.getScrollSize(), equalTo(originalDatafeed.getScrollSize()));
+        // IndicesOptions should be modified to enable CPS
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_WithProjectQualifiedIndices() {
+        // Test with project-qualified index patterns (e.g., "project:index")
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        // Mix of regular and project-qualified indices
+        builder.setIndices(Arrays.asList("local-index", "project1:remote-index", "project2:logs-*"));
+        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should handle project-qualified indices correctly
+        assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
+        assertThat(result.getIndices(), hasSize(3));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_WithWildcardIndices() {
+        // Test with wildcard patterns
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Arrays.asList("logs-*", "metrics-*", "*-archive"));
+        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should handle wildcard patterns correctly
+        assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
 }

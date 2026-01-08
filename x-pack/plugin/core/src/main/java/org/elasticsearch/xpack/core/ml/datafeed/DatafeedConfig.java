@@ -338,8 +338,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      * @return A new DatafeedConfig with CPS-enabled IndicesOptions if CPS is enabled, otherwise the original config
      */
     public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        Objects.requireNonNull(datafeed, "datafeed must not be null");
+        Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
+
         if (crossProjectModeDecider.crossProjectEnabled()) {
             IndicesOptions baseOptions = datafeed.getIndicesOptions();
+            // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
             if (baseOptions.resolveCrossProjectIndexExpression() == false) {
                 IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))

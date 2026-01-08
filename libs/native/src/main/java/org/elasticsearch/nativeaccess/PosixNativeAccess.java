@@ -19,7 +19,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
 
-abstract class PosixNativeAccess extends AbstractNativeAccess {
+public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;
@@ -41,6 +41,11 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             getRLimit(constants.RLIMIT_AS(), "max size virtual memory"),
             getRLimit(constants.RLIMIT_FSIZE(), "max file size")
         );
+    }
+
+    @Override
+    public PosixCLibrary getPosixCLibrary() {
+        return libc;
     }
 
     /**

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -22,6 +24,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
 
 /**
@@ -68,6 +71,12 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return new ImmediateOrdinals(warnings, DocValues.singleton(singleton));
             }
             return new Singleton(singleton);
+        }
+        BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
+        if (binary != null) {
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            return new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary);
         }
         return new ConstantNullsReader();
     }
@@ -514,6 +523,88 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         private int codePointsAtOrd(long ord) throws IOException {
             return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
         }
+    }
+
+    private static class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
+        private final Warnings warnings;
+        private final NumericDocValues counts;
+        private final BinaryDocValues values;
+
+        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+            this.warnings = warnings;
+            this.counts = counts;
+            this.values = values;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            int count = docs.count() - offset;
+            if (count == 1) {
+                return blockForSingleDoc(factory, docs.get(offset));
+            }
+
+            try (IntBuilder builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    appendLength(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            appendLength(docId, (IntBuilder) builder);
+        }
+
+        @Override
+        public int docId() {
+            return counts.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
+        }
+
+        private void appendLength(int docId, IntBuilder builder) throws IOException {
+            if (counts.advanceExact(docId) == false) {
+                builder.appendNull();
+            } else {
+                int valueCount = Math.toIntExact(counts.longValue());
+                if (valueCount == 1) {
+                    boolean advanced = values.advanceExact(docId);
+                    assert advanced;
+
+                    BytesRef bytes = values.binaryValue();
+                    int length = UnicodeUtil.codePointCount(bytes);
+                    builder.appendInt(length);
+                } else {
+                    registerSingleValueWarning(warnings);
+                    builder.appendNull();
+                }
+            }
+        }
+
+        private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (counts.advanceExact(docId) == false) {
+                return factory.constantNulls(1);
+            } else {
+                int valueCount = Math.toIntExact(counts.longValue());
+                if (valueCount == 1) {
+                    boolean advanced = values.advanceExact(docId);
+                    assert advanced;
+
+                    BytesRef bytes = values.binaryValue();
+                    int length = UnicodeUtil.codePointCount(bytes);
+                    return factory.constantInt(length, 1);
+                } else {
+                    registerSingleValueWarning(warnings);
+                    return factory.constantNulls(1);
+                }
+            }
+        }
+
     }
 
     /**

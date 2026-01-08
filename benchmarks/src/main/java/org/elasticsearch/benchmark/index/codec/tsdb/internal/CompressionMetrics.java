@@ -21,7 +21,7 @@ import org.openjdk.jmh.annotations.TearDown;
  *
  * <p>This class uses JMH's {@link AuxCounters} feature to report compression metrics
  * alongside timing data. Metrics are accumulated during benchmark operations and
- * computed at iteration teardown.
+ * computed at iteration teardown. JMH accesses the metrics via public getter methods.
  *
  * <h2>Usage</h2>
  * <pre>{@code
@@ -38,44 +38,12 @@ public class CompressionMetrics {
 
     private static final int BITS_PER_BYTE = 8;
 
-    /**
-     * Average bytes written per value after encoding.
-     * Lower values indicate better compression.
-     */
-    public double encodedBytesPerValue;
-
-    /**
-     * Compression ratio: raw size (8 bytes/value) divided by encoded size.
-     * Higher values indicate better compression. A ratio of 8.0 means
-     * the data was compressed to 1 byte per value.
-     */
-    public double compressionRatio;
-
-    /**
-     * Average bits used per value after encoding.
-     * Compare against the nominal input {@code bitsPerValue} to assess
-     * compression effectiveness.
-     */
-    public double encodedBitsPerValue;
-
-    /**
-     * Ratio of actual encoded size to theoretical minimum size.
-     * A value of 1.0 indicates optimal encoding with no overhead.
-     * Values greater than 1.0 indicate encoding overhead.
-     */
-    public double overheadRatio;
-
-    /**
-     * Total bytes encoded or decoded during this iteration.
-     * Accumulated across all operations in the iteration.
-     */
-    public long totalEncodedBytes;
-
-    /**
-     * Total number of values processed during this iteration.
-     * Accumulated across all operations in the iteration.
-     */
-    public long totalValuesProcessed;
+    private double encodedBytesPerValue;
+    private double compressionRatio;
+    private double encodedBitsPerValue;
+    private double overheadRatio;
+    private long totalEncodedBytes;
+    private long totalValuesProcessed;
 
     private int blockSize;
     private int encodedBytesPerBlock;
@@ -130,6 +98,69 @@ public class CompressionMetrics {
         compressionRatio = (double) rawBytes / encodedBytesPerBlock;
         encodedBitsPerValue = encodedBytesPerValue * BITS_PER_BYTE;
         overheadRatio = theoreticalMin > 0 ? (double) encodedBytesPerBlock / theoreticalMin : 0;
+    }
+
+    /**
+     * Returns average bytes written per value after encoding.
+     * Lower values indicate better compression.
+     *
+     * @return encoded bytes per value
+     */
+    public double getEncodedBytesPerValue() {
+        return encodedBytesPerValue;
+    }
+
+    /**
+     * Returns compression ratio: raw size (8 bytes/value) divided by encoded size.
+     * Higher values indicate better compression. A ratio of 8.0 means
+     * the data was compressed to 1 byte per value.
+     *
+     * @return compression ratio
+     */
+    public double getCompressionRatio() {
+        return compressionRatio;
+    }
+
+    /**
+     * Returns average bits used per value after encoding.
+     * Compare against the nominal input {@code bitsPerValue} to assess
+     * compression effectiveness.
+     *
+     * @return encoded bits per value
+     */
+    public double getEncodedBitsPerValue() {
+        return encodedBitsPerValue;
+    }
+
+    /**
+     * Returns ratio of actual encoded size to theoretical minimum size.
+     * A value of 1.0 indicates optimal encoding with no overhead.
+     * Values greater than 1.0 indicate encoding overhead.
+     *
+     * @return overhead ratio
+     */
+    public double getOverheadRatio() {
+        return overheadRatio;
+    }
+
+    /**
+     * Returns total bytes encoded or decoded during this iteration.
+     * Accumulated across all operations in the iteration.
+     *
+     * @return total encoded bytes
+     */
+    public long getTotalEncodedBytes() {
+        return totalEncodedBytes;
+    }
+
+    /**
+     * Returns total number of values processed during this iteration.
+     * Accumulated across all operations in the iteration.
+     *
+     * @return total values processed
+     */
+    public long getTotalValuesProcessed() {
+        return totalValuesProcessed;
     }
 
     private static long ceilDiv(long dividend, int divisor) {

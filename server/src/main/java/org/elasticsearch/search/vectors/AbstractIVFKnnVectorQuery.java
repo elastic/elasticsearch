@@ -212,15 +212,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
-        // LongAdder longAdder = new LongAdder();
         for (VectorLeafSearchFilterMeta leafSearchMeta : leafSearchMetas) {
             tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null, 0));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
-        // if (longAdder.longValue() > 0) {
-        // LogManager.getLogger("org.elasticsearch.test.knn.KnnIndexTester")
-        // .info("Completed {} additional searches to fill results", longAdder.longValue());
-        // }
+
         // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         ScoreDoc[] scoreDocs = topK.scoreDocs;
@@ -267,7 +263,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return Lucene.EMPTY_TOP_DOCS;
         }
         if (postFilter) {
-            Arrays.sort(scoreDocs, 0, searchResults, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
             // should re-run search to fill more results as needed
             if (alreadyCollectedResults + searchResults < k) {
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();

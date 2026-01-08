@@ -241,7 +241,13 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
     }
 
     /**
-     * An {code ESAcceptDocs} implementation that defers all filtering until after the search.
+     * An ESAcceptDocs implementation that defers filtering until after vector search.
+     *
+     * <p>During search, returns only live docs via {@link #bits()}, allowing IVF to score all
+     * live vectors without filter overhead. After search, the filter iterator is used
+     * to post-filter collected results. If fewer than k results pass the filter,
+     * the search can be re-run with previously visited centroids excluded via recursive
+     * invocation of searchLeaf and by resetting the iterator.
      */
     public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
 
@@ -273,7 +279,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int cost() throws IOException {
-            return 0;
+            return Math.toIntExact(supplierCost);
         }
 
         @Override
@@ -283,9 +289,16 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Optional<BitSet> getBitSet() throws IOException {
-            return null;
+            return Optional.empty();
         }
 
+        /**
+         * Resets the filter iterator to the beginning for recursive search passes.
+         *
+         * <p>Must be called before each recursive searchLeaf invocation to ensure
+         * the iterator starts at docID -1. This allows post-filtering of results
+         * from additional centroid searches in subsequent iterations.
+         */
         public void refreshIterator() throws IOException {
             this.iterator = filterWeight.scorer(leafReaderContext).iterator();
             assert this.iterator.docID() == -1;

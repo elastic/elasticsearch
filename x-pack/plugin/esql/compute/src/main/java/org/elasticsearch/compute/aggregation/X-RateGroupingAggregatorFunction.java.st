@@ -46,21 +46,23 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
 
     private static class LocalSingletonCircuitBreakerService extends CircuitBreakerService implements Releasable {
 
-        private final LocalCircuitBreaker localCircuitBreaker;
-        private final String breakerName;
+        private final CircuitBreakerService delegateService;
+        private LocalCircuitBreaker localCircuitBreaker;
 
-        private LocalSingletonCircuitBreakerService(String breakerName, CircuitBreaker delegate) {
-            this.breakerName = breakerName;
-            this.localCircuitBreaker = new LocalCircuitBreaker(
-                delegate,
-                ByteSizeValue.ofKb(8).getBytes(),
-                ByteSizeValue.ofKb(512).getBytes()
-            );
+        private LocalSingletonCircuitBreakerService(CircuitBreakerService delegateService) {
+            this.delegateService = delegateService;
         }
 
         @Override
         public CircuitBreaker getBreaker(String name) {
-            assert breakerName.equals(name) : "Only a breaker with the name " + breakerName + " is supported";
+            if (localCircuitBreaker == null) {
+                this.localCircuitBreaker = new LocalCircuitBreaker(
+                    delegateService.getBreaker(name),
+                    ByteSizeValue.ofKb(8).getBytes(),
+                    ByteSizeValue.ofKb(512).getBytes()
+                );
+            }
+            assert localCircuitBreaker.getName().equals(name) : "this service only supports a single breaker";
             return localCircuitBreaker;
         }
 
@@ -76,8 +78,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
 
         @Override
         public void close() {
-            // todo: assert that everything was released?
-            localCircuitBreaker.close();
+            Releasables.close(localCircuitBreaker);
         }
     }
 
@@ -141,8 +142,8 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        localCircuitBreakerService = new LocalSingletonCircuitBreakerService("local-big-arrays", driverContext.breaker());
-        this.bigArrays = new BigArrays(null, localCircuitBreakerService, "local-big-arrays");
+        localCircuitBreakerService = new LocalSingletonCircuitBreakerService(driverContext.bigArrays().breakerService());
+        this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
         this.isRateOverTime = isRateOverTime;
         ObjectArray<Buffer> buffers = bigArrays.newObjectArray(256);
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
@@ -436,7 +437,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 buffer.close();
             }
         }
-        Releasables.close(reducedStates, buffers);
+        Releasables.close(reducedStates, buffers, localCircuitBreakerService);
     }
 
     private Buffer getBuffer(int groupId, int newElements, long firstTimestamp) {
@@ -620,7 +621,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         int positionCount = selected.getPositionCount();
         try (
             var rates = blockFactory.newDoubleBlockBuilder(positionCount);
-            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, driverContext.bigArrays())
+            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, bigArrays)
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);

@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -22,29 +22,11 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
-          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "boolean",
-          "optional" : false,
-          "description" : ""
-        },
-        {
-          "name" : "precision",
-          "type" : "long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
         }
@@ -58,7 +40,25 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "precision",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -76,7 +76,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -88,29 +88,11 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
-          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "date",
-          "optional" : false,
-          "description" : ""
-        },
-        {
-          "name" : "precision",
-          "type" : "long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
         }
@@ -124,7 +106,25 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "precision",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -142,7 +142,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -154,29 +154,11 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
-          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : ""
-        },
-        {
-          "name" : "precision",
-          "type" : "long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
         }
@@ -190,7 +172,25 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "precision",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -208,7 +208,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -220,29 +220,11 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
-          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "double",
-          "optional" : false,
-          "description" : ""
-        },
-        {
-          "name" : "precision",
-          "type" : "long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
         }
@@ -256,7 +238,25 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "precision",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -274,7 +274,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -286,7 +286,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -304,7 +304,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -322,7 +322,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -340,7 +340,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -352,29 +352,11 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
-          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "ip",
-          "optional" : false,
-          "description" : ""
-        },
-        {
-          "name" : "precision",
-          "type" : "long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
         }
@@ -388,7 +370,25 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "precision",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -406,7 +406,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -418,7 +418,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -436,7 +436,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -454,7 +454,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -472,7 +472,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -484,7 +484,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -502,7 +502,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -520,7 +520,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -538,7 +538,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -550,7 +550,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -568,7 +568,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -586,7 +586,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -604,7 +604,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -616,7 +616,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -634,7 +634,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",
@@ -652,7 +652,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "precision",

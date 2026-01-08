@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
+import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.lang.foreign.Arena;

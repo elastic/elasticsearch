@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
+import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 
 import java.util.function.IntConsumer;
 

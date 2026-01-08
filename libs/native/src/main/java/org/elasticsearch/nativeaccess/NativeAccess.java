@@ -12,6 +12,8 @@ package org.elasticsearch.nativeaccess;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Provides access to native functionality needed by Elastisearch.
@@ -23,6 +25,102 @@ public interface NativeAccess {
      */
     static NativeAccess instance() {
         return NativeAccessHolder.INSTANCE;
+    }
+
+    /**
+     * Run the given callback if the current platform is POSIX.
+     * @param callback A callback consuming a Posix-specific native access instance
+     */
+    static void onPosix(Consumer<PosixNativeAccess> callback) {
+        if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess) {
+            callback.accept((PosixNativeAccess) NativeAccessHolder.INSTANCE);
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is POSIX and return a value.
+     * @param callback A callback consuming a Posix-specific native access instance and returning a value
+     * @param defaultValue The value to return if the current platform is not POSIX
+     * @return The result of the callback or the default value if the platform is not POSIX
+     */
+    static <T> T onPosix(Function<PosixNativeAccess, T> callback, T defaultValue) {
+        if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess) {
+            return callback.apply((PosixNativeAccess) NativeAccessHolder.INSTANCE);
+        } else {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is Windows.
+     * @param callback A callback consuming a Windows-specific native access instance
+     */
+    static void onWindows(Consumer<WindowsNativeAccess> callback) {
+        if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess) {
+            callback.accept((WindowsNativeAccess) NativeAccessHolder.INSTANCE);
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is Windows and return a value.
+     * @param callback A callback consuming a Windows-specific native access instance and returning a value
+     * @param defaultValue The value to return if the current platform is not Windows
+     * @return The result of the callback or the default value if the platform is not Windows
+     */
+    static <T> T onWindows(Function<WindowsNativeAccess, T> callback, T defaultValue) {
+        if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess) {
+            return callback.apply((WindowsNativeAccess) NativeAccessHolder.INSTANCE);
+        } else {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is Mac.
+     * @param callback A callback consuming a Mac-specific native access instance
+     */
+    static void onMac(Consumer<MacNativeAccess> callback) {
+        if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess) {
+            callback.accept((MacNativeAccess) NativeAccessHolder.INSTANCE);
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is Mac and return a value.
+     * @param callback A callback consuming a Mac-specific native access instance and returning a value
+     * @param defaultValue The value to return if the current platform is not Mac
+     * @return The result of the callback or the default value if the platform is not Mac
+     */
+    static <T> T onMac(Function<MacNativeAccess, T> callback, T defaultValue) {
+        if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess) {
+            return callback.apply((MacNativeAccess) NativeAccessHolder.INSTANCE);
+        } else {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is Linux.
+     * @param callback A callback consuming a Linux-specific native access instance
+     */
+    static void onLinux(Consumer<LinuxNativeAccess> callback) {
+        if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess) {
+            callback.accept((LinuxNativeAccess) NativeAccessHolder.INSTANCE);
+        }
+    }
+
+    /**
+     * Run the given callback if the current platform is Linux and return a value.
+     * @param callback A callback consuming a Linux-specific native access instance and returning a value
+     * @param defaultValue The value to return if the current platform is not Linux
+     * @return The result of the callback or the default value if the platform is not Linux
+     */
+    static <T> T onLinux(Function<LinuxNativeAccess, T> callback, T defaultValue) {
+        if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess) {
+            return callback.apply((LinuxNativeAccess) NativeAccessHolder.INSTANCE);
+        } else {
+            return defaultValue;
+        }
     }
 
     /**
@@ -74,13 +172,6 @@ public interface NativeAccess {
     OptionalLong allocatedSizeInBytes(Path path);
 
     void tryPreallocate(Path file, long size);
-
-    /**
-     * Returns an accessor for native functions only available on Windows, or {@code null} if not on Windows.
-     */
-    default WindowsFunctions getWindowsFunctions() {
-        return null;
-    }
 
     /*
      * Returns the vector similarity functions, or an empty optional.

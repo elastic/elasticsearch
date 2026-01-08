@@ -36,7 +36,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    public void testSingle() throws Exception {
+    public void testSingleScalarVsVectorized() throws Exception {
         for (int i = 0; i < 100; i++) {
 
             var scalar = new VectorScorerOSQBenchmark();
@@ -58,7 +58,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.score();
 
-                assertArrayEquals("single vectorized", expected, result, delta);
+                assertArrayEquals("single scoring, scalar VS vectorized", expected, result, delta);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
@@ -66,7 +66,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         }
     }
 
-    public void testBulk() throws Exception {
+    public void testBulkScalarVsVectorized() throws Exception {
         for (int i = 0; i < 100; i++) {
 
             var scalar = new VectorScorerOSQBenchmark();
@@ -89,10 +89,52 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.bulkScore();
 
-                assertArrayEquals("bulk vectorized", expected, result, delta);
+                assertArrayEquals("bulk scoring, scalar VS vectorized", expected, result, delta);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+            }
+        }
+    }
+
+    public void testScalarSingleVsBulk() throws Exception {
+        for (int i = 0; i < 100; i++) {
+
+            var scorer = new VectorScorerOSQBenchmark();
+            try {
+                scorer.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scorer.dims = dims;
+                scorer.bits = bits;
+                scorer.directoryType = directoryType;
+                scorer.setup();
+
+                float[] expected = scorer.score();
+                float[] result = scorer.bulkScore();
+
+                assertArrayEquals("single VS bulk, scalar implementation", expected, result, delta);
+            } finally {
+                scorer.teardown();
+            }
+        }
+    }
+
+    public void testVectorizedSingleVsBulk() throws Exception {
+        for (int i = 0; i < 100; i++) {
+
+            var scorer = new VectorScorerOSQBenchmark();
+            try {
+                scorer.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                scorer.dims = dims;
+                scorer.bits = bits;
+                scorer.directoryType = directoryType;
+                scorer.setup();
+
+                float[] expected = scorer.score();
+                float[] result = scorer.bulkScore();
+
+                assertArrayEquals("single VS bulk, vectorized implementation", expected, result, delta);
+            } finally {
+                scorer.teardown();
             }
         }
     }

@@ -39,22 +39,22 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.humanReadable(true).startObject();
         IllegalStateException error = expectThrows(IllegalStateException.class, () -> aggregateMetricProducerSerializer.write(builder));
-        assertThat(error.getMessage(), equalTo("Unexpected field producer class: AggregateGauge for my-gauge field"));
+        assertThat(error.getMessage(), equalTo("Unexpected field downsampler class: AggregateGauge for my-gauge field"));
     }
 
     public void testInvalidCounterFieldSerialization() throws IOException {
-        NumericMetricFieldDownsampler producer = new NumericMetricFieldDownsampler.LastValue("my-counter", null, null);
+        NumericMetricFieldDownsampler downsampler = new NumericMetricFieldDownsampler.LastValue("my-counter", null, null);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55, 12, 5);
-        producer.collect(valuesInstance, docIdBuffer);
+        downsampler.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler.Serializer gaugeFieldSerializer = new AggregateMetricDoubleFieldDownsampler.Serializer(
             "my-counter",
-            List.of(producer)
+            List.of(downsampler)
         );
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.humanReadable(true).startObject();
         IllegalStateException error = expectThrows(IllegalStateException.class, () -> gaugeFieldSerializer.write(builder));
-        assertThat(error.getMessage(), equalTo("Unexpected field producer class: LastValue for my-counter field"));
+        assertThat(error.getMessage(), equalTo("Unexpected field downsampler class: LastValue for my-counter field"));
     }
 
     public void testAggregateMetricDoubleFieldSerialization() throws IOException {

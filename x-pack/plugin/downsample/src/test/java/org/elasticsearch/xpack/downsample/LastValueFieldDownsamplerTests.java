@@ -122,9 +122,9 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     public void testFlattenedLastValueFieldDownsampler() throws IOException {
-        var producer = new LastValueFieldDownsampler("dummy", createDummyFlattenedFieldType(), null);
-        assertTrue(producer.isEmpty());
-        assertEquals("dummy", producer.name());
+        var downsampler = LastValueFieldDownsampler.create("dummy", createDummyFlattenedFieldType(), null);
+        assertTrue(downsampler.isEmpty());
+        assertEquals("dummy", downsampler.name());
 
         var bytes = List.of("a\0value_a", "b\0value_b", "c\0value_c", "d\0value_d");
         var docValues = new FormattedDocValues() {
@@ -147,23 +147,23 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
             }
         };
 
-        producer.collect(docValues, IntArrayList.from(1));
-        assertFalse(producer.isEmpty());
-        assertEquals("a\0value_a", (((Object[]) producer.lastValue())[0]).toString());
-        assertEquals("b\0value_b", (((Object[]) producer.lastValue())[1]).toString());
-        assertEquals("c\0value_c", (((Object[]) producer.lastValue())[2]).toString());
-        assertEquals("d\0value_d", (((Object[]) producer.lastValue())[3]).toString());
+        downsampler.collect(docValues, IntArrayList.from(1));
+        assertFalse(downsampler.isEmpty());
+        assertEquals("a\0value_a", (((Object[]) downsampler.lastValue())[0]).toString());
+        assertEquals("b\0value_b", (((Object[]) downsampler.lastValue())[1]).toString());
+        assertEquals("c\0value_c", (((Object[]) downsampler.lastValue())[2]).toString());
+        assertEquals("d\0value_d", (((Object[]) downsampler.lastValue())[3]).toString());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();
-        producer.write(builder);
+        downsampler.write(builder);
         builder.endObject();
         var content = Strings.toString(builder);
         assertThat(content, equalTo("{\"dummy\":{\"a\":\"value_a\",\"b\":\"value_b\",\"c\":\"value_c\",\"d\":\"value_d\"}}"));
 
-        producer.reset();
-        assertTrue(producer.isEmpty());
-        assertNull(producer.lastValue());
+        downsampler.reset();
+        assertTrue(downsampler.isEmpty());
+        assertNull(downsampler.lastValue());
     }
 
     static <T> FormattedDocValues createValuesInstance(IntArrayList docIdBuffer, T[] values) {
@@ -192,7 +192,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType createDummyFlattenedFieldType() {
-        return new MappedFieldType("flattened", IndexType.NONE, false, Map.of()) {
+        return new MappedFieldType("dummy", IndexType.NONE, false, Map.of()) {
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                 return null;
@@ -200,7 +200,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
 
             @Override
             public String typeName() {
-                return "";
+                return "flattened";
             }
 
             @Override

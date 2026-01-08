@@ -37,7 +37,8 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     private static final FeatureFlag FAST_CODE_POINT_COUNT_FEATURE_FLAG = new FeatureFlag("fast_code_point_count");
 
     private static final CodePointCountProvider codePointCountProvider = FAST_CODE_POINT_COUNT_FEATURE_FLAG.isEnabled()
-        ? BytesRefs::fastCodePointCount : UnicodeUtil::codePointCount;
+        ? BytesRefs::fastCodePointCount
+        : UnicodeUtil::codePointCount;
 
     /**
      * When there are fewer than this many unique values we use much more efficient "low cardinality"

@@ -9,11 +9,11 @@ The `COMPLETION` command allows you to send prompts and context to a Large Langu
 :::::{important}
 **Every row processed by the COMPLETION command generates a separate API call to the LLM endpoint.**
 
-::::{tab-set}
+::::{applies-switch}
 
-:::{tab-item} 9.3.0+
+:::{applies-item} stack: ga 9.3+
 
-Starting in version 9.3.0, `COMPLETION` automatically limits processing to **100 rows by default** to prevent accidental high consumption and costs. This limit is applied before the `COMPLETION` command executes.
+`COMPLETION` automatically limits processing to **100 rows by default** to prevent accidental high consumption and costs. This limit is applied before the `COMPLETION` command executes.
 
 If you need to process more rows, you can adjust the limit using the cluster setting:
 ```
@@ -36,7 +36,7 @@ PUT _cluster/settings
 ```
 :::
 
-:::{tab-item} 9.1.x - 9.2.x
+:::{applies-item} stack: ga 9.1-9.2
 
 Be careful to test with small datasets first before running on production data or in automated workflows, to avoid unexpected costs.
 
@@ -53,9 +53,9 @@ Best practices:
 
 **Syntax**
 
-::::{tab-set}
+::::{applies-switch}
 
-:::{tab-item} 9.2.0+
+:::{applies-item} stack: ga 9.2+
 
 ```esql
 COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
@@ -63,7 +63,7 @@ COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
 
 :::
 
-:::{tab-item} 9.1.x only
+:::{applies-item} stack: ga =9.1
 
 ```esql
 COMPLETION [column =] prompt WITH my_inference_endpoint
@@ -115,21 +115,23 @@ task type `completion`.
 
 How you increase the timeout depends on your deployment type:
 
-::::{tab-set}
-:::{tab-item} {{ech}}
+::::{applies-switch}
+
+:::{applies-item} ess:
 * You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
 * You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
 :::
 
-:::{tab-item} Self-managed
+:::{applies-item} self:
 * You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
 * You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
 * Alternatively, you can add timeout parameters to individual queries
 :::
 
-:::{tab-item} {{serverless-full}}
+:::{applies-item} serverless:
 * Requires a manual override from Elastic Support because you cannot modify timeout settings directly
 :::
+
 ::::
 
 If you don't want to increase the timeout limit, try the following:

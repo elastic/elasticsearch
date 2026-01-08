@@ -1,5 +1,8 @@
 {
     "properties" : {
+        "@timestamp" : {
+            "type" : "date"
+        },
         "emp_no" : {
             "type" : "integer"
         },

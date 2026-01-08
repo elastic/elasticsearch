@@ -813,11 +813,10 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, function("min", c));
     }
 
-    @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
         assumeTrue("PromQL required", PromqlFeatures.isEnabled());
         Counters c = esql("""
-            PROMQL metrics step 5m (sum(salary))""");
+            PROMQL index=metrics step=5m sum(salary)""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));

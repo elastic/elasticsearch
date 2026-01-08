@@ -362,6 +362,15 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(2, ((Literal) addExpr.right()).value());
     }
 
+    public void testRowWithUnresolvableForwardReferences() {
+        verifyUnsupported("""
+            ROW a = b + c, b = 1, c = 2
+            """, """
+            Found 2 problems
+            line 1:9: Unknown column [b]
+            line 1:13: Unknown column [c]""");
+    }
+
     public void testUnresolvableAttribute() {
         Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
 

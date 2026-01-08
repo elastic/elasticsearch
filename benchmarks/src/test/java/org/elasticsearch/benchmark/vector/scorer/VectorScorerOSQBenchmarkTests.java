@@ -17,6 +17,7 @@ import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
@@ -38,6 +39,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
     public void testSingleScalarVsVectorized() throws Exception {
         for (int i = 0; i < 100; i++) {
+            var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
@@ -46,7 +48,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
-                scalar.setup();
+                scalar.setup(new Random(seed));
 
                 float[] expected = scalar.score();
 
@@ -54,7 +56,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
-                vectorized.setup();
+                vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.score();
 
@@ -77,7 +79,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
-                scalar.setup(random());
+                scalar.setup();
 
                 float[] expected = scalar.bulkScore();
 
@@ -85,7 +87,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
-                vectorized.setup(random());
+                vectorized.setup();
 
                 float[] result = vectorized.bulkScore();
 
@@ -100,20 +102,29 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     public void testScalarSingleVsBulk() throws Exception {
         for (int i = 0; i < 100; i++) {
 
-            var scorer = new VectorScorerOSQBenchmark();
+            var scorer1 = new VectorScorerOSQBenchmark();
+            var scorer2 = new VectorScorerOSQBenchmark();
             try {
-                scorer.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
-                scorer.dims = dims;
-                scorer.bits = bits;
-                scorer.directoryType = directoryType;
-                scorer.setup();
+                scorer1.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scorer1.dims = dims;
+                scorer1.bits = bits;
+                scorer1.directoryType = directoryType;
+                scorer1.setup();
 
-                float[] expected = scorer.score();
-                float[] result = scorer.bulkScore();
+                float[] expected = scorer1.score();
+
+                scorer2.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scorer2.dims = dims;
+                scorer2.bits = bits;
+                scorer2.directoryType = directoryType;
+                scorer2.setup();
+
+                float[] result = scorer2.bulkScore();
 
                 assertArrayEquals("single VS bulk, scalar implementation", expected, result, delta);
             } finally {
-                scorer.teardown();
+                scorer1.teardown();
+                scorer2.teardown();
             }
         }
     }
@@ -121,20 +132,29 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     public void testVectorizedSingleVsBulk() throws Exception {
         for (int i = 0; i < 100; i++) {
 
-            var scorer = new VectorScorerOSQBenchmark();
+            var scorer1 = new VectorScorerOSQBenchmark();
+            var scorer2 = new VectorScorerOSQBenchmark();
             try {
-                scorer.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
-                scorer.dims = dims;
-                scorer.bits = bits;
-                scorer.directoryType = directoryType;
-                scorer.setup();
+                scorer1.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                scorer1.dims = dims;
+                scorer1.bits = bits;
+                scorer1.directoryType = directoryType;
+                scorer1.setup();
 
-                float[] expected = scorer.score();
-                float[] result = scorer.bulkScore();
+                float[] expected = scorer1.score();
+
+                scorer2.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                scorer2.dims = dims;
+                scorer2.bits = bits;
+                scorer2.directoryType = directoryType;
+                scorer2.setup();
+
+                float[] result = scorer2.bulkScore();
 
                 assertArrayEquals("single VS bulk, vectorized implementation", expected, result, delta);
             } finally {
-                scorer.teardown();
+                scorer1.teardown();
+                scorer2.teardown();
             }
         }
     }

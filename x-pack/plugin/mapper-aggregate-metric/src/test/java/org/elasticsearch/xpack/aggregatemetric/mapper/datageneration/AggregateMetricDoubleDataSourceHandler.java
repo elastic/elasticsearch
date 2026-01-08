@@ -13,9 +13,9 @@ import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class AggregateMetricDoubleDataSourceHandler implements DataSourceHandler {
     @Override
@@ -46,7 +46,9 @@ public class AggregateMetricDoubleDataSourceHandler implements DataSourceHandler
             var map = new HashMap<String, Object>();
 
             List<AggregateMetricDoubleFieldMapper.Metric> metrics = ESTestCase.randomNonEmptySubsetOf(
-                Arrays.asList(AggregateMetricDoubleFieldMapper.Metric.values())
+                Stream.of(AggregateMetricDoubleFieldMapper.Metric.values())
+                    .filter(m -> m != AggregateMetricDoubleFieldMapper.Metric.avg)
+                    .toList()
             );
 
             map.put("metrics", metrics.stream().map(Enum::toString).toList());

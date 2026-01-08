@@ -42,14 +42,15 @@ import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric.avg;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
@@ -455,7 +456,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
      *  subfields of aggregate_metric_double should not be searchable or exposed in field_caps
      */
     public void testNoSubFieldsIterated() throws IOException {
-        Metric[] values = Metric.values();
+        Metric[] values = Stream.of(Metric.values()).filter(m -> m != avg).toArray(Metric[]::new);
         List<Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, subset).field(DEFAULT_METRIC, subset.get(0)))
@@ -587,7 +588,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
         public AggregateMetricDoubleSyntheticSourceSupport(boolean malformedExample) {
             this.malformedExample = malformedExample;
-            this.storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+            this.storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Stream.of(Metric.values()).filter(m -> m != avg).toList()));
         }
 
         @Override

@@ -77,6 +77,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig.Function.AMD_DEFAULT;
 
 /** A {@link FieldMapper} for a field containing aggregate metrics such as min/max/value_count etc. */
 public class AggregateMetricDoubleFieldMapper extends FieldMapper {
@@ -117,7 +118,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         min,
         max,
         sum,
-        value_count
+        value_count,
+        avg
     }
 
     public static class Defaults {
@@ -215,10 +217,20 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 }
             }
 
-            if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
+            if (metrics.getValue().contains(defaultMetric.getValue()) == false && defaultMetric.getValue() != Metric.avg) {
                 // The default_metric is not defined in the "metrics" field
                 throw new IllegalArgumentException(
                     "Default metric [" + defaultMetric.getValue() + "] is not defined in the metrics of field [" + leafName() + "]."
+                );
+            }
+            if (defaultMetric.getValue() == Metric.avg
+                && (metrics.getValue().contains(Metric.sum) == false || metrics.getValue().contains(Metric.value_count) == false)) {
+                throw new IllegalArgumentException(
+                    "Default metric ["
+                        + defaultMetric.getValue()
+                        + "] requires metrics sum and value count to be defined in metrics of field ["
+                        + leafName()
+                        + "]."
                 );
             }
 
@@ -290,7 +302,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields,
             Map<String, String> meta
         ) {
-            super(name, metricFields.get(defaultMetric).indexType(), false, meta);
+            super(name, metricFields.values().stream().findAny().get().indexType(), false, meta);
             this.metricType = metricType;
             this.defaultMetric = defaultMetric;
             this.metricFields = metricFields;
@@ -309,7 +321,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
-            return delegateFieldType(defaultMetric);
+            return delegateFieldType(defaultMetric == Metric.avg ? Metric.sum : defaultMetric);
         }
 
         @Override
@@ -405,34 +417,17 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
                             try {
-                                final SortedNumericDocValues values = DocValues.getSortedNumeric(
-                                    context.reader(),
-                                    subfieldName(getFieldName(), metric)
-                                );
-
-                                return new SortedNumericDoubleValues() {
-                                    @Override
-                                    public int docValueCount() {
-                                        return values.docValueCount();
-                                    }
-
-                                    @Override
-                                    public boolean advanceExact(int doc) throws IOException {
-                                        return values.advanceExact(doc);
-                                    }
-
-                                    @Override
-                                    public double nextValue() throws IOException {
-                                        long v = values.nextValue();
-                                        if (metric == Metric.value_count) {
-                                            // Only value_count metrics are encoded as integers
-                                            return v;
-                                        } else {
-                                            // All other metrics are encoded as doubles
-                                            return NumericUtils.sortableLongToDouble(v);
-                                        }
-                                    }
-                                };
+                                if (metric == Metric.avg) {
+                                    return new AggregateMetricAvgValues(
+                                        DocValues.getSortedNumeric(context.reader(), subfieldName(getFieldName(), Metric.sum)),
+                                        DocValues.getSortedNumeric(context.reader(), subfieldName(getFieldName(), Metric.value_count))
+                                    );
+                                } else {
+                                    return new AggregateMetricValues(
+                                        DocValues.getSortedNumeric(context.reader(), subfieldName(getFieldName(), metric)),
+                                        metric
+                                    );
+                                }
                             } catch (IOException e) {
                                 throw new IllegalStateException("Cannot load doc values", e);
                             }
@@ -493,6 +488,64 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             };
         }
 
+        private static class AggregateMetricValues extends SortedNumericDoubleValues {
+            final SortedNumericDocValues values;
+            final Metric metric;
+
+            private AggregateMetricValues(SortedNumericDocValues values, Metric metric) {
+                this.values = values;
+                this.metric = metric;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public double nextValue() throws IOException {
+                long v = values.nextValue();
+                if (metric == Metric.value_count) {
+                    // Only value_count metrics are encoded as integers
+                    return v;
+                } else {
+                    // All other metrics are encoded as doubles
+                    return NumericUtils.sortableLongToDouble(v);
+                }
+            }
+        }
+
+        private static class AggregateMetricAvgValues extends SortedNumericDoubleValues {
+            final SortedNumericDocValues sumValues;
+            final SortedNumericDocValues countValues;
+
+            private AggregateMetricAvgValues(SortedNumericDocValues sumValues, SortedNumericDocValues countValues) {
+                this.sumValues = sumValues;
+                this.countValues = countValues;
+            }
+
+            @Override
+            public int docValueCount() {
+                return sumValues.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                boolean advance = sumValues.advanceExact(doc);
+                return countValues.advanceExact(doc) && advance;
+            }
+
+            @Override
+            public double nextValue() throws IOException {
+                return NumericUtils.sortableLongToDouble(sumValues.nextValue()) / countValues.nextValue();
+            }
+        }
+
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
@@ -514,13 +567,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 if (metric == null) {
                     return new AggregateMetricDoubleBlockLoader(metricFields);
                 }
+                if (metric == Metric.avg) {
+                    return new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields);
+                }
                 return getIndividualBlockLoader(metric);
             }
             return new AggregateMetricDoubleBlockLoader(metricFields);
         }
 
         private BlockLoader getIndividualBlockLoader(Metric metric) {
-            if (metricFields.containsKey(metric) == false) {
+            if (metricFields.containsKey(metric) == false || metric == Metric.avg) {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (metric == Metric.value_count) {

@@ -46,6 +46,7 @@ public class AggregateMetricDoubleFieldBlockLoaderTests extends BlockLoaderTestC
 
             // put explicit `null` for metrics that are not present, this is how the block looks like
             Arrays.stream(AggregateMetricDoubleFieldMapper.Metric.values())
+                .filter(m -> m != AggregateMetricDoubleFieldMapper.Metric.avg)
                 .map(AggregateMetricDoubleFieldMapper.Metric::toString)
                 .sorted()
                 .forEach(m -> {

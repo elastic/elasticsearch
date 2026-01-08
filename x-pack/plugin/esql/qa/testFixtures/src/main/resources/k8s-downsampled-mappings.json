@@ -72,7 +72,7 @@
                 "sum",
                 "value_count"
               ],
-              "default_metric" : "max",
+              "default_metric" : "avg",
               "time_series_metric": "gauge"
             },
             "rx": {
@@ -83,7 +83,7 @@
                 "sum",
                 "value_count"
               ],
-              "default_metric" : "max",
+              "default_metric" : "avg",
               "time_series_metric": "gauge"
             },
             "last_up": {

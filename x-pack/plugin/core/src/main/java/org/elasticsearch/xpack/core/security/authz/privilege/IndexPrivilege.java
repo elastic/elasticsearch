@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -93,7 +94,8 @@ public final class IndexPrivilege extends Privilege {
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,
         "indices:data/read/esql",
-        "indices:data/read/esql/compute"
+        "indices:data/read/esql/compute",
+        GetInferenceFieldsAction.NAME  // cross-cluster inference for semantic search
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",

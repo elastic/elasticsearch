@@ -216,9 +216,7 @@ public class ClusterPrivilegeResolver {
         // cluster stats for remote clusters
         "cluster:monitor/stats/remote",
         "cluster:monitor/stats",
-        "cluster:monitor/stats[n]",
-        // cross-cluster inference for semantic search
-        GetInferenceFieldsAction.NAME
+        "cluster:monitor/stats[n]"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,

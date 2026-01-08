@@ -89,7 +89,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
         final String query = request.getQuery();
-        final IndicesOptions indicesOptions = request.getIndicesOptions();
+        final IndicesOptions indicesOptions = request.indicesOptions();
 
         try {
             Map<String, OriginalIndices> groupedIndices = transportService.getRemoteClusterService()

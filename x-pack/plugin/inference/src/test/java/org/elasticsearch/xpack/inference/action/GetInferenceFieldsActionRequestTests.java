@@ -50,7 +50,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
                 instance.getQuery(),
-                instance.getIndicesOptions()
+                instance.indicesOptions()
             );
             case 1 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
@@ -58,7 +58,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
                 instance.getQuery(),
-                instance.getIndicesOptions()
+                instance.indicesOptions()
             );
             case 2 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
@@ -66,7 +66,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 randomValueOtherThan(instance.resolveWildcards(), ESTestCase::randomBoolean),
                 instance.useDefaultFields(),
                 instance.getQuery(),
-                instance.getIndicesOptions()
+                instance.indicesOptions()
             );
             case 3 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
@@ -74,7 +74,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 instance.resolveWildcards(),
                 randomValueOtherThan(instance.useDefaultFields(), ESTestCase::randomBoolean),
                 instance.getQuery(),
-                instance.getIndicesOptions()
+                instance.indicesOptions()
             );
             case 4 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
@@ -82,7 +82,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
                 randomValueOtherThan(instance.getQuery(), GetInferenceFieldsActionRequestTests::randomQuery),
-                instance.getIndicesOptions()
+                instance.indicesOptions()
             );
             case 5 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
@@ -90,9 +90,9 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
                 instance.getQuery(),
-                randomValueOtherThan(instance.getIndicesOptions(), () -> {
+                randomValueOtherThan(instance.indicesOptions(), () -> {
                     IndicesOptions newOptions = randomIndicesOptions();
-                    while (instance.getIndicesOptions() == IndicesOptions.DEFAULT && newOptions == null) {
+                    while (instance.indicesOptions() == IndicesOptions.DEFAULT && newOptions == null) {
                         newOptions = randomIndicesOptions();
                     }
                     return newOptions;

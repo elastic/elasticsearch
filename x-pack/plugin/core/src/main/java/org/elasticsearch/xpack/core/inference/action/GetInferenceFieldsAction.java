@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,7 +25,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,13 +51,13 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
     public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_TV = TransportVersion.fromName("get_inference_fields_action");
 
-    public static final String NAME = "cluster:internal/xpack/inference/fields/get";
+    public static final String NAME = "indices:admin/inference/fields/get";
 
     public GetInferenceFieldsAction() {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
         private final Set<String> indices;
         private final Map<String, Float> fields;
         private final boolean resolveWildcards;
@@ -156,6 +159,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return validationException;
         }
 
+        // TODO: Rename
         public Set<String> getIndices() {
             return Collections.unmodifiableSet(indices);
         }
@@ -176,9 +180,22 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return query;
         }
 
-        public IndicesOptions getIndicesOptions() {
+        @Override
+        public Request indices(String... indices) {
+            return new Request(Set.of(indices), fields, resolveWildcards, useDefaultFields, query, indicesOptions);
+        }
+
+        @Override
+        public String[] indices() {
+            return indices.toArray(new String[0]);
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
             return indicesOptions;
         }
+
+        // TODO: Need to override ResolvedIndexExpressions methods?
 
         @Override
         public boolean equals(Object o) {

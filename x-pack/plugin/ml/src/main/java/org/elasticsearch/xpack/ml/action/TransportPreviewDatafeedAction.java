@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +66,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportPreviewDatafeedAction(
@@ -94,6 +96,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -162,6 +165,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
+                crossProjectModeDecider,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewDatafeedConfig,

@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 
 import java.io.IOException;
@@ -32,22 +31,16 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        /**
+         * Parses a request to update a datafeed.
+         * Note: CPS mode is determined on-the-fly at search execution time based on cluster settings,
+         * not at datafeed update time. This enables seamless CPS activation when the cluster setting changes.
+         */
         public static Request parseRequest(String datafeedId, @Nullable IndicesOptions indicesOptions, XContentParser parser) {
-            return parseRequest(datafeedId, indicesOptions, false, parser);
-        }
-
-        public static Request parseRequest(
-            String datafeedId,
-            @Nullable IndicesOptions indicesOptions,
-            boolean enableCrossProjectSearch,
-            XContentParser parser
-        ) {
             DatafeedUpdate.Builder update = DatafeedUpdate.PARSER.apply(parser, null);
             if (indicesOptions != null) {
                 update.setIndicesOptions(indicesOptions);
             }
-            // If CPS is enabled cluster-wide, ensure the CPS flag is set on indices_options
-            update.setIndicesOptions(DatafeedConfig.ensureCrossProjectSearchEnabled(update.getIndicesOptions(), enableCrossProjectSearch));
             update.setId(datafeedId);
             return new Request(update.build());
         }

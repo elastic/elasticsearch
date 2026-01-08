@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,8 +27,8 @@ public record AggregationDataExtractorFactory(
     DatafeedTimingStatsReporter timingStatsReporter
 ) implements DataExtractorFactory {
 
-    public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
-        return (searchSourceBuilder) -> new SearchRequestBuilder(client).setSource(searchSourceBuilder)
+    public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices) {
+        return (searchSourceBuilder, indicesOptions) -> new SearchRequestBuilder(client).setSource(searchSourceBuilder)
             .setIndicesOptions(indicesOptions)
             .setAllowPartialSearchResults(false)
             .setIndices(indices);

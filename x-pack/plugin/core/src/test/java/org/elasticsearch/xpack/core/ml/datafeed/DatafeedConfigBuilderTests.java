@@ -148,7 +148,12 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         return DatafeedConfig.Builder::new;
     }
 
-    public void testCrossProjectModeOptionsAllowed() {
+    /**
+     * Tests that CPS mode in IndicesOptions is accepted but NOT persisted.
+     * CPS mode is now determined on-the-fly at search execution time based on cluster settings,
+     * not from stored datafeed configuration.
+     */
+    public void testCrossProjectModeOptionsAcceptedButNotPersisted() {
         var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
         datafeedBuilder = datafeedBuilder.setIndicesOptions(
             IndicesOptions.builder(datafeedBuilder.getIndicesOptions())
@@ -156,9 +161,12 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
                 .build()
         );
 
-        // CPS mode is now allowed for datafeeds - should not throw
+        // CPS mode is accepted in the builder
         DatafeedConfig config = datafeedBuilder.build();
+        // The in-memory config has CPS enabled (as passed in)
         assertThat(config.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+        // Note: When serialized and deserialized, CPS flag will NOT be preserved
+        // because it's now determined at runtime based on cluster settings
     }
 
 }

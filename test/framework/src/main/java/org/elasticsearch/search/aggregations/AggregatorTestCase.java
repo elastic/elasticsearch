@@ -13,7 +13,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -103,7 +102,6 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MockFieldMapper;
-import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -112,7 +110,6 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -176,7 +173,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -1326,12 +1322,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } else if (vst.equals(CoreValuesSourceType.KEYWORD)) {
             if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
                 doc.add(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes));
-                json = "{ \"" + fieldName + "\" : \"a\" }";
-            } else if (typeName.equals(FlattenedFieldMapper.CONTENT_TYPE)) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, new TreeSet<>());
-                field.add(new BytesRef("a"));
-                doc.add(field);
-                doc.add(NumericDocValuesField.indexedField(field.countFieldName(), field.count()));
                 json = "{ \"" + fieldName + "\" : \"a\" }";
             } else {
                 doc.add(new SortedSetDocValuesField(fieldName, new BytesRef("a")));

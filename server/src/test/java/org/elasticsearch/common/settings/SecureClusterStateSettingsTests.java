@@ -11,45 +11,104 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class SecureClusterStateSettingsTests extends ESTestCase {
-    MockSecureSettings mockSecureSettings = new MockSecureSettings();
 
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        // SecureSettings in cluster state are handled as file settings (get the byte array) both can be fetched as
-        // string or file
-        mockSecureSettings.setFile("foo", "bar".getBytes(StandardCharsets.UTF_8));
-        mockSecureSettings.setFile("goo", "baz".getBytes(StandardCharsets.UTF_8));
+    private static final String JSON_SECRETS = """
+        {
+          "file_secrets": {
+            "foo": "%s"
+          },
+          "string_secrets": {
+            "goo": "baz"
+          }
+        }
+        """.formatted(Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
+
+    private static final String JSON_DUPLICATE_KEYS = """
+        {
+          "file_secrets": {
+            "foo": "%s"
+          },
+          "string_secrets": {
+            "foo": "bar"
+          }
+        }
+        """.formatted(Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
+
+    private static final MockSecureSettings MOCK_SECURE_SETTINGS = new MockSecureSettings();
+    static {
+        MOCK_SECURE_SETTINGS.setFile("foo", "bar".getBytes(StandardCharsets.UTF_8));
+        MOCK_SECURE_SETTINGS.setFile("goo", "baz".getBytes(StandardCharsets.UTF_8));
     }
 
-    public void testGetSettings() throws Exception {
-        SecureClusterStateSettings secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
-        assertThat(secureClusterStateSettings.getSettingNames(), containsInAnyOrder("foo", "goo"));
-        assertThat(secureClusterStateSettings.getString("foo").toString(), equalTo("bar"));
-        assertThat(new String(secureClusterStateSettings.getFile("goo").readAllBytes(), StandardCharsets.UTF_8), equalTo("baz"));
+    public void testFromXContent() throws IOException {
+        assertThat(
+            SecureClusterStateSettings.fromXContent(createParser(JsonXContent.jsonXContent, JSON_SECRETS)),
+            containsSecrets(Map.of("foo", "bar", "goo", "baz"))
+        );
+
+        assertThrows(
+            XContentParseException.class,
+            () -> SecureClusterStateSettings.fromXContent(createParser(JsonXContent.jsonXContent, JSON_DUPLICATE_KEYS))
+        );
+    }
+
+    public void testConstructFromSecureSettings() {
+        assertThat(new SecureClusterStateSettings(MOCK_SECURE_SETTINGS), containsSecrets(Map.of("foo", "bar", "goo", "baz")));
+    }
+
+    public void testClose() {
+        var secrets = new SecureClusterStateSettings(MOCK_SECURE_SETTINGS);
+        assertThat(secrets.getString("foo").toString(), is("bar"));
+        secrets.close();
+
+        assertThrows(IllegalStateException.class, () -> secrets.getSettingNames());
+        assertThrows(IllegalStateException.class, () -> secrets.getString("foo"));
+        assertThrows(IllegalStateException.class, () -> secrets.getFile("goo"));
+        assertThrows(IllegalStateException.class, () -> secrets.getSHA256Digest("foo"));
     }
 
     public void testSerialize() throws Exception {
-        SecureClusterStateSettings secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
-
         final BytesStreamOutput out = new BytesStreamOutput();
-        secureClusterStateSettings.writeTo(out);
-        final SecureClusterStateSettings fromStream = new SecureClusterStateSettings(out.bytes().streamInput());
+        new SecureClusterStateSettings(MOCK_SECURE_SETTINGS).writeTo(out);
+        assertThat(new SecureClusterStateSettings(out.bytes().streamInput()), containsSecrets(Map.of("foo", "bar", "goo", "baz")));
+    }
 
-        assertThat(fromStream.getSettingNames(), hasSize(2));
-        assertThat(fromStream.getSettingNames(), containsInAnyOrder("foo", "goo"));
+    private static Matcher<SecureClusterStateSettings> containsSecrets(Map<String, String> secrets) {
+        List<Matcher<? super SecureClusterStateSettings>> matchers = new ArrayList<>();
+        matchers.add(
+            transformedMatch("setting names", SecureClusterStateSettings::getSettingNames, containsInAnyOrder(secrets.keySet().toArray()))
+        );
+        matchers.add(transformedMatch("loaded", SecureClusterStateSettings::isLoaded, is(true)));
+        for (Map.Entry<String, String> e : secrets.entrySet()) {
+            matchers.add(transformedMatch("string secret " + e.getKey(), s -> s.getString(e.getKey()).toString(), is(e.getValue())));
+            matchers.add(transformedMatch("file secret " + e.getKey(), s -> readString(s.getFile(e.getKey())), is(e.getValue())));
+        }
+        return allOf(matchers);
+    }
 
-        assertEquals(secureClusterStateSettings.getString("foo"), fromStream.getString("foo"));
-        assertThat(new String(fromStream.getFile("goo").readAllBytes(), StandardCharsets.UTF_8), equalTo("baz"));
-        assertTrue(fromStream.isLoaded());
+    private static String readString(InputStream is) {
+        try {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
     }
 }

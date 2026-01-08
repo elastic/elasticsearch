@@ -27,8 +27,13 @@ import java.util.Objects;
  * Secrets that are stored in cluster state
  *
  * <p>Cluster state secrets are initially loaded on each node, from a file on disk,
- * in the format defined by {@link LocallyMountedSecrets}.
- * Once the cluster is running, the master node watches the file for changes. This class
+ * in the format defined by {@link SecureClusterStateSettings}
+ *
+ *
+ * Once the cluster is running, changes to cluster secrets are propagated
+ *
+ *
+ * the master node watches the file for changes. This class
  * propagates changes in the file-based secure settings from the master node out to other
  * nodes.
  *
@@ -62,7 +67,7 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
     }
 
     public SecureSettings getSettings() {
-        return new SecureClusterStateSettings(settings);
+        return SecureClusterStateSettings.copyOf(settings);
     }
 
     public long getVersion() {
@@ -98,6 +103,10 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(ClusterState.Custom.class, TYPE, in);
+    }
+
+    public boolean containsSecureSettings(SecureSettings settings) {
+        return this.settings.equals(settings);
     }
 
     @Override

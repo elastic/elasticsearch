@@ -12,6 +12,8 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -38,7 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class NonDesiredBalanceIT extends ESIntegTestCase {
+public class ThrottleVersusNotPreferredIT extends ESIntegTestCase {
 
     private static final Set<String> NOT_PREFERRED_AND_THROTTLED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
@@ -47,17 +49,26 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
         return Arrays.asList(NotPreferredAndThrottledPlugin.class);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR)
-            .build();
-    }
-
     @After
     public void clearThrottleAndNotPreferredNodes() {
         NOT_PREFERRED_AND_THROTTLED_NODES.clear();
+    }
+
+    /**
+     * Tests that the Reconciler obeys the THROTTLE decision of a node.
+     */
+    @TestLogging(
+        reason = "track when Reconciler decisions",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:TRACE"
+    )
+    public void testThrottleVsNotPreferredInDesiredBalanceAllocator() {
+        final MockLog.SeenEventExpectation expectation = new MockLog.SeenEventExpectation(
+            "unable to relocate shard that can no longer remain",
+            DesiredBalanceReconciler.class.getCanonicalName(),
+            Level.TRACE,
+            "Cannot move shard * and cannot remain because of [NO()]"
+        );
+        runTest(Settings.EMPTY, DesiredBalanceReconciler.class, expectation);
     }
 
     /**
@@ -67,8 +78,20 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
         reason = "watch for can't move message",
         value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE"
     )
-    public void testThrottleVsNotPreferredPriorityInDecisions() {
-        final Settings settings = Settings.builder().build();
+    public void testThrottleVsNotPreferredWithNonDesiredBalanceAllocator() {
+        final Settings settings = Settings.builder()
+            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR)
+            .build();
+        final MockLog.SeenEventExpectation expectation = new MockLog.SeenEventExpectation(
+            "unable to relocate shard due to throttling",
+            BalancedShardsAllocator.class.getCanonicalName(),
+            Level.TRACE,
+            "[[*]][0] can't move: [MoveDecision{canMoveDecision=throttled, canRemainDecision=NO(), *}]"
+        );
+        runTest(settings, BalancedShardsAllocator.class, expectation);
+    }
+
+    private void runTest(Settings settings, Class<?> loggerClass, MockLog.SeenEventExpectation movementIsBlockedExpectation) {
         final var sourceNode = internalCluster().startNode(settings);
         final var indexName = randomIdentifier();
         createIndex(indexName, 1, 0);
@@ -99,17 +122,18 @@ public class NonDesiredBalanceIT extends ESIntegTestCase {
                     + ")"
             );
             updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", sourceNodeName));
-        },
-            BalancedShardsAllocator.class,
-            new MockLog.SeenEventExpectation(
-                "unable to relocate shard due to throttling",
-                BalancedShardsAllocator.class.getCanonicalName(),
-                Level.TRACE,
-                "[[*]][0] can't move: [MoveDecision{canMoveDecision=throttled, canRemainDecision=NO(), *}]"
-            )
+        }, loggerClass, movementIsBlockedExpectation);
+
+        // Assert that shard is still on the source node
+        final ClusterStateResponse clusterState = safeGet(
+            internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+        );
+        assertEquals(
+            sourceNodeID,
+            clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
         );
 
-        logger.info("--> Clearing THROTTLE decider response and prodding the Reconciler (with a reroute request) to try again");
+        logger.info("--> Clearing THROTTLE/NOT_PREFERRED decider response and prodding the balancer (with a reroute request) to try again");
         clearThrottleAndNotPreferredNodes();
 
         safeGet(

@@ -68,24 +68,13 @@ final class PackedValuesBlockHash extends BlockHash {
     private final List<GroupSpec> specs;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
-        super(blockFactory);
-        this.specs = specs;
-        this.emitBatchSize = emitBatchSize;
-        this.nullTrackingBytes = (specs.size() + 7) / 8;
-        boolean success = false;
-        try {
-            this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
-            this.bytes = new BreakingBytesRefBuilder(blockFactory.breaker(), "PackedValuesBlockHash", this.nullTrackingBytes);
-            success = true;
-        } finally {
-            // close bytesRefHash and bytes to prevent memory leaks in case of the initialization fails
-            if (success == false) {
-                close();
-            }
-        }
+        this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
     }
 
-    // For circuit breaker testing only {@code PackedValuesBlockHashCircuitBreakerTests}
+    /*
+     * This constructor is also used by {@code PackedValuesBlockHashCircuitBreakerTests} to provide different circuit breakers
+     *  to bytesRefHash and bytes. Production code should use the primary constructor above and provide same breaker for both.
+     */
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
         super(blockFactory);
         this.specs = specs;

@@ -946,7 +946,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         public MappedFieldType getKeyedFieldType() {
-            return new KeywordFieldMapper.KeywordFieldType(name() + KEYED_FIELD_SUFFIX);
+            return new KeywordFieldMapper.KeywordFieldType(
+                name() + KEYED_FIELD_SUFFIX,
+                true,
+                true,
+                usesBinaryDocValues,
+                Collections.emptyMap()
+            );
         }
 
         @Override

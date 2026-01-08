@@ -46,16 +46,17 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
-    public static final int POST_FILTERING_SEGMENT_SIZE_THRESHOLD = 100_000;
+    public static final int POST_FILTERING_SEGMENT_SIZE_THRESHOLD = 1;
     private static final int MAX_POST_FILTER_ITERATIONS = 5;
 
-    record VectorLeafSearchFilterMeta(LeafReaderContext context, AcceptDocs filter) {}
+    record VectorLeafSearchFilterMeta(LeafReaderContext context, AcceptDocs filter, CentroidTracker centroidTracker) {}
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
@@ -66,8 +67,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final Query filter;
     protected int vectorOpsCount;
     protected final float postFilteringThreshold;
+    public final LongAdder recurseCounter;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, float postFilteringThreshold) {
+        this(field, visitRatio, k, numCands, filter, postFilteringThreshold, null);
+    }
+
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        float postFilteringThreshold,
+        LongAdder recurseCounter
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -86,6 +100,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.postFilteringThreshold = postFilteringThreshold;
+        this.recurseCounter = recurseCounter;
     }
 
     @Override
@@ -148,7 +163,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             leafReaderContext,
                             liveDocs == null
                                 ? ESAcceptDocs.ESAcceptDocsAll.INSTANCE
-                                : new ESAcceptDocs.BitsAcceptDocs(liveDocs, leafReader.maxDoc())
+                                : new ESAcceptDocs.BitsAcceptDocs(liveDocs, leafReader.maxDoc()),
+                            null
                         )
                     );
                 } else {
@@ -175,7 +191,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                         iterator,
                                         liveDocs,
                                         supplier.cost()
-                                    )
+                                    ),
+                                    new CentroidTracker(leafReader.maxDoc())
                                 )
                             );
                         } else {
@@ -183,7 +200,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.ScorerSupplierAcceptDocs(iterator, liveDocs, leafReader.maxDoc(), supplier.cost())
+                                    new ESAcceptDocs.ScorerSupplierAcceptDocs(iterator, liveDocs, leafReader.maxDoc(), supplier.cost()),
+                                    null
                                 )
                             );
                         }
@@ -212,10 +230,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (VectorLeafSearchFilterMeta leafSearchMeta : leafSearchMetas) {
-            tasks.add(() -> searchLeaf(leafSearchMeta.context, leafSearchMeta.filter, knnCollectorManager, visitRatio, 0, null, 0));
+            tasks.add(() -> searchLeaf(leafSearchMeta, knnCollectorManager, visitRatio, 0, null, 0, recurseCounter));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
-
         // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         ScoreDoc[] scoreDocs = topK.scoreDocs;
@@ -227,19 +244,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     private TopDocs searchLeaf(
-        LeafReaderContext context,
-        AcceptDocs filterDocs,
+        VectorLeafSearchFilterMeta leafSearchFilterMeta,
         IVFCollectorManager knnCollectorManager,
         float visitRatio,
         int alreadyCollectedResults,
         IntHashSet dedup,
-        int iteration
+        int iteration,
+        LongAdder longAdder
     ) throws IOException {
+        var context = leafSearchFilterMeta.context;
+        var filterDocs = leafSearchFilterMeta.filter;
+        var centroidTracker = leafSearchFilterMeta.centroidTracker;
         boolean postFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         if (postFilter && iteration >= MAX_POST_FILTER_ITERATIONS) {
             return Lucene.EMPTY_TOP_DOCS;
         }
-        TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+        TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio, centroidTracker);
         // Create dedup set on first call, reuse on recursive calls to filter out duplicates across passes
         if (dedup == null) {
             dedup = new IntHashSet(knnCollectorManager.k * 4 / 3);
@@ -265,15 +285,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             Arrays.sort(scoreDocs, 0, searchResults, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
             // should re-run search to fill more results as needed
             if (alreadyCollectedResults + searchResults < k) {
+                longAdder.add(1);
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();
                 TopDocs additionalResults = searchLeaf(
-                    context,
-                    filterDocs,
+                    leafSearchFilterMeta,
                     knnCollectorManager,
                     visitRatio,
                     alreadyCollectedResults + searchResults,
                     dedup,
-                    ++iteration
+                    ++iteration,
+                    longAdder
                 );
                 ScoreDoc[] additionalScoreDocs = additionalResults.scoreDocs;
                 var newScoreDocs = new ScoreDoc[searchResults + additionalScoreDocs.length];
@@ -311,7 +332,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         AcceptDocs filterDocs,
         int visitedLimit,
         IVFCollectorManager knnCollectorManager,
-        float visitRatio
+        float visitRatio,
+        CentroidTracker centroidTracker
     ) throws IOException;
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {

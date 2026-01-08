@@ -10,8 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SetOnce;
 
 import java.io.IOException;
@@ -22,18 +20,18 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final float visitRatio;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
-    private final FixedBitSet centroids;
+    private final CentroidTracker centroidTracker;
 
     public IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
         this.visitRatio = visitRatio;
         this.accumulator = accumulator;
-        this.centroids = null;
+        this.centroidTracker = null;
     }
 
-    public IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator, int maxDoc) {
+    public IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator, CentroidTracker centroidTracker) {
         this.visitRatio = visitRatio;
         this.accumulator = accumulator;
-        this.centroids = new FixedBitSet(maxDoc);
+        this.centroidTracker = centroidTracker;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {
@@ -48,17 +46,17 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     }
 
     public void markCentroidVisited(int ord) throws IOException {
-        if (centroids != null) {
-            this.centroids.set(ord);
+        if (centroidTracker != null) {
+            centroidTracker.markVisited(ord);
         }
     }
 
     public boolean centroidAlreadyVisited(int ord) {
-        return centroids != null && centroids.get(ord);
+        return centroidTracker != null && centroidTracker.alreadyVisited(ord);
     }
 
     public DocIdSetIterator centroidIterator() {
-        return centroids != null && centroids.cardinality() > 0 ? new BitSetIterator(centroids, 0) : null;
+        return centroidTracker != null ? centroidTracker.iterator() : null;
     }
 
     @Override
@@ -66,12 +64,12 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IVFKnnSearchStrategy that = (IVFKnnSearchStrategy) o;
-        return visitRatio == that.visitRatio && Objects.equals(centroids, that.centroids);
+        return visitRatio == that.visitRatio && Objects.equals(centroidTracker, that.centroidTracker);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(visitRatio, centroids);
+        return Objects.hash(visitRatio, centroidTracker);
     }
 
     /**

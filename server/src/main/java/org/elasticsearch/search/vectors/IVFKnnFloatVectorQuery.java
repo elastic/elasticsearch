@@ -17,6 +17,7 @@ import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.LongAdder;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
@@ -44,6 +45,20 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float postFilteringThreshold
     ) {
         super(field, visitRatio, k, numCands, filter, postFilteringThreshold);
+        this.query = query;
+    }
+
+    public IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        float postFilteringThreshold,
+        LongAdder recurseCounter
+    ) {
+        super(field, visitRatio, k, numCands, filter, postFilteringThreshold, recurseCounter);
         this.query = query;
     }
 
@@ -90,7 +105,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         AcceptDocs filterDocs,
         int visitedLimit,
         IVFCollectorManager knnCollectorManager,
-        float visitRatio
+        float visitRatio,
+        CentroidTracker centroidTracker
     ) throws IOException {
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
@@ -108,19 +124,21 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         // for post-filtering oversample
         final AbstractMaxScoreKnnCollector knnCollector;
         if (applyPostFilter) {
-            float selectivity = (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues.size();
+            ESAcceptDocs.PostFilterEsAcceptDocs postFilterDocs = (ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs;
+            float selectivity = (float) postFilterDocs.approximateCost() / floatVectorValues.size();
             float postFilterOverSamplingFactor = Math.max(1 + (1 - Math.min(selectivity, 1f)), 1.1f);
+            // Extract centroid tracker from filterDocs - this persists across recursive searchLeaf calls
             strategy = new IVFKnnSearchStrategy(
                 postFilterOverSamplingFactor * visitRatio,
                 knnCollectorManager.longAccumulator,
-                reader.maxDoc()
+                centroidTracker
             );
             // Oversample based on 2k (knnCollectorManager.k) to match pre-filtering collection amount
             knnCollector = knnCollectorManager.newOptimisticCollector(
                 visitedLimit,
                 strategy,
                 context,
-                (int) Math.ceil(1 + postFilterOverSamplingFactor * knnCollectorManager.k)
+                (int) Math.ceil(postFilterOverSamplingFactor * knnCollectorManager.k)
             );
         } else {
             strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);

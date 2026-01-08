@@ -87,6 +87,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -131,6 +132,7 @@ class KnnSearcher {
                 searchParameters.filterCached()
             )
             : null;
+        long[] recurseSteps = new long[numQueryVectors];
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
@@ -185,7 +187,7 @@ class KnnSearcher {
                             doVectorQuery(targetBytes, searcher, filterQuery, searchParameters);
                         } else {
                             targetReader.next(target);
-                            doVectorQuery(target, searcher, filterQuery, searchParameters);
+                            doVectorQuery(target, searcher, filterQuery, searchParameters, new LongAdder());
                         }
                     }
                     targetReader.reset();
@@ -209,10 +211,14 @@ class KnnSearcher {
                         for (int i = 0; i < numQueryVectors; i++) {
                             targetReader.next(queries[i]);
                         }
+
                         for (int s = 0; s < searchParameters.numSearchers(); s++) {
                             queryConsumers[s] = i -> {
                                 try {
-                                    results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
+                                    LongAdder recurseCounter = new LongAdder();
+                                    results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters, recurseCounter);
+                                    recurseSteps[i] = recurseCounter.longValue();
+                                    recurseCounter.reset();
                                 } catch (IOException e) {
                                     throw new UncheckedIOException(e);
                                 }
@@ -299,6 +305,11 @@ class KnnSearcher {
                         elapsed,
                         (1000L * numQueryVectors) / elapsed,
                         totalCpuTimeMS
+                    );
+                    logger.info(
+                        "needed an average of {} recurse steps per query. Specific runs: {} ",
+                        (float) Arrays.stream(recurseSteps).sum() / (float) numQueryVectors,
+                        Arrays.toString(recurseSteps)
                     );
                 }
             }
@@ -428,7 +439,13 @@ class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
+    TopDocs doVectorQuery(
+        float[] vector,
+        IndexSearcher searcher,
+        Query filterQuery,
+        SearchParameters searchParameters,
+        LongAdder recurseCounter
+    ) throws IOException {
         Query knnQuery;
         int overSampledTopK = searchParameters.topK();
         if (searchParameters.overSamplingFactor() > 1f) {
@@ -446,7 +463,8 @@ class KnnSearcher {
                 efSearch,
                 filterQuery,
                 visitRatio,
-                postFilteringThreshold
+                postFilteringThreshold,
+                recurseCounter
             );
         } else {
             knnQuery = new ESKnnFloatVectorQuery(

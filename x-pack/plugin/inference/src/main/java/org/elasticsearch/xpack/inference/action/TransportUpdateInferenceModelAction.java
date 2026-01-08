@@ -236,15 +236,16 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     ) {
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
+        ServiceSettings existingServiceSettings = existingConfigs.getServiceSettings();
 
         TaskSettings newTaskSettings = existingTaskSettings;
-        ServiceSettings newServiceSettings = existingConfigs.getServiceSettings();
+        ServiceSettings newServiceSettings = existingServiceSettings;
 
         if (newSettings.serviceSettings() != null) {
             newServiceSettings = newServiceSettings.updateServiceSettings(newSettings.serviceSettings());
         }
         if (newSettings.taskSettings() != null && existingTaskSettings != null) {
-            newTaskSettings = existingTaskSettings.updatedTaskSettings(newSettings.taskSettings());
+            newTaskSettings = newTaskSettings.updatedTaskSettings(newSettings.taskSettings());
         }
 
         return new ModelConfigurations(

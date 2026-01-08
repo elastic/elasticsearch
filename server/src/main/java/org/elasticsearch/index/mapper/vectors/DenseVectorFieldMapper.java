@@ -2614,7 +2614,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         + typeName()
                         + "] doesn't support format ["
                         + format
-                        + "]. Supported formats are [null,array,binary]."
+                        + "]. Supported formats are [array, binary]."
                 );
             };
         }

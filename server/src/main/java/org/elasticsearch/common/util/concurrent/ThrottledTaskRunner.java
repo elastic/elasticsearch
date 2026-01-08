@@ -24,6 +24,11 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
 
     /**
      * Returns a new {@link Executor} implementation that delegates tasks to this {@link ThrottledTaskRunner}.
+     * <br>
+     * NOTE: The {@link Runnable}s to be executed via {@link Executor#execute(Runnable)} are throttled to the extent that
+     * they do NOT fork off on a different executor. If they do, the part that's forked off is not throttled by this
+     * {@link ThrottledTaskRunner}. If more control is needed for when a task is done for throttling purposes,
+     * see {@link AbstractThrottledTaskRunner#enqueueTask(ActionListener)}.
      */
     public Executor asExecutor() {
         return new ThrottledExecutorAdapter(this);
@@ -39,6 +44,9 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
 
         private final ThrottledTaskRunner throttledTaskRunner;
 
+        /**
+         * Be extra careful that any forked off work is NOT throttled by the passed-in {@param throttledTaskRunner}.
+         */
         ThrottledExecutorAdapter(ThrottledTaskRunner throttledTaskRunner) {
             this.throttledTaskRunner = throttledTaskRunner;
         }
@@ -49,6 +57,7 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
                 @Override
                 public void onResponse(Releasable releasable) {
                     try (releasable) {
+                        // if this forks, the {@code releasable} is closed, and any waiting (throttled) tasks can be executed
                         task.run();
                     }
                 }

@@ -154,6 +154,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1722,23 +1723,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private int resultsCount = 0;
         private int leakedBlobsCount = 0;
-        private final ArrayList<Closeable> resources = new ArrayList<>();
+        private final ArrayDeque<Closeable> resources = new ArrayDeque<>(3);
         private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
 
         ShardBlobsToDelete() {
             boolean success = false;
             try {
                 this.shardDeleteResults = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
-                resources.add(LeakTracker.wrap(shardDeleteResults));
+                resources.addFirst(LeakTracker.wrap(shardDeleteResults));
                 this.truncatedShardDeleteResultsOutputStream = new TruncatedOutputStream(
                     new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
                     shardDeleteResults::size,
                     maxHeapSizeForSnapshotDeletion
                 );
                 final var buffer = bigArrays.bytesRefRecycler().obtain();
-                resources.add(buffer);
+                resources.addFirst(buffer);
                 this.compressed = new BufferedStreamOutput(this.truncatedShardDeleteResultsOutputStream, buffer.v());
-                resources.add(compressed);
+                resources.addFirst(compressed);
                 success = true;
             } finally {
                 if (success == false) {

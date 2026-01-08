@@ -405,6 +405,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
   method: testLocalDateMathExpression
   issue: https://github.com/elastic/elasticsearch/issues/140106
+- class: org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersTests
+  method: testCheckAllDecidersBeforeReturningNotPreferred
+  issue: https://github.com/elastic/elasticsearch/issues/140338
 
 # Examples:
 #

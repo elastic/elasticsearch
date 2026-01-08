@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -9907,26 +9908,26 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMetricsAfterRenamingTimestamp() {
         assertThat(
             expectThrows(
-                VerificationException.class,
+                EsqlIllegalArgumentException.class,
                 () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
                     TS k8s |
                     EVAL @timestamp = region |
                     STATS max(network.cost), count(network.eth0.rx)
                     """)))
             ).getMessage(),
-            containsString("the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present")
+            containsString("for the the TS STATS command, the @timestamp field must be a date type but was [keyword]")
         );
 
         assertThat(
             expectThrows(
-                VerificationException.class,
+                EsqlIllegalArgumentException.class,
                 () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
                     TS k8s |
                     DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
                     STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
                     """)))
             ).getMessage(),
-            containsString("the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present")
+            containsString("for the the TS STATS command, the @timestamp field must be a date type but was [keyword]")
         );
 
         var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""

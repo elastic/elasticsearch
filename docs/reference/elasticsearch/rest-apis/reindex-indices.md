@@ -9,7 +9,7 @@ applies_to:
 
 # Reindex indices examples
 
-This page provides examples of how to use the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex).
+The [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) copies documents from a source index, data stream, or alias to a destination, allowing for optional data modification via scripts or ingest pipelines.
 
 You can learn how to:
 

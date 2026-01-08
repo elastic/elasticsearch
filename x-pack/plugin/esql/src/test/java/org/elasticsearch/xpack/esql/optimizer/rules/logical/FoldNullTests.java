@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -93,13 +95,13 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testBasicNullFolding() {
-        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
-        assertNullLiteral(foldNull(new Round(EMPTY, Literal.NULL, null)));
-        assertNullLiteral(foldNull(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
-        assertNullLiteral(foldNull(new DateParse(EMPTY, Literal.NULL, Literal.NULL, NULL)));
-        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
-        assertNullLiteral(foldNull(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL)));
+        assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
+        assertNullLiteral(foldNull(new Pow(EMPTY, NULL, NULL)));
+        assertNullLiteral(foldNull(new DateFormat(EMPTY, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateParse(EMPTY, NULL, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateTrunc(EMPTY, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new Substring(EMPTY, NULL, NULL, NULL)));
     }
 
     public void testNullFoldingIsNotNull() {
@@ -271,6 +273,15 @@ public class FoldNullTests extends ESTestCase {
     public void testNullCategorizeGroupingNotFolded() {
         Categorize categorize = new Categorize(EMPTY, NULL, NULL);
         assertEquals(categorize, foldNull(categorize));
+    }
+
+    public void testNestedCoalesce() {
+        MvAppend append = new MvAppend(
+            EMPTY,
+            Literal.keyword(EMPTY, "foo"),
+            new Coalesce(EMPTY, NULL, List.of(Literal.keyword(EMPTY, "bar")))
+        );
+        assertEquals(append, foldNull(append));
     }
 
     private void assertNullLiteral(Expression expression) {

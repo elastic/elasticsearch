@@ -92,6 +92,64 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         );
     }
 
+    public void testDenseSemanticTextPerformsAutoPrefiltering() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
+
+        var request = new Request("POST", "/test-semantic2/_mapping");
+        request.setJsonEntity("""
+            {
+                "properties": {
+                    "keyword_field": { "type": "keyword" }
+                }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?refresh=true");
+        request.setJsonEntity("""
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_1"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "violins", "keyword_field": "label_2"}
+            {"index": { "_index": "test-semantic2" } }
+            {"semantic_text_field": "pianos", "keyword_field": "label_1"}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        String query = """
+            FROM test-semantic2 METADATA _score
+            | WHERE keyword_field == "label_1"
+            | WHERE MATCH(semantic_text_field, "violins")
+            | SORT _score DESC
+            | KEEP keyword_field, semantic_text_field
+            | LIMIT 10
+            """;
+
+        Map<String, Object> result = runEsqlQuery(query);
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "keyword_field").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "semantic_text_field").entry("type", "text")),
+            List.of(List.of("label_1", "violins"), List.of("label_1", "pianos"))
+        );
+    }
+
     @Before
     public void setUpIndices() throws IOException {
         var settings = Settings.builder().build();

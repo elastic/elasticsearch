@@ -61,7 +61,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {
                     return block;
                 }

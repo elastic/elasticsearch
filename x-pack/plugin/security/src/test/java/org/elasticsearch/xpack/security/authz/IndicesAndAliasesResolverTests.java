@@ -58,6 +58,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -722,7 +724,41 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return request;
     }
 
-    public void testExclusionByItself() {
+    public void testEmptyIndexExpressionIsInvalid() {
+        final List<String[]> expressionsList = List.of(
+            new String[] { "" },
+            new String[] { "*", "" },
+            new String[] { "bar", "" },
+            new String[] { "*", "", "bar" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                InvalidIndexNameException.class,
+                Matchers.containsString("Invalid index name [], expression cannot be empty"),
+                () -> resolveIndices(new SearchRequest(expressions), buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
+            );
+        }
+    }
+
+    public void testExclusionPrefixByItselfIsInvalid() {
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "bar", "-" },
+            new String[] { "*", "-", "bar" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                InvalidIndexNameException.class,
+                Matchers.containsString("Invalid index name [], exclusion cannot be empty"),
+                () -> resolveIndices(new SearchRequest(expressions), buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
+            );
+        }
+    }
+
+    public void testExclusionExpressionByItself() {
         {
             // By itself, resolves to empty when allow_no_indices=true
             var request = new SearchRequest(randomIndexExclusion(userAuthorizedIndices));
@@ -902,7 +938,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         if (randomBoolean()) {
             return "-" + randomFrom(authorizedIndices) + (randomBoolean() ? "*" : "");
         } else {
-            return "-" + randomAlphaOfLengthBetween(0, 5) + (randomBoolean() ? "*" : "");
+            return "-" + randomAlphaOfLengthBetween(1, 5) + (randomBoolean() ? "*" : "");
         }
     }
 
@@ -3085,25 +3121,61 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testCrossProjectSearchSelectorsNotAllowed() {
+    public void testCrossProjectSearchForAllIndicesAndSelector() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
-        var request = new SearchRequest("_all::data");
+        roleMap.put(
+            "data_stream_only",
+            new RoleDescriptor(
+                "data_stream_only",
+                null,
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("logs-foo", "logs-foobar").privileges("all").build() },
+                null
+            )
+        );
+        final User user = new User("data-stream-tester3", "data_stream_only");
+        final String pattern = randomFrom("_all", "l*", "*");
+        final String selector = randomFrom(IndexComponentSelector.values()).getKey();
+
+        var request = new SearchRequest(pattern + "::" + selector);
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliases(
-                "indices:/" + randomAlphaOfLength(8),
-                request,
-                projectMetadata,
-                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
-                new TargetProjects(
-                    createRandomProjectWithAlias("local"),
-                    List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+            )
+        );
+
+        // ::data is the default selector so that it is not attached to local index names
+        var expectedIndices = new String[] { "logs-foo", "logs-foobar" };
+        if (selector.equals("failures")) {
+            expectedIndices = Arrays.stream(expectedIndices).map(name -> name + "::" + selector).toArray(String[]::new);
+        }
+
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));
+        assertThat(
+            resolvedIndices.getRemote(),
+            containsInAnyOrder("P1:" + pattern + "::" + selector, "P2:" + pattern + "::" + selector, "P3:" + pattern + "::" + selector)
+        );
+
+        final var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(
+            resolved.expressions(),
+            contains(
+                resolvedIndexExpression(
+                    pattern + "::" + selector,
+                    Set.of(expectedIndices),
+                    SUCCESS,
+                    Set.of("P1:" + pattern + "::" + selector, "P2:" + pattern + "::" + selector, "P3:" + pattern + "::" + selector)
                 )
             )
         );
-        assertThat(exception.getMessage(), equalTo("Selectors are not currently supported but was found in the expression [_all::data]"));
     }
 
     public void testResolveAllWithWildcardRemotePrefix() {

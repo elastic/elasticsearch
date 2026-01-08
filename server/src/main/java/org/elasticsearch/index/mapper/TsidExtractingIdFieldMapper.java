@@ -192,15 +192,17 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return timestamp;
     }
 
+    /**
+     * Extract the routing hash value by reading the last 4 bytes of the provided {@link BytesRef} representing a UID-encoded synthetic id.
+     *
+     * @param id    an array of bytes representing the synthetic _id encoded with {@link Uid#encodeId}.
+     * @return      the routing hash value as an integer
+     */
     public static int extractRoutingHashFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
-        // See #createSyntheticId
+        // In a synthetic id the routing hash is stored in the last 4 bytes using the Big Endian notation. This differs from how the
+        // _ts_routing_hash is stored in Lucene (using Little Endian).
         return ByteUtils.readIntBE(id.bytes, id.offset + id.length - Integer.BYTES);
-    }
-
-    public static BytesRef extractRoutingHashBytesFromSyntheticId(BytesRef id) {
-        int hash = extractRoutingHashFromSyntheticId(id);
-        return Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(hash));
     }
 
     @Override

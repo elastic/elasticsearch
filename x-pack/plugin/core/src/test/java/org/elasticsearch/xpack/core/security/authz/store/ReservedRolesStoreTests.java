@@ -629,7 +629,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.LISTS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.LISTS_ITEMS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
+            ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "slo-observability.health"
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         Arrays.asList(
@@ -3860,6 +3861,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "slo-observability.health");
+        assertViewIndexMetadata(role, "slo-observability.health");
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
@@ -3944,6 +3947,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
         assertReadWriteAndManage(role, ".slo-observability." + randomIntBetween(0, 5));
+        assertViewIndexMetadata(role, "slo-observability.health");
+        assertReadWriteAndManage(role, "slo-observability.health");
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

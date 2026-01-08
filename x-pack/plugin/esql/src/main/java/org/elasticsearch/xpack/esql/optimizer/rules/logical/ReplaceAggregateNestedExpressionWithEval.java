@@ -36,20 +36,6 @@ import java.util.Map;
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
-    private final boolean processGroupingsOnly;
-
-    public ReplaceAggregateNestedExpressionWithEval() {
-        this(false);
-    }
-
-    /**
-     * @param processGroupingsOnly if true, only process grouping functions, leaving aggregate functions unchanged
-     *                             (aside from adjusting grouping references if needed)
-     */
-    public ReplaceAggregateNestedExpressionWithEval(boolean processGroupingsOnly) {
-        this.processGroupingsOnly = processGroupingsOnly;
-    }
-
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         List<Alias> evals = new ArrayList<>();
@@ -186,9 +172,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         Holder<Boolean> aggsChanged
     ) {
         Expression result = af;
-        if (processGroupingsOnly) {
-            return result;
-        }
 
         Expression field = af.field();
         // if the field is a nested expression (not attribute or literal), replace it

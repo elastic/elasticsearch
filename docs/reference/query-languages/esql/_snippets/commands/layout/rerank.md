@@ -110,13 +110,6 @@ How you increase the timeout depends on your deployment type:
 
 ::::::{applies-switch}
 
-:::::{applies-item} serverless:
-
-* Requires a manual override from Elastic Support because you cannot modify
-  timeout settings directly
-
-:::::
-
 :::::{applies-item} ess:
 
 * You can adjust {{es}} settings in
@@ -134,6 +127,13 @@ How you increase the timeout depends on your deployment type:
 * You can also adjust the `search:timeout` setting
   using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
 * Alternatively, you can add timeout parameters to individual queries
+
+:::::
+
+:::::{applies-item} serverless:
+
+* Requires a manual override from Elastic Support because you cannot modify
+  timeout settings directly
 
 :::::
 

@@ -117,10 +117,6 @@ How you increase the timeout depends on your deployment type:
 
 ::::{applies-switch}
 
-:::{applies-item} serverless:
-* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
-:::
-
 :::{applies-item} ess:
 * You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
 * You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
@@ -130,6 +126,10 @@ How you increase the timeout depends on your deployment type:
 * You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
 * You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
 * Alternatively, you can add timeout parameters to individual queries
+:::
+
+:::{applies-item} serverless:
+* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
 :::
 
 ::::

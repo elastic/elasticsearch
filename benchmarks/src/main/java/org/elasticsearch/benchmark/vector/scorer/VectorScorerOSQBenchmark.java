@@ -98,8 +98,10 @@ public class VectorScorerOSQBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        Random random = new Random(123);
+        setup(new Random(123));
+    }
 
+    void setup(Random random) throws IOException {
         this.length = switch (bits) {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
@@ -136,8 +138,8 @@ public class VectorScorerOSQBenchmark {
         };
 
         binaryQueries = new byte[numVectors][binaryQueryLength];
-        for (byte[] binaryVector : binaryVectors) {
-            random.nextBytes(binaryVector);
+        for (byte[] binaryQuery : binaryQueries) {
+            random.nextBytes(binaryQuery);
         }
         result = new OptimizedScalarQuantizer.QuantizationResult(
             random.nextFloat(),

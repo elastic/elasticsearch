@@ -77,7 +77,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
-                scalar.setup();
+                scalar.setup(random());
 
                 float[] expected = scalar.bulkScore();
 
@@ -85,11 +85,11 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
-                vectorized.setup();
+                vectorized.setup(random());
 
                 float[] result = vectorized.bulkScore();
 
-                assertArrayEquals("single vectorized", expected, result, delta);
+                assertArrayEquals("bulk vectorized", expected, result, delta);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();

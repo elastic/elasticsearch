@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
@@ -21,20 +22,37 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -52,8 +70,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
+import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -495,6 +518,286 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+    }
+
+    public void testRecoveredOperations() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        // ensure a couple of nodes to have some operations coordinated
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        final var dataStreamName = randomIdentifier();
+        final int numShards = randomIntBetween(1, 10);
+        putDataStreamTemplate(dataStreamName, numShards);
+
+        final var docsIndices = new HashSet<String>();
+        final var docsIndicesById = new HashMap<String, String>();
+        final var docsIdsBySeqNoAndShardId = new HashMap<ShardId, Map<Long, String>>();
+
+        var timestamp = Instant.now();
+
+        final int nbBulks = randomIntBetween(1, 10);
+        final int nbDocsPerBulk = randomIntBetween(1, 1000);
+
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk();
+            for (int j = 0; j < nbDocsPerBulk; j++) {
+                var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+                bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+                timestamp = timestamp.plusMillis(1);
+            }
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                assertThat(result.getResponse().getPrimaryTerm(), equalTo(1L));
+                var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.computeIfAbsent(
+                    result.getResponse().getShardId(),
+                    shardId -> new HashMap<>()
+                );
+                var previous = docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+                assertThat(previous, nullValue());
+                docsIndicesById.put(result.getId(), result.getIndex());
+                docsIndices.add(result.getIndex());
+            }
+        }
+
+        // Delete some random docs
+        final List<String> deletedDocs = randomBoolean() ? randomNonEmptySubsetOf(docsIndicesById.keySet()) : List.of();
+        for (var deletedDocId : deletedDocs) {
+            var deletedDocIndex = docsIndicesById.get(deletedDocId);
+            assertThat(deletedDocIndex, notNullValue());
+
+            var deleteResponse = client().prepareDelete(deletedDocIndex, deletedDocId).get();
+            assertThat(deleteResponse.getId(), equalTo(deletedDocId));
+            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+            assertThat(deleteResponse.getVersion(), equalTo(2L));
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+            var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.get(deleteResponse.getShardId());
+            assertThat(docsIdsBySeqNo, notNullValue());
+            var previous = docsIdsBySeqNo.put(deleteResponse.getSeqNo(), deletedDocId);
+            assertThat(previous, nullValue());
+        }
+
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (IndexService indexService : indicesService) {
+                if (docsIndices.contains(indexService.index().getName())) {
+                    for (IndexShard indexShard : indexService) {
+                        final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
+
+                        // Read operations from the Translog
+                        try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
+                            assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+
+                            Translog.Operation operation;
+                            while ((operation = translogSnapshot.next()) != null) {
+                                assertTranslogOperation(
+                                    indexService.index().getName(),
+                                    indexShard.mapperService().documentMapper(),
+                                    operation,
+                                    docsIdsBySeqNo::get,
+                                    docsIndicesById::get
+                                );
+                            }
+                        }
+
+                        // Read operations from the Lucene index
+                        try (
+                            var luceneSnapshot = indexShard.newChangesSnapshot(
+                                getTestName(),
+                                0,
+                                Long.MAX_VALUE,
+                                randomBoolean(),
+                                true,
+                                true,
+                                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                            )
+                        ) {
+                            assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+                            // TODO Once ES-13603 is implemented, change this to also check operations (and maybe tombstone doc too?)
+                            if (docsIdsBySeqNo.isEmpty() == false) {
+                                expectThrows(NullPointerException.class, luceneSnapshot::next);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        enum Operation {
+            FLUSH,
+            REFRESH,
+            NONE
+        }
+
+        // Randomly executes a flush, refresh or nothing. If no flush is executed, the peer-recovery that follows will recover operations
+        // from the source shard translog, which load the `_id` field from stored fields (see LuceneSyntheticSourceChangesSnapshot).
+        final var operation = Operation.FLUSH; // TODO Once ES-13603 is implemented, change this to randomFrom(Operation.values())
+        switch (operation) {
+            case FLUSH:
+                flush(dataStreamName);
+                break;
+            case REFRESH:
+                refresh(dataStreamName);
+                break;
+            case NONE:
+            default:
+                break;
+        }
+
+        final String[] sourceNodes = internalCluster().getNodeNames();
+        final var targetNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(sourceNodes.length + 1, targetNode);
+
+        for (var index : docsIndices) {
+            updateIndexSettings(
+                Settings.builder()
+                    .putList(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", sourceNodes)
+                    .put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", targetNode),
+                index
+            );
+        }
+
+        // Wait for all shards to relocate
+        final var targetNodeId = getNodeId(targetNode);
+        safeAwait(
+            ClusterServiceUtils.addMasterTemporaryStateListener(
+                clusterState -> clusterState.projectState(ProjectId.DEFAULT)
+                    .routingTable()
+                    .allShards()
+                    .allMatch(shardRouting -> shardRouting.active() && targetNodeId.equals(shardRouting.currentNodeId()))
+            )
+        );
+
+        for (var index : docsIndices) {
+            var recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
+            assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
+            for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(index)) {
+                assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+                assertThat(shardRecoveryState.getTargetNode(), notNullValue());
+                assertThat(shardRecoveryState.getTargetNode().getName(), equalTo(targetNode));
+                assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.PeerRecoverySource.INSTANCE));
+                assertThat(
+                    shardRecoveryState.getTranslog().recoveredOperations(),
+                    operation == Operation.FLUSH
+                        ? equalTo(0)
+                        : equalTo(docsIdsBySeqNoAndShardId.getOrDefault(shardRecoveryState.getShardId(), Map.of()))
+                );
+            }
+            refresh(index);
+        }
+
+        final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
+        assertHitCount(client(targetNode).prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
+
+        var randomDocIds = randomSubsetOf(nonDeletedDocs);
+        for (var docId : randomDocIds) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Not found: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(true));
+                assertThat(getResponse.getVersion(), equalTo(1L));
+
+            } else {
+                assertCheckedResponse(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, 1L);
+                        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                    }
+                );
+            }
+        }
+    }
+
+    private static void assertTranslogOperation(
+        String indexName,
+        DocumentMapper documentMapper,
+        Translog.Operation operation,
+        Function<Long, String> expectedDocIdSupplier,
+        Function<String, String> expectedDocIndexSupplier
+    ) {
+        final String expectedDocId;
+        final BytesRef expectedDocIdEncoded;
+        switch (operation.opType()) {
+            case INDEX:
+                final var index = asInstanceOf(Translog.Index.class, operation);
+                expectedDocId = expectedDocIdSupplier.apply(index.seqNo());
+                assertThat(Uid.decodeId(index.uid()), equalTo(expectedDocId));
+
+                expectedDocIdEncoded = Uid.encodeId(expectedDocId);
+                assertThat(index.uid(), equalTo(expectedDocIdEncoded));
+
+                assertThat(expectedDocIndexSupplier.apply(expectedDocId), equalTo(indexName));
+                assertThat(index.primaryTerm(), equalTo(1L));
+                assertThat(index.routing(), nullValue());
+
+                // Reproduce the parsing of the translog operations when they are replayed during recovery
+                var parsedDocument = documentMapper.parse(
+                    new SourceToParse(
+                        Uid.decodeId(index.uid()),
+                        index.source(),
+                        XContentHelper.xContentType(index.source()),
+                        index.routing()
+                    )
+                );
+                assertThat(parsedDocument.id(), equalTo(expectedDocId));
+                assertThat(parsedDocument.routing(), nullValue());
+                assertThat(parsedDocument.docs(), hasSize(1));
+
+                var luceneDocument = parsedDocument.docs().get(0);
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for _id field",
+                    luceneDocument.getField(IdFieldMapper.NAME).binaryValue(),
+                    equalTo(expectedDocIdEncoded)
+                );
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for _tsid field",
+                    luceneDocument.getField(TimeSeriesIdFieldMapper.NAME).binaryValue(),
+                    equalTo(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(expectedDocIdEncoded))
+                );
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for @timestamp field",
+                    luceneDocument.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue(),
+                    equalTo(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(expectedDocIdEncoded))
+                );
+                assertThat(
+                    "Lucene document [" + expectedDocId + "] has wrong value for _ts_routing_hash field",
+                    luceneDocument.getField(TimeSeriesRoutingHashFieldMapper.NAME).binaryValue(),
+                    equalTo(
+                        Uid.encodeId(
+                            TimeSeriesRoutingHashFieldMapper.encode(
+                                TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(expectedDocIdEncoded)
+                            )
+                        )
+                    )
+                );
+                break;
+
+            case DELETE:
+                final var delete = asInstanceOf(Translog.Delete.class, operation);
+                expectedDocId = expectedDocIdSupplier.apply(delete.seqNo());
+                assertThat(Uid.decodeId(delete.uid()), equalTo(expectedDocId));
+
+                expectedDocIdEncoded = Uid.encodeId(expectedDocId);
+                assertThat(delete.uid(), equalTo(expectedDocIdEncoded));
+
+                assertThat(expectedDocIndexSupplier.apply(expectedDocId), equalTo(indexName));
+                assertThat(delete.primaryTerm(), equalTo(1L));
+                break;
+
+            default:
+                throw new AssertionError("Unsupported operation type: " + operation);
+        }
     }
 
     private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)

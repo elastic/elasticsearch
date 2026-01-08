@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -74,19 +75,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         String nameOrPosition = text.substring(1); // Remove leading '?'
         Source source = source(node);
 
-        QueryParam param;
-        try {
-            int position = Integer.parseInt(nameOrPosition);
-            param = params.get(position);
-            if (param == null) {
-                throw new ParsingException(source, "No parameter is defined for position [{}]", position);
-            }
-        } catch (NumberFormatException e) {
-            if (params.contains(nameOrPosition) == false) {
-                throw new ParsingException(source, "Unknown query parameter [{}]", nameOrPosition);
-            }
-            param = params.get(nameOrPosition);
-        }
+        QueryParam param = ExpressionBuilder.paramByNameOrPosition(params, source, nameOrPosition);
 
         if (param == null || param.value() == null) {
             throw new ParsingException(source, "Parameter [{}] has no value", text);

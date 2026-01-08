@@ -43,11 +43,11 @@ public class PromqlParser {
      * Parses an PromQL expression into execution plan
      */
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, null, null, 0, 0, null);
+        return createStatement(query, null, null, 0, 0, new QueryParams());
     }
 
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn) {
-        return createStatement(query, start, end, startLine, startColumn, null);
+        return createStatement(query, start, end, startLine, startColumn, new QueryParams());
     }
 
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {

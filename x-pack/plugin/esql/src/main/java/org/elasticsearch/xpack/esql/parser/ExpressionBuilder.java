@@ -1237,6 +1237,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
+    public static QueryParam paramByNameOrPosition(QueryParams params, Source source, String nameOrPosition) {
+        if (params == null || nameOrPosition == null) {
+            return null;
+        }
+        if (isInteger(nameOrPosition)) {
+            int index = Integer.parseInt(nameOrPosition);
+            QueryParam param = params.get(index);
+            if (param == null) {
+                throw new ParsingException(source, "No parameter is defined for position [{}]", index);
+            }
+            return param;
+        } else {
+            if (params.contains(nameOrPosition) == false) {
+                throw new ParsingException(source, "Unknown query parameter [{}]", nameOrPosition);
+            }
+            return params.get(nameOrPosition);
+        }
+    }
+
     String unresolvedAttributeNameInParam(ParserRuleContext ctx, Expression param) {
         String invalidParam = "Query parameter [{}]{}, cannot be used as an identifier";
         switch (param) {

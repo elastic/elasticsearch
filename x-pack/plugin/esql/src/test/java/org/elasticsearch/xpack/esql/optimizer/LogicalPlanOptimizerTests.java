@@ -3508,10 +3508,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * Project[[y{r}#6 AS z]]
-     * \_Eval[[emp_no{f}#11 + 1[INTEGER] AS y]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * Project[[z{r}#95]]
+     * \_Eval[[emp_no{f}#100 + 1[INTEGER] AS z#95]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_EsRelation[employees][emp_no{f}#100]
      * }</pre>
      */
     public void testNoPruningWhenChainedEvals() {
@@ -3524,7 +3524,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("z"));
         var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("y"));
+        List<Alias> fields = eval.fields();
+        assertThat(fields, hasSize(1));
+        assertEquals("z", fields.get(0).name());
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
     }
@@ -3701,10 +3703,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * Limit[1000[INTEGER]]
-     * \_Aggregate[[gender{f}#19],[COUNT(x{r}#3) AS cy, MIN(x{r}#3) AS cx, gender{f}#19]]
-     *   \_Eval[[emp_no{f}#17 + 1[INTEGER] AS x]]
-     *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[gender{f}#40],[COUNT(y{r}#26,true[BOOLEAN],PT0S[TIME_DURATION]) AS cy#33, MIN(x{r}#23,true[BOOLEAN],PT0S[TIME_
+     * DURATION]) AS cx#36, gender{f}#40]]
+     *   \_Eval[[emp_no{f}#41 + 1[INTEGER] AS x#23, emp_no{f}#41 + 1[INTEGER] AS y#26]]
+     *     \_EsRelation[employees][emp_no{f}#41, gender{f}#40]
      * }</pre>
      */
     public void testEvalAliasingInsideSameCommand() {
@@ -3718,22 +3721,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("cy", "cx", "gender"));
-        aggFieldName(aggs.get(0), Count.class, "x");
+        aggFieldName(aggs.get(0), Count.class, "y");
         aggFieldName(aggs.get(1), Min.class, "x");
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
         var eval = as(agg.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x"));
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
         var source = as(eval.child(), EsRelation.class);
     }
 
     /**
      * Expects
      * <pre>{@code
-     * Limit[1000[INTEGER]]
-     * \_Aggregate[[gender{f}#22],[COUNT(z{r}#9) AS cy, MIN(x{r}#3) AS cx, gender{f}#22]]
-     *   \_Eval[[emp_no{f}#20 + 1[INTEGER] AS x, x{r}#3 + 1[INTEGER] AS z]]
-     *     \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[gender{f}#24],[COUNT(y{r}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS cy#18, MIN(x{r}#5,true[BOOLEAN],PT0S[TIME_D
+     * URATION]) AS cx#21, gender{f}#24]]
+     *   \_Eval[[emp_no{f}#22 + 1[INTEGER] AS x#5, emp_no{f}#22 + 1[INTEGER] + 1[INTEGER] AS y#14]]
+     *     \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
      * }</pre>
      */
     public void testEvalAliasingInsideSameCommandWithShadowing() {
@@ -3747,12 +3752,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("cy", "cx", "gender"));
-        aggFieldName(aggs.get(0), Count.class, "z");
+        // y is shadowed and equals z (emp_no + 1 + 1)
+        aggFieldName(aggs.get(0), Count.class, "y");
         aggFieldName(aggs.get(1), Min.class, "x");
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
         var eval = as(agg.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x", "z"));
+        assertThat(eval.fields(), hasSize(2));
+        // Optimized eval should contain x and the final y (which equals z = emp_no + 1 + 1)
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
         var source = as(eval.child(), EsRelation.class);
     }
 
@@ -6221,11 +6229,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /*
-     * EsqlProject[[emp_no{r}#5]]
-     * \_Limit[1000[INTEGER],false]
-     *   \_LocalRelation[[salary{r}#3, emp_no{r}#5, gender{r}#7],
-     *      org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@9d5b596d]
+    /**
+     * Project[[emp_no{r}#4]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_LocalRelation[[emp_no{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]]]}]
      */
     public void testInlineStatsWithRow() {
         var query = """
@@ -6243,14 +6250,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(esqlProject.projections()), is(List.of("emp_no")));
         var limit = asLimit(esqlProject.child(), 1000, false);
         var localRelation = as(limit.child(), LocalRelation.class);
-        assertThat(
-            localRelation.output(),
-            containsIgnoringIds(
-                new ReferenceAttribute(EMPTY, "salary", INTEGER),
-                new ReferenceAttribute(EMPTY, "emp_no", INTEGER),
-                new ReferenceAttribute(EMPTY, "gender", KEYWORD)
-            )
-        );
+        assertThat(localRelation.output(), hasSize(1));
+        assertEquals(ignoreIds(new ReferenceAttribute(EMPTY, "emp_no", INTEGER)), ignoreIds(localRelation.output().getFirst()));
     }
 
     /*
@@ -8350,11 +8351,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types | EVAL x = keyword, y = date + x::date_period"""));
         assertTrue(e.getMessage().startsWith("Found "));
-        assertEquals("1:43: argument of [x::date_period] must be a constant, received [x]", e.getMessage().substring(header.length()));
+        assertEquals(
+            "1:23: argument of [x::date_period] must be a constant, received [keyword]",
+            e.getMessage().substring(header.length())
+        );
 
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL x = keyword, y = date - to_timeduration(x)"""));
-        assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
+        assertEquals(
+            "1:24: argument of [to_timeduration(x)] must be a constant, received [keyword]",
+            e.getMessage().substring(header.length())
+        );
     }
 
     public void testWhereNull() {

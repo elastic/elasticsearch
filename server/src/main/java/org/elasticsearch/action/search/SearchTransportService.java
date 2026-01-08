@@ -335,7 +335,13 @@ public class SearchTransportService {
             transportService.sendChildRequest(
                 transportService.getConnection(transportService.getLocalNode()),
                 TransportFetchPhaseCoordinationAction.TYPE.name(),
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers, indices, indicesOptions),
+                new TransportFetchPhaseCoordinationAction.Request(
+                    shardFetchRequest,
+                    connection.getNode(),
+                    headers,
+                    indices,
+                    indicesOptions
+                ),
                 task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
@@ -696,7 +702,8 @@ public class SearchTransportService {
                                 fetchSearchReq.getCoordinatingTaskId(),
                                 responseChunk,
                                 indices,
-                                indicesOptions),
+                                indicesOptions
+                            ),
                             task,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(

@@ -343,7 +343,8 @@ public final class FetchPhase {
         };
 
         SearchHits resultToReturn = null;
-        try (FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
+        try (
+            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
@@ -356,7 +357,8 @@ public final class FetchPhase {
                 sendFailure,
                 context.getTotalHits(),
                 context.getMaxScore()
-            )) {
+            )
+        ) {
 
             if (context.isCancelled()) {
                 // Clean up hits array

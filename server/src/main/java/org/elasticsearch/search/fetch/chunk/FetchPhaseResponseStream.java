@@ -81,7 +81,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param releasable a releasable to close after processing (typically releases the acquired stream reference)
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
-       // Check cancellation before accepting chunk
+        // Check cancellation before accepting chunk
         if (cancelled) {
             releasable.close();
             throw new TaskCancelledException("Fetch phase cancelled");

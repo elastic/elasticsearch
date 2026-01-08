@@ -718,7 +718,13 @@ public class SearchTransportService {
                 };
             }
 
-            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, sendFailure, new ChannelActionListener<>(channel));
+            searchService.executeFetchPhase(
+                request,
+                (SearchShardTask) task,
+                chunkWriter,
+                sendFailure,
+                new ChannelActionListener<>(channel)
+            );
         };
 
         transportService.registerRequestHandler(

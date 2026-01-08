@@ -116,8 +116,10 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Coordinator circuit breaker should be released even after tripping, current: " + currentBreaker
-                    + ", before: " + breakerBefore,
+                "Coordinator circuit breaker should be released even after tripping, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
                 currentBreaker,
                 lessThanOrEqualTo(breakerBefore)
             );
@@ -155,21 +157,17 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         int numSearches = 5;
         ExecutorService executor = Executors.newFixedThreadPool(numSearches);
         try {
-            List<CompletableFuture<Void>> futures = IntStream.range(0, numSearches)
-                .mapToObj(i -> CompletableFuture.runAsync(() -> {
-                    internalCluster().client(coordinatorNode)
-                        .prepareSearch(INDEX_NAME)
-                        .setQuery(matchAllQuery())
-                        .setSize(4)
-                        .setAllowPartialSearchResults(false)
-                        .addSort(SORT_FIELD, SortOrder.ASC)
-                        .get();
-                }, executor))
-                .toList();
+            List<CompletableFuture<Void>> futures = IntStream.range(0, numSearches).mapToObj(i -> CompletableFuture.runAsync(() -> {
+                internalCluster().client(coordinatorNode)
+                    .prepareSearch(INDEX_NAME)
+                    .setQuery(matchAllQuery())
+                    .setSize(4)
+                    .setAllowPartialSearchResults(false)
+                    .addSort(SORT_FIELD, SortOrder.ASC)
+                    .get();
+            }, executor)).toList();
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0]))
-                .exceptionally(ex -> null)
-                .get(30, TimeUnit.SECONDS);
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0])).exceptionally(ex -> null).get(30, TimeUnit.SECONDS);
 
             List<Exception> exceptions = new ArrayList<>();
             for (CompletableFuture<Void> future : futures) {
@@ -197,8 +195,10 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Coordinator circuit breaker should recover after concurrent breaker trips, current: " + currentBreaker
-                    + ", before: " + breakerBefore,
+                "Coordinator circuit breaker should recover after concurrent breaker trips, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
                 currentBreaker,
                 lessThanOrEqualTo(breakerBefore)
             );
@@ -239,8 +239,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         );
 
         boolean foundBreakerException = containsCircuitBreakerException(exception);
-        assertThat("Circuit breaker should have tripped on single large document",
-            foundBreakerException, equalTo(true));
+        assertThat("Circuit breaker should have tripped on single large document", foundBreakerException, equalTo(true));
 
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
@@ -297,8 +296,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Circuit breaker should not leak after repeated trips, current: " + currentBreaker
-                    + ", initial: " + initialBreaker,
+                "Circuit breaker should not leak after repeated trips, current: " + currentBreaker + ", initial: " + initialBreaker,
                 currentBreaker,
                 lessThanOrEqualTo(initialBreaker)
             );
@@ -330,26 +328,24 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
     private void createIndex(String indexName) {
         assertAcked(
-            prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
                 .setMapping(
-                    SORT_FIELD, "type=long",
-                    "text", "type=text,store=false",
-                    "large_content", "type=text,store=false",
-                    "huge_field", "type=text,store=false"
+                    SORT_FIELD,
+                    "type=long",
+                    "text",
+                    "type=text,store=false",
+                    "large_content",
+                    "type=text,store=false",
+                    "huge_field",
+                    "type=text,store=false"
                 )
         );
     }
 
     private long getNodeRequestBreakerUsed(String nodeName) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(
-            CircuitBreakerService.class,
-            nodeName
-        );
+        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, nodeName);
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         return breaker.getUsed();
     }

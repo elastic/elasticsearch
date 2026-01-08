@@ -442,9 +442,9 @@ abstract class FetchPhaseDocsIterator {
      * This prevents double-decRef when circuit breaker trips after some chunks were transmitted.
      */
     private static void purgePartialHits(SearchHit[] hits, Set<Integer> sentIndices) {
-       for (int i = 0; i < hits.length; i++) {
-           if (hits[i] != null && sentIndices.contains(i) == false) {
-               hits[i].decRef();
+        for (int i = 0; i < hits.length; i++) {
+            if (hits[i] != null && sentIndices.contains(i) == false) {
+                hits[i].decRef();
             }
         }
     }

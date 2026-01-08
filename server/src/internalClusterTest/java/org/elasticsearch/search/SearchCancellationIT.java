@@ -117,10 +117,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
 
         logger.info("Executing search with chunked fetch");
-        ActionFuture<SearchResponse> searchResponse = prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(10)
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setSize(10).execute();
 
         // Wait for fetch phase to start blocking
         assertBusy(() -> {

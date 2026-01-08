@@ -80,10 +80,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 150, 5_000);
@@ -147,8 +144,10 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Coordinator circuit breaker should be released after many-shard chunked fetch, current: " + currentBreaker
-                    + ", before: " + breakerBefore,
+                "Coordinator circuit breaker should be released after many-shard chunked fetch, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
                 currentBreaker,
                 lessThanOrEqualTo(breakerBefore)
             );
@@ -165,10 +164,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 110, 1_000);
@@ -179,18 +175,16 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         int numSearches = 5;
         ExecutorService executor = Executors.newFixedThreadPool(numSearches);
         try {
-            List<CompletableFuture<Void>> futures = IntStream.range(0, numSearches)
-                .mapToObj(i -> CompletableFuture.runAsync(() -> {
-                    assertNoFailuresAndResponse(
-                        internalCluster().client(coordinatorNode)
-                            .prepareSearch(INDEX_NAME)
-                            .setQuery(matchAllQuery())
-                            .setSize(30)
-                            .addSort(SORT_FIELD, SortOrder.ASC),
-                        response -> assertThat(response.getHits().getHits().length, equalTo(30))
-                    );
-                }, executor))
-                .toList();
+            List<CompletableFuture<Void>> futures = IntStream.range(0, numSearches).mapToObj(i -> CompletableFuture.runAsync(() -> {
+                assertNoFailuresAndResponse(
+                    internalCluster().client(coordinatorNode)
+                        .prepareSearch(INDEX_NAME)
+                        .setQuery(matchAllQuery())
+                        .setSize(30)
+                        .addSort(SORT_FIELD, SortOrder.ASC),
+                    response -> assertThat(response.getHits().getHits().length, equalTo(30))
+                );
+            }, executor)).toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0])).get(30, TimeUnit.SECONDS);
             assertThat("All concurrent searches should succeed", futures.size(), equalTo(numSearches));
@@ -202,8 +196,10 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Coordinator circuit breaker should be released after concurrent searches, current: " + currentBreaker
-                    + ", before: " + breakerBefore,
+                "Coordinator circuit breaker should be released after concurrent searches, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
                 currentBreaker,
                 lessThanOrEqualTo(breakerBefore)
             );
@@ -220,10 +216,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
 
         populateIndex(INDEX_NAME, 150, 3_000);
@@ -263,10 +256,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 300, 2_000);
@@ -284,10 +274,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 assertThat(response.getHits().getHits().length, greaterThan(0));
                 // Verify all results match filter
                 for (int i = 0; i < response.getHits().getHits().length; i++) {
-                    assertThat(
-                        Objects.requireNonNull(response.getHits().getHits()[i].getSourceAsMap()).get("keyword"),
-                        equalTo("value1")
-                    );
+                    assertThat(Objects.requireNonNull(response.getHits().getHits()[i].getSourceAsMap()).get("keyword"), equalTo("value1"));
                 }
                 verifyHitsOrder(response);
             }
@@ -309,10 +296,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 200, 2_000);
@@ -336,8 +320,10 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Coordinator circuit breaker should not leak memory across sequential chunked fetches, current: " + currentBreaker
-                    + ", initial: " + initialBreaker,
+                "Coordinator circuit breaker should not leak memory across sequential chunked fetches, current: "
+                    + currentBreaker
+                    + ", initial: "
+                    + initialBreaker,
                 currentBreaker,
                 lessThanOrEqualTo(initialBreaker)
             );
@@ -353,10 +339,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         populateIndex(INDEX_NAME, 250, 2_000);
         ensureGreen(INDEX_NAME);
@@ -400,10 +383,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 150, 2_000);
@@ -447,8 +427,10 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
             assertThat(
-                "Coordinator circuit breaker should be released after paginated chunked fetches, current: " + currentBreaker
-                    + ", before: " + breakerBefore,
+                "Coordinator circuit breaker should be released after paginated chunked fetches, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
                 currentBreaker,
                 lessThanOrEqualTo(breakerBefore)
             );
@@ -464,10 +446,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 100, 5_000);
@@ -504,10 +483,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         createIndexForTest(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         populateIndex(INDEX_NAME, 100, 5_000);
@@ -561,15 +537,20 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     private void createIndexForTest(String indexName, Settings indexSettings) {
         assertAcked(
-            prepareCreate(indexName)
-                .setSettings(indexSettings)
+            prepareCreate(indexName).setSettings(indexSettings)
                 .setMapping(
-                    SORT_FIELD, "type=long",
-                    "text", "type=text,store=true",
-                    "large_text_1", "type=text,store=false",
-                    "large_text_2", "type=text,store=false",
-                    "large_text_3", "type=text,store=false",
-                    "keyword", "type=keyword"
+                    SORT_FIELD,
+                    "type=long",
+                    "text",
+                    "type=text,store=true",
+                    "large_text_1",
+                    "type=text,store=false",
+                    "large_text_2",
+                    "type=text,store=false",
+                    "large_text_3",
+                    "type=text,store=false",
+                    "keyword",
+                    "type=keyword"
                 )
         );
     }
@@ -578,10 +559,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
      * Get the REQUEST circuit breaker usage on a specific node.
      */
     private long getNodeRequestBreakerUsed(String nodeName) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(
-            CircuitBreakerService.class,
-            nodeName
-        );
+        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, nodeName);
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         return breaker.getUsed();
     }

@@ -81,6 +81,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -889,7 +891,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(BlockLoader.constantBytes(new BytesRef("foo")))
+                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 ),
                 checks::constantBytes,
                 StatusChecks::constantBytes

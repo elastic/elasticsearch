@@ -26,6 +26,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -102,7 +103,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     /**
      * Singleton to load constant {@code null}s.
      */
-    public static final LoaderAndConverter LOAD_CONSTANT_NULLS = new LoaderAndConverter(BlockLoader.CONSTANT_NULLS, null);
+    public static final LoaderAndConverter LOAD_CONSTANT_NULLS = new LoaderAndConverter(ConstantNull.INSTANCE, null);
 
     /**
      * Loads directly from the {@code loader}.

@@ -397,7 +397,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                 taskType,
                 NAME,
                 (NvidiaChatCompletionServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings
+                secretSettings
             );
             case TEXT_EMBEDDING -> new NvidiaEmbeddingsModel(
                 inferenceEntityId,
@@ -406,14 +406,14 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                 (NvidiaEmbeddingsServiceSettings) serviceSettings,
                 (NvidiaEmbeddingsTaskSettings) taskSettings,
                 chunkingSettings,
-                (DefaultSecretSettings) secretSettings
+                secretSettings
             );
             case RERANK -> new NvidiaRerankModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
                 (NvidiaRerankServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings
+                secretSettings
             );
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };

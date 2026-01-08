@@ -267,7 +267,6 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     public void testGetAuthorizationIfPermittedEnvironment_ReturnsFailure_WhenExceptionThrown() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
-        var logger = mock(Logger.class);
 
         var exceptionToThrow = new IllegalStateException("exception");
         var mockCcmFeature = mock(CCMFeature.class);
@@ -277,7 +276,6 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             eisGatewayUrl,
             threadPool,
-            logger,
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService

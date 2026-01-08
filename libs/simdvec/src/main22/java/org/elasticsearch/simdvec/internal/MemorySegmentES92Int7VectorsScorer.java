@@ -85,7 +85,33 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            scores
+            scores,
+            BULK_SIZE
+        );
+    }
+
+    @Override
+    public void scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        int7DotProductBulk(q, bulkSize, scores);
+        applyCorrectionsBulk(
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
         );
     }
 }

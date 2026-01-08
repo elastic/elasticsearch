@@ -499,7 +499,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     queryCorrections.additionalCorrection(),
                     similarityFunction,
                     centroidDp,
-                    scores
+                    scores,
+                    BULK_SIZE
                 );
                 for (int j = 0; j < ES92Int7VectorsScorer.BULK_SIZE; j++) {
                     int centroidOrd = scoresOffset + i + j;

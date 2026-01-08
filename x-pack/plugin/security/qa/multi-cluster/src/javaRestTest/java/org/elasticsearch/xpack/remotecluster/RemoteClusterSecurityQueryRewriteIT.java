@@ -61,7 +61,7 @@ public class RemoteClusterSecurityQueryRewriteIT extends AbstractRemoteClusterSe
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_SEARCH_USER, PASS.toString(), "remote_search", false)
+            .user(REMOTE_SEARCH_USER, PASS.toString(), "remote_search_query_rewrite", false)
             .build();
     }
 

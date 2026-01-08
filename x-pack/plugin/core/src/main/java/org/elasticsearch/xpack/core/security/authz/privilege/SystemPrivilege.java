@@ -15,6 +15,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
@@ -52,7 +53,8 @@ public final class SystemPrivilege extends Privilege {
         TransportAddIndexBlockAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportUpdateSettingsAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportSearchShardsAction.TYPE.name(), // added so this API can be called with the system user by other APIs
-        ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name() // needed for Security plugin reload of remote cluster credentials
+        ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name(), // needed for Security plugin reload of remote cluster credentials
+        GetInferenceFieldsAction.NAME // needed for inference cross-cluster search query rewrite
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

@@ -56,6 +56,17 @@ public class ThreadPoolHotThreadsIT extends ESIntegTestCase {
 
         final String node = internalCluster().startNode(nodeSettings);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node);
+        for (var info : threadPool.info()) {
+            final var executor = threadPool.executor(info.getName());
+            if (executor instanceof EsThreadPoolExecutor esThreadPoolExecutor) {
+                if (enabled && ThreadPool.Names.MANAGEMENT.equals(info.getName())) {
+                    assertTrue(esThreadPoolExecutor.getHotThreadsOnLargeQueueConfig().isEnabled());
+                } else {
+                    assertFalse(esThreadPoolExecutor.getHotThreadsOnLargeQueueConfig().isEnabled());
+                }
+            }
+        }
+
         final var managementExecutor = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.MANAGEMENT);
         final int maxManagementThreads = threadPool.info(ThreadPool.Names.MANAGEMENT).getMax();
 

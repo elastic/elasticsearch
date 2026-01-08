@@ -207,6 +207,11 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     // package private for testing
+    EsExecutors.HotThreadsOnLargeQueueConfig getHotThreadsOnLargeQueueConfig() {
+        return hotThreadsOnLargeQueueConfig;
+    }
+
+    // package private for testing
     long getStartTimeOfLargeQueue() {
         return startTimeOfLargeQueue;
     }

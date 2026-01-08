@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
@@ -174,13 +176,15 @@ public class DeepSeekService extends SenderService {
     ) {
         var serviceSettings = config.getServiceSettings();
         var secretSettings = secrets.getSecretSettings();
-
-        return new DeepSeekChatCompletionModel(
-            (DeepSeekChatCompletionModel.DeepSeekServiceSettings) serviceSettings,
-            (DefaultSecretSettings) secretSettings,
-            config,
-            new ModelSecrets(secretSettings)
-        );
+        return switch (taskType) {
+            case CHAT_COMPLETION, COMPLETION -> new DeepSeekChatCompletionModel(
+                (DeepSeekChatCompletionModel.DeepSeekServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings,
+                config,
+                new ModelSecrets(secretSettings)
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

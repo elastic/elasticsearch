@@ -11,10 +11,13 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBooleansBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
 
 /**
  * Loads the MIN {@code boolean} in each doc. Think of it like {@code ALL}.
@@ -25,13 +28,13 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
+    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
+        return new MvMinSorted(breaker, docValues);
     }
 
     @Override
@@ -42,7 +45,8 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     private static class MvMinSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
+        MvMinSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 
@@ -78,6 +82,11 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         @Override
         public String toString() {
             return "MvMinBooleansFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

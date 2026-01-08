@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -29,13 +30,13 @@ public class MvMaxBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
     }
 
     @Override
-    protected AllReader singletonReader(SortedDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(SortedSetDocValues docValues) {
-        return new MvMaxSortedSet(docValues);
+    protected AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues) {
+        return new MvMaxSortedSet(breaker, docValues);
     }
 
     @Override
@@ -46,7 +47,8 @@ public class MvMaxBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
     private static class MvMaxSortedSet extends BlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
-        MvMaxSortedSet(SortedSetDocValues ordinals) {
+        MvMaxSortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
         }
 
@@ -110,6 +112,11 @@ public class MvMaxBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         @Override
         public String toString() {
             return "MvMaxBytesRefsFromOrds.SortedSet";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

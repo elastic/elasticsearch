@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.BlockLoaderTestCase.TEST_BREAKER_SIZE;
 import static org.elasticsearch.index.mapper.BlockLoaderTestCase.buildSpecification;
 import static org.elasticsearch.index.mapper.BlockLoaderTestCase.hasDocValues;
 
@@ -61,7 +62,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
             ? createSytheticSourceMapperService(mappingXContent)
             : createMapperService(mappingXContent);
 
-        runner.runTest(mapperService, document, expected, "parent.subfield_text");
+        runner.runTest(mapperService, newLimitedBreaker(TEST_BREAKER_SIZE), document, expected, "parent.subfield_text");
     }
 
     @SuppressWarnings("unchecked")

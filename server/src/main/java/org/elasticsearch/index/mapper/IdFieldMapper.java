@@ -17,6 +17,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.blockloader.docvalues.IdLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Arrays;

@@ -18,13 +18,19 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
@@ -50,9 +56,24 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCa
         this.missingValues = missingValues;
     }
 
-    protected abstract void innerTest(LeafReaderContext ctx, int mvCount) throws IOException;
+    protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
 
     public void test() throws IOException {
+        test(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+    }
+
+    public void testWithCranky() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            test(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void test(CircuitBreaker breaker) throws IOException {
         int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
@@ -71,7 +92,7 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCa
             iw.forceMerge(1);
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
-                innerTest(ctx, mvCount);
+                innerTest(breaker, ctx, mvCount);
             }
         }
     }

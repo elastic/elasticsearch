@@ -26,13 +26,16 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.blockloader.script.DoubleScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -294,10 +297,13 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader.class));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(rowStrideReader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+                }
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+                }
 
                 // Assert values:
                 assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(1.1, 2.1)));
@@ -324,14 +330,17 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(columnAtATimeLoader, nullValue());
+                }
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // Assert values:
                 assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(List.of(1.1, 2.1)));

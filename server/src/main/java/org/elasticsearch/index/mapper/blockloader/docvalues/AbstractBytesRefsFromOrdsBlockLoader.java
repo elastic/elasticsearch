@@ -14,14 +14,24 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
 
 /**
  * Loads {@code keyword} style fields that are stored as a lookup table.
  */
 public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    /**
+     * Circuit breaker space reserved for each reader. Measured in heap dumps
+     * around from 3.5kb to 65kb. This is an intentional overestimate.
+     */
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(100).getBytes();
+
     protected final String fieldName;
 
     public AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
@@ -34,30 +44,33 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
     }
 
     @Override
-    public final AllReader reader(LeafReaderContext context) throws IOException {
+    public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
         SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
         if (docValues != null) {
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
-                return singletonReader(singleton);
+                return singletonReader(breaker, singleton);
             }
-            return sortedSetReader(docValues);
+            return sortedSetReader(breaker, docValues);
         }
         SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
         if (singleton != null) {
-            return singletonReader(singleton);
+            return singletonReader(breaker, singleton);
         }
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         return ConstantNull.READER;
     }
 
-    protected abstract AllReader singletonReader(SortedDocValues docValues);
+    protected abstract AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues);
 
-    protected abstract AllReader sortedSetReader(SortedSetDocValues docValues);
+    protected abstract AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues);
 
     protected static class Singleton extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
 
-        public Singleton(SortedDocValues ordinals) {
+        public Singleton(CircuitBreaker breaker, SortedDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
         }
 
@@ -113,12 +126,18 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         public String toString() {
             return "BytesRefsFromOrds.Singleton";
         }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
     }
 
     protected static class SortedSet extends BlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
-        SortedSet(SortedSetDocValues ordinals) {
+        SortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
         }
 
@@ -202,6 +221,11 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         @Override
         public String toString() {
             return "BytesRefsFromOrds.SortedSet";
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

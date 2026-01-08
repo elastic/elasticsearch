@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -25,13 +26,13 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMaxSorted(docValues);
+    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
+        return new MvMaxSorted(breaker, docValues);
     }
 
     @Override
@@ -42,7 +43,8 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
     private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        MvMaxSorted(SortedNumericDocValues numericDocValues) {
+        MvMaxSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 
@@ -78,6 +80,11 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
         @Override
         public String toString() {
             return "MvMinLongsFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

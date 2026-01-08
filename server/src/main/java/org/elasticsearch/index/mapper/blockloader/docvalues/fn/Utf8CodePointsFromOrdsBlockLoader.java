@@ -18,10 +18,13 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
@@ -64,31 +67,34 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE, "load blocks");
         SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
         if (docValues != null) {
             if (docValues.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(warnings, docValues);
+                return new ImmediateOrdinals(breaker, warnings, docValues);
             }
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
-                return new Singleton(singleton);
+                return new Singleton(breaker, singleton);
             }
-            return new SortedSet(warnings, docValues);
+            return new SortedSet(breaker, warnings, docValues);
         }
         SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
         if (singleton != null) {
             if (singleton.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(warnings, DocValues.singleton(singleton));
+                return new ImmediateOrdinals(breaker, warnings, DocValues.singleton(singleton));
             }
-            return new Singleton(singleton);
+            return new Singleton(breaker, singleton);
         }
         BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
         if (binary != null) {
+            breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
             String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
             NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-            return new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary);
+            return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, binary);
         }
+        breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
         return ConstantNull.READER;
     }
 
@@ -119,11 +125,21 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         private int cacheEntriesFilled;
 
-        Singleton(SortedDocValues ordinals) {
+        Singleton(CircuitBreaker breaker, SortedDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
 
-            // TODO track this memory. we can't yet because this isn't Closeable
-            this.cache = new int[ordinals.getValueCount()];
+            int cacheSize = Math.toIntExact(ordinals.getValueCount());
+            boolean success = false;
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(sizeOfArray(cacheSize), "load blocks");
+                success = true;
+            } finally {
+                if (success == false) {
+                    breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+                }
+            }
+            this.cache = new int[cacheSize];
             Arrays.fill(this.cache, -1);
         }
 
@@ -252,6 +268,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             cacheEntriesFilled++;
             return count;
         }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + sizeOfArray(cache.length)));
+        }
     }
 
     /**
@@ -265,12 +286,22 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         private int cacheEntriesFilled;
 
-        SortedSet(Warnings warnings, SortedSetDocValues ordinals) {
+        SortedSet(CircuitBreaker breaker, Warnings warnings, SortedSetDocValues ordinals) {
+            super(breaker);
             this.warnings = warnings;
             this.ordinals = ordinals;
 
-            // TODO track this memory. we can't yet because this isn't Releasable
-            this.cache = new int[Math.toIntExact(ordinals.getValueCount())];
+            int cacheSize = Math.toIntExact(ordinals.getValueCount());
+            boolean success = false;
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(sizeOfArray(cacheSize), "load blocks");
+                success = true;
+            } finally {
+                if (success == false) {
+                    breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+                }
+            }
+            this.cache = new int[cacheSize];
             Arrays.fill(this.cache, -1);
         }
 
@@ -387,6 +418,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             cacheEntriesFilled++;
             return count;
         }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + sizeOfArray(cache.length)));
+        }
     }
 
     /**
@@ -410,7 +446,8 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         private final Warnings warnings;
         private final SortedSetDocValues ordinals;
 
-        ImmediateOrdinals(Warnings warnings, SortedSetDocValues ordinals) {
+        ImmediateOrdinals(CircuitBreaker breaker, Warnings warnings, SortedSetDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
             this.warnings = warnings;
         }
@@ -534,6 +571,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         private int codePointsAtOrd(long ord) throws IOException {
             return codePointCountProvider.applyAsInt(ordinals.lookupOrd(ord));
         }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+        }
     }
 
     private static class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
@@ -541,7 +583,8 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         private final NumericDocValues counts;
         private final BinaryDocValues values;
 
-        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+        MultiValuedBinaryWithSeparateCounts(CircuitBreaker breaker, Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+            super(breaker);
             this.warnings = warnings;
             this.counts = counts;
             this.values = values;
@@ -616,6 +659,12 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(
+                -(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE)
+            );
+        }
     }
 
     /**

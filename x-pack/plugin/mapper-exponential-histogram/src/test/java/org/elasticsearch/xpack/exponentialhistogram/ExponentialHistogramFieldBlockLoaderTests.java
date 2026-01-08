@@ -44,8 +44,8 @@ public class ExponentialHistogramFieldBlockLoaderTests extends BlockLoaderTestCa
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() throws IOException {
-        // Multi fields are not supported
+    protected boolean supportsMultiField() {
+        return false;
     }
 
     private static DataSourceHandler DATA_SOURCE_HANDLER = new DataSourceHandler() {

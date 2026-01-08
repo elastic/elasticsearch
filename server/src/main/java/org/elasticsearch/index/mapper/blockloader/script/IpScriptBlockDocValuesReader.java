@@ -7,23 +7,26 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.IpFieldScript;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
 
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
-public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
-        private final StringFieldScript.LeafFactory factory;
+public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
+    public static class IpScriptBlockLoader extends DocValuesBlockLoader {
+        private final IpFieldScript.LeafFactory factory;
 
-        KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory) {
+        public IpScriptBlockLoader(IpFieldScript.LeafFactory factory) {
             this.factory = factory;
         }
 
@@ -33,16 +36,17 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new KeywordScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            return new IpScriptBlockDocValuesReader(breaker, factory.newInstance(context));
         }
     }
 
-    private final BytesRefBuilder bytesBuild = new BytesRefBuilder();
-    private final StringFieldScript script;
+    private final IpFieldScript script;
     private int docId;
 
-    KeywordScriptBlockDocValuesReader(StringFieldScript script) {
+    IpScriptBlockDocValuesReader(CircuitBreaker breaker, IpFieldScript script) {
+        super(breaker);
         this.script = script;
     }
 
@@ -71,17 +75,15 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     private void read(int docId, BlockLoader.BytesRefBuilder builder) {
         script.runForDoc(docId);
-        switch (script.getValues().size()) {
+        switch (script.count()) {
             case 0 -> builder.appendNull();
             case 1 -> {
-                bytesBuild.copyChars(script.getValues().get(0));
-                builder.appendBytesRef(bytesBuild.get());
+                builder.appendBytesRef(script.values()[0]);
             }
             default -> {
                 builder.beginPositionEntry();
-                for (String v : script.getValues()) {
-                    bytesBuild.copyChars(v);
-                    builder.appendBytesRef(bytesBuild.get());
+                for (int i = 0; i < script.count(); i++) {
+                    builder.appendBytesRef(script.values()[i]);
                 }
                 builder.endPositionEntry();
             }
@@ -90,6 +92,11 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public String toString() {
-        return "ScriptKeywords";
+        return "ScriptIps";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
     }
 }

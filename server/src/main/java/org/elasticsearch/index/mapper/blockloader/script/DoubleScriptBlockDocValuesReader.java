@@ -7,40 +7,46 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 
 import java.io.IOException;
 
-/**
- * {@link BlockDocValuesReader} implementation for {@code long} scripts.
- */
-public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class LongScriptBlockLoader extends DocValuesBlockLoader {
-        private final LongFieldScript.LeafFactory factory;
+import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
 
-        LongScriptBlockLoader(LongFieldScript.LeafFactory factory) {
+/**
+ * {@link BlockDocValuesReader} implementation for {@code double} scripts.
+ */
+public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
+    public static class DoubleScriptBlockLoader extends DocValuesBlockLoader {
+        private final DoubleFieldScript.LeafFactory factory;
+
+        public DoubleScriptBlockLoader(DoubleFieldScript.LeafFactory factory) {
             this.factory = factory;
         }
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.longs(expectedCount);
+            return factory.doubles(expectedCount);
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new LongScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            return new DoubleScriptBlockDocValuesReader(breaker, factory.newInstance(context));
         }
     }
 
-    private final LongFieldScript script;
+    private final DoubleFieldScript script;
     private int docId;
 
-    LongScriptBlockDocValuesReader(LongFieldScript script) {
+    DoubleScriptBlockDocValuesReader(CircuitBreaker breaker, DoubleFieldScript script) {
+        super(breaker);
         this.script = script;
     }
 
@@ -52,8 +58,8 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
         throws IOException {
-        // Note that we don't pre-sort our output so we can't use longsFromDocValues
-        try (BlockLoader.LongBuilder builder = factory.longs(docs.count() - offset)) {
+        // Note that we don't sort the values sort, so we can't use factory.doublesFromDocValues
+        try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count() - offset)) {
             for (int i = offset; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }
@@ -64,18 +70,18 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
-        read(docId, (BlockLoader.LongBuilder) builder);
+        read(docId, (BlockLoader.DoubleBuilder) builder);
     }
 
-    private void read(int docId, BlockLoader.LongBuilder builder) {
+    private void read(int docId, BlockLoader.DoubleBuilder builder) {
         script.runForDoc(docId);
         switch (script.count()) {
             case 0 -> builder.appendNull();
-            case 1 -> builder.appendLong(script.values()[0]);
+            case 1 -> builder.appendDouble(script.values()[0]);
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < script.count(); i++) {
-                    builder.appendLong(script.values()[i]);
+                    builder.appendDouble(script.values()[i]);
                 }
                 builder.endPositionEntry();
             }
@@ -84,6 +90,11 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public String toString() {
-        return "ScriptLongs";
+        return "ScriptDoubles";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
     }
 }

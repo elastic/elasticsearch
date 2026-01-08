@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -47,8 +48,17 @@ public class BlockLoaderTestRunner {
         this.allowDummyDocs = allowDummyDocs;
     }
 
-    public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
-        throws IOException {
+    /**
+     * Run the test.
+     * @param breaker breaker to use during the test. Callers are responible for making surethis is cleared.
+     */
+    public void runTest(
+        MapperService mapperService,
+        CircuitBreaker breaker,
+        Map<String, Object> document,
+        Object expected,
+        String blockLoaderFieldName
+    ) throws IOException {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
         var source = new SourceToParse(
             "1",
@@ -62,16 +72,30 @@ public class BlockLoaderTestRunner {
             null
         );
         var parsedDoc = mapperService.documentMapper().parse(source);
-        runTest(mapperService, parsedDoc, expected, blockLoaderFieldName);
+        runTest(mapperService, breaker, parsedDoc, expected, blockLoaderFieldName);
     }
 
-    public void runTest(MapperService mapperService, ParsedDocument parsedDoc, Object expected, String blockLoaderFieldName)
-        throws IOException {
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, parsedDoc, blockLoaderFieldName);
+    /**
+     * Run the test.
+     * @param breaker breaker to use during the test. Callers are responible for making surethis is cleared.
+     */
+    public void runTest(
+        MapperService mapperService,
+        CircuitBreaker breaker,
+        ParsedDocument parsedDoc,
+        Object expected,
+        String blockLoaderFieldName
+    ) throws IOException {
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, breaker, parsedDoc, blockLoaderFieldName);
         assertThat(blockLoaderResult, prettyEqualTo(expected));
     }
 
-    private Object setupAndInvokeBlockLoader(MapperService mapperService, ParsedDocument parsedDoc, String fieldName) throws IOException {
+    private Object setupAndInvokeBlockLoader(
+        MapperService mapperService,
+        CircuitBreaker breaker,
+        ParsedDocument parsedDoc,
+        String fieldName
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
@@ -86,42 +110,44 @@ public class BlockLoaderTestRunner {
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext context = reader.leaves().get(0);
-                return load(createBlockLoader(mapperService, fieldName), context, mapperService);
+                return load(createBlockLoader(mapperService, fieldName), context, mapperService, breaker);
             }
         }
     }
 
-    private Object load(BlockLoader blockLoader, LeafReaderContext context, MapperService mapperService) throws IOException {
+    private Object load(BlockLoader blockLoader, LeafReaderContext context, MapperService mapperService, CircuitBreaker breaker)
+        throws IOException {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
-        var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
-        if (columnAtATimeReader != null) {
-            int[] docArray;
-            int offset;
-            if (randomBoolean()) {
-                // Half the time we load a single document. Nice and simple.
-                docArray = new int[] { 1 };
-                offset = 0;
-            } else {
-                /*
-                 * The other half the time we emulate loading a larger page,
-                 * starting part way through the page.
-                 */
-                docArray = new int[between(2, 10)];
-                offset = between(0, docArray.length - 1);
-                for (int i = 0; i < docArray.length; i++) {
-                    if (i < offset) {
-                        docArray[i] = 0;
-                    } else if (i == offset) {
-                        docArray[i] = 1;
-                    } else {
-                        docArray[i] = allowDummyDocs ? 2 : 1;
+        try (BlockLoader.ColumnAtATimeReader columnAtATimeReader = blockLoader.columnAtATimeReader(breaker, context)) {
+            if (columnAtATimeReader != null) {
+                int[] docArray;
+                int offset;
+                if (randomBoolean()) {
+                    // Half the time we load a single document. Nice and simple.
+                    docArray = new int[] { 1 };
+                    offset = 0;
+                } else {
+                    /*
+                     * The other half the time we emulate loading a larger page,
+                     * starting part way through the page.
+                     */
+                    docArray = new int[between(2, 10)];
+                    offset = between(0, docArray.length - 1);
+                    for (int i = 0; i < docArray.length; i++) {
+                        if (i < offset) {
+                            docArray[i] = 0;
+                        } else if (i == offset) {
+                            docArray[i] = 1;
+                        } else {
+                            docArray[i] = allowDummyDocs ? 2 : 1;
+                        }
                     }
                 }
+                BlockLoader.Docs docs = TestBlock.docs(docArray);
+                var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset, false);
+                assertThat(block.size(), equalTo(docArray.length - offset));
+                return block.get(0);
             }
-            BlockLoader.Docs docs = TestBlock.docs(docArray);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset, false);
-            assertThat(block.size(), equalTo(docArray.length - offset));
-            return block.get(0);
         }
 
         StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
@@ -140,11 +166,13 @@ public class BlockLoaderTestRunner {
         storedFieldsLoader.advanceTo(1);
 
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
-        blockLoader.rowStrideReader(context).read(1, storedFieldsLoader, builder);
-        var block = (TestBlock) builder.build();
-        assertThat(block.size(), equalTo(1));
+        try (BlockLoader.RowStrideReader reader = blockLoader.rowStrideReader(breaker, context)) {
+            reader.read(1, storedFieldsLoader, builder);
+            var block = (TestBlock) builder.build();
+            assertThat(block.size(), equalTo(1));
 
-        return block.get(0);
+            return block.get(0);
+        }
     }
 
     private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {

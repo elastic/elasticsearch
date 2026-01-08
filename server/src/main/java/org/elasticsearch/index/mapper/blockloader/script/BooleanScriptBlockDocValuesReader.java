@@ -7,22 +7,26 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.BooleanFieldScript;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
+
 /**
  * {@link BlockDocValuesReader} implementation for {@code boolean} scripts.
  */
 public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class BooleanScriptBlockLoader extends DocValuesBlockLoader {
+    public static class BooleanScriptBlockLoader extends DocValuesBlockLoader {
         private final BooleanFieldScript.LeafFactory factory;
 
-        BooleanScriptBlockLoader(BooleanFieldScript.LeafFactory factory) {
+        public BooleanScriptBlockLoader(BooleanFieldScript.LeafFactory factory) {
             this.factory = factory;
         }
 
@@ -32,15 +36,17 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new BooleanScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            return new BooleanScriptBlockDocValuesReader(breaker, factory.newInstance(context));
         }
     }
 
     private final BooleanFieldScript script;
     private int docId;
 
-    BooleanScriptBlockDocValuesReader(BooleanFieldScript script) {
+    BooleanScriptBlockDocValuesReader(CircuitBreaker breaker, BooleanFieldScript script) {
+        super(breaker);
         this.script = script;
     }
 
@@ -89,5 +95,10 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public String toString() {
         return "ScriptBooleans";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
     }
 }

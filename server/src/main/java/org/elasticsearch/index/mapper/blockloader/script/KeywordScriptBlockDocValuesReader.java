@@ -7,22 +7,35 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
-public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class IpScriptBlockLoader extends DocValuesBlockLoader {
-        private final IpFieldScript.LeafFactory factory;
+public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
+    /**
+     * Circuit breaker space reserved for each reader. This is a pretty poor estimate for the
+     * overhead of the script, but it'll do for now. We're estimating 5kb for loading ordinals
+     * from doc values and 2kb for loading numbers from doc values. This 30kb is sort of a
+     * shrug because we don't know what the script will do, and we don't know how many doc
+     * values it'll load. And, we're not sure much memory the script itself will actually use.
+     */
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(30).getBytes();
 
-        IpScriptBlockLoader(IpFieldScript.LeafFactory factory) {
+    public static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
+        private final StringFieldScript.LeafFactory factory;
+
+        public KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory) {
             this.factory = factory;
         }
 
@@ -32,15 +45,18 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new IpScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            return new KeywordScriptBlockDocValuesReader(breaker, factory.newInstance(context));
         }
     }
 
-    private final IpFieldScript script;
+    private final BytesRefBuilder bytesBuild = new BytesRefBuilder();
+    private final StringFieldScript script;
     private int docId;
 
-    IpScriptBlockDocValuesReader(IpFieldScript script) {
+    KeywordScriptBlockDocValuesReader(CircuitBreaker breaker, StringFieldScript script) {
+        super(breaker);
         this.script = script;
     }
 
@@ -69,15 +85,17 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     private void read(int docId, BlockLoader.BytesRefBuilder builder) {
         script.runForDoc(docId);
-        switch (script.count()) {
+        switch (script.getValues().size()) {
             case 0 -> builder.appendNull();
             case 1 -> {
-                builder.appendBytesRef(script.values()[0]);
+                bytesBuild.copyChars(script.getValues().get(0));
+                builder.appendBytesRef(bytesBuild.get());
             }
             default -> {
                 builder.beginPositionEntry();
-                for (int i = 0; i < script.count(); i++) {
-                    builder.appendBytesRef(script.values()[i]);
+                for (String v : script.getValues()) {
+                    bytesBuild.copyChars(v);
+                    builder.appendBytesRef(bytesBuild.get());
                 }
                 builder.endPositionEntry();
             }
@@ -86,6 +104,11 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public String toString() {
-        return "ScriptIps";
+        return "ScriptKeywords";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
     }
 }

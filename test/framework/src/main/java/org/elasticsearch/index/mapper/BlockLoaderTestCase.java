@@ -11,6 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.MappingGenerator;
@@ -18,6 +21,7 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -29,11 +33,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
+
+    /**
+     * A large enough size that loading the field won't circuit break.
+     */
+    public static final ByteSizeValue TEST_BREAKER_SIZE = ByteSizeValue.ofMb(1);
 
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {
@@ -81,6 +92,21 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(TEST_BREAKER_SIZE));
+    }
+
+    public void testBlockLoaderWithCranky() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(CircuitBreaker breaker) throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         var specification = buildSpecification(customDataSourceHandlers);
 
@@ -92,11 +118,26 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         var mapperService = createMapperServiceForParams(mappingXContent);
 
-        runner.runTest(mapperService, document, expected, fieldName);
+        runner.runTest(mapperService, breaker, document, expected, fieldName);
+    }
+
+    public void testBlockLoaderForFieldInObject() throws IOException {
+        testBlockLoaderForFieldInObject(newLimitedBreaker(TEST_BREAKER_SIZE));
+    }
+
+    public void testBlockLoaderForFieldInObjectWithCranky() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
     }
 
     @SuppressWarnings("unchecked")
-    public void testBlockLoaderForFieldInObject() throws IOException {
+    private void testBlockLoaderForFieldInObject(CircuitBreaker breaker) throws IOException {
         int depth = randomIntBetween(0, 3);
 
         Map<String, Template.Entry> currentLevel = new HashMap<>();
@@ -140,11 +181,35 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext
         );
 
-        runner.runTest(mapperService, document, expected, fullFieldName.toString());
+        runner.runTest(mapperService, breaker, document, expected, fullFieldName.toString());
     }
 
-    @SuppressWarnings("unchecked")
+    protected boolean supportsMultiField() {
+        return true;
+    }
+
     public void testBlockLoaderOfMultiField() throws IOException {
+        if (false == supportsMultiField()) {
+            return;
+        }
+        testBlockLoaderOfMultiField(newLimitedBreaker(TEST_BREAKER_SIZE));
+    }
+
+    public void testBlockLoaderOfMultiFieldWithCranky() throws IOException {
+        if (false == supportsMultiField()) {
+            return;
+        }
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoaderOfMultiField(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoaderOfMultiField(CircuitBreaker breaker) throws IOException {
         // We are going to have a parent field and a multi field of the same type in order to be sure we can index data.
         // Then we'll test block loader of the multi field.
         var template = new Template(Map.of("parent", new Template.Leaf("parent", fieldType)));
@@ -191,6 +256,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         customHandlers.addAll(customDataSourceHandlers);
         var specification = buildSpecification(customHandlers);
         var mapping = new MappingGenerator(specification).generate(template);
+        @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
 
         var document = new DocumentGenerator(specification).generate(template, mapping);
@@ -199,7 +265,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         var mapperService = createMapperServiceForParams(mappingXContent);
 
-        runner.runTest(mapperService, document, expected, "parent.mf");
+        runner.runTest(mapperService, breaker, document, expected, "parent.mf");
     }
 
     protected MapperService createMapperServiceForParams(XContentBuilder mappings) throws IOException {

@@ -24,10 +24,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -489,10 +491,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     ) throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
         List<Object> all = new ArrayList<>();
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
-            for (int i = 0; i < block.size(); i++) {
-                all.add(block.get(i));
+            try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(breaker, ctx)) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
+                for (int i = 0; i < block.size(); i++) {
+                    all.add(block.get(i));
+                }
             }
         }
         return all;
@@ -511,23 +516,27 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     ) throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext(settings, fieldOnlyMappedAsRuntimeField));
         List<Object> all = new ArrayList<>();
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         for (LeafReaderContext ctx : reader.leaves()) {
-            BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
-            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+            try (
+                BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(breaker, ctx);
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+            ) {
 
-            assert loader.rowStrideStoredFieldSpec().requiresSource() == false
-                || loader.rowStrideStoredFieldSpec().sourcePaths().isEmpty() == false;
-            BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                null
-            );
-            for (int i = 0; i < ctx.reader().numDocs(); i++) {
-                storedFields.advanceTo(i);
-                blockReader.read(i, storedFields, builder);
-            }
-            TestBlock block = (TestBlock) builder.build();
-            for (int i = 0; i < block.size(); i++) {
-                all.add(block.get(i));
+                assert loader.rowStrideStoredFieldSpec().requiresSource() == false
+                    || loader.rowStrideStoredFieldSpec().sourcePaths().isEmpty() == false;
+                BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                    StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                    null
+                );
+                for (int i = 0; i < ctx.reader().numDocs(); i++) {
+                    storedFields.advanceTo(i);
+                    blockReader.read(i, storedFields, builder);
+                }
+                TestBlock block = (TestBlock) builder.build();
+                for (int i = 0; i < block.size(); i++) {
+                    all.add(block.get(i));
+                }
             }
         }
         return all;

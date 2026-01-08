@@ -19,6 +19,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
@@ -369,77 +370,121 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public AllReader reader(LeafReaderContext context) throws IOException {
-                    AllReader bytesReader = bytesLoader.reader(context);
-                    BlockLoader.AllReader minimaReader = minimaLoader.reader(context);
-                    BlockLoader.AllReader maximaReader = maximaLoader.reader(context);
-                    AllReader sumsReader = sumsLoader.reader(context);
-                    AllReader valueCountsReader = valueCountsLoader.reader(context);
-                    AllReader zeroThresholdsReader = zeroThresholdsLoader.reader(context);
+                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                    AllReader bytesReader = null;
+                    AllReader minimaReader = null;
+                    AllReader maximaReader = null;
+                    AllReader sumsReader = null;
+                    AllReader valueCountsReader = null;
+                    AllReader zeroThresholdsReader = null;
 
-                    return new AllReader() {
-                        @Override
-                        public boolean canReuse(int startingDocID) {
-                            return minimaReader.canReuse(startingDocID)
-                                && maximaReader.canReuse(startingDocID)
-                                && sumsReader.canReuse(startingDocID)
-                                && valueCountsReader.canReuse(startingDocID)
-                                && zeroThresholdsReader.canReuse(startingDocID)
-                                && bytesReader.canReuse(startingDocID);
+                    try {
+                        bytesReader = bytesLoader.reader(breaker, context);
+                        minimaReader = minimaLoader.reader(breaker, context);
+                        maximaReader = maximaLoader.reader(breaker, context);
+                        sumsReader = sumsLoader.reader(breaker, context);
+                        valueCountsReader = valueCountsLoader.reader(breaker, context);
+                        zeroThresholdsReader = zeroThresholdsLoader.reader(breaker, context);
+                    } finally {
+                        if (zeroThresholdsReader == null) {
+                            Releasables.close(bytesReader, minimaReader, maximaReader, sumsReader, valueCountsReader, zeroThresholdsReader);
                         }
+                    }
 
-                        @Override
-                        public String toString() {
-                            return "BlockDocValuesReader.ExponentialHistogram";
-                        }
-
-                        @Override
-                        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                            Block minima = null;
-                            Block maxima = null;
-                            Block sums = null;
-                            Block valueCounts = null;
-                            Block zeroThresholds = null;
-                            Block encodedBytes = null;
-                            Block result;
-                            boolean success = false;
-                            try {
-                                minima = minimaReader.read(factory, docs, offset, nullsFiltered);
-                                maxima = maximaReader.read(factory, docs, offset, nullsFiltered);
-                                sums = sumsReader.read(factory, docs, offset, nullsFiltered);
-                                valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
-                                zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
-                                encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered);
-                                result = factory.buildExponentialHistogramBlockDirect(
-                                    minima,
-                                    maxima,
-                                    sums,
-                                    valueCounts,
-                                    zeroThresholds,
-                                    encodedBytes
-                                );
-                                success = true;
-                            } finally {
-                                if (success == false) {
-                                    Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedBytes);
-                                }
-                            }
-                            return result;
-                        }
-
-                        @Override
-                        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                            ExponentialHistogramBuilder histogramBuilder = (ExponentialHistogramBuilder) builder;
-                            minimaReader.read(docId, storedFields, histogramBuilder.minima());
-                            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
-                            sumsReader.read(docId, storedFields, histogramBuilder.sums());
-                            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
-                            zeroThresholdsReader.read(docId, storedFields, histogramBuilder.zeroThresholds());
-                            bytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
-                        }
-                    };
+                    return new ExponentialHistogramFieldMapper.Reader(
+                        bytesReader,
+                        minimaReader,
+                        maximaReader,
+                        sumsReader,
+                        valueCountsReader,
+                        zeroThresholdsReader
+                    );
                 }
             };
+        }
+    }
+
+    static class Reader implements BlockLoader.AllReader {
+        private final BlockLoader.AllReader bytesReader;
+        private final BlockLoader.AllReader minimaReader;
+        private final BlockLoader.AllReader maximaReader;
+        private final BlockLoader.AllReader sumsReader;
+        private final BlockLoader.AllReader valueCountsReader;
+        private final BlockLoader.AllReader zeroThresholdsReader;
+
+        Reader(
+            BlockLoader.AllReader bytesReader,
+            BlockLoader.AllReader minimaReader,
+            BlockLoader.AllReader maximaReader,
+            BlockLoader.AllReader sumsReader,
+            BlockLoader.AllReader valueCountsReader,
+            BlockLoader.AllReader zeroThresholdsReader
+        ) {
+            this.bytesReader = bytesReader;
+            this.minimaReader = minimaReader;
+            this.maximaReader = maximaReader;
+            this.sumsReader = sumsReader;
+            this.valueCountsReader = valueCountsReader;
+            this.zeroThresholdsReader = zeroThresholdsReader;
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return minimaReader.canReuse(startingDocID)
+                && maximaReader.canReuse(startingDocID)
+                && sumsReader.canReuse(startingDocID)
+                && valueCountsReader.canReuse(startingDocID)
+                && zeroThresholdsReader.canReuse(startingDocID)
+                && bytesReader.canReuse(startingDocID);
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.ExponentialHistogram";
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            BlockLoader.Block minima = null;
+            BlockLoader.Block maxima = null;
+            BlockLoader.Block sums = null;
+            BlockLoader.Block valueCounts = null;
+            BlockLoader.Block zeroThresholds = null;
+            BlockLoader.Block encodedBytes = null;
+            BlockLoader.Block result;
+            boolean success = false;
+            try {
+                minima = minimaReader.read(factory, docs, offset, nullsFiltered);
+                maxima = maximaReader.read(factory, docs, offset, nullsFiltered);
+                sums = sumsReader.read(factory, docs, offset, nullsFiltered);
+                valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
+                zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
+                encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered);
+                result = factory.buildExponentialHistogramBlockDirect(minima, maxima, sums, valueCounts, zeroThresholds, encodedBytes);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedBytes);
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            BlockLoader.ExponentialHistogramBuilder histogramBuilder = (BlockLoader.ExponentialHistogramBuilder) builder;
+            minimaReader.read(docId, storedFields, histogramBuilder.minima());
+            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
+            sumsReader.read(docId, storedFields, histogramBuilder.sums());
+            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
+            zeroThresholdsReader.read(docId, storedFields, histogramBuilder.zeroThresholds());
+            bytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(minimaReader, maximaReader, sumsReader, valueCountsReader, zeroThresholdsReader, bytesReader);
         }
     }
 

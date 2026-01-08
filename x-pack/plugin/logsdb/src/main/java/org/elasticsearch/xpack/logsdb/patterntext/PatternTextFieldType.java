@@ -312,7 +312,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
         }
 
-        return new PatternTextBlockLoader((leafReader -> PatternTextCompositeValues.from(leafReader, this)));
+        return new PatternTextBlockLoader(leafReader -> PatternTextCompositeValues.from(leafReader, this));
     }
 
     @Override

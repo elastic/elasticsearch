@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -172,7 +173,7 @@ public interface BlockLoader {
         return new ConstantBytes(value);
     }
 
-    interface Reader {
+    interface Reader extends Releasable {
         /**
          * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
          */
@@ -267,7 +268,7 @@ public interface BlockLoader {
      * {@code null} or if they can't load column-at-a-time themselves.
      */
     @Nullable
-    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+    ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
     /**
      * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
@@ -275,7 +276,7 @@ public interface BlockLoader {
      * callers simply can't load column-at-a-time so all implementations must support
      * this method.
      */
-    RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
+    RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
     /**
      * What {@code stored} fields are needed by this reader.

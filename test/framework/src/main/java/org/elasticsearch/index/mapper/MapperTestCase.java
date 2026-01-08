@@ -39,6 +39,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1636,15 +1637,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
-                assertThat(
-                    ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
-                    instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
-                );
-                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
-                for (int i = 0; i < block.size(); i++) {
-                    assertThat(block.get(i), equalTo(expectedSampleValues[i]));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(breaker, context))) {
+                    assertThat(
+                        ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
+                        instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
+                    );
+                    var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
+                    for (int i = 0; i < block.size(); i++) {
+                        assertThat(block.get(i), equalTo(expectedSampleValues[i]));
+                    }
                 }
             };
             withLuceneIndex(mapperService, builder, test);
@@ -1664,24 +1667,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
-                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
-                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
-                assertThat(block.get(1), nullValue());
-                assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(breaker, context))) {
+                    var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                    assertThat(block.get(1), nullValue());
+                    assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+                }
 
-                docBlock = TestBlock.docs(0, 2);
-                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
-                var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
-                assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
-                var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
-                boolean toInt = supportsBulkIntBlockReading();
-                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false));
-                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false);
-                assertNotNull(block);
-                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
-                assertThat(block.get(1), equalTo(expectedSampleValues[2]));
+                try (BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(breaker, context))) {
+                    var docBlock = TestBlock.docs(0, 2);
+                    var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
+                    assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
+                    boolean toInt = supportsBulkIntBlockReading();
+                    assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false));
+                    var block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false);
+                    assertNotNull(block);
+                    assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                    assertThat(block.get(1), equalTo(expectedSampleValues[2]));
+                }
             };
             withLuceneIndex(mapperService, builder, test);
         }
@@ -1705,20 +1711,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = blockLoader.columnAtATimeReader(context);
-                assertThat(
-                    columnReader,
-                    anyOf(
-                        instanceOf(LongsBlockLoader.Sorted.class),
-                        instanceOf(DoublesBlockLoader.Sorted.class),
-                        instanceOf(AbstractIntsFromDocValuesBlockLoader.Singleton.class)
-                    )
-                );
-                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
-                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
-                assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
-                assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(breaker, context)) {
+                    assertThat(
+                        columnReader,
+                        anyOf(
+                            instanceOf(LongsBlockLoader.Sorted.class),
+                            instanceOf(DoublesBlockLoader.Sorted.class),
+                            instanceOf(AbstractIntsFromDocValuesBlockLoader.Singleton.class)
+                        )
+                    );
+                    var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                    assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
+                    assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+                }
             };
             withLuceneIndex(mapperService, builder, test);
         }

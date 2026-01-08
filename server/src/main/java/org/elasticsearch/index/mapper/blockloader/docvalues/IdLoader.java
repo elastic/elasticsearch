@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
@@ -19,11 +19,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingHashBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -180,11 +189,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         public BlockLoader blockLoader() {
             return new BlockDocValuesReader.DocValuesBlockLoader() {
                 @Override
-                public AllReader reader(LeafReaderContext context) throws IOException {
+                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
                     if (indexRouting != null) {
-                        return new LegacyTsIdFieldReader(context.reader(), indexRouting, routingPaths);
+                        return new LegacyTsIdFieldReader(breaker, context.reader(), indexRouting, routingPaths);
                     } else {
-                        return new TsIdFieldReader(context.reader(), useSyntheticId);
+                        return new TsIdFieldReader(breaker, context.reader(), useSyntheticId);
                     }
                 }
 
@@ -196,12 +205,17 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         private static class TsIdFieldReader extends BlockDocValuesReader {
+            private static final long ESTIMATED_SIZE = AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE
+                + AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+
             final SortedDocValues tsidDVs;
             final SortedNumericDocValues timestampDVs;
             final SortedDocValues routingHashDVs;
             final boolean useSyntheticId;
 
-            TsIdFieldReader(LeafReader leafReader, boolean useSyntheticId) throws IOException {
+            TsIdFieldReader(CircuitBreaker breaker, LeafReader leafReader, boolean useSyntheticId) throws IOException {
+                super(breaker);
+                breaker.addWithoutBreaking(ESTIMATED_SIZE);
                 this.tsidDVs = DocValues.getSorted(leafReader, TimeSeriesIdFieldMapper.NAME);
                 this.timestampDVs = DocValues.getSortedNumeric(leafReader, DataStream.TIMESTAMP_FIELD_NAME);
                 this.routingHashDVs = DocValues.getSorted(leafReader, TimeSeriesRoutingHashFieldMapper.NAME);
@@ -251,6 +265,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
             }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
         }
 
         private static class LegacyTsIdFieldReader extends BlockDocValuesReader {
@@ -262,10 +281,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             final byte[] scratch = new byte[16];
 
             LegacyTsIdFieldReader(
+                CircuitBreaker breaker,
                 LeafReader leafReader,
                 IndexRouting.ExtractFromSource.ForRoutingPath indexRouting,
                 List<String> routingPaths
             ) throws IOException {
+                super(breaker);
+                breaker.addEstimateBytesAndMaybeBreak(estimatedSize(routingPaths.size()), "load blocks");
                 this.routingBuilder = indexRouting.builder();
                 this.routingPaths = routingPaths;
                 this.routingHashDVs = new SortedDocValues[routingPaths.size()];
@@ -315,6 +337,16 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
                 var id = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, scratch);
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
+            }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-estimatedSize(routingPaths.size()));
+            }
+
+            private static long estimatedSize(int routingPathCount) {
+                return routingPathCount * AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE
+                    + AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
             }
         }
     }

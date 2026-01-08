@@ -27,15 +27,18 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
@@ -445,11 +448,14 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                }
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                }
 
                 var catBytes = new BytesRef("cat");
                 var dogBytes = new BytesRef("dog");
@@ -479,14 +485,17 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(columnAtATimeLoader, nullValue());
+                }
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // Assert values:
                 assertThat(

@@ -11,10 +11,13 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractDoublesFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
 
 /**
  * Loads the MIN {@code double} in each doc.
@@ -25,13 +28,13 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(docValues, toDouble);
+    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new Singleton(breaker, docValues, toDouble);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMaxSorted(docValues, toDouble);
+    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new MvMaxSorted(breaker, docValues, toDouble);
     }
 
     @Override
@@ -43,7 +46,8 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         private final SortedNumericDocValues numericDocValues;
         private final ToDouble toDouble;
 
-        MvMaxSorted(SortedNumericDocValues numericDocValues, ToDouble toDouble) {
+        MvMaxSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues, ToDouble toDouble) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
             this.toDouble = toDouble;
         }
@@ -80,6 +84,11 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         @Override
         public String toString() {
             return "MvMinDoublesFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

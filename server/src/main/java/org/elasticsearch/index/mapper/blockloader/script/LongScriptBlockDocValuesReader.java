@@ -7,22 +7,26 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 
 import java.io.IOException;
 
-/**
- * {@link BlockDocValuesReader} implementation for date scripts.
- */
-public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class DateScriptBlockLoader extends DocValuesBlockLoader {
-        private final DateFieldScript.LeafFactory factory;
+import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
 
-        DateScriptBlockLoader(DateFieldScript.LeafFactory factory) {
+/**
+ * {@link BlockDocValuesReader} implementation for {@code long} scripts.
+ */
+public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
+    public static class LongScriptBlockLoader extends DocValuesBlockLoader {
+        private final LongFieldScript.LeafFactory factory;
+
+        public LongScriptBlockLoader(LongFieldScript.LeafFactory factory) {
             this.factory = factory;
         }
 
@@ -32,15 +36,17 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new DateScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            return new LongScriptBlockDocValuesReader(breaker, factory.newInstance(context));
         }
     }
 
-    private final DateFieldScript script;
+    private final LongFieldScript script;
     private int docId;
 
-    DateScriptBlockDocValuesReader(DateFieldScript script) {
+    LongScriptBlockDocValuesReader(CircuitBreaker breaker, LongFieldScript script) {
+        super(breaker);
         this.script = script;
     }
 
@@ -52,7 +58,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
         throws IOException {
-        // Note that we don't sort the values sort, so we can't use factory.longsFromDocValues
+        // Note that we don't pre-sort our output so we can't use longsFromDocValues
         try (BlockLoader.LongBuilder builder = factory.longs(docs.count() - offset)) {
             for (int i = offset; i < docs.count(); i++) {
                 read(docs.get(i), builder);
@@ -84,6 +90,11 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public String toString() {
-        return "ScriptDates";
+        return "ScriptLongs";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
     }
 }

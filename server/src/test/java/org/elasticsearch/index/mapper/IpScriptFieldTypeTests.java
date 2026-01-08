@@ -27,14 +27,17 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.script.IpScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.IpFieldScript;
@@ -325,11 +328,14 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                 assertThat(loader, instanceOf(IpScriptBlockDocValuesReader.IpScriptBlockLoader.class));
 
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, instanceOf(IpScriptBlockDocValuesReader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(columnAtATimeLoader, instanceOf(IpScriptBlockDocValuesReader.class));
+                }
 
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(rowStrideReader, instanceOf(IpScriptBlockDocValuesReader.class));
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(IpScriptBlockDocValuesReader.class));
+                }
 
                 // assert values
                 assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
@@ -374,14 +380,17 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
 
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(columnAtATimeLoader, nullValue());
+                }
 
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // assert values
                 assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));

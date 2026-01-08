@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;

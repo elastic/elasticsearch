@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -91,19 +92,6 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
             }
             default -> expr;
         });
-    }
-
-    private static TimeSeriesAggregateFunction createDefaultInnerAggregation(TypedAttribute attr, Attribute timestamp) {
-        if (attr.dataType() == DataType.EXPONENTIAL_HISTOGRAM || attr.dataType() == DataType.TDIGEST) {
-            return new HistogramMergeOverTime(
-                wrapSource(HistogramMergeOverTime.class, attr),
-                attr,
-                Literal.TRUE,
-                AggregateFunction.NO_WINDOW
-            );
-        } else {
-            return new LastOverTime(wrapSource(LastOverTime.class, attr), attr, AggregateFunction.NO_WINDOW, timestamp);
-        }
     }
 
     private static TimeSeriesAggregateFunction createDefaultInnerAggregation(TypedAttribute attr, Attribute timestamp) {

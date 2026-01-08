@@ -94,16 +94,4 @@ public final class DataExtractorUtils {
         }
     }
 
-    /**
-     * Applies cross-project search (CPS) mode to IndicesOptions on-the-fly if CPS is enabled.
-     * @param baseOptions The base IndicesOptions from the datafeed configuration
-     * @param crossProjectEnabled Whether cross-project search is enabled at the cluster level
-     * @return IndicesOptions with CPS mode enabled if crossProjectEnabled is true, otherwise the original options
-     */
-    public static IndicesOptions applyCrossProjectModeIfEnabled(IndicesOptions baseOptions, boolean crossProjectEnabled) {
-        if (crossProjectEnabled && baseOptions.resolveCrossProjectIndexExpression() == false) {
-            return IndicesOptions.builder(baseOptions).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
-        }
-        return baseOptions;
-    }
 }

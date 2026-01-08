@@ -331,6 +331,27 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return TYPE + "-" + datafeedId;
     }
 
+    /**
+     * Returns a DatafeedConfig with cross-project search (CPS) mode enabled in its IndicesOptions
+     * if CPS is enabled at the cluster level. 
+     *
+     * @param datafeed The original datafeed configuration
+     * @param crossProjectModeDecider The decider that determines if CPS is enabled
+     * @return A new DatafeedConfig with CPS-enabled IndicesOptions if CPS is enabled, otherwise the original config
+     */
+    public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            IndicesOptions baseOptions = datafeed.getIndicesOptions();
+            if (baseOptions.resolveCrossProjectIndexExpression() == false) {
+                IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
+            }
+        }
+        return datafeed;
+    }
+
     public String getId() {
         return id;
     }

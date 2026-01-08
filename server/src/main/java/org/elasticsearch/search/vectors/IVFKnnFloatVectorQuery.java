@@ -109,9 +109,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         final AbstractMaxScoreKnnCollector knnCollector;
         if (applyPostFilter) {
             float selectivity = (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues.size();
-            float postFilterOverSamplingFactor = 1 - Math.min(selectivity, 1f);
+            float postFilterOverSamplingFactor = 1 + (1 - Math.min(selectivity, 1f));
             strategy = new IVFKnnSearchStrategy(
-                ((1 + postFilterOverSamplingFactor / 2) * visitRatio),
+                postFilterOverSamplingFactor * visitRatio,
                 knnCollectorManager.longAccumulator,
                 reader.maxDoc()
             );
@@ -120,7 +120,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
                 visitedLimit,
                 strategy,
                 context,
-                (int) Math.ceil((1 + postFilterOverSamplingFactor) * knnCollectorManager.k)
+                (int) Math.ceil(1 + postFilterOverSamplingFactor * knnCollectorManager.k)
             );
         } else {
             strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);

@@ -82,7 +82,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
-import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;

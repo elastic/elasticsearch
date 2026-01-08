@@ -12,7 +12,6 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +22,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
@@ -34,6 +34,7 @@ import static org.elasticsearch.core.Strings.format;
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
+    private static final long NOT_TRACKED_TIME = -1L;
 
     // noop probe to prevent starvation of work in the work queue due to ForceQueuePolicy
     // https://github.com/elastic/elasticsearch/issues/124667
@@ -56,9 +57,9 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     // There may be racing on updating this field. It's OK since hot threads logging is very coarse grained time wise
     // and can tolerate some inaccuracies.
-    private volatile long startTimeOfLargeQueue = -1L;
+    private volatile long startTimeOfLargeQueue = NOT_TRACKED_TIME;
 
-    private final FrequencyCappedAction hotThreadsLogger;
+    private final AtomicLong lastLoggingTimeForHotThreads;
 
     EsThreadPoolExecutor(
         String name,
@@ -130,8 +131,9 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         this.contextHolder = contextHolder;
         this.hotThreadsOnLargeQueueConfig = hotThreadsOnLargeQueueConfig;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
-        this.hotThreadsLogger = new FrequencyCappedAction(currentTimeMillisSupplier, TimeValue.ZERO);
-        this.hotThreadsLogger.setMinInterval(hotThreadsOnLargeQueueConfig.interval());
+        this.lastLoggingTimeForHotThreads = hotThreadsOnLargeQueueConfig.isEnabled()
+            ? new AtomicLong(currentTimeMillisSupplier.getAsLong() - hotThreadsOnLargeQueueConfig.intervalInMillis())
+            : null;
     }
 
     @Override
@@ -172,37 +174,41 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     private void maybeLogForLargeQueueSize() {
-        if (hotThreadsOnLargeQueueConfig.isEnabled()) {
-            int queueSize = getQueue().size();
-            // Use queueSize + 1 so that we start to track when queueSize is 499 and this task is most likely to be queued as well,
-            // thus reaching the threshold of 500. It won't log right away due to the duration threshold.
-            if (queueSize + 1 >= hotThreadsOnLargeQueueConfig.sizeThreshold()) {
-                final long startTime = startTimeOfLargeQueue;
-                final long now = currentTimeMillisSupplier.getAsLong();
-                if (startTime == -1) {
-                    startTimeOfLargeQueue = now;
-                } else {
-                    final long duration = now - startTime;
-                    if (duration >= hotThreadsOnLargeQueueConfig.durationThresholdInMillis()) {
-                        hotThreadsLogger.maybeExecute(() -> {
-                            HotThreads.logLocalHotThreads(
-                                logger,
-                                Level.INFO,
-                                "ThreadPoolExecutor ["
-                                    + name
-                                    + "] queue size ["
-                                    + queueSize
-                                    + "] has been over threshold for ["
-                                    + TimeValue.timeValueMillis(duration)
-                                    + "]",
-                                ReferenceDocs.LOGGING
-                            );
-                        });
-                    }
-                }
-            } else {
-                startTimeOfLargeQueue = -1L;
+        if (hotThreadsOnLargeQueueConfig.isEnabled() == false) {
+            return;
+        }
+
+        final int queueSize = getQueue().size();
+        // Use queueSize + 1 so that we start to track when queueSize is 499 and this task is most likely to be queued as well,
+        // thus reaching the threshold of 500. It won't log right away due to the duration threshold.
+        if (queueSize + 1 >= hotThreadsOnLargeQueueConfig.sizeThreshold()) {
+            final long startTime = startTimeOfLargeQueue;
+            final long now = currentTimeMillisSupplier.getAsLong();
+            if (startTime == NOT_TRACKED_TIME) {
+                startTimeOfLargeQueue = now;
+                return;
             }
+            final long duration = now - startTime;
+            if (duration >= hotThreadsOnLargeQueueConfig.durationThresholdInMillis()) {
+                final var lastLoggingTime = lastLoggingTimeForHotThreads.get();
+                if (now - lastLoggingTime >= hotThreadsOnLargeQueueConfig.intervalInMillis()
+                    && lastLoggingTimeForHotThreads.compareAndSet(lastLoggingTime, now)) {
+                    HotThreads.logLocalHotThreads(
+                        logger,
+                        Level.INFO,
+                        "ThreadPoolExecutor ["
+                            + name
+                            + "] queue size ["
+                            + queueSize
+                            + "] has been over threshold for ["
+                            + TimeValue.timeValueMillis(duration)
+                            + "]",
+                        ReferenceDocs.LOGGING
+                    );
+                }
+            }
+        } else {
+            startTimeOfLargeQueue = NOT_TRACKED_TIME;
         }
     }
 

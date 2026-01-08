@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -662,9 +661,9 @@ public class EsExecutors {
         }
     }
 
-    public record HotThreadsOnLargeQueueConfig(int sizeThreshold, long durationThresholdInMillis, TimeValue interval) {
+    public record HotThreadsOnLargeQueueConfig(int sizeThreshold, long durationThresholdInMillis, long intervalInMillis) {
 
-        public static final HotThreadsOnLargeQueueConfig DISABLED = new HotThreadsOnLargeQueueConfig(0, -1, TimeValue.MINUS_ONE);
+        public static final HotThreadsOnLargeQueueConfig DISABLED = new HotThreadsOnLargeQueueConfig(0, -1, -1);
 
         public boolean isEnabled() {
             return sizeThreshold > 0;

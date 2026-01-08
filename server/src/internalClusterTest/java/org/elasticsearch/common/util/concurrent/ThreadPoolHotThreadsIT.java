@@ -148,7 +148,7 @@ public class ThreadPoolHotThreadsIT extends ESIntegTestCase {
             EsExecutors.daemonThreadFactory(nodeName, threadName),
             new EsExecutors.ForceQueuePolicy(false, false),
             new ThreadContext(Settings.EMPTY),
-            new EsExecutors.HotThreadsOnLargeQueueConfig(sizeThreshold, durationThreshold.millis(), interval),
+            new EsExecutors.HotThreadsOnLargeQueueConfig(sizeThreshold, durationThreshold.millis(), interval.millis()),
             timer::get
         );
         assertThat(executor.getStartTimeOfLargeQueue(), equalTo(-1L));

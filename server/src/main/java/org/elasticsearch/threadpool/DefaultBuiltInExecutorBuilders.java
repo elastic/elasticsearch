@@ -125,7 +125,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 new EsExecutors.HotThreadsOnLargeQueueConfig(
                     hotThreadsOnLargeQueueSizeThreshold,
                     hotThreadsOnLargeQueueDurationThreshold.millis(),
-                    hotThreadsOnLargeQueueInterval
+                    hotThreadsOnLargeQueueInterval.millis()
                 )
             )
         );

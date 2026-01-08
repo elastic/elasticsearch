@@ -23,6 +23,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -51,12 +52,13 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     private final String name;
 
     private final EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig;
+    private final LongSupplier currentTimeMillisSupplier;
 
     // There may be racing on updating this field. It's OK since hot threads logging is very coarse grained time wise
     // and can tolerate some inaccuracies.
     private volatile long startTimeOfLargeQueue = -1L;
 
-    private final FrequencyCappedAction hotThreadsLogger = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+    private final FrequencyCappedAction hotThreadsLogger;
 
     EsThreadPoolExecutor(
         String name,
@@ -82,7 +84,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         );
     }
 
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
     EsThreadPoolExecutor(
         String name,
         int corePoolSize,
@@ -95,10 +96,41 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         ThreadContext contextHolder,
         EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
+        this(
+            name,
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            handler,
+            contextHolder,
+            hotThreadsOnLargeQueueConfig,
+            System::currentTimeMillis
+        );
+    }
+
+    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    EsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        RejectedExecutionHandler handler,
+        ThreadContext contextHolder,
+        EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig,
+        LongSupplier currentTimeMillisSupplier // For test to configure a custom time supplier
+    ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
         this.hotThreadsOnLargeQueueConfig = hotThreadsOnLargeQueueConfig;
+        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
+        this.hotThreadsLogger = new FrequencyCappedAction(currentTimeMillisSupplier, TimeValue.ZERO);
         this.hotThreadsLogger.setMinInterval(hotThreadsOnLargeQueueConfig.interval());
     }
 
@@ -114,16 +146,39 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        final boolean isNotProbe = command != WORKER_PROBE;
-        final Runnable wrappedRunnable = isNotProbe ? wrapRunnable(command) : WORKER_PROBE;
+        final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
 
-        if (isNotProbe && hotThreadsOnLargeQueueConfig.isEnabled()) {
+        maybeLogForLargeQueueSize();
+
+        try {
+            super.execute(wrappedRunnable);
+        } catch (Exception e) {
+            if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {
+                try {
+                    // If we are an abstract runnable we can handle the exception
+                    // directly and don't need to rethrow it, but we log and assert
+                    // any unexpected exception first.
+                    if (e instanceof EsRejectedExecutionException == false) {
+                        logException(abstractRunnable, e);
+                    }
+                    abstractRunnable.onRejection(e);
+                } finally {
+                    abstractRunnable.onAfter();
+                }
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private void maybeLogForLargeQueueSize() {
+        if (hotThreadsOnLargeQueueConfig.isEnabled()) {
             int queueSize = getQueue().size();
             // Use queueSize + 1 so that we start to track when queueSize is 499 and this task is most likely to be queued as well,
             // thus reaching the threshold of 500. It won't log right away due to the duration threshold.
             if (queueSize + 1 >= hotThreadsOnLargeQueueConfig.sizeThreshold()) {
                 final long startTime = startTimeOfLargeQueue;
-                final long now = System.currentTimeMillis();
+                final long now = currentTimeMillisSupplier.getAsLong();
                 if (startTime == -1) {
                     startTimeOfLargeQueue = now;
                 } else {
@@ -149,26 +204,11 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 startTimeOfLargeQueue = -1L;
             }
         }
+    }
 
-        try {
-            super.execute(wrappedRunnable);
-        } catch (Exception e) {
-            if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {
-                try {
-                    // If we are an abstract runnable we can handle the exception
-                    // directly and don't need to rethrow it, but we log and assert
-                    // any unexpected exception first.
-                    if (e instanceof EsRejectedExecutionException == false) {
-                        logException(abstractRunnable, e);
-                    }
-                    abstractRunnable.onRejection(e);
-                } finally {
-                    abstractRunnable.onAfter();
-                }
-            } else {
-                throw e;
-            }
-        }
+    // package private for testing
+    long getStartTimeOfLargeQueue() {
+        return startTimeOfLargeQueue;
     }
 
     // package-visible for testing

@@ -264,9 +264,10 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
-        int limit = FLOAT_SPECIES.loopBound(BULK_SIZE);
+        int limit = FLOAT_SPECIES.loopBound(bulkSize);
         int i = 0;
         long offset = in.getFilePointer();
         float ay = queryLowerInterval;
@@ -277,19 +278,19 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
                 memorySegment,
-                offset + 4 * BULK_SIZE + i * Float.BYTES,
+                offset + 4 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax).mul(SEVEN_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES,
                 memorySegment,
-                offset + 8 * BULK_SIZE + i * Integer.BYTES,
+                offset + 8 * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
                 memorySegment,
-                offset + 12 * BULK_SIZE + i * Float.BYTES,
+                offset + 12 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES, scores, i);
@@ -322,6 +323,68 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
                 }
             }
         }
-        in.seek(offset + 16L * BULK_SIZE);
+        // process tail: do one masked vector iteration
+        if (i < bulkSize) {
+            var floatVectorMask = FLOAT_SPECIES.indexInRange(i, bulkSize);
+            var intVectorMask = INT_SPECIES.indexInRange(i, bulkSize);
+
+            var ax = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES,
+                memorySegment,
+                offset + (long) i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN,
+                floatVectorMask
+            );
+            var upper = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES,
+                memorySegment,
+                offset + 4L * bulkSize + (long) i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN,
+                floatVectorMask
+            );
+            var lx = upper.sub(ax).mul(SEVEN_BIT_SCALE);
+
+            var targetComponentSums = IntVector.fromMemorySegment(
+                INT_SPECIES,
+                memorySegment,
+                offset + 8L * bulkSize + (long) i * Integer.BYTES,
+                ByteOrder.LITTLE_ENDIAN,
+                intVectorMask
+            ).convert(VectorOperators.I2F, 0);
+
+            var additionalCorrections = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES,
+                memorySegment,
+                offset + 12L * bulkSize + (long) i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN,
+                floatVectorMask
+            );
+
+            var qcDist = FloatVector.fromArray(FLOAT_SPECIES, scores, i, floatVectorMask);
+
+            var res1 = ax.mul(ay).mul(dimensions);
+            var res2 = lx.mul(ay).mul(targetComponentSums);
+            var res3 = ax.mul(ly).mul(y1);
+            var res4 = lx.mul(ly).mul(qcDist);
+            var res = res1.add(res2).add(res3).add(res4);
+
+            if (similarityFunction == EUCLIDEAN) {
+                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = FloatVector.broadcast(FLOAT_SPECIES, 1).div(res).max(0);
+                res.intoArray(scores, i, floatVectorMask);
+            } else {
+                res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
+                if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                    res.intoArray(scores, i, floatVectorMask);
+                    for (int j = 0, n = bulkSize - i; j < n; j++) {
+                        scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
+                    }
+                } else {
+                    res = res.add(1f).mul(0.5f).max(0);
+                    res.intoArray(scores, i, floatVectorMask);
+                }
+            }
+        }
+        in.seek(offset + 16L * bulkSize);
     }
 }

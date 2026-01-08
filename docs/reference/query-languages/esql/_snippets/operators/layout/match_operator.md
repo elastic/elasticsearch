@@ -1,6 +1,6 @@
 ### Match operator (`:`) [esql-match-operator]
 ```{applies_to}
-stack: preview 9.0, ga 9.1
+stack: preview =9.0, ga 9.1+
 ```
 
 The only search operator is match (`:`).

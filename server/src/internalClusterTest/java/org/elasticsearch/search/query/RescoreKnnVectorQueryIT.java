@@ -49,6 +49,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -217,7 +218,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
             VECTOR_SCORE_SCRIPT,
             Map.of(QUERY_VECTOR_PARAM, queryVector)
         );
-        assertThat(knnResponse.getHits().getHits().length, greaterThan(0));
+        assertThat(knnResponse.getHits().getHits(), arrayWithSize(greaterThan(0)));
 
         ScriptScoreQueryBuilder scriptScoreQueryBuilder = QueryBuilders.scriptScoreQuery(new MatchAllQueryBuilder(), script);
         assertNoFailuresAndResponse(prepareSearch(INDEX_NAME).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {

@@ -139,7 +139,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             containsString(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] does not allow the setting [%s];",
-                    AzureAiStudioConstants.DIMENSIONS_SET_BY_USER
+                    ServiceFields.DIMENSIONS_SET_BY_USER
                 )
             )
         );
@@ -415,7 +415,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         }
 
         if (dimensionsSetByUser != null) {
-            map.put(AzureAiStudioConstants.DIMENSIONS_SET_BY_USER, dimensionsSetByUser.equals(Boolean.TRUE));
+            map.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser.equals(Boolean.TRUE));
         }
 
         if (maxTokens != null) {

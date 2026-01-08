@@ -768,7 +768,6 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         // BWC compatible index, e.g 7.x
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );

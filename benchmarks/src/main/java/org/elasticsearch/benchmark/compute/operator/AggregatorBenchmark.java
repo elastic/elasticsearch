@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -114,6 +115,8 @@ public class AggregatorBenchmark {
     private static final String CONSTANT_FALSE = "constant_false";
 
     static {
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+
         // Smoke test all the expected values and force loading subclasses more like prod
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             selfTest();

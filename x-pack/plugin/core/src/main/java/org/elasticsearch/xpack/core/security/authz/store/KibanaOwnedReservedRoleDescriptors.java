@@ -649,7 +649,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*", "slo-observability.health").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*", "slo-observability.health")
+                    .privileges("all")
+                    .build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for
                 // endpoints.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read", "create_index").build(),

@@ -277,7 +277,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
                 taskType,
                 NAME,
                 (OpenShiftAiChatCompletionServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings
+                secretSettings
             );
             case TEXT_EMBEDDING -> new OpenShiftAiEmbeddingsModel(
                 inferenceEntityId,
@@ -285,7 +285,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
                 NAME,
                 (OpenShiftAiEmbeddingsServiceSettings) serviceSettings,
                 chunkingSettings,
-                (DefaultSecretSettings) secretSettings
+                secretSettings
             );
             case RERANK -> new OpenShiftAiRerankModel(
                 inferenceEntityId,
@@ -293,7 +293,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
                 NAME,
                 (OpenShiftAiRerankServiceSettings) serviceSettings,
                 (OpenShiftAiRerankTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
+                secretSettings
             );
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };

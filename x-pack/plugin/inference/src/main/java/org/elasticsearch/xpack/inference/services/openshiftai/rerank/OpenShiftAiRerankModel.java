@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.rerank;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -64,7 +65,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         String service,
         OpenShiftAiRerankServiceSettings serviceSettings,
         OpenShiftAiRerankTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable SecretSettings secretSettings
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),

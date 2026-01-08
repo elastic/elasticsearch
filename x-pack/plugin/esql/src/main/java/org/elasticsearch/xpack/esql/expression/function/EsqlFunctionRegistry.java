@@ -745,7 +745,7 @@ public class EsqlFunctionRegistry {
     public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
         @Override
         public String toString() {
-            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
+            return "name='" + name + "', values=" + valueHint + ", description='" + description + "', type=" + type;
         }
     }
 

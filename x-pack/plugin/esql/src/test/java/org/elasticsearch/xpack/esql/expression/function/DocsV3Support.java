@@ -1117,7 +1117,7 @@ public abstract class DocsV3Support {
             builder.append("```yaml {applies_to}\n");
             builder.append("serverless: ga\n");
             builder.append("stack: ga\n");
-            builder.append("```");
+            builder.append("```\n\n");
 
             for (QuerySettingDef<?> setting : settings) {
                 if (setting.snapshotOnly()) {

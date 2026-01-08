@@ -27,6 +27,6 @@ public class BytesRefsTests extends ESTestCase {
 
     public void assertCodePointCount(String s) {
         var bytes = new BytesRef(s);
-        assertEquals(UnicodeUtil.codePointCount(bytes), BytesRefs.codePointCount(bytes));
+        assertEquals(UnicodeUtil.codePointCount(bytes), BytesRefs.fastCodePointCount(bytes));
     }
 }

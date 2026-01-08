@@ -14,22 +14,13 @@ import org.elasticsearch.test.cluster.util.Version;
 public class Clusters {
 
     static ElasticsearchCluster mixedVersionsCluster() {
-        Version oldVersion = getOldVersion();
-        var cluster = ElasticsearchCluster.local()
+        Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+        return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .withNode(node -> node.version(oldVersion))
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial");
-
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
-        return cluster.build();
-    }
-
-    private static Version getOldVersion() {
-        return Version.fromString(System.getProperty("tests.old_cluster_version"));
+            .setting("xpack.license.self_generated.type", "trial")
+            .build();
     }
 }

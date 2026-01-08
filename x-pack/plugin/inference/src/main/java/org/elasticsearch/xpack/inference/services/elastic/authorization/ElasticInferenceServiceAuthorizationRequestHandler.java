@@ -127,13 +127,13 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             if (checkCcmState && ccmFeature.isCcmSupportedEnvironment()) {
                 var isCcmEnabledListener = ActionListener.<Boolean>wrap(enabled -> {
                     if (enabled == null || enabled == false) {
-                        logger.debug("CCM is not enabled, skipping authorization request to Elastic Inference Service.");
+                        logger.debug("CCM is not enabled, skipping authorization request to Elastic Inference Service");
                         countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
                     } else {
                         retrieveAuthorizationInformation(countdownListener, sender);
                     }
                 }, e -> {
-                    logger.atDebug().withThrowable(e).log("Failed to determine if CCM is configured, returning unauthorized.");
+                    logger.atWarn().withThrowable(e).log("Failed to determine if CCM is enabled, returning unauthorized");
                     countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
                 });
 
@@ -142,7 +142,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 retrieveAuthorizationInformation(countdownListener, sender);
             }
         } catch (Exception e) {
-            logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
+            logger.atWarn().withThrowable(e).log("Retrieving the authorization information encountered an exception");
             countdownListener.onFailure(e);
         }
     }

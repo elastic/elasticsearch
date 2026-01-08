@@ -75,6 +75,7 @@ public class AsyncSearchDeleteIT extends ESRestTestCase {
 
         Response delResp = deleteAsyncSearch(id, user);
         assertOK(delResp);
+        assertAcknowledged(delResp);
 
         ResponseException exc_deleted = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, user));
         assertThat(exc_deleted.getResponse().getStatusLine().getStatusCode(), equalTo(404));

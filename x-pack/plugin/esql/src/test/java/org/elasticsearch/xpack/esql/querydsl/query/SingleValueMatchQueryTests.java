@@ -252,7 +252,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", new HashSet<>());
+        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", false);
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {

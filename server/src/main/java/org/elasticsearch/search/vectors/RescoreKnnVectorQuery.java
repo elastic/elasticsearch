@@ -280,13 +280,13 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 if (knnVectorValues instanceof BulkScorableFloatVectorValues rescorableVectorValues) {
                     rescoreBulk(leaf.docBase, rescorableVectorValues, results, filterIterator);
                 } else {
-                    rescoreLuceneBulk(
-                        leaf.docBase,
-                        knnVectorValues,
-                        leaf.reader().getFieldInfos().fieldInfo(fieldName).getVectorSimilarityFunction(),
-                        results,
-                        filterIterator
-                    );
+                    var function = leaf.reader().getFieldInfos().fieldInfo(fieldName).getVectorSimilarityFunction();
+                    var vectorScorer = getScorer(function, knnVectorValues);
+                    if (vectorScorer != null) {
+                        rescoreLuceneBulk(leaf.docBase, knnVectorValues, vectorScorer, results, filterIterator);
+                    } else {
+                        rescoreIndividually(leaf.docBase, knnVectorValues, function, results, filterIterator);
+                    }
                 }
             }
             // Remove any remaining sentinel values
@@ -335,17 +335,45 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
         }
 
-        private static final int BULK_SCORE_SIZE = 32;
-
-        // Rescores using the Lucene bulk scorer
-        private void rescoreLuceneBulk(
+        private void rescoreIndividually(
             int docBase,
             FloatVectorValues knnVectorValues,
             VectorSimilarityFunction function,
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            var scorer = FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorer(function, knnVectorValues, floatTarget);
+            int doc;
+            KnnVectorValues.DocIndexIterator knnVectorIterator = knnVectorValues.iterator();
+            var conjunction = ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
+            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assert doc == knnVectorIterator.docID();
+                float[] vector = knnVectorValues.vectorValue(knnVectorIterator.index());
+                float score = function.compare(floatTarget, vector);
+                if (Float.isNaN(score)) {
+                    continue;
+                }
+                queue.add(new ScoreDoc(doc + docBase, score));
+            }
+        }
+
+        /** Returns a vector scorer for the given values, or null if one cannot be created. */
+        RandomVectorScorer getScorer(VectorSimilarityFunction function, KnnVectorValues values) throws IOException {
+            if (values.getVectorByteLength() == values.dimension() * Float.BYTES) {
+                return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorer(function, values, floatTarget);
+            }
+            return null;
+        }
+
+        private static final int BULK_SCORE_SIZE = 64;
+
+        // Rescores using the Lucene bulk scorer
+        private void rescoreLuceneBulk(
+            int docBase,
+            FloatVectorValues knnVectorValues,
+            RandomVectorScorer scorer,
+            List<ScoreDoc> queue,
+            DocIdSetIterator filterIterator
+        ) throws IOException {
             int[] docs = new int[BULK_SCORE_SIZE];
             int[] ords = new int[BULK_SCORE_SIZE];
             float[] scores = new float[BULK_SCORE_SIZE];

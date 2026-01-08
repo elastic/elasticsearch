@@ -1123,15 +1123,10 @@ public abstract class DocsV3Support {
                 if (setting.snapshotOnly()) {
                     continue;
                 }
-                builder.append("\n* ");
-                if (setting.preview()) {
-                    builder.append("[preview] ");
-                }
-                builder.append("[***");
+                builder.append(":::{include} ");
                 builder.append(setting.name());
-                builder.append("***](");
-                builder.append(setting.name());
-                builder.append(".md)\n");
+                builder.append(".md\n");
+                builder.append(":::\n\n");
             }
 
             String rendered = builder.toString();

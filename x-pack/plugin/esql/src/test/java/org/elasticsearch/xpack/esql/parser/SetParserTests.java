@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -135,6 +136,17 @@ public class SetParserTests extends AbstractStatementParserTests {
     @SuppressWarnings("unchecked")
     public void testSetWithMap() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+
+        // non-constant map
+        try {
+            statement("""
+                SET my_map = {"foo": bar};
+                ROW a = 1
+                """, new QueryParams());
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("mismatched input 'bar' expecting"));
+        }
+
         EsqlStatement query = statement("""
             SET my_map = {"foo": {"bar": 2, "baz": "bb"}, "x": false};
             ROW a = 1

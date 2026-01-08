@@ -119,15 +119,11 @@ public class CompressionMetrics {
         }
 
         long rawBytes = (long) blockSize * Long.BYTES;
-        long theoreticalMin = ceilDiv((long) blockSize * nominalBitsPerValue, Byte.SIZE);
+        long theoreticalMin = Math.ceilDiv((long) blockSize * nominalBitsPerValue, Byte.SIZE);
 
         encodedBytesPerValue = (double) encodedBytesPerBlock / blockSize;
         compressionRatio = (double) rawBytes / encodedBytesPerBlock;
         encodedBitsPerValue = encodedBytesPerValue * Byte.SIZE;
         overheadRatio = theoreticalMin > 0 ? (double) encodedBytesPerBlock / theoreticalMin : 0;
-    }
-
-    private static long ceilDiv(long dividend, int divisor) {
-        return (dividend + divisor - 1) / divisor;
     }
 }

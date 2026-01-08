@@ -195,7 +195,7 @@ public abstract class StreamOutput extends OutputStream {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
-    public final void writeShort(short v) throws IOException {
+    public void writeShort(short v) throws IOException {
         final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);

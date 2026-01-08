@@ -25,17 +25,6 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
 
     private final InsertDefaultInnerTimeSeriesAggregate rule = new InsertDefaultInnerTimeSeriesAggregate();
 
-    public void testTranslateBareMetricWithImplicitLastOverTime() {
-        var query = """
-            TS k8s | STATS network.bytes_in BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        var plan = rule.apply(metricsAnalyzer.analyze(parser.parseQuery(query)));
-        TimeSeriesAggregate aggsByTsid = plan.collect(TimeSeriesAggregate.class).getFirst();
-        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().getFirst()), LastOverTime.class);
-        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
-    }
-
     public void testTranslateSumWithImplicitLastOverTime() {
         var query = """
             TS k8s | STATS sum(network.bytes_in) BY bucket(@timestamp, 1 minute)

@@ -24,18 +24,12 @@ import java.util.Iterator;
 import java.util.Objects;
 
 /**
- * Secrets that are stored in cluster state
+ * Secrets that are stored in cluster state.
  *
- * <p>Cluster state secrets are initially loaded on each node, from a file on disk,
- * in the format defined by {@link SecureClusterStateSettings}
- *
- *
- * Once the cluster is running, changes to cluster secrets are propagated
- *
- *
- * the master node watches the file for changes. This class
- * propagates changes in the file-based secure settings from the master node out to other
- * nodes.
+ * <p>Cluster state secrets are initially loaded on each node from the {@code cluster_secrets} chunk in the
+ * reserved state file on disk. The format of that chunk is defined by {@link SecureClusterStateSettings}.
+ * Once the cluster is running, changes to cluster secrets are propagated by the master node
+ * that watches for changes of the reserved state settings file.
  *
  * <p>Since the master node should always have settings on disk, we don't need to
  * persist this class to saved cluster state, either on disk or in the cloud. Therefore,
@@ -44,6 +38,11 @@ import java.util.Objects;
  * {@link #toXContentChunked(ToXContent.Params)} returns an empty iterator.
  */
 public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+
+    /**
+     * The name of the cluster secrets chunk used in the settings state file.
+     */
+    public static final String NAME = "cluster_secrets";
 
     /**
      * The name for this data class

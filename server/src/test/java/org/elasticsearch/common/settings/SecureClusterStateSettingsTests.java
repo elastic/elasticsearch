@@ -10,6 +10,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SecureClusterStateSettingsTests extends ESTestCase {
 
-    private static final String JSON_SECRETS = """
+    private static final String JSON_SECRETS = Strings.format("""
         {
           "file_secrets": {
             "foo": "%s"
@@ -39,9 +40,9 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
             "goo": "baz"
           }
         }
-        """.formatted(Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
+        """, Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
 
-    private static final String JSON_DUPLICATE_KEYS = """
+    private static final String JSON_DUPLICATE_KEYS = Strings.format("""
         {
           "file_secrets": {
             "foo": "%s"
@@ -50,7 +51,7 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
             "foo": "bar"
           }
         }
-        """.formatted(Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
+        """, Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
 
     private static final MockSecureSettings MOCK_SECURE_SETTINGS = new MockSecureSettings();
     static {

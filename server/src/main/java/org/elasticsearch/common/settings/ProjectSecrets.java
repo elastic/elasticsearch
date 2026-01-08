@@ -38,7 +38,7 @@ import java.util.Set;
  * serializing its content in {@link #toXContentChunked(ToXContent.Params)}.
  */
 public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
-    public static final ProjectSecrets EMPTY = new ProjectSecrets(SecureClusterStateSettings.UNCLOSABLE_EMPTY);
+    public static final ProjectSecrets EMPTY = new ProjectSecrets(SecureClusterStateSettings.EMPTY);
 
     public static final String TYPE = "project_state_secrets";
     private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");

@@ -56,9 +56,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * </pre>
  */
 public class SecureClusterStateSettings implements SecureSettings {
-    public static final String CLUSTER_SECRETS_NAMESPACE = "cluster_secrets";
 
-    public static final SecureClusterStateSettings UNCLOSABLE_EMPTY = new SecureClusterStateSettings(Collections.emptyMap());
+    // a shared, empty instance that cannot be closed
+    public static final SecureClusterStateSettings EMPTY = new SecureClusterStateSettings(Collections.emptyMap());
 
     // nullable (if closed), but otherwise immutable secrets map
     private @Nullable Map<String, Secret> secrets;
@@ -160,7 +160,7 @@ public class SecureClusterStateSettings implements SecureSettings {
 
     @Override
     public void close() {
-        if (this != UNCLOSABLE_EMPTY) {
+        if (this != EMPTY) {
             secrets = null;
         }
     }

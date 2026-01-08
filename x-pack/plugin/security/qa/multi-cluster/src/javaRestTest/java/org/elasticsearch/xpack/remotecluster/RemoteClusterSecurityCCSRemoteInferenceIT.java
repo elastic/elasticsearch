@@ -18,7 +18,7 @@ import org.junit.rules.TestRule;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RemoteClusterSecurityQueryRewriteIT extends AbstractRemoteClusterSecurityTestCase {
+public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 

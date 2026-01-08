@@ -89,6 +89,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     private final boolean isRateOverTime;
     private final double dateFactor;
 
+    // tracking min/max group ids to allow flushing the raw buffer when the slice index changed
+    private int minRawInputGroupId = Integer.MAX_VALUE;
+    private int maxRawInputGroupId = Integer.MIN_VALUE;
+    private int lastSliceIndex = -1;
+
     public RateLongGroupingAggregatorFunction(
         List<Integer> channels,
         DriverContext driverContext,
@@ -151,7 +156,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
-
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
+        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -400,10 +409,34 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         if (buffer == null) {
             buffer = new Buffer(bigArrays, newElements);
             buffers.set(groupId, buffer);
+            minRawInputGroupId = Math.min(minRawInputGroupId, groupId);
+            maxRawInputGroupId = Math.max(maxRawInputGroupId, groupId);
         } else {
             buffer.ensureCapacity(bigArrays, newElements, firstTimestamp);
         }
         return buffer;
+    }
+
+    void flushRawBuffers() {
+        if (minRawInputGroupId > maxRawInputGroupId) {
+            return;
+        }
+        reducedStates = bigArrays.grow(reducedStates, maxRawInputGroupId + 1);
+        for (int groupId = minRawInputGroupId; groupId <= maxRawInputGroupId; groupId++) {
+            Buffer buffer = buffers.getAndSet(groupId, null);
+            if (buffer != null) {
+                try (buffer) {
+                    ReducedState state = reducedStates.get(groupId);
+                    if (state == null) {
+                        state = new ReducedState();
+                        reducedStates.set(groupId, state);
+                    }
+                    buffer.flush(state);
+                }
+            }
+        }
+        minRawInputGroupId = Integer.MAX_VALUE;
+        maxRawInputGroupId = Integer.MIN_VALUE;
     }
 
     /**
@@ -604,7 +637,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                     rate = computeRate(flushedStates, group, tsContext, isRateOverTime, dateFactor);
                 } else {
-                    rate = computeRateWithoutExtrapolate(state, isRateOverTime);
+                    rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
                 }
 
                 if (Double.isNaN(rate)) {
@@ -678,7 +711,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         }
     }
 
-    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime) {
+    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime, double dateFactor) {
         if (state.samples < 2) {
             return Double.NaN;
         }
@@ -687,7 +720,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         double firstValue = state.intervals[state.intervals.length - 1].v2;
         double lastValue = state.intervals[0].v1 + state.resets;
         if (isRateOverTime) {
-            return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
+            return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
             return lastValue - firstValue;
         }
@@ -739,6 +772,22 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         }
 
         if (lastTsSec == firstTsSec) {
+            // Check for the case where there is only one sample in state, right at the boundary towards a non-empty adjacent state.
+            if (state.samples == 1) {
+                if (previousState != null) {
+                    assert nextState == null;
+                    assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
+                    final double startTs = previousState.intervals[0].t1 / dateFactor;
+                    final double delta = deltaBetweenStates(previousState, state, dateFactor);
+                    return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
+                }
+                if (nextState != null) {
+                    assert state.intervals[0].t1 == lastTsSec * dateFactor : lastTsSec + ":" + state.intervals[0].t1;
+                    final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
+                    final double delta = deltaBetweenStates(state, nextState, dateFactor);
+                    return isRateOverTime ? delta / (endTs - lastTsSec) : delta;
+                }
+            }
             return Double.NaN;
         }
         final double increase = lastValue - firstValue;
@@ -814,10 +863,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
         final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
-
-        // If the end value is smaller than the start value, a counter reset occurred.
-        // In this case, the delta is considered equal to the end value.
-        final double delta = (endValue >= startValue) ? endValue - startValue : endValue;
+        final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
         final double slope = delta / (endTs - startTs);
         if (isLowerBoundary) {
             assert startTs <= tbucketStart : startTs + " <= " + tbucketStart;
@@ -829,5 +875,16 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             double timeDelta = tbucketEnd - startTs;
             return startValue + slope * timeDelta;
         }
+    }
+
+    private static double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
+        final double startValue = lowerState.intervals[0].v1;
+        final double startTs = lowerState.intervals[0].t1 / dateFactor;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
+        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+
+        // If the end value is smaller than the start value, a counter reset occurred.
+        // In this case, the delta is considered equal to the end value.
+        return (endValue >= startValue) ? endValue - startValue : endValue;
     }
 }

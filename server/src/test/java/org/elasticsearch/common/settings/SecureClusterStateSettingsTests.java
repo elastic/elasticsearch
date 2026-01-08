@@ -77,10 +77,11 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
 
     public void testClose() {
         var secrets = new SecureClusterStateSettings(MOCK_SECURE_SETTINGS);
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("foo", "goo"));
         assertThat(secrets.getString("foo").toString(), is("bar"));
         secrets.close();
 
-        assertThrows(IllegalStateException.class, () -> secrets.getSettingNames());
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("foo", "goo"));
         assertThrows(IllegalStateException.class, () -> secrets.getString("foo"));
         assertThrows(IllegalStateException.class, () -> secrets.getFile("goo"));
         assertThrows(IllegalStateException.class, () -> secrets.getSHA256Digest("foo"));

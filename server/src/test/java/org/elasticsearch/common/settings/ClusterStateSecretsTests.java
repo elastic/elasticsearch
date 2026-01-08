@@ -130,7 +130,7 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
         settings.close();
 
         // we can close the copy
-        assertThrows(IllegalStateException.class, () -> settings.getSettingNames());
+        assertThat(settings.getSettingNames(), containsInAnyOrder("foo", "goo"));
         assertThrows(IllegalStateException.class, () -> settings.getString("foo"));
         assertThrows(IllegalStateException.class, () -> settings.getString("goo"));
 

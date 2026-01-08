@@ -98,7 +98,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1334,10 +1333,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        Collection<BytesRef> valueCollection = keepDuplicatesInBinaryDocValues()
-                            ? new ArrayList<>()
-                            : new LinkedHashSet<>();
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, valueCollection);
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, keepDuplicatesInBinaryDocValues());
                         context.doc().addWithKey(fieldName, field);
                     }
                     field.add(bytesRef);

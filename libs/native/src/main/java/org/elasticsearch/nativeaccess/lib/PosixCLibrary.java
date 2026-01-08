@@ -11,8 +11,6 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
-import java.lang.foreign.MemorySegment;
-
 /**
  * Provides access to methods in libc.so available on POSIX systems.
  */

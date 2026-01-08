@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -59,7 +58,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class FlattenedFieldMapperTests extends MapperTestCase {
 
@@ -343,14 +341,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("", "value").endObject()));
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(2, fields.size());
-    }
-
-    private MultiValuedBinaryDocValuesField getDocValuesField(List<IndexableField> fields) {
-        var docValuesFields = fields.stream().filter(field -> field.fieldType().docValuesType() == DocValuesType.BINARY).toList();
-        assertEquals(1, docValuesFields.size());
-        assertThat(docValuesFields.getFirst(), instanceOf(MultiValuedBinaryDocValuesField.class));
-
-        return (MultiValuedBinaryDocValuesField) docValuesFields.getFirst();
     }
 
     public void testDotOnlyFieldName() throws Exception {

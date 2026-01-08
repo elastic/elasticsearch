@@ -83,6 +83,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService.RERANK_WINDOW_SIZE;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -1053,7 +1054,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(350));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(RERANK_WINDOW_SIZE));
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {

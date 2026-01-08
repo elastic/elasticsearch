@@ -71,8 +71,6 @@ import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxSe
 
 public class IbmWatsonxService extends SenderService implements RerankingInferenceService {
 
-    public static final String NAME = "watsonxai";
-
     private static final String SERVICE_NAME = "IBM watsonx";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
@@ -84,6 +82,14 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
         "IBM watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
+
+    public static final String NAME = "watsonxai";
+
+    // IBM watsonx has a single rerank model with a token limit of 512
+    // (see https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models-embed.html?context=wx#reranker-overview)
+    // Using 1 token = 0.75 words as a rough estimate, we get 384 words
+    // allowing for some headroom, we set the window size below 384 words
+    public static final int RERANK_WINDOW_SIZE = 350;
 
     public IbmWatsonxService(
         HttpRequestSender.Factory factory,
@@ -366,11 +372,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // IBM watsonx has a single rerank model with a token limit of 512
-        // (see https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models-embed.html?context=wx#reranker-overview)
-        // Using 1 token = 0.75 words as a rough estimate, we get 384 words
-        // allowing for some headroom, we set the window size below 384 words
-        return 350;
+        return RERANK_WINDOW_SIZE;
     }
 
     public static class Configuration {

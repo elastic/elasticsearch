@@ -1,4 +1,4 @@
-remote_search_query_rewrite:
+remote_search:
   cluster:
     - monitor
   indices:

@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -33,9 +37,10 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
-            // Add inference module - this is the key: with inference module loaded,
-            // the bug is triggered for ALL CCS queries
+            .module("x-pack-ilm")
+            .module("x-pack-ml")
             .module("x-pack-inference")
+            .plugin("inference-service-test")
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -43,16 +48,17 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
-            // Add inference module
+            .module("x-pack-ilm")
+            .module("x-pack-ml")
             .module("x-pack-inference")
-            // API key-based credentials for cross-cluster access (RCS 2.0) - triggers the bug
+            .plugin("inference-service-test")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
                           "search": [
                             {
-                              "names": ["test-*"]
+                              "names": ["*"]
                             }
                           ]
                         }""");
@@ -61,40 +67,49 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_SEARCH_USER, PASS.toString(), "remote_search_query_rewrite", false)
+            .user(REMOTE_SEARCH_USER, PASS.toString(), "remote_search", false)
             .build();
     }
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    /**
-     * Test that reproduces bug #140193: ANY cross-cluster search fails when the inference
-     * module is loaded and remote clusters use API key-based authentication.
-     *
-     * <p>Even a simple match query on a regular text field (NOT a semantic_text field) triggers
-     * the bug because the inference module intercepts all search requests to check for
-     * inference fields.
-     */
-    public void testBasicMatchQueryFailsWithInferenceModuleAndApiKeyAuth() throws Exception {
+    public void testQueryRemoteInferenceField() throws Exception {
         configureRemoteCluster();
 
-        // Create a simple test index on fulfilling (remote) cluster
-        // Note: This is a regular text field, NOT a semantic_text field!
-        Request createIndexRequest = new Request("PUT", "/test-index");
-        createIndexRequest.setJsonEntity("""
+        // Create an inference endpoint on the remote cluster
+        final String inferenceId = randomIdentifier();
+        Request createInferenceEndpointRequest = new Request("PUT", "/_inference/text_embedding/" + inferenceId);
+        createInferenceEndpointRequest.setJsonEntity("""
             {
-              "mappings": {
-                "properties": {
-                  "content": { "type": "text" }
-                }
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_model",
+                "dimensions": 256,
+                "similarity": "cosine",
+                "api_key": "abc64"
               }
             }
             """);
+        performRequestAgainstFulfillingCluster(createInferenceEndpointRequest);
+
+        // Create an index on the remote cluster with a semantic_text field that uses the inference endpoint
+        Request createIndexRequest = new Request("PUT", "/test-index");
+        createIndexRequest.setJsonEntity(Strings.format("""
+            {
+              "mappings": {
+                "properties": {
+                  "content": {
+                    "type": "semantic_text",
+                    "inference_id": "%s"
+                  }
+                }
+              }
+            }
+            """, inferenceId));
         performRequestAgainstFulfillingCluster(createIndexRequest);
 
-        // Index a document
-        Request indexDocRequest = new Request("POST", "/test-index/_doc?refresh=true");
+        Request indexDocRequest = new Request("POST", "/test-index/_doc/1?refresh=true");
         indexDocRequest.setJsonEntity("""
             {
               "content": "test document for cross cluster search"
@@ -102,9 +117,10 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
             """);
         performRequestAgainstFulfillingCluster(indexDocRequest);
 
-        // Execute a basic match query with ccs_minimize_roundtrips=false
-        // This should be a simple search, but the inference module intercepts it
-        Request searchRequest = new Request("GET", "/my_remote_cluster:test-*/_search");
+        // Execute a basic match query with ccs_minimize_roundtrips=false.
+        // This will be intercepted by the inference plugin and rewritten to a semantic query on the content field, which will trigger
+        // an inference action on the remote cluster.
+        Request searchRequest = new Request("GET", "/my_remote_cluster:test-index/_search");
         searchRequest.addParameter("ccs_minimize_roundtrips", "false");
         searchRequest.setJsonEntity("""
             {
@@ -120,6 +136,8 @@ public class RemoteClusterSecurityCCSRemoteInferenceIT extends AbstractRemoteClu
         );
 
         Response response = client().performRequest(searchRequest);
-        assertOK(response);
+        ObjectPath objectPath = assertOKAndCreateObjectPath(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
+        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
     }
 }

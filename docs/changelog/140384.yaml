@@ -1,0 +1,5 @@
+pr: 140384
+summary: Move union types out of `BlockLoader`
+area: ES|QL
+type: enhancement
+issues: []

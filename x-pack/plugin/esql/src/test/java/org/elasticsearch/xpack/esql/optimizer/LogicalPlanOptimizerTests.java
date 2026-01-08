@@ -7444,7 +7444,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         LastOverTime lastCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), LastOverTime.class);
         assertThat(Expressions.attribute(lastCost.field()).id(), equalTo(addEval.fields().get(0).id()));
-        assertThat(Expressions.attribute(as(add.left(), LastOverTime.class).field()).name(), equalTo("network.cost"));
+        assertThat(Expressions.attribute(add.left()).name(), equalTo("network.cost"));
         assertThat(add.right().fold(FoldContext.small()), equalTo(0.2));
     }
 
@@ -7891,55 +7891,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
         assertTrue(lastOverTime.hasFilter());
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
-    }
-
-    public void testTranslateBareMetricWithImplicitLastOverTime() {
-        var query = """
-            TS k8s | STATS network.bytes_in BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
-    }
-
-    public void testTranslateSumWithImplicitLastOverTime() {
-        var query = """
-            TS k8s | STATS sum(network.bytes_in) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
-        TimeSeriesAggregate aggsByTsid = plan.collect(TimeSeriesAggregate.class).getFirst();
-
-        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().getFirst()), LastOverTime.class);
-        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
-    }
-
-    public void testTranslateSumWithAdditionWithImplicitLastOverTime() {
-        var query = """
-            TS k8s
-            | STATS %s BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        for (String variant : List.of(
-            "sum(network.eth0.tx + network.eth0.rx)",
-            "sum(network.eth0.tx + last_over_time(network.eth0.rx))",
-            "sum(last_over_time(network.eth0.tx) + network.eth0.rx)",
-            "sum(last_over_time(network.eth0.tx) + last_over_time(network.eth0.rx))"
-        )) {
-            var plan = logicalOptimizerWithLatestVersion.optimize(
-                metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, query, variant)))
-            );
-            Aggregate finalAgg = plan.collect(Aggregate.class).getFirst();
-            assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-
-            as(Alias.unwrap(finalAgg.aggregates().getFirst()), Sum.class);
-
-            TimeSeriesAggregate aggsByTsid = plan.collect(TimeSeriesAggregate.class).getFirst();
-            LastOverTime lastOverTimeTx = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
-            assertThat(Expressions.attribute(lastOverTimeTx.field()).name(), equalTo("network.eth0.tx"));
-
-            LastOverTime lastOverTimeRx = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), LastOverTime.class);
-            assertThat(Expressions.attribute(lastOverTimeRx.field()).name(), equalTo("network.eth0.rx"));
-        }
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTime() {
@@ -9907,8 +9858,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Functions [network.cost, network.eth0.rx] require a @timestamp field of type date or \
-                date_nanos to be present when run with the TS command, but it was not present.""")
+                Functions [count(network.eth0.rx), max(network.cost)] require a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
         );
 
         assertThat(
@@ -9921,7 +9872,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Function [network.eth0.currently_connected_clients] requires a @timestamp field of type date or date_nanos \
+                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
 
@@ -9936,7 +9887,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Function [network.eth0.currently_connected_clients] requires a @timestamp field of type date or date_nanos \
+                Function [std_dev(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
     }

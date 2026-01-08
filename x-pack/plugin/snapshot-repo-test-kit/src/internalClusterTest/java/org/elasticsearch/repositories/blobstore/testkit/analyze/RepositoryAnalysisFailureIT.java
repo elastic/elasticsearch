@@ -567,7 +567,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request, ActionListener<RepositoryAnalyzeAction.Response> listener) {
         client().execute(RepositoryAnalyzeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
-            RepositoryAnalysisSuccessIT.assertNoThrottling(response);
+            RepositoryAnalysisSuccessIT.assertResponseSummaryFields(request, response);
             l.onResponse(response);
         }));
     }

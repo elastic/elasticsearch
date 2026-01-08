@@ -10,13 +10,13 @@
           "name" : "start_time_or_offset",
           "type" : "date",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds. "
         },
         {
           "name" : "end_time",
           "type" : "date",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date, date_nanos or epoch milliseconds."
         }
       ],
       "variadic" : false,
@@ -28,13 +28,13 @@
           "name" : "start_time_or_offset",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds. "
         },
         {
           "name" : "end_time",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date, date_nanos or epoch milliseconds."
         }
       ],
       "variadic" : false,
@@ -46,25 +46,7 @@
           "name" : "start_time_or_offset",
           "type" : "date_period",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "start_time_or_offset",
-          "type" : "keyword",
-          "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
-        },
-        {
-          "name" : "end_time",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds. "
         }
       ],
       "variadic" : false,
@@ -76,13 +58,13 @@
           "name" : "start_time_or_offset",
           "type" : "long",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds. "
         },
         {
           "name" : "end_time",
           "type" : "long",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date, date_nanos or epoch milliseconds."
         }
       ],
       "variadic" : false,
@@ -94,7 +76,7 @@
           "name" : "start_time_or_offset",
           "type" : "time_duration",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds. "
         }
       ],
       "variadic" : false,

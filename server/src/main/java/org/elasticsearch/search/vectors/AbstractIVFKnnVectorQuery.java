@@ -263,6 +263,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return Lucene.EMPTY_TOP_DOCS;
         }
         if (postFilter) {
+            Arrays.sort(scoreDocs, 0, searchResults, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
             // should re-run search to fill more results as needed
             if (alreadyCollectedResults + searchResults < k) {
                 ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).refreshIterator();

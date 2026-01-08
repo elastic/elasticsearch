@@ -107,9 +107,11 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
         }
     }
 
-    private static Source wrapSource(Class<? extends TimeSeriesAggregateFunction> timeSeriesFunction, TypedAttribute attr) {
-        String functionNameSnakeCase = timeSeriesFunction.getSimpleName().replaceAll("([a-z])([A-Z]+)", "$1_$2").toLowerCase();
-        Source attrSource = attr.source();
-        return new Source(attrSource.source(), functionNameSnakeCase + "(" + attrSource.text() + ")");
+    private static TimeSeriesAggregateFunction createDefaultInnerAggregation(TypedAttribute attr, Attribute timestamp) {
+        if (attr.dataType() == DataType.EXPONENTIAL_HISTOGRAM || attr.dataType() == DataType.TDIGEST) {
+            return new HistogramMergeOverTime(attr.source(), attr, Literal.TRUE, AggregateFunction.NO_WINDOW);
+        } else {
+            return new LastOverTime(attr.source(), attr, AggregateFunction.NO_WINDOW, timestamp);
+        }
     }
 }

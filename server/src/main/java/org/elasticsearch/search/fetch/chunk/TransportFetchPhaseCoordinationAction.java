@@ -211,23 +211,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedDocs, circuitBreaker);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
-        // Monitor coordinator task cancellation
-        final AtomicBoolean cancelled = new AtomicBoolean(false);
-        if (task instanceof SearchShardTask searchTask) {
-            searchTask.addListener(() -> {
-                if (searchTask.isCancelled()) {
-                    cancelled.set(true);
-                    responseStream.markCancelled(); // Signal to stop accepting chunks
-                }
-            });
-        }
-
         // Listener that builds final result from accumulated chunks
         ActionListener<FetchSearchResult> childListener = ActionListener.wrap(dataNodeResult -> {
-            if (cancelled.get()) {
-                listener.onFailure(new TaskCancelledException("cancelled"));
-                return;
-            }
 
             try {
                 // Process the embedded last chunk if present

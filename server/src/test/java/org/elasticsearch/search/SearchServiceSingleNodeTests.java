@@ -415,7 +415,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, null, listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -626,7 +626,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             };
-            service.executeFetchPhase(fetchRequest, searchTask, null, new AtomicReference<>(), fetchListener);
+            service.executeFetchPhase(fetchRequest, searchTask, null, fetchListener);
             fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {

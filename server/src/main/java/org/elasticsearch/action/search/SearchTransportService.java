@@ -656,7 +656,6 @@ public class SearchTransportService {
             }
 
             FetchPhaseResponseChunk.Writer chunkWriter = null;
-            AtomicReference<Throwable> sendFailure = null;
 
             // Only use chunked fetch if all conditions are met
             if (fetchPhaseChunkedEnabled && versionSupported && canConnectToCoordinator) {
@@ -669,30 +668,12 @@ public class SearchTransportService {
                 final String[] indices = new String[] { concreteIndex };
                 final IndicesOptions indicesOptions = shardReq.indicesOptions();
 
-                // Capture the current ThreadContext to preserve authentication headers
+                /// Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
                     .getThreadContext()
                     .newRestorableContext(true);
 
-                // Create sendFailure reference for cancellation signaling.
-                sendFailure = new AtomicReference<>();
-                final AtomicReference<Throwable> finalSendFailure = sendFailure;
-                if (task instanceof SearchShardTask searchShardTask) {
-                    searchShardTask.addListener(() -> {
-                        if (searchShardTask.isCancelled()) {
-                            finalSendFailure.compareAndSet(null, new TaskCancelledException("Data node task cancelled"));
-                        }
-                    });
-                }
-
                 chunkWriter = (responseChunk, listener) -> {
-                    // Check cancellation before sending chunk
-                    Throwable failure = finalSendFailure.get();
-                    if (failure != null) {
-                        listener.onFailure(new TaskCancelledException("Cancelled before sending chunk"));
-                        return;
-                    }
-
                     // Restore the ThreadContext before sending the chunk
                     try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
                         transportService.sendChildRequest(
@@ -718,13 +699,7 @@ public class SearchTransportService {
                 };
             }
 
-            searchService.executeFetchPhase(
-                request,
-                (SearchShardTask) task,
-                chunkWriter,
-                sendFailure,
-                new ChannelActionListener<>(channel)
-            );
+            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
         };
 
         transportService.registerRequestHandler(

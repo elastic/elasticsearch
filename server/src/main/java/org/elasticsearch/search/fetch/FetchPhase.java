@@ -81,7 +81,7 @@ public final class FetchPhase {
      * @param rankDocs ranking information
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
-        execute(context, docIdsToLoad, rankDocs, null, new AtomicReference<>(), null);
+        execute(context, docIdsToLoad, rankDocs, null, null);
     }
 
     /**
@@ -93,7 +93,7 @@ public final class FetchPhase {
      * @param memoryChecker optional callback for memory tracking, may be null
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
-        execute(context, docIdsToLoad, rankDocs, memoryChecker, new AtomicReference<>(), null);
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null);
     }
 
     /**
@@ -116,7 +116,6 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         RankDocShardInfo rankDocs,
         @Nullable IntConsumer memoryChecker,
-        AtomicReference<Throwable> sendFailure,
         @Nullable FetchPhaseResponseChunk.Writer writer
     ) {
         if (LOGGER.isTraceEnabled()) {
@@ -144,6 +143,7 @@ public final class FetchPhase {
             // Collect all pending chunk futures
             final int maxInFlightChunks = 3; // TODO make configurable
             final ArrayDeque<PlainActionFuture<Void>> pendingChunks = new ArrayDeque<>();
+            final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
             hits = buildSearchHits(
                 context,
                 docIdsToLoad,
@@ -343,8 +343,7 @@ public final class FetchPhase {
         };
 
         SearchHits resultToReturn = null;
-        try (
-            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
+        try( FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
@@ -357,8 +356,7 @@ public final class FetchPhase {
                 sendFailure,
                 context.getTotalHits(),
                 context.getMaxScore()
-            )
-        ) {
+            )) {
 
             if (context.isCancelled()) {
                 // Clean up hits array
@@ -397,14 +395,13 @@ public final class FetchPhase {
                     resultToReturn = SearchHits.empty(totalHits, context.getMaxScore());
                 }
             }
-
             return resultToReturn;
         } catch (Exception e) {
             if (resultToReturn != null) {
                 resultToReturn.decRef();
                 resultToReturn = null;
             }
-            throw new RuntimeException(e);
+            throw e;
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
             if (writer == null && bytes > 0L) {

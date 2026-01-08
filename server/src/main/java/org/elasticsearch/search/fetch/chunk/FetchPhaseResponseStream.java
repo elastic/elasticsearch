@@ -55,9 +55,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong totalBreakerBytes = new AtomicLong(0);
 
-    // Cancellation
-    private volatile boolean cancelled = false;
-
     /**
      * Creates a new response stream for accumulating hits from a single shard.
      *
@@ -81,11 +78,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param releasable a releasable to close after processing (typically releases the acquired stream reference)
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
-        // Check cancellation before accepting chunk
-        if (cancelled) {
-            releasable.close();
-            throw new TaskCancelledException("Fetch phase cancelled");
-        }
 
         boolean success = false;
         try {
@@ -202,10 +194,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      */
     int getCurrentQueueSize() {
         return queue.size();
-    }
-
-    void markCancelled() {
-        this.cancelled = true;
     }
 
     /**

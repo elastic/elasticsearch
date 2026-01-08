@@ -292,11 +292,6 @@ abstract class FetchPhaseDocsIterator {
                     }
                 }
 
-                Throwable failure = sendFailure.get();
-                if (failure != null) {
-                    throw new TaskCancelledException("Fetch cancelled");
-                }
-
                 if (docsInReader.isEmpty()) {
                     continue;
                 }
@@ -347,11 +342,6 @@ abstract class FetchPhaseDocsIterator {
                     continue; // Defensive
                 }
 
-                Throwable failure = sendFailure.get();
-                if (failure != null) {
-                    throw new TaskCancelledException("Fetch cancelled during streaming"); // CHANGED
-                }
-
                 hit.incRef();
 
                 if (chunkBuffer.isEmpty()) {
@@ -367,7 +357,7 @@ abstract class FetchPhaseDocsIterator {
                 if (chunkBuffer.size() >= chunkSize && isLastDoc == false) {
                     Throwable knownFailure = sendFailure.get();
                     if (knownFailure != null) {
-                        throw new TaskCancelledException("Fetch chunk failed");
+                        throw new RuntimeException("Fetch chunk failed", knownFailure);
                     }
 
                     try {
@@ -599,7 +589,7 @@ abstract class FetchPhaseDocsIterator {
         }
 
         @Override
-        public void close() throws Exception {
+        public void close() {
             if (closed) {
                 return;
             }

@@ -1,0 +1,5 @@
+# Entitlement policy for ES|QL plugin
+# Grants outbound network access for WORKFLOW command to call Kibana APIs
+ALL-UNNAMED:
+  - outbound_network
+

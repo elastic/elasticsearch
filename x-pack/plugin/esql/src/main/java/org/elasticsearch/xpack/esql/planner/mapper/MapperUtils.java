@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.plan.physical.workflow.WorkflowExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.List;
@@ -105,6 +107,17 @@ public class MapperUtils {
 
         if (p instanceof Completion completion) {
             return new CompletionExec(completion.source(), child, completion.inferenceId(), completion.prompt(), completion.targetField());
+        }
+
+        if (p instanceof Workflow workflow) {
+            return new WorkflowExec(
+                workflow.source(),
+                child,
+                workflow.workflowId(),
+                workflow.inputs(),
+                workflow.targetField(),
+                workflow.errorHandling()
+            );
         }
 
         if (p instanceof Enrich enrich) {

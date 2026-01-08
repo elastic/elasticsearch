@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -529,6 +530,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Workflow w -> resolveWorkflow(w, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
         }
@@ -613,6 +615,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
+        }
+
+        private LogicalPlan resolveWorkflow(Workflow w, List<Attribute> childrenOutput) {
+            Attribute targetField = w.targetField();
+
+            // Convert target field from UnresolvedAttribute to ReferenceAttribute (it's an OUTPUT column, not INPUT)
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), null, ua.name(), KEYWORD);
+            }
+
+            // Resolve input expressions from child output
+            List<Alias> resolvedInputs = new ArrayList<>();
+            boolean changed = targetField != w.targetField();
+            for (Alias input : w.inputs()) {
+                Alias resolved = (Alias) input.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                if (resolved != input) {
+                    changed = true;
+                }
+                resolvedInputs.add(resolved);
+            }
+
+            if (changed) {
+                return new Workflow(w.source(), w.child(), w.workflowId(), resolvedInputs, targetField, w.rowLimit(), w.errorHandling());
+            }
+            return w;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

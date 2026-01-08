@@ -129,11 +129,15 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.plan.physical.workflow.WorkflowExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.workflow.HttpWorkflowClient;
+import org.elasticsearch.xpack.esql.workflow.WorkflowClient;
+import org.elasticsearch.xpack.esql.workflow.WorkflowOperator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -284,6 +288,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof WorkflowExec workflow) {
+            return planWorkflow(workflow, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         }
@@ -331,6 +337,39 @@ public class LocalExecutionPlanner {
         );
 
         return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
+    }
+
+    private PhysicalOperation planWorkflow(WorkflowExec workflow, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(workflow.child(), context);
+        String workflowId = BytesRefs.toString(workflow.workflowId().fold(context.foldCtx()));
+        Layout outputLayout = source.layout.builder().append(workflow.targetField()).build();
+
+        // Build evaluator factories for each input expression
+        List<EvalOperator.ExpressionEvaluator.Factory> inputEvaluatorFactories = new ArrayList<>();
+        List<String> inputNames = new ArrayList<>();
+        for (Alias input : workflow.inputs()) {
+            inputEvaluatorFactories.add(EvalMapper.toEvaluator(context.foldCtx(), input.child(), source.layout));
+            inputNames.add(input.name());
+        }
+
+        // Create workflow client - POC uses HTTP client with hardcoded URL
+        // TODO: Read Kibana URL from settings
+        String kibanaUrl = "http://localhost:5601";
+
+        // Get auth header from environment variable, with dev fallback
+        String authHeader = System.getenv("ESQL_KIBANA_AUTH");
+        if (authHeader == null || authHeader.isEmpty()) {
+            // Fallback for dev - use same creds as Kibana connects with
+            authHeader = "Basic "
+                + java.util.Base64.getEncoder()
+                    .encodeToString("elastic-admin:elastic-password".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        WorkflowClient workflowClient = HttpWorkflowClient.create(kibanaUrl, authHeader);
+
+        return source.with(
+            new WorkflowOperator.Factory(workflowId, inputEvaluatorFactories, inputNames, workflow.errorHandling(), workflowClient),
+            outputLayout
+        );
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {

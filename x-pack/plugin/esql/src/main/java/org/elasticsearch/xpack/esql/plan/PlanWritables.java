@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.plan.physical.workflow.WorkflowExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,7 +98,8 @@ public class PlanWritables {
             Sample.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
-            TopN.ENTRY
+            TopN.ENTRY,
+            Workflow.ENTRY
         );
     }
 
@@ -125,7 +128,8 @@ public class PlanWritables {
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TimeSeriesAggregateExec.ENTRY,
-            TopNExec.ENTRY
+            TopNExec.ENTRY,
+            WorkflowExec.ENTRY
         );
     }
 

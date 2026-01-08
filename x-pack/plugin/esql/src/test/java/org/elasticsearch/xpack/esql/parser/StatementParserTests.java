@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -3927,6 +3928,60 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
             "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
         );
+    }
+
+    // ============================================
+    // WORKFLOW Command Tests
+    // ============================================
+
+    public void testWorkflowBasicWithStringId() {
+        assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
+        var plan = as(processingCommand("WORKFLOW \"my-workflow-id\" WITH (message = field_a)"), Workflow.class);
+
+        assertThat(plan.workflowId(), equalTo(literalString("my-workflow-id")));
+        assertThat(plan.targetField(), equalToIgnoringIds(attribute("workflow")));
+        assertThat(plan.errorHandling(), equalTo(Workflow.ErrorHandling.FAIL));
+        assertThat(plan.inputs().size(), equalTo(1));
+    }
+
+    public void testWorkflowOnErrorNull() {
+        assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (msg = field_a) ON ERROR NULL"), Workflow.class);
+
+        assertThat(plan.errorHandling(), equalTo(Workflow.ErrorHandling.NULL));
+    }
+
+    public void testWorkflowOnErrorFail() {
+        assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (msg = field_a) ON ERROR FAIL"), Workflow.class);
+
+        assertThat(plan.errorHandling(), equalTo(Workflow.ErrorHandling.FAIL));
+    }
+
+    public void testWorkflowWithNamedInputs() {
+        assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (message = field_a, count = 42)"), Workflow.class);
+
+        assertThat(plan.workflowId(), equalTo(literalString("my-workflow")));
+        assertThat(plan.inputs().size(), equalTo(2));
+        // Verify input names
+        assertThat(plan.inputs().get(0).name(), equalTo("message"));
+        assertThat(plan.inputs().get(1).name(), equalTo("count"));
+    }
+
+    public void testWorkflowWithFunctionAsInput() {
+        assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (prompt = CONCAT(fieldA, fieldB))"), Workflow.class);
+
+        assertThat(plan.workflowId(), equalTo(literalString("my-workflow")));
+        assertThat(plan.inputs().size(), equalTo(1));
+        assertThat(plan.inputs().get(0).name(), equalTo("prompt"));
+        assertThat(plan.inputs().get(0).child(), equalToIgnoringIds(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
+    }
+
+    public void testWorkflowInvalidMissingWorkflowId() {
+        assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
+        expectError("FROM foo* | WORKFLOW", "mismatched input '<EOF>'");
     }
 
     public void testSample() {

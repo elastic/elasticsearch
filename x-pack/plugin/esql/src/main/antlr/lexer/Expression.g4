@@ -20,6 +20,7 @@ SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
+WORKFLOW : 'workflow'         -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 
@@ -84,6 +85,7 @@ DECIMAL_LITERAL
 
 
 AND : 'and';
+AS : 'as';
 ASC : 'asc';
 ASSIGN : '=';
 BY : 'by';
@@ -104,6 +106,7 @@ NULL : 'null';
 NULLS : 'nulls';
 ON: 'on';
 OR : 'or';
+ERROR : 'error';
 PARAM: '?';
 RLIKE: 'rlike';
 TRUE : 'true';

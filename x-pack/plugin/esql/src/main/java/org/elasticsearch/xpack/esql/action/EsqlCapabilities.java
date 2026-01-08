@@ -1021,6 +1021,11 @@ public class EsqlCapabilities {
         COMPLETION,
 
         /**
+         * Support for WORKFLOW command (POC)
+         */
+        WORKFLOW,
+
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,

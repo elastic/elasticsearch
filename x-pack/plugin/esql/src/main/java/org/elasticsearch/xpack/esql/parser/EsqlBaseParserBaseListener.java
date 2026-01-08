@@ -865,6 +865,66 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterWorkflowCommand(EsqlBaseParser.WorkflowCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWorkflowCommand(EsqlBaseParser.WorkflowCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterWorkflowInputs(EsqlBaseParser.WorkflowInputsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWorkflowInputs(EsqlBaseParser.WorkflowInputsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterWorkflowInput(EsqlBaseParser.WorkflowInputContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWorkflowInput(EsqlBaseParser.WorkflowInputContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterWorkflowOnErrorNull(EsqlBaseParser.WorkflowOnErrorNullContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWorkflowOnErrorNull(EsqlBaseParser.WorkflowOnErrorNullContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterWorkflowOnErrorStrategy(EsqlBaseParser.WorkflowOnErrorStrategyContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWorkflowOnErrorStrategy(EsqlBaseParser.WorkflowOnErrorStrategyContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) { }
   /**
    * {@inheritDoc}

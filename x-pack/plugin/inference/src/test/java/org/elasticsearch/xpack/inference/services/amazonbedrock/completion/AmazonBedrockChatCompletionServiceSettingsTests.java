@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,69 +31,132 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     AmazonBedrockChatCompletionServiceSettings> {
+    private static final String TEST_REGION = "test-region";
+    private static final String INITIAL_TEST_REGION = "initial-test-region";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final AmazonBedrockProvider TEST_PROVIDER = AmazonBedrockProvider.AMAZONTITAN;
+    private static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(
-            createChatCompletionRequestSettingsMap(region, model, provider),
-            ConfigurationParseContext.REQUEST
-        );
+    public void testUpdateServiceSettings_AllFields_Success() {
+        var newSettingsMap = createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT);
+        var serviceSettings = new AmazonBedrockChatCompletionServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(newSettingsMap, TaskType.CHAT_COMPLETION);
 
         assertThat(
             serviceSettings,
-            is(new AmazonBedrockChatCompletionServiceSettings(region, model, AmazonBedrockProvider.AMAZONTITAN, null))
+            is(
+                new AmazonBedrockChatCompletionServiceSettings(
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
         );
     }
 
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new AmazonBedrockChatCompletionServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new AmazonBedrockChatCompletionServiceSettings(
+                    INITIAL_TEST_REGION,
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_PROVIDER,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    private static HashMap<String, Object> createChatCompletionRequestSettingsMap(
+        String region,
+        String modelId,
+        String provider,
+        int rateLimit
+    ) {
+        var newSettingsMap = createChatCompletionRequestSettingsMap(region, modelId, provider);
+        newSettingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        return newSettingsMap;
+    }
+
+    public void testFromMap_Request_CreatesSettingsCorrectly() {
+        var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(
+            createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString()),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(serviceSettings, is(new AmazonBedrockChatCompletionServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, null)));
+    }
+
     public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var settingsMap = createChatCompletionRequestSettingsMap(region, model, provider);
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
+        var settingsMap = createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT);
 
         var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
-            is(new AmazonBedrockChatCompletionServiceSettings(region, model, AmazonBedrockProvider.AMAZONTITAN, new RateLimitSettings(3)))
+            is(
+                new AmazonBedrockChatCompletionServiceSettings(
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
         );
     }
 
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var settingsMap = createChatCompletionRequestSettingsMap(region, model, provider);
+        var settingsMap = createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString());
         var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(
-            serviceSettings,
-            is(new AmazonBedrockChatCompletionServiceSettings(region, model, AmazonBedrockProvider.AMAZONTITAN, null))
-        );
+        assertThat(serviceSettings, is(new AmazonBedrockChatCompletionServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new AmazonBedrockChatCompletionServiceSettings(
-            "testregion",
-            "testmodel",
-            AmazonBedrockProvider.AMAZONTITAN,
-            new RateLimitSettings(3)
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"region":"testregion","model":"testmodel","provider":"AMAZONTITAN",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%s}}""",
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER.name(),
+                    TEST_RATE_LIMIT
+                )
+            )
+        );
     }
 
     public static HashMap<String, Object> createChatCompletionRequestSettingsMap(String region, String model, String provider) {
-        return new HashMap<String, Object>(Map.of(REGION_FIELD, region, MODEL_FIELD, model, PROVIDER_FIELD, provider));
+        return new HashMap<>(Map.of(REGION_FIELD, region, MODEL_FIELD, model, PROVIDER_FIELD, provider));
     }
 
     @Override

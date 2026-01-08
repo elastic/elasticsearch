@@ -27,13 +27,11 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
         Map<String, Object> serviceSettings,
         ConfigurationParseContext context
     ) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var baseSettings = AmazonBedrockServiceSettings.fromMap(serviceSettings, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AmazonBedrockChatCompletionServiceSettings(
             baseSettings.region(),
@@ -94,6 +92,12 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     @Override
     public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var updatedBaseAmazonBedrockCommonSettings = updateBaseAmazonBedrockCommonSettings(serviceSettings);
+        return new AmazonBedrockChatCompletionServiceSettings(
+            updatedBaseAmazonBedrockCommonSettings.region(),
+            updatedBaseAmazonBedrockCommonSettings.model(),
+            updatedBaseAmazonBedrockCommonSettings.provider(),
+            updatedBaseAmazonBedrockCommonSettings.rateLimitSettings()
+        );
     }
 }

@@ -1,5 +1,5 @@
 pr: 140004
-summary: "WIP: Adding ES|QL command URI_PART"
+summary: "Adding ES|QL command URI_PART"
 area: ES|QL
 type: feature
 issues:

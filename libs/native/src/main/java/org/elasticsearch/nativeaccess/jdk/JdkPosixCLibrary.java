@@ -55,7 +55,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
     private static final MethodHandle madvise$mh = downcallHandleWithErrno(
         "madvise",
-        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT)
+        FunctionDescriptor.of(JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_INT)
     );
     private static final MethodHandle fcntl$mh = downcallHandle(
         "fcntl",
@@ -187,11 +187,9 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public int madvise(MemorySegment segment, long length, int advice) {
+    public int madvise(long address, long length, int advice) {
         try {
-            return (int) madvise$mh.invokeExact(errnoState, segment, length, advice);
-        } catch (IllegalArgumentException exc) {
-            throw exc;
+            return (int) madvise$mh.invokeExact(errnoState, address, length, advice);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

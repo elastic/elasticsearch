@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -26,6 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
+
     @Param(
         name = "project_routing",
         type = { "keyword" },
@@ -74,62 +73,17 @@ public class QuerySettings {
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
     @SuppressWarnings("unchecked")
-    public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
-        "approximate",
+    public static final QuerySettingDef<ApproximationSettings> APPROXIMATION = new QuerySettingDef<>(
+        "approximation",
         null,
         false,
         false,
         true,
-        (value, ctx) -> {
-            Object res = null;
-            if (value instanceof Literal l) {
-                res = l.value();
-            } else if (value instanceof MapExpression me) {
-                try {
-                    res = me.toFoldedMap(FoldContext.small());
-                } catch (IllegalStateException ex) {
-                    return "Approximate configuration must be a constant value [" + me + "]";
-                }
-
-                Map<String, Object> map = (Map<String, Object>) res;
-                for (Map.Entry<String, Object> entry : map.entrySet()) {
-                    if (entry.getKey().equals("num_rows")) {
-                        if (entry.getValue() instanceof Integer == false) {
-                            return "Approximate configuration [num_rows] must be an integer value";
-                        }
-                    } else if (entry.getKey().equals("confidence_level")) {
-                        if (entry.getValue() instanceof Double == false) {
-                            return "Approximate configuration [confidence_level] must be a double value";
-                        }
-                    } else {
-                        return "Approximate configuration contains unknown key [" + entry.getKey() + "]";
-                    }
-                }
-            }
-            if (res instanceof Boolean || res instanceof Map || res == null) {
-                return null; // all good, no error
-            }
-            return "Invalid approximate configuration [" + value + "]";
-        },
-
-        value -> {
-            Object folded = null;
-            if (value instanceof Literal l) {
-                folded = l.value();
-            } else if (value instanceof MapExpression me) {
-                folded = me.toFoldedMap(FoldContext.small());
-            }
-            if (folded instanceof Boolean b) {
-                folded = b ? Map.of() : null;
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) folded;
-            return map;
-        },
+        ApproximationSettings::parse,
         null
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE, APPROXIMATE)
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(APPROXIMATION, PROJECT_ROUTING, TIME_ZONE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {

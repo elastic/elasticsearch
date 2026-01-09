@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -39,6 +40,8 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
+    private static final TransportVersion ESQL_QUERY_APPROXIMATION = TransportVersion.fromName("esql_query_approximation");
+
     private final String clusterName;
     private final String username;
     private final ZonedDateTime now;
@@ -62,6 +65,9 @@ public class Configuration implements Writeable {
     private final long queryStartTimeNanos;
     private final String projectRouting;
 
+    // TODO: is this Configuration a good place for this flag?
+    private final boolean throwOnNonEsStatsQuery;
+
     public Configuration(
         ZoneId zi,
         Locale locale,
@@ -78,6 +84,44 @@ public class Configuration implements Writeable {
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
         String projectRouting
+    ) {
+        this(
+            zi,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            false
+        );
+    }
+
+    private Configuration(
+        ZoneId zi,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting,
+        boolean throwOnNonEsStatsQuery
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -96,6 +140,7 @@ public class Configuration implements Writeable {
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
         this.projectRouting = projectRouting;
+        this.throwOnNonEsStatsQuery = throwOnNonEsStatsQuery;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -126,6 +171,11 @@ public class Configuration implements Writeable {
 
         // not needed on the data nodes for now
         this.projectRouting = null;
+        if (in.getTransportVersion().supports(ESQL_QUERY_APPROXIMATION)) {
+            this.throwOnNonEsStatsQuery = in.readBoolean();
+        } else {
+            this.throwOnNonEsStatsQuery = false;
+        }
     }
 
     @Override
@@ -150,6 +200,9 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
+        }
+        if (out.getTransportVersion().supports(ESQL_QUERY_APPROXIMATION)) {
+            out.writeBoolean(throwOnNonEsStatsQuery);
         }
     }
 
@@ -240,7 +293,29 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            throwOnNonEsStatsQuery
+        );
+    }
+
+    public Configuration throwOnNonEsStatsQuery(boolean throwOnNonEsStatsQuery) {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            throwOnNonEsStatsQuery
         );
     }
 
@@ -261,6 +336,14 @@ public class Configuration implements Writeable {
 
     public String projectRouting() {
         return projectRouting;
+    }
+
+    /**
+     * Whether to throw an exception when a non-ES stats query is attempted to be executed.
+     * This is used by query approximation, see {@link Approximation}.
+     */
+    public boolean throwOnNonEsStatsQuery() {
+        return throwOnNonEsStatsQuery;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -302,7 +385,8 @@ public class Configuration implements Writeable {
             && Objects.equals(that.query, query)
             && profile == that.profile
             && tables.equals(that.tables)
-            && allowPartialResults == that.allowPartialResults;
+            && allowPartialResults == that.allowPartialResults
+            && throwOnNonEsStatsQuery == that.throwOnNonEsStatsQuery;
     }
 
     @Override
@@ -321,7 +405,8 @@ public class Configuration implements Writeable {
             tables,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            throwOnNonEsStatsQuery
         );
     }
 

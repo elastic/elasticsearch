@@ -1,0 +1,373 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.approximate;
+
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
+import org.apache.commons.math3.stat.descriptive.moment.Mean;
+import org.apache.commons.math3.stat.descriptive.moment.Skewness;
+import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIFTH;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+
+/**
+ * This function is used internally by {@link Approximation}, and is not exposed
+ * to users via the {@link EsqlFunctionRegistry}.
+ */
+public class ConfidenceInterval extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ConfidenceInterval",
+        ConfidenceInterval::new
+    );
+
+    private static final NormalDistribution normal = new NormalDistribution();
+
+    private final Expression bestEstimate;
+    private final Expression estimates;
+    private final Expression trialCount;
+    private final Expression bucketCount;
+    private final Expression confidenceLevel;
+
+    @FunctionInfo(
+        returnType = { "double", },
+        description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
+            + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
+            + "interval. If no sensible interval is found, the function returns null instead."
+    )
+    public ConfidenceInterval(
+        Source source,
+        @Param(name = "bestEstimate", type = { "double" }, description = "Best estimate of the parameter") Expression bestEstimate,
+        @Param(
+            name = "estimates",
+            type = { "double" },
+            description = "Bootstrap estimates of the parameter. This contains a concatenation of trialCount trials with bucketCount "
+                + "estimates each."
+        ) Expression estimates,
+        @Param(name = "trialCount", type = { "integer" }, description = "Number of trials in the estimates data.") Expression trialCount,
+        @Param(
+            name = "bucketCount",
+            type = { "integer" },
+            description = "Number of buckets in each trial of the estimates data."
+        ) Expression bucketCount,
+        @Param(
+            name = "confidenceLevel",
+            type = { "double" },
+            description = "The desired confidence level of the interval."
+        ) Expression confidenceLevel
+    ) {
+        super(source, List.of(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel));
+        this.bestEstimate = bestEstimate;
+        this.estimates = estimates;
+        this.trialCount = trialCount;
+        this.bucketCount = bucketCount;
+        this.confidenceLevel = confidenceLevel;
+    }
+
+    private ConfidenceInterval(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(bestEstimate);
+        out.writeNamedWriteable(estimates);
+        out.writeNamedWriteable(trialCount);
+        out.writeNamedWriteable(bucketCount);
+        out.writeNamedWriteable(confidenceLevel);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return isType(bestEstimate, t -> t == DataType.DOUBLE, sourceText(), FIRST, "double").and(
+            isType(estimates, t -> t == DataType.DOUBLE, sourceText(), SECOND, "double")
+        )
+            .and(isType(trialCount, t -> t == DataType.INTEGER, sourceText(), THIRD, "integer"))
+            .and(isType(bucketCount, t -> t == DataType.INTEGER, sourceText(), FOURTH, "integer"))
+            .and(isType(confidenceLevel, t -> t == DataType.DOUBLE, sourceText(), FIFTH, "double"));
+    }
+
+    @Override
+    public boolean foldable() {
+        return bestEstimate.foldable()
+            && estimates.foldable()
+            && trialCount.foldable()
+            && bucketCount.foldable()
+            && confidenceLevel.foldable();
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new ConfidenceIntervalEvaluator.Factory(
+            source(),
+            toEvaluator.apply(bestEstimate),
+            toEvaluator.apply(estimates),
+            toEvaluator.apply(trialCount),
+            toEvaluator.apply(bucketCount),
+            toEvaluator.apply(confidenceLevel)
+        );
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new ConfidenceInterval(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            newChildren.get(4)
+        );
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, ConfidenceInterval::new, bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataType.DOUBLE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        ConfidenceInterval other = (ConfidenceInterval) obj;
+        return Objects.equals(other.bestEstimate, bestEstimate)
+            && Objects.equals(other.estimates, estimates)
+            && Objects.equals(other.trialCount, trialCount)
+            && Objects.equals(other.bucketCount, bucketCount)
+            && Objects.equals(other.confidenceLevel, confidenceLevel);
+    }
+
+    @Evaluator
+    static void process(
+        DoubleBlock.Builder builder,
+        @Position int position,
+        DoubleBlock bestEstimateBlock,
+        DoubleBlock estimatesBlock,
+        IntBlock trialCountBlock,
+        IntBlock bucketCountBlock,
+        DoubleBlock confidenceLevelBlock
+    ) {
+        if (bestEstimateBlock.getValueCount(position) != 1
+            || trialCountBlock.getValueCount(position) != 1
+            || bucketCountBlock.getValueCount(position) != 1
+            || confidenceLevelBlock.getValueCount(position) != 1) {
+            builder.appendNull();
+            return;
+        }
+        double bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
+        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
+        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
+        if (estimatesBlock.getValueCount(position) != trialCount * bucketCount) {
+            builder.appendNull();
+            return;
+        }
+        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
+            estimates[i] = estimatesBlock.getDouble(estimatesBlock.getFirstValueIndex(position) + i);
+        }
+        double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
+        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
+        if (confidenceInterval == null) {
+            builder.appendNull();
+        } else {
+            builder.beginPositionEntry();
+            for (double v : confidenceInterval) {
+                builder.appendDouble(v);
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    private static double[] computeConfidenceInterval(
+        double bestEstimate,
+        double[] estimates,
+        int trialCount,
+        int bucketCount,
+        double confidenceLevel
+    ) {
+        // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to
+        // compute the confidence interval. To compute a mean, empty buckets are best ignored.
+        // However, to compute a count or sum, it's best to treat them as zero. For a mixed
+        // quantity like sum+avg, it's not clear what to do at all.
+        // We try both strategies (ignoring and replacing by zero), and pick the one that gives
+        // an estimate closest to the best estimate.
+        Mean meansIgnoreNaN = new Mean();
+        Mean meansZeroNaN = new Mean();
+        for (int trial = 0; trial < trialCount; trial++) {
+            Mean meanIgnoreNaN = new Mean();
+            Mean meanZeroNaN = new Mean();
+            for (int bucket = 0; bucket < bucketCount; bucket++) {
+                double estimate = estimates[trial * bucketCount + bucket];
+                if (Double.isNaN(estimate) == false) {
+                    meanIgnoreNaN.increment(estimate);
+                    meanZeroNaN.increment(estimate);
+                } else {
+                    meanZeroNaN.increment(0.0);
+                }
+            }
+            double value;
+            if (Double.isNaN(value = meanIgnoreNaN.getResult()) == false) {
+                meansIgnoreNaN.increment(value);
+            }
+            if (Double.isNaN(value = meanZeroNaN.getResult()) == false) {
+                meansZeroNaN.increment(value);
+            }
+        }
+        if (Double.isNaN(meansIgnoreNaN.getResult()) || Double.isNaN(meansZeroNaN.getResult())) {
+            return null;
+        }
+
+        double meanIgnoreNan = meansIgnoreNaN.getResult();
+        double meanZeroNan = meansZeroNaN.getResult();
+
+        // Pick the NaN strategy that gives the mean closest to the best estimate.
+        boolean ignoreNaNs = Math.abs(meanIgnoreNan - bestEstimate) < Math.abs(meanZeroNan - bestEstimate);
+        double mm = ignoreNaNs ? meanIgnoreNan : meanZeroNan;
+
+        // To compute the reliability of each trial's estimate, we use the skewness and kurtosis
+        // of the bucket estimates. Under the null hypothesis these should be zero. If these are
+        // too large, the trial is considered unreliable. This is a two-tailed p-value at the
+        // 95% significance level.
+        double maxSkew = 1.96 * Math.sqrt(
+            6.0 * bucketCount * (bucketCount - 1) / (bucketCount - 2) / (bucketCount + 1) / (bucketCount + 3)
+        );
+        double maxKurtosis = 1.96 * Math.sqrt(
+            24.0 * bucketCount * (bucketCount - 1) * (bucketCount - 1) / (bucketCount - 3) / (bucketCount - 2) / (bucketCount + 3)
+                / (bucketCount + 5)
+        );
+
+        // Compute the stddev, skewness, and kurtosis for each of the trials.
+        Mean stddevs = new Mean();
+        Mean skews = new Mean();
+        Mean kurtoses = new Mean();
+        int reliableCount = 0;
+        for (int trial = 0; trial < trialCount; trial++) {
+            StandardDeviation stddev = new StandardDeviation(false);
+            Skewness skew = new Skewness();
+            Kurtosis kurtosis = new Kurtosis();
+            boolean hasNans = false;
+            for (int bucket = 0; bucket < bucketCount; bucket++) {
+                double estimate = estimates[trial * bucketCount + bucket];
+                if (Double.isNaN(estimate)) {
+                    hasNans = true;
+                    if (ignoreNaNs) {
+                        continue;
+                    } else {
+                        estimate = 0.0;
+                    }
+                }
+                stddev.increment(estimate);
+                skew.increment(estimate);
+                kurtosis.increment(estimate);
+            }
+            double stddevResult = stddev.getResult();
+            if (Double.isNaN(stddevResult) == false) {
+                stddevs.increment(stddevResult);
+            }
+            double skewResult = skew.getResult();
+            if (Double.isNaN(skewResult) == false) {
+                skews.increment(skewResult);
+            }
+            double kurtosisResult = kurtosis.getResult();
+            if (Double.isNaN(kurtosisResult) == false) {
+                kurtoses.increment(kurtosisResult);
+            }
+            // A trial is considered reliable if it has no empty buckets (no NaNs; indicating
+            // enough data), and its skewness and kurtosis are within acceptable limits.
+            if (hasNans == false
+                && Double.isNaN(skewResult) == false
+                && Math.abs(skewResult) < maxSkew
+                && Double.isNaN(kurtosisResult) == false
+                && Math.abs(kurtosisResult) < maxKurtosis) {
+                reliableCount++;
+            }
+        }
+
+        double sm = stddevs.getResult();
+        double skew = skews.getResult();
+        if (Double.isNaN(sm) || Double.isNaN(skew)) {
+            return null;
+        }
+        if (sm == 0.0) {
+            return new double[] { bestEstimate, bestEstimate, (double) reliableCount / trialCount };
+        }
+
+        // Scale the acceleration to account for the dependence of skewness on sample size.
+        double scale = 1 / Math.sqrt(bucketCount);
+
+        // Use adjusted bootstrap confidence interval (BCa) method to compute the confidence interval.
+        double a = scale * skew / 6.0;
+        double z0 = (bestEstimate - mm) / sm;
+        double dz = normal.inverseCumulativeProbability((1.0 + confidenceLevel) / 2.0);
+        double zl = z0 + (z0 - dz) / (1.0 - Math.min(a * (z0 - dz), 0.9));
+        double zu = z0 + (z0 + dz) / (1.0 - Math.min(a * (z0 + dz), 0.9));
+        double lower = mm + scale * sm * zl;
+        double upper = mm + scale * sm * zu;
+
+        // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
+        // so return null instead. TODO: this criterion is not ideal, and should be revisited.
+        return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper, (double) reliableCount / trialCount } : null;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.TRUE;
+    }
+}

@@ -505,8 +505,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         int limit = size - bulkSize + 1;
         int i = 0;
         for (; i < limit; i += bulkSize) {
-            if (acceptCentroids == null
-                || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + bulkSize) > 0) {
+            if (acceptCentroids == null || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + bulkSize) > 0) {
                 scorer.scoreBulk(
                     quantizeQuery,
                     queryCorrections.lowerInterval(),

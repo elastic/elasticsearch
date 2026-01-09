@@ -37,7 +37,8 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
         if (REINDEX_RESILIENCE_ENABLED) {
             return List.of(
                 new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class),
-                new ActionHandler(TransportListReindexAction.TYPE, TransportListReindexAction.class)
+                new ActionHandler(TransportListReindexAction.TYPE, TransportListReindexAction.class),
+                new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class)
             );
         } else {
             return List.of();
@@ -57,7 +58,11 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (REINDEX_RESILIENCE_ENABLED) {
-            return List.of(new RestGetReindexAction(clusterSupportsFeature), new RestListReindexAction(clusterSupportsFeature));
+            return List.of(
+                new RestGetReindexAction(clusterSupportsFeature),
+                new RestListReindexAction(clusterSupportsFeature),
+                new RestCancelReindexAction(clusterSupportsFeature)
+            );
         } else {
             return List.of();
         }

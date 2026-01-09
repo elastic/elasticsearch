@@ -9,8 +9,9 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -84,14 +85,6 @@ public interface NativeAccess {
         return null;
     }
 
-    /**
-     * Returns an accessor for POSIX-native C library functions on supported systems (macOS and Linux), or {@code null} if the current
-     * platform does not support POSIX.
-     */
-    default PosixCLibrary getPosixCLibrary() {
-        return null;
-    }
-
     /*
      * Returns the vector similarity functions, or an empty optional.
      */
@@ -112,6 +105,13 @@ public interface NativeAccess {
      * @return the buffer
      */
     CloseableByteBuffer newConfinedBuffer(int len);
+
+    /**
+     * Creates a new {@link CloseableMappedByteBuffer} using an auto arena. The buffer can be used
+     * across multiple threads.
+     * @return the buffer
+     */
+    CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;
 
     /**
      * Possible stats for execution filtering.

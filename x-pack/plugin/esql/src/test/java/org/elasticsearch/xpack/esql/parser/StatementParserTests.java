@@ -29,7 +29,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -2543,7 +2546,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2556,7 +2560,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2579,7 +2584,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     ),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
             )
         );
         assertQuery(
@@ -2589,7 +2595,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
             )
         );
         assertQuery(
@@ -2599,7 +2606,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2609,7 +2617,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2619,7 +2628,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
             )
         );
         assertQuery(
@@ -2633,7 +2643,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("c"),
                     attribute("d.e")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
             )
         );
     }

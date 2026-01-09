@@ -15,8 +15,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
@@ -32,14 +35,9 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     protected final Collection<BytesRef> values;
     protected int docValuesByteCount = 0;
 
-    /**
-     * @param name name of the field
-     * @param valuesCollection an empty collection that will be used for holding values for a particular field
-     */
-    MultiValuedBinaryDocValuesField(String name, Collection<BytesRef> valuesCollection) {
+    MultiValuedBinaryDocValuesField(String name, boolean keepDuplicates) {
         super(name);
-        assert valuesCollection.isEmpty();  // the collection must be empty to begin with
-        this.values = valuesCollection;
+        this.values = keepDuplicates ? new ArrayList<>() : new TreeSet<>();
     }
 
     public void add(BytesRef value) {
@@ -54,6 +52,11 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
+        // sort the ArrayList variant of the collection prior to serializing it into a binary array
+        if (values instanceof ArrayList<BytesRef> list) {
+            list.sort(Comparator.naturalOrder());
+        }
+
         for (BytesRef value : values) {
             int valueLength = value.length;
             out.writeVInt(valueLength);
@@ -65,8 +68,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public abstract BytesRef binaryValue();
 
     public static class IntegratedCount extends MultiValuedBinaryDocValuesField {
-        public IntegratedCount(String name, Collection<BytesRef> valuesCollection) {
-            super(name, valuesCollection);
+        public IntegratedCount(String name, boolean keepDuplicates) {
+            super(name, keepDuplicates);
         }
 
         /**
@@ -81,11 +84,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 out.writeVInt(docValuesCount);
-                for (BytesRef value : values) {
-                    int valueLength = value.length;
-                    out.writeVInt(valueLength);
-                    out.writeBytes(value.bytes, value.offset, valueLength);
-                }
+                writeLenAndValues(out);
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to get binary value", e);
@@ -96,8 +95,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public static class SeparateCount extends MultiValuedBinaryDocValuesField {
         public static final String COUNT_FIELD_SUFFIX = ".counts";
 
-        public SeparateCount(String name, Collection<BytesRef> valuesCollection) {
-            super(name, valuesCollection);
+        public SeparateCount(String name, boolean keepDuplicates) {
+            super(name, keepDuplicates);
         }
 
         /**

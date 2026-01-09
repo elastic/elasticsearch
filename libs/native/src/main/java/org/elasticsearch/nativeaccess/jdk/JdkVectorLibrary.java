@@ -39,6 +39,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle sqr7uBulkWithOffsets$mh;
     static final MethodHandle dotf32$mh;
     static final MethodHandle sqrf32$mh;
+    static final MethodHandle iouring$mh;
 
     public static final JdkVectorSimilarityFunctions INSTANCE;
 
@@ -72,6 +73,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 sqr7uBulkWithOffsets$mh = downcallHandle("vec_sqr7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
                 dotf32$mh = downcallHandle("vec_dotf32" + suffix, floatSingle, LinkerHelperUtil.critical());
                 sqrf32$mh = downcallHandle("vec_sqrf32" + suffix, floatSingle, LinkerHelperUtil.critical());
+
+                // var readBatchDesc = FunctionDescriptor.of(
+                // JAVA_INT, // return int
+                // JAVA_INT, // fd
+                // MemoryLayout.sequenceLayout(0, JAVA_LONG).withByteAlignment(8), // long* offsets
+                // JAVA_INT, // length
+                // JAVA_INT, // count
+                // ADDRESS // char* target
+                // );
+                iouring$mh = null; // downcallHandle("readBatch", readBatchDesc, LinkerHelperUtil.critical());
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -87,6 +98,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 sqr7uBulkWithOffsets$mh = null;
                 dotf32$mh = null;
                 sqrf32$mh = null;
+                iouring$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -290,6 +302,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static final MethodHandle SQR_HANDLE_7U_BULK_WITH_OFFSETS;
         static final MethodHandle DOT_HANDLE_FLOAT32;
         static final MethodHandle SQR_HANDLE_FLOAT32;
+        static final MethodHandle IO_URING_READER_HANDLE;
 
         static {
             try {
@@ -334,6 +347,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 MethodType singleFloatScorer = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                 DOT_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", singleFloatScorer);
                 SQR_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", singleFloatScorer);
+
+                IO_URING_READER_HANDLE = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", singleFloatScorer);
+
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new AssertionError(e);
             }

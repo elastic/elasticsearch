@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
+import java.lang.foreign.MemorySegment;
+
 /**
  * Provides access to methods in libc.so available on POSIX systems.
  */
@@ -22,12 +24,12 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
     /** socket type indicating a datagram-oriented socket */
     int SOCK_DGRAM = 2;
 
-    int POSIX_FADV_NORMAL = 0;
-    int POSIX_FADV_RANDOM = 1;
-    int POSIX_FADV_SEQUENTIAL = 2;
-    int POSIX_FADV_WILLNEED = 3;
-    int POSIX_FADV_DONTNEED = 4;
-    int POSIX_FADV_NOREUSE = 5;
+    int POSIX_MADV_NORMAL = 0;
+    int POSIX_MADV_RANDOM = 1;
+    int POSIX_MADV_SEQUENTIAL = 2;
+    int POSIX_MADV_WILLNEED = 3;
+    int POSIX_MADV_DONTNEED = 4;
+    int POSIX_MADV_NOREUSE = 5;
 
     /**
      * Gets the effective userid of the current process.
@@ -80,19 +82,27 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      *
      * <p><strong>Requirements:</strong>
      * <ul>
-     *   <li>The starting address must be aligned to the system page size.</li>
+     *   <li>The starting address of {@code segment} must be aligned to the system page size.</li>
+     *   <li>{@code segment} must represent native (off-heap) memory.
+     *       Passing a non-native {@link MemorySegment} will result in an {@link IllegalArgumentException}.</li>
      * </ul>
      *
-     * @param address
-     *     the starting memory address of the region to be advised; must refer to native memory and be page-size aligned
+     * @param segment
+     *     the starting memory segment of the region to be advised; must refer to native memory and be page-size aligned
      * @param length
-     *     the length in bytes of the memory region starting at {@code address}
+     *     the length in bytes of the memory region starting at {@code segment}
      * @param advice
      *     the access pattern advice (for example {@code MADV_WILLNEED}, {@code MADV_DONTNEED}, {@code MADV_SEQUENTIAL}, etc.)
      * @return
      *     {@code 0} on success, or {@code -1} on failure with {@code errno} set to indicate the error
+     *
+     * @throws IllegalArgumentException
+     *     if {@code segment} does not represent native memory
      */
-    int madvise(long address, long length, int advice);
+    int madvise(MemorySegment segment, long offset, long length, int advice);
+
+    /** Returns native page size. */
+    int getPageSize();
 
     /** corresponds to struct stat64 */
     interface Stat64 {

@@ -429,7 +429,11 @@ public class SparseFileTracker {
         synchronized (ranges) {
             // Find the first absent byte in the range
             final Range lastStartRange = ranges.floor(new Range(start, start, null));
-            return ranges.subSet(lastStartRange, new Range(end, end, null)).stream().filter(r -> r.isPending()).mapToLong(r -> Math.min(r.end, end) - Math.max(r.start, start)).sum();
+            return ranges.subSet(lastStartRange, new Range(end, end, null))
+                .stream()
+                .filter(r -> r.isPending())
+                .mapToLong(r -> Math.min(r.end, end) - Math.max(r.start, start))
+                .sum();
         }
     }
 

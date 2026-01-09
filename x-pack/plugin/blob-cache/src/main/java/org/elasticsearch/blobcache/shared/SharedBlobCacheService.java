@@ -1230,11 +1230,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return this;
             }
         };
+
         /**
          * @param bytes number of bytes needed
          * @return Releasable that is invoked when data is available.
          */
         Releasable record(long bytes);
+
         CacheMissHandler copy();
     }
 

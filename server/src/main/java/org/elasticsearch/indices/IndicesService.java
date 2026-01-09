@@ -138,7 +138,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.MetricHolder;
 import org.elasticsearch.index.store.StoreMetrics;
-import org.elasticsearch.index.store.ThreadLocalMetricHolder;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -2036,7 +2035,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Supplier<DirectoryMetrics> directoryMetricsDelta() {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
-        directoryMetricHolderMap.forEach((s, m)  -> directoryMetricsBuilder.add(s, m.instance()));
+        directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
         DirectoryMetrics metrics = directoryMetricsBuilder.build();
         return metrics.delta();
     }

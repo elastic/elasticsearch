@@ -31,7 +31,6 @@ public interface EnginePlugin {
      */
     Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings);
 
-
     /**
      * Register the metrics available from the plugin
      * @param registrator accepts a string, which is a unique key for the registration, used for xcontent, and the base metric object

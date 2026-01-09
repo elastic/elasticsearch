@@ -12,37 +12,59 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 
-public class ReferenceAttributeTests extends AbstractAttributeTestCase<ReferenceAttribute> {
+import java.util.function.Supplier;
+
+public class ReferenceAttributeTests extends AbstractNamedExpressionSerializationTests<ReferenceAttribute> {
     public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
         Source source = Source.EMPTY;
+        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
+        Supplier<DataType> randomType = () -> randomValueOtherThanMany(
+            t -> false == t.supportedVersion().supportedLocally(),
+            () -> randomFrom(DataType.types())
+        );
         DataType type = onlyRepresentable
-            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
-            : randomFrom(DataType.types());
+            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), randomType)
+            : randomType.get();
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, qualifier, name, type, nullability, new NameId(), synthetic);
     }
 
     @Override
-    protected ReferenceAttribute create() {
+    protected ReferenceAttribute createTestInstance() {
         return randomReferenceAttribute(false);
     }
 
     @Override
-    protected ReferenceAttribute mutate(ReferenceAttribute instance) {
+    protected ReferenceAttribute mutateInstance(ReferenceAttribute instance) {
         Source source = instance.source();
+        String qualifier = instance.qualifier();
         String name = instance.name();
         DataType type = instance.dataType();
         Nullability nullability = instance.nullable();
+        NameId id = instance.id();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 3)) {
-            case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
-            case 3 -> synthetic = false == synthetic;
+        switch (between(0, 5)) {
+            case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
+            case 1 -> name = randomAlphaOfLength(name.length() + 1);
+            case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
+            case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 4 -> id = new NameId();
+            case 5 -> synthetic = false == synthetic;
         }
-        return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, qualifier, name, type, nullability, id, synthetic);
+    }
+
+    @Override
+    protected ReferenceAttribute mutateNameId(ReferenceAttribute instance) {
+        return (ReferenceAttribute) instance.withId(new NameId());
+    }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
     }
 }

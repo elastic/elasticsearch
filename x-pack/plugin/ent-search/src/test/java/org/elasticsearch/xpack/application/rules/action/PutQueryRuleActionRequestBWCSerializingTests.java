@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.application.rules.QueryRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
 
@@ -40,7 +38,14 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected PutQueryRuleAction.Request mutateInstance(PutQueryRuleAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String id = instance.queryRulesetId();
+        QueryRule queryRule = instance.queryRule();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomAlphaOfLengthBetween(5, 10));
+            case 1 -> queryRule = randomValueOtherThan(queryRule, () -> EnterpriseSearchModuleTestUtils.randomQueryRule());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutQueryRuleAction.Request(id, queryRule);
     }
 
     @Override
@@ -55,6 +60,6 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersions.V_8_15_0)).collect(Collectors.toList());
+        return getAllBWCVersions().stream().toList();
     }
 }

@@ -24,7 +24,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -52,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -88,97 +88,71 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        if (type.equals("string")) {
+        if (type.equals("keyword_high_cardinality")) {
+            fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).docValues(Cardinality.HIGH)
+                .build(context)
+                .fieldType();
+        } else if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.current()).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).build(context).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(
-                    fieldName,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
-                ).fielddata(true).build(context).fieldType();
+                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
+                    .build(context)
+                    .fieldType();
             }
         } else if (type.equals("float")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.FLOAT,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("half_float")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.HALF_FLOAT,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.DOUBLE,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.LONG,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.INTEGER,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.SHORT,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.BYTE,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null).docValues(
-                docValues
-            ).build(context).fieldType();
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, defaultIndexSettings()).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("binary")) {
             fieldType = new BinaryFieldMapper.Builder(fieldName, SourceFieldMapper.isSynthetic(indexService.getIndexSettings())).docValues(
                 docValues

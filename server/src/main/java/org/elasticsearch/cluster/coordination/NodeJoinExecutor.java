@@ -161,7 +161,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
                     // update the node's feature set if it has one
                     // this can happen if the master has just moved from a pre-features version to a post-features version
-                    assert Version.V_8_12_0.onOrBefore(Version.CURRENT) : "This can be removed once 8.12.0 is no longer a valid version";
                     if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
                         logger.debug("updating node [{}] features {}", node.getId(), nodeJoinTask.features());
                         nodeFeatures.put(node.getId(), nodeJoinTask.features());
@@ -466,29 +465,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
-            );
-        }
-    }
-
-    /**
-     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
-     * to ensure that the minimum transport version of the cluster doesn't go backwards.
-     **/
-    static void ensureTransportVersionBarrier(
-        CompatibilityVersions joiningCompatibilityVersions,
-        Collection<CompatibilityVersions> existingTransportVersions
-    ) {
-        TransportVersion minClusterTransportVersion = existingTransportVersions.stream()
-            .map(CompatibilityVersions::transportVersion)
-            .min(Comparator.naturalOrder())
-            .orElse(TransportVersion.current());
-        if (joiningCompatibilityVersions.transportVersion().before(minClusterTransportVersion)) {
-            throw new IllegalStateException(
-                "node with transport version ["
-                    + joiningCompatibilityVersions.transportVersion().toReleaseVersion()
-                    + "] may not join a cluster with minimum transport version ["
-                    + minClusterTransportVersion.toReleaseVersion()
-                    + "]"
             );
         }
     }

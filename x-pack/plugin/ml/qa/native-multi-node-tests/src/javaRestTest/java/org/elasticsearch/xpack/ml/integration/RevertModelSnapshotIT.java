@@ -65,6 +65,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
+    private static final long DATA_START_TIME = 1761955200000L;
+
     @After
     public void tearDownData() {
         cleanUp();
@@ -75,7 +77,32 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testRevertModelSnapshot_DeleteInterveningResults() throws Exception {
+        // Create and run a unrelated job to chech it is not affected by reverting a different job
+        String jobId = "revert-snapshot-delete-intervening-unrelated-job";
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        long startTime = DATA_START_TIME - (bucketSpan.getMillis() * 2);
+        String data = String.join("", generateData(startTime, bucketSpan, 23, List.of("foo"), (bucketIndex, series) -> 10.0));
+
+        Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
+        openJob(job.getId());
+        postData(job.getId(), data);
+        flushJob(job.getId(), true);
+        closeJob(job.getId());
+
+        String snapShotId = getJob(jobId).get(0).getModelSnapshotId();
+        assertThat(snapShotId, is(notNullValue()));
+        List<Bucket> buckets = getBuckets(jobId);
+        assertThat(buckets.size(), greaterThan(0));
+
+        // Run another job and revert to an previous snapshot
         testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion("revert-model-snapshot-it-job-delete-intervening-results", true);
+
+        // Check snapshot Id and buckets have not changed
+        assertThat(getJob(jobId).getFirst().getModelSnapshotId(), is(snapShotId));
+        List<Bucket> bucketsAfterRevert = getBuckets(jobId);
+        assertThat(bucketsAfterRevert.size(), is(buckets.size()));
+        assertThat(bucketsAfterRevert, is(buckets));
     }
 
     public void testRevertToEmptySnapshot() throws Exception {
@@ -126,13 +153,13 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
     private void testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion(String jobId, boolean deleteInterveningResults) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        long startTime = 1491004800000L;
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
         postData(
             job.getId(),
-            generateData(startTime, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream()
+            generateData(DATA_START_TIME, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0)
+                .stream()
                 .collect(Collectors.joining())
         );
         flushJob(job.getId(), true);
@@ -156,7 +183,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         postData(
             job.getId(),
             generateData(
-                startTime + 10 * bucketSpan.getMillis(),
+                DATA_START_TIME + 10 * bucketSpan.getMillis(),
                 bucketSpan,
                 10,
                 Arrays.asList("foo", "bar"),
@@ -187,7 +214,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         ModelSnapshot revertSnapshot = modelSnapshots.get(1);
 
         // Check there are 2 annotations (one per model snapshot)
-        assertThatNumberOfAnnotationsIsEqualTo(2);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, 2);
 
         // Add 3 new annotations...
         Instant lastResultTimestamp = revertSnapshot.getLatestResultTimeStamp().toInstant();
@@ -195,7 +222,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.plusSeconds(20), Event.MODEL_CHANGE)).actionGet();
         client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.minusSeconds(10), Event.MODEL_CHANGE)).actionGet();
         // ... and check there are 5 annotations in total now
-        assertThatNumberOfAnnotationsIsEqualTo(5);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, 5);
 
         GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
         Instant timeBeforeRevert = Instant.now();
@@ -219,7 +246,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getQuantiles(job.getId()).getTimestamp(), equalTo(revertSnapshot.getLatestResultTimeStamp()));
 
         // Check annotations with event type from {delayed_data, model_change} have been removed if deleteInterveningResults flag is set
-        assertThatNumberOfAnnotationsIsEqualTo(deleteInterveningResults ? 3 : 5);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, deleteInterveningResults ? 3 : 5);
 
         // Reverting should not have deleted any forecast docs
         assertThat(countForecastDocs(job.getId(), forecastId), is(numForecastDocs));
@@ -229,7 +256,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         postData(
             job.getId(),
             generateData(
-                startTime + 10 * bucketSpan.getMillis(),
+                DATA_START_TIME + 10 * bucketSpan.getMillis(),
                 bucketSpan,
                 10,
                 Arrays.asList("foo", "bar"),

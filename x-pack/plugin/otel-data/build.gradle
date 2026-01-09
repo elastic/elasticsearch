@@ -4,9 +4,31 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+import org.elasticsearch.gradle.transform.UnzipTransform
+import com.google.protobuf.gradle.GenerateProtoTask
+
+buildscript {
+  repositories {
+    maven { url = "https://jitpack.io" }
+  }
+  dependencies {
+    classpath('com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT') {
+      changing = false
+    }
+  }
+}
+
+plugins {
+  id 'elasticsearch.internal-es-plugin'
+  id 'elasticsearch.internal-yaml-rest-test'
+  id 'elasticsearch.internal-java-rest-test'
+  id 'elasticsearch.internal-cluster-test'
+  // We rely on a snapshot including a fix for 9.1 compatibility.
+  // See https://github.com/google/protobuf-gradle-plugin/pull/786
+  //  id('com.google.protobuf') version '0.9.5'
+}
+
+apply plugin:"com.google.protobuf"
 
 esplugin {
   name = 'x-pack-otel-data'
@@ -15,11 +37,38 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
+repositories {
+  ivy {
+    url = uri("https://github.com/open-telemetry/opentelemetry-proto/archive/")
+    patternLayout { artifact("v[revision].[ext]") }
+    metadataSources { artifact() }
+    content {
+      includeModule("open-telemetry", "opentelemetry-proto") // only this GAV comes from here
+    }
+  }
+}
+
+configurations {
+  opentelemetryProtobuf {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    canBeConsumed = false
+  }
+}
+
+def protobufVersion = "4.32.0"
+
 dependencies {
+  registerTransform(UnzipTransform, transformSpec -> {
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+  });
+  opentelemetryProtobuf "open-telemetry:opentelemetry-proto:1.7.0@zip"
+
+  api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(':modules:data-streams')
+  testImplementation(testArtifact(project(":libs:exponential-histogram")))
+  testImplementation('org.apache.commons:commons-math3:3.6.1')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')
@@ -29,9 +78,112 @@ dependencies {
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-aggregate-metric'))
+  clusterModules project(xpackModule('mapper-exponential-histogram'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('mapper-counted-keyword'))
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('mapper-version'))
+
+  def otelVersion = "1.53.0"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
+
+  api "com.google.protobuf:protobuf-java:${protobufVersion}"
+  // The protobuf plugin only adds a dependency for the variant relevant for the current platform.
+  // Without explicitly adding all classifiers, the --write-verification-metadata task would only add the one for the current platform.
+  // Therefore, the verification check would fail on other platforms, like on CI or for contributors that work on another platform.
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:linux-aarch_64@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:linux-ppcle_64@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:linux-s390_64@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:linux-x86_32@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:linux-x86_64@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:osx-aarch_64@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:osx-universal_binary@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:osx-x86_64@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:windows-x86_32@exe"
+  testRuntimeOnly "com.google.protobuf:protoc:${protobufVersion}:windows-x86_64@exe"
+}
+
+protobuf {
+  protoc {
+    // The artifact spec for the Protobuf Compiler
+    artifact = "com.google.protobuf:protoc:${protobufVersion}"
+  }
+}
+
+def extractOtelProtos = tasks.register("extractOtelProtos", Copy) {
+  from(configurations.opentelemetryProtobuf) {
+    include "**/*.proto"
+    eachFile { fileCopyDetails ->
+      // strip the leading directory (opentelemetry-proto-<version>)
+      def segments = fileCopyDetails.path.split('/')
+      fileCopyDetails.path = segments.length > 1 ? segments[1..-1].join('/') : fileCopyDetails.name
+    }
+    includeEmptyDirs = false
+  }
+  into(layout.buildDirectory.dir("protos/otel"))
+}
+
+
+sourceSets {
+  main {
+    proto {
+      srcDir(extractOtelProtos)
+    }
+  }
+}
+
+tasks.withType(GenerateProtoTask.class).matching { it.name == "generateProto" }.configureEach {
+  // Avoid unnecessary String allocations in the generated AnyValue class
+  // We always need the ByteString (UTF-8) representation of string attributes
+  doLast {
+      ant.replace(
+        file: 'build/generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java',
+        token: 'java.lang.String s = input.readStringRequireUtf8();',
+        value: 'com.google.protobuf.ByteString s = input.readBytes();',
+        encoding: 'UTF-8'
+      )
+  }
+}
+
+idea {
+  module {
+    sourceDirs += layout.buildDirectory.dir("generated/sources/proto/main/java").get().asFile
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /protobuf.*/, to: 'protobuf'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+  )
+}
+
+tasks.named("licenseHeaders").configure {
+  excludes << 'io/opentelemetry/proto/**/*'
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
 }

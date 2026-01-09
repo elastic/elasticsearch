@@ -45,17 +45,22 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion() {
-        return VersionUtils.randomFrom(random(), ALL_VERSIONS, IndexVersion::fromId);
+        return VersionUtils.randomFrom(random(), ALL_VERSIONS);
     }
 
     /** Returns a random {@link IndexVersion} from all versions that can be written to. */
     public static IndexVersion randomWriteVersion() {
-        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS, IndexVersion::fromId);
+        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS);
     }
 
     /** Returns a random {@link IndexVersion} from all available versions without the ignore set */
     public static IndexVersion randomVersion(Set<IndexVersion> ignore) {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
+    }
+
+    /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    public static IndexVersion randomVersionBetween(@Nullable IndexVersion minVersion, @Nullable IndexVersion maxVersion) {
+        return randomVersionBetween(random(), minVersion, maxVersion);
     }
 
     /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -78,7 +83,7 @@ public class IndexVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return VersionUtils.randomFrom(random, versions, IndexVersion::fromId);
+        return VersionUtils.randomFrom(random, versions);
     }
 
     public static IndexVersion getPreviousVersion() {

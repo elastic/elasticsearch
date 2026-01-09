@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -30,6 +28,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -63,26 +62,39 @@ public final class SearchContextId {
         TransportVersion version,
         ShardSearchFailure[] shardFailures
     ) {
-        assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.V_8_16_0)
-            : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
-                + TransportVersions.V_8_16_0.toReleaseVersion()
-                + "] or higher.";
+        Map<ShardId, SearchContextIdForNode> shards = searchPhaseResults.stream()
+            .collect(
+                Collectors.toMap(
+                    r -> r.getSearchShardTarget().getShardId(),
+                    r -> new SearchContextIdForNode(
+                        r.getSearchShardTarget().getClusterAlias(),
+                        r.getSearchShardTarget().getNodeId(),
+                        r.getContextId()
+                    )
+                )
+            );
+        return encode(shards, aliasFilter, version, shardFailures);
+    }
+
+    static BytesReference encode(
+        Map<ShardId, SearchContextIdForNode> shards,
+        Map<String, AliasFilter> aliasFilter,
+        TransportVersion version,
+        ShardSearchFailure[] shardFailures
+    ) {
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            boolean allowNullContextId = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
-            int shardSize = searchPhaseResults.size() + (allowNullContextId ? shardFailures.length : 0);
+            int shardSize = shards.size() + shardFailures.length;
             out.writeVInt(shardSize);
-            for (var searchResult : searchPhaseResults) {
-                final SearchShardTarget target = searchResult.getSearchShardTarget();
-                target.getShardId().writeTo(out);
-                new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchResult.getContextId()).writeTo(out);
+            for (ShardId shardId : shards.keySet()) {
+                shardId.writeTo(out);
+                SearchContextIdForNode searchContextIdForNode = shards.get(shardId);
+                searchContextIdForNode.writeTo(out);
             }
-            if (allowNullContextId) {
-                for (var failure : shardFailures) {
-                    failure.shard().getShardId().writeTo(out);
-                    new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
-                }
+            for (var failure : shardFailures) {
+                failure.shard().getShardId().writeTo(out);
+                new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
             }
             out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return out.bytes();
@@ -141,5 +153,24 @@ public final class SearchContextId {
             }
         }
         return indices.toArray(String[]::new);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchContextId that = (SearchContextId) o;
+        return Objects.equals(shards, that.shards)
+            && Objects.equals(aliasFilter, that.aliasFilter)
+            && Objects.equals(contextIds, that.contextIds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shards, aliasFilter, contextIds);
+    }
+
+    @Override
+    public String toString() {
+        return "SearchContextId{" + "shards=" + shards + ", aliasFilter=" + aliasFilter + '}';
     }
 }

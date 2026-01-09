@@ -1,6 +1,0 @@
-pr: 132048
-summary: Fix stuck in STOPPING by retrying the startup task indefinitely until it succeeds
-area: Transform
-type: bug
-issues:
- - 128221

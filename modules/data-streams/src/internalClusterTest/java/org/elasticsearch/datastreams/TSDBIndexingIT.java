@@ -8,12 +8,15 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -24,16 +27,19 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -58,13 +64,16 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -124,6 +133,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         if (randomBoolean()) {
             templateSettings.put("index.routing_path", "metricset");
+        }
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
         }
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
 
@@ -316,20 +328,23 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
               }
             }""";
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put("index.mode", "time_series")
+            .put("index.dimensions_tsid_strategy_enabled", randomDouble() < 0.8);
+        if (randomBoolean()) {
+            settingsBuilder.put("index.routing_path", "metricset");
+        }
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            settingsBuilder.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
-                .template(
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    )
-                )
+                .template(new Template(settingsBuilder.build(), new CompressedXContent(mappingTemplate), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
     }
 
     public void testInvalidTsdbTemplatesMissingSettings() throws Exception {
@@ -369,12 +384,15 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         Instant time = Instant.now();
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
         {
-            var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
+            var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
+            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+                templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+            }
             var request = new TransportPutComposableIndexTemplateAction.Request("id1");
             request.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("pattern-1"))
-                    .template(new Template(templateSettings, mapping, null))
+                    .template(new Template(templateSettings.build(), mapping, null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );
@@ -570,17 +588,15 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     public void testReindexing() throws Exception {
         String dataStreamName = "my-ds";
         String reindexedDataStreamName = "my-reindexed-ds";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName, reindexedDataStreamName))
-                .template(
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
-                        new CompressedXContent(MAPPING_TEMPLATE),
-                        null
-                    )
-                )
+                .template(new Template(templateSettings.build(), new CompressedXContent(MAPPING_TEMPLATE), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -619,6 +635,249 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             getIndexResponse.getSetting(index2, IndexMetadata.INDEX_ROUTING_PATH.getKey()),
             equalTo(getIndexResponse.getSetting(index1, IndexMetadata.INDEX_ROUTING_PATH.getKey()))
         );
+        assertThat(
+            getIndexResponse.getSetting(index2, IndexMetadata.INDEX_DIMENSIONS.getKey()),
+            equalTo(getIndexResponse.getSetting(index1, IndexMetadata.INDEX_DIMENSIONS.getKey()))
+        );
+    }
+
+    public void testAddDimensionToMapping() throws Exception {
+        String dataStreamName = "my-ds";
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        boolean indexDimensionsTsidStrategyEnabled = randomBoolean();
+        var templateSettings = Settings.builder()
+            .put("index.mode", "time_series")
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .template(new Template(templateSettings.build(), new CompressedXContent(MAPPING_TEMPLATE), null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest));
+
+        // create data stream
+        CreateDataStreamAction.Request createDsRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my-ds"
+        );
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
+        if (indexDimensionsTsidStrategyEnabled) {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
+
+        // put mapping with k8s.pod.uid as another time series dimension
+        var putMappingRequest = new PutMappingRequest(dataStreamName).source("""
+            {
+              "properties": {
+                "k8s.pod.name": {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                }
+              }
+            }
+            """, XContentType.JSON);
+        assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
+        if (indexDimensionsTsidStrategyEnabled) {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
+
+        // put dynamic template defining time series dimensions
+        // we don't support index.dimensions in that case
+        putMappingRequest = new PutMappingRequest(dataStreamName).source("""
+            {
+              "dynamic_templates": [
+                {
+                  "labels": {
+                    "path_match": "labels.*",
+                    "mapping": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
+                }
+              ]
+            }
+            """, XContentType.JSON);
+        ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
+        if (indexDimensionsTsidStrategyEnabled) {
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
+            assertThat(
+                exception.getMessage(),
+                containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
+            );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertAcked(putMappingFuture.actionGet());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
+        indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
+    }
+
+    public void testDynamicStringDimensions() throws Exception {
+        String dataStreamName = "my-ds";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .template(new Template(templateSettings.build(), new CompressedXContent("""
+                        {
+                      "_doc": {
+                        "dynamic_templates": [
+                          {
+                            "labels": {
+                              "match_mapping_type": "string",
+                              "mapping": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                              }
+                            }
+                          }
+                        ],
+                        "properties": {
+                          "@timestamp": {
+                            "type": "date"
+                          },
+                          "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                          }
+                        }
+                      }
+                    }"""), null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest));
+
+        CreateDataStreamAction.Request createDsRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my-ds"
+        );
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
+
+        // doesn't populate index.dimensions custom metadata because the "labels" dynamic template doesn't have a path_math
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+
+        // index doc
+        BulkResponse bulkResponse = client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(
+                client().prepareIndex(dataStreamName)
+                    .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setSource(DOC.replace("$time", formatInstant(Instant.now())), XContentType.JSON)
+            )
+            .get();
+        assertThat(bulkResponse.hasFailures(), is(false));
+
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+    }
+
+    public void testDynamicDimensions() throws Exception {
+        String dataStreamName = "my-ds";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .template(new Template(templateSettings.build(), new CompressedXContent("""
+
+                        {
+                      "_doc": {
+                        "dynamic_templates": [
+                          {
+                            "label": {
+                              "mapping": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                              }
+                            }
+                          }
+                        ],
+                        "properties": {
+                          "@timestamp": {
+                            "type": "date"
+                          },
+                          "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                          }
+                        }
+                      }
+                    }"""), null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest));
+
+        CreateDataStreamAction.Request createDsRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my-ds"
+        );
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
+
+        // doesn't populate index.dimensions because the "label" dynamic template doesn't have a path_math
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+
+        // index doc
+        indexWithPodNames(dataStreamName, Instant.now(), Map.of("k8s.pod.name", "label"), "dog", "cat");
+
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+    }
+
+    private void indexWithPodNames(String dataStreamName, Instant timestamp, Map<String, String> dynamicTemplates, String... podNames) {
+        // index doc
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (String podName : podNames) {
+            bulkRequestBuilder.add(
+                client().prepareIndex(dataStreamName)
+                    .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setSource(DOC.replace("$time", formatInstant(timestamp)).replace("dog", podName), XContentType.JSON)
+                    .request()
+                    .setDynamicTemplates(dynamicTemplates)
+            );
+        }
+
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        assertThat(bulkResponse.hasFailures(), is(false));
+    }
+
+    private <T> T getSetting(String dataStreamName, Setting<T> setting) {
+        GetIndexResponse getIndexResponse = safeGet(
+            indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStreamName))
+        );
+        assertThat(getIndexResponse.getIndices().length, equalTo(1));
+        Settings settings = getIndexResponse.getSettings().get(getIndexResponse.getIndices()[0]);
+        return setting.get(settings);
     }
 
     static String formatInstant(Instant instant) {

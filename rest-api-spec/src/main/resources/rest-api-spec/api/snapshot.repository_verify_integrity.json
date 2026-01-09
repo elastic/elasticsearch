@@ -1,64 +1,72 @@
 {
-  "snapshot.repository_verify_integrity":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Verifies the integrity of the contents of a snapshot repository"
+  "snapshot.repository_verify_integrity": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-verify-integrity",
+      "description": "Verify the repository integrity"
     },
-    "stability":"experimental",
-    "visibility":"public",
+    "stability": "experimental",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"
       ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_snapshot/{repository}/_verify_integrity",
-          "methods":[
+          "path": "/_snapshot/{repository}/_verify_integrity",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "repository":{
-              "type":"string",
-              "description":"A repository name"
+          "parts": {
+            "repository": {
+              "type": "list",
+              "description": "Comma-separated list of snapshot repository names."
             }
           }
         }
       ]
     },
-    "params":{
-      "meta_thread_pool_concurrency":{
-        "type":"number",
-        "description":"Number of threads to use for reading metadata"
+    "params": {
+      "meta_thread_pool_concurrency": {
+        "type": "int",
+        "default": 0,
+        "description": "Number of threads to use for reading metadata"
       },
-      "blob_thread_pool_concurrency":{
-        "type":"number",
-        "description":"Number of threads to use for reading blob contents"
+      "blob_thread_pool_concurrency": {
+        "type": "int",
+        "default": 1,
+        "description": "Number of threads to use for reading blob contents"
       },
-      "snapshot_verification_concurrency":{
-        "type":"number",
-        "description":"Number of snapshots to verify concurrently"
+      "snapshot_verification_concurrency": {
+        "type": "int",
+        "default": 0,
+        "description": "Number of snapshots to verify concurrently"
       },
-      "index_verification_concurrency":{
-        "type":"number",
-        "description":"Number of indices to verify concurrently"
+      "index_verification_concurrency": {
+        "type": "int",
+        "default": 0,
+        "description": "Number of indices to verify concurrently"
       },
-      "index_snapshot_verification_concurrency":{
-        "type":"number",
-        "description":"Number of snapshots to verify concurrently within each index"
+      "index_snapshot_verification_concurrency": {
+        "type": "int",
+        "default": 1,
+        "description": "Number of snapshots to verify concurrently within each index"
       },
-      "max_failed_shard_snapshots":{
-        "type":"number",
-        "description":"Maximum permitted number of failed shard snapshots"
+      "max_failed_shard_snapshots": {
+        "type": "int",
+        "default": 10000,
+        "description": "Maximum permitted number of failed shard snapshots"
       },
-      "verify_blob_contents":{
-        "type":"boolean",
-        "description":"Whether to verify the contents of individual blobs"
+      "verify_blob_contents": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to verify the contents of individual blobs"
       },
-      "max_bytes_per_sec":{
-        "type":"string",
-        "description":"Rate limit for individual blob verification"
+      "max_bytes_per_sec": {
+        "type": "string",
+        "default": "10mb",
+        "description": "Rate limit for individual blob verification"
       }
     }
   }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -94,6 +94,7 @@ public class PlanWritables {
             Project.ENTRY,
             Rerank.ENTRY,
             Sample.ENTRY,
+            Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
             TopN.ENTRY
         );
@@ -105,7 +106,6 @@ public class PlanWritables {
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
-            EsQueryExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
             ExchangeExec.ENTRY,

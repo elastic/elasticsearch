@@ -9,11 +9,11 @@
 
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -22,10 +22,10 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,12 +36,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -76,7 +73,12 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
+
+    private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
+    private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
+    static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS = TransportVersion.fromName(
+        "ingest_request_dynamic_template_params"
+    );
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
@@ -98,14 +100,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private BytesReference source;
+    private final IndexSource indexSource;
 
     private OpType opType = OpType.INDEX;
 
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
-
-    private XContentType contentType;
 
     private String pipeline;
     private String finalPipeline;
@@ -147,11 +147,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     private Map<String, String> dynamicTemplates = Map.of();
+    private Map<String, Map<String, String>> dynamicTemplateParams = Map.of();
 
     /**
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
+    private BytesRef tsid;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -159,13 +161,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readOptionalString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        boolean beforeSourceContext = in.getTransportVersion().supports(INDEX_SOURCE) == false;
+        BytesReference source;
+        IndexSource localIndexSource = null;
+        if (beforeSourceContext) {
+            source = in.readBytesReference();
+        } else {
+            localIndexSource = new IndexSource(in);
+            source = null;
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -174,52 +180,44 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         isPipelineResolved = in.readBoolean();
         isRetry = in.readBoolean();
         autoGeneratedTimestamp = in.readLong();
-        if (in.readBoolean()) {
-            // faster than StreamInput::readEnum, do not replace we read a lot of these instances at times
-            contentType = XContentType.ofOrdinal(in.readByte());
-        } else {
-            contentType = null;
+        if (beforeSourceContext) {
+            XContentType contentType;
+            if (in.readBoolean()) {
+                // faster than StreamInput::readEnum, do not replace we read a lot of these instances at times
+                contentType = XContentType.ofOrdinal(in.readByte());
+            } else {
+                contentType = null;
+            }
+            localIndexSource = new IndexSource(contentType, source);
         }
+        indexSource = Objects.requireNonNull(localIndexSource);
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
         dynamicTemplates = in.readMap(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
+        this.listExecutedPipelines = in.readBoolean();
+        if (listExecutedPipelines) {
+            List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+            this.executedPipelines = possiblyImmutableExecutedPipelines == null
+                ? null
+                : new ArrayList<>(possiblyImmutableExecutedPipelines);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.listExecutedPipelines = in.readBoolean();
-            if (listExecutedPipelines) {
-                List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-                this.executedPipelines = possiblyImmutableExecutedPipelines == null
-                    ? null
-                    : new ArrayList<>(possiblyImmutableExecutedPipelines);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            requireDataStream = in.readBoolean();
-        } else {
-            requireDataStream = false;
+        requireDataStream = in.readBoolean();
+
+        includeSourceOnError = in.readBoolean();
+
+        if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
+            tsid = in.readBytesRefOrNullIfEmpty();
         }
 
-        if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                in.readZLong(); // obsolete normalisedBytesParsed
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                in.readBoolean(); // obsolete originatesFromUpdateByScript
-                in.readBoolean(); // obsolete originatesFromUpdateByDoc
-            }
+        if (in.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)) {
+            dynamicTemplateParams = in.readMap(StreamInput::readString, i -> i.readMap(StreamInput::readString));
         }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            includeSourceOnError = in.readBoolean();
-        } // else default value is true
     }
 
     public IndexRequest() {
         super(NO_SHARD_ID);
+        this.indexSource = new IndexSource();
     }
 
     /**
@@ -229,6 +227,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
         this.index = index;
+        this.indexSource = new IndexSource();
     }
 
     private static final StringLiteralDeduplicator pipelineNameDeduplicator = new StringLiteralDeduplicator();
@@ -250,10 +249,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (source == null) {
+        if (indexSource.hasSource() == false) {
             validationException = addValidationError("source is missing", validationException);
         }
-        if (contentType == null) {
+        if (indexSource.contentType() == null) {
             validationException = addValidationError("content type is missing", validationException);
         }
         assert opType == OpType.INDEX || opType == OpType.CREATE : "unexpected op-type: " + opType;
@@ -311,7 +310,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * source at index time
      */
     public XContentType getContentType() {
-        return contentType;
+        return indexSource.contentType();
     }
 
     /**
@@ -351,6 +350,22 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * When {@link IndexMetadata#INDEX_DIMENSIONS} is populated,
+     * the coordinating node will calculate _tsid during routing and set it on the request.
+     * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
+     * <p>
+     * The _tsid can not be directly set by a user, it is set by the coordinating node.
+     */
+    public IndexRequest tsid(BytesRef tsid) {
+        this.tsid = tsid;
+        return this;
+    }
+
+    public BytesRef tsid() {
+        return this.tsid;
     }
 
     /**
@@ -408,19 +423,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.isPipelineResolved;
     }
 
+    public IndexSource indexSource() {
+        return indexSource;
+    }
+
     /**
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        return source;
+        return indexSource.bytes();
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false, contentType).v2();
-    }
-
-    public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
-        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
+        return indexSource.sourceAsMap();
     }
 
     /**
@@ -429,7 +444,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param source The map to index
      */
     public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
-        return source(source, Requests.INDEX_CONTENT_TYPE);
+        indexSource.source(source);
+        return this;
     }
 
     /**
@@ -438,24 +454,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param source The map to index
      */
     public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.map(source);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        indexSource.source(source, contentType);
+        return this;
     }
 
     public IndexRequest source(Map<String, ?> source, XContentType contentType, boolean ensureNoSelfReferences)
         throws ElasticsearchGenerationException {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.map(source, ensureNoSelfReferences);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        indexSource.source(source, contentType, ensureNoSelfReferences);
+        return this;
     }
 
     /**
@@ -465,14 +471,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
-        return source(new BytesArray(source), xContentType);
+        indexSource.source(source, xContentType);
+        return this;
     }
 
     /**
      * Sets the content source to index.
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        return source(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType());
+        indexSource.source(sourceBuilder);
+        return this;
     }
 
     /**
@@ -484,7 +492,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(Object... source) {
-        return source(Requests.INDEX_CONTENT_TYPE, source);
+        indexSource.source(source);
+        return this;
     }
 
     /**
@@ -496,49 +505,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(XContentType xContentType, Object... source) {
-        return source(getXContentBuilder(xContentType, source));
-    }
-
-    /**
-     * Returns an XContentBuilder for the given xContentType and source array
-     * <p>
-     * <b>Note: the number of objects passed to this method as varargs must be an even
-     * number. Also the first argument in each pair (the field name) must have a
-     * valid String representation.</b>
-     * </p>
-     */
-    public static XContentBuilder getXContentBuilder(XContentType xContentType, Object... source) {
-        if (source.length % 2 != 0) {
-            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
-        }
-        if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
-            throw new IllegalArgumentException(
-                "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
-                    + " was removed, please just use source(BytesReference)"
-            );
-        }
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-            builder.startObject();
-            // This for loop increments by 2 because the source array contains adjacent key/value pairs:
-            for (int i = 0; i < source.length; i = i + 2) {
-                String field = source[i].toString();
-                Object value = source[i + 1];
-                builder.field(field, value);
-            }
-            builder.endObject();
-            return builder;
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
+        indexSource.source(xContentType, source);
+        return this;
     }
 
     /**
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
-        this.contentType = Objects.requireNonNull(xContentType);
+        indexSource.source(Objects.requireNonNull(source), Objects.requireNonNull(xContentType));
         return this;
     }
 
@@ -546,7 +521,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(byte[] source, XContentType xContentType) {
-        return source(source, 0, source.length, xContentType);
+        indexSource.source(source, xContentType);
+        return this;
     }
 
     /**
@@ -558,7 +534,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param length The length of the data
      */
     public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        return source(new BytesArray(source, offset, length), xContentType);
+        indexSource.source(source, offset, length, xContentType);
+        return this;
     }
 
     /**
@@ -764,12 +741,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeBytesReference(source);
+        if (out.getTransportVersion().supports(INDEX_SOURCE)) {
+            indexSource.writeTo(out);
+        } else {
+            out.writeBytesReference(indexSource.bytes());
+        }
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());
@@ -778,42 +756,32 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeBoolean(isPipelineResolved);
         out.writeBoolean(isRetry);
         out.writeLong(autoGeneratedTimestamp);
-        if (contentType != null) {
-            out.writeBoolean(true);
-            XContentHelper.writeTo(out, contentType);
-        } else {
-            out.writeBoolean(false);
+        if (out.getTransportVersion().supports(INDEX_SOURCE) == false) {
+            XContentType contentType = indexSource.contentType();
+            if (contentType != null) {
+                out.writeBoolean(true);
+                XContentHelper.writeTo(out, contentType);
+            } else {
+                out.writeBoolean(false);
+            }
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(requireAlias);
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(listExecutedPipelines);
-            if (listExecutedPipelines) {
-                out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-            }
+        out.writeBoolean(listExecutedPipelines);
+        if (listExecutedPipelines) {
+            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(requireDataStream);
-        }
+        out.writeBoolean(requireDataStream);
 
-        if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeZLong(-1);  // obsolete normalisedBytesParsed
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
-                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
-            }
+        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
+            out.writeBytesRef(tsid);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)) {
+            out.writeMap(dynamicTemplateParams, StreamOutput::writeString, (o, v) -> o.writeMap(v, StreamOutput::writeString));
         }
     }
 
@@ -821,13 +789,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public String toString() {
         String sSource = "_na_";
         try {
-            if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+            if (indexSource.byteLength() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
                 sSource = "n/a, actual length: ["
-                    + ByteSizeValue.ofBytes(source.length()).toString()
+                    + ByteSizeValue.ofBytes(indexSource.byteLength()).toString()
                     + "], max length: "
                     + ByteSizeValue.ofBytes(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
-                sSource = XContentHelper.convertToJson(source, false);
+                sSource = XContentHelper.convertToJson(indexSource.bytes(), false);
             }
         } catch (Exception e) {
             // ignore
@@ -862,7 +830,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (source == null ? 0 : source.length());
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + indexSource.byteLength();
     }
 
     @Override
@@ -917,7 +885,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        return indexRouting.indexShard(this);
+    }
+
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteToTarget(this);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {
@@ -967,6 +940,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public Map<String, String> getDynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public IndexRequest setDynamicTemplateParams(Map<String, Map<String, String>> dynamicTemplateParams) {
+        this.dynamicTemplateParams = dynamicTemplateParams;
+        return this;
+    }
+
+    public Map<String, Map<String, String>> getDynamicTemplateParams() {
+        return dynamicTemplateParams;
     }
 
     public Object getRawTimestamp() {

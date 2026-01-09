@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -231,8 +232,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> stopping node1");
         internalCluster().stopNode(node1);
 
-        // This might run slowly on older hardware
-        ensureGreen(TimeValue.timeValueMinutes(2));
+        // This might run slowly on older hardware and on Windows see #137384
+        ensureGreen(TimeValue.timeValueMinutes(Constants.WINDOWS ? 4 : 2));
     }
 
     private void rerouteWithAllocateLocalGateway(Settings commonSettings) throws Exception {

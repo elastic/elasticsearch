@@ -3,6 +3,7 @@
   "type" : "agg",
   "name" : "count_distinct",
   "description" : "Returns the approximate number of distinct values.",
+  "note" : "Counts are approximate.",
   "signatures" : [
     {
       "params" : [

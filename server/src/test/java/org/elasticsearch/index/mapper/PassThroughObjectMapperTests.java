@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PassThroughObjectMapperTests extends MapperServiceTestCase {
@@ -182,6 +184,54 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         PassThroughObjectMapper.checkForDuplicatePriorities(List.of());
     }
 
+    public void testMergingWithPassThrough() {
+        boolean isSourceSynthetic = randomBoolean();
+        var passThroughMapper = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10))
+            .build(MapperBuilderContext.root(isSourceSynthetic, true));
+        var objectMapper = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings()))
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        RootObjectMapper merged = passThroughMapper.merge(
+            objectMapper,
+            MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+        );
+        assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
+
+        var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
+                new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
+            )
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> passThroughMapper.merge(
+                objectMapperWithSubObjectTrue,
+                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+            )
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
+        );
+
+        var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
+            new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PassThroughObjectMapper.Builder("metrics").setPriority(10)
+                .build(MapperBuilderContext.root(isSourceSynthetic, true))
+                .merge(rootObjectMapper, MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE))
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
+        );
+    }
+
     private PassThroughObjectMapper create(String name, int priority) {
         return new PassThroughObjectMapper(
             name,
@@ -214,5 +264,21 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("Pass-through object [bar] has a conflicting param [priority=1] with object [foo]"));
+    }
+
+    public void testTimeSeriesDimensionAndMetricConflict() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").field("time_series_dimension", "true");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "long").field("time_series_metric", "counter").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("[time_series_dimension] and [time_series_metric] cannot be set in conjunction with each other [labels.dim]")
+        );
     }
 }

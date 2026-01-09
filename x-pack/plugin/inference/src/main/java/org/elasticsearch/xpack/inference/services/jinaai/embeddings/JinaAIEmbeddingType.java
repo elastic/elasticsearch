@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -29,15 +28,15 @@ public enum JinaAIEmbeddingType {
     /**
      * Use this when you want to get back binary embeddings.
      */
-    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT),
+    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BINARY),
     /**
      * This is a synonym for BIT
      */
-    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT);
+    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BINARY);
 
     private static final class RequestConstants {
         private static final String FLOAT = "float";
-        private static final String BIT = "binary";
+        private static final String BINARY = "binary";
     }
 
     private static final Map<DenseVectorFieldMapper.ElementType, JinaAIEmbeddingType> ELEMENT_TYPE_TO_JINA_AI_EMBEDDING = Map.of(
@@ -48,6 +47,10 @@ public enum JinaAIEmbeddingType {
     );
     static final EnumSet<DenseVectorFieldMapper.ElementType> SUPPORTED_ELEMENT_TYPES = EnumSet.copyOf(
         ELEMENT_TYPE_TO_JINA_AI_EMBEDDING.keySet()
+    );
+
+    private static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "jina_ai_embedding_type_support_added"
     );
 
     private final DenseVectorFieldMapper.ElementType elementType;
@@ -109,8 +112,7 @@ public enum JinaAIEmbeddingType {
      * @return the embedding type that is known to the version passed in
      */
     public static JinaAIEmbeddingType translateToVersion(JinaAIEmbeddingType embeddingType, TransportVersion version) {
-        if (version.onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)
-            || version.isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19)) {
+        if (version.supports(JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)) {
             return embeddingType;
         }
 

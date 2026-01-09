@@ -11,9 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -21,8 +24,10 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -47,16 +52,21 @@ public class RateTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Rate(source, args.get(0), args.get(1));
+        return new Rate(source, args.get(0), Literal.TRUE, args.get(1), Rate.NO_WINDOW);
     }
 
     @Override
     public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
@@ -76,21 +86,43 @@ public class RateTests extends AbstractAggregationTestCase {
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         DataType type = counterType(fieldSupplier.type());
-        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME), () -> {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.INTEGER, DataType.LONG), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             List<Object> dataRows = fieldTypedData.multiRowData();
+            if (randomBoolean()) {
+                List<Object> withNulls = new ArrayList<>(dataRows.size());
+                for (Object dataRow : dataRows) {
+                    if (randomBoolean()) {
+                        withNulls.add(null);
+                    } else {
+                        withNulls.add(dataRow);
+                    }
+                }
+                dataRows = withNulls;
+            }
             fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
             List<Long> timestamps = new ArrayList<>();
+            List<Integer> slices = new ArrayList<>();
+            List<Long> maxTimestamps = new ArrayList<>();
             long lastTimestamp = randomLongBetween(0, 1_000_000);
             for (int row = 0; row < dataRows.size(); row++) {
                 lastTimestamp += randomLongBetween(1, 10_000);
                 timestamps.add(lastTimestamp);
+                slices.add(0);
+                maxTimestamps.add(Long.MAX_VALUE);
             }
             TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
                 timestamps.reversed(),
                 DataType.DATETIME,
                 "timestamps"
             );
+            TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
+            TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
+                maxTimestamps,
+                DataType.LONG,
+                "_max_timestamp"
+            );
+            dataRows = dataRows.stream().filter(Objects::nonNull).toList();
             final Matcher<?> matcher;
             if (dataRows.size() < 2) {
                 matcher = Matchers.nullValue();
@@ -113,17 +145,21 @@ public class RateTests extends AbstractAggregationTestCase {
                 matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
             }
             return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData, timestampsField),
-                "Rate[field=Attribute[channel=0],timestamp=Attribute[channel=1]]",
+                List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
+                standardAggregatorName("Rate", fieldTypedData.type()),
                 DataType.DOUBLE,
                 matcher
             );
         });
     }
 
-    public static List<DataType> signatureTypes(List<DataType> testCaseTypes) {
-        assertThat(testCaseTypes, hasSize(2));
-        assertThat(testCaseTypes.get(1), equalTo(DataType.DATETIME));
-        return List.of(testCaseTypes.get(0));
+    public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        assertThat(params, hasSize(4));
+        assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
+        assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
+        assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
+        var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
+        return List.of(params.get(0), window);
     }
 }

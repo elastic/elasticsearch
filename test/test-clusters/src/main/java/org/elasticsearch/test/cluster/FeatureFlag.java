@@ -17,14 +17,18 @@ import org.elasticsearch.test.cluster.util.Version;
  */
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
-    SUB_OBJECTS_AUTO_ENABLED("es.sub_objects_auto_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
-    DOC_VALUES_SKIPPER("es.doc_values_skipper_feature_flag_enabled=true", Version.fromString("8.18.1"), null),
-    USE_LUCENE101_POSTINGS_FORMAT("es.use_lucene101_postings_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
-    IVF_FORMAT("es.ivf_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
     LOGS_STREAM("es.logs_stream_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
-    PATTERNED_TEXT("es.patterned_text_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
     SYNTHETIC_VECTORS("es.mapping_synthetic_vectors=true", Version.fromString("9.2.0"), null),
-    RERANK_SNIPPETS("es.text_similarity_reranker_snippets=true", Version.fromString("9.2.0"), null);
+    INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG(
+        "es.index_dimensions_tsid_optimization_feature_flag_enabled=true",
+        Version.fromString("9.2.0"),
+        null
+    ),
+
+    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
+    TSDB_SYNTHETIC_ID_FEATURE_FLAG("es.tsdb_synthetic_id_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    ESQL_VIEWS("es.esql_views_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    EXTENDED_DOC_VALUES_PARAMS("es.extended_doc_values_options_enabled=true", Version.fromString("9.3.0"), null);
 
     public final String systemProperty;
     public final Version from;

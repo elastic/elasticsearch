@@ -1,4 +1,7 @@
-## `WHERE` [esql-where]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `WHERE` processing command produces a table that contains all the rows from
 the input table for which the provided condition evaluates to `true`.

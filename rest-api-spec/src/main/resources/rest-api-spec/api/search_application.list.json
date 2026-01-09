@@ -1,10 +1,10 @@
 {
   "search_application.list": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-search-applications.html",
-      "description": "Returns the existing search applications."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-get-behavioral-analytics",
+      "description": "Get search applications"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [
@@ -28,6 +28,7 @@
       },
       "from": {
         "type": "int",
+        "default": 0,
         "description": "Starting offset (default: 0)"
       },
       "size": {

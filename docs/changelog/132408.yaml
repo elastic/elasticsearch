@@ -1,5 +1,0 @@
-pr: 132408
-summary: Correct exception for missing nested path
-area: Search
-type: bug
-issues: []

@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashSet;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
@@ -20,19 +18,6 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
 
     public static ElserInternalServiceSettings createRandom() {
         return new ElserInternalServiceSettings(ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel()));
-    }
-
-    public void testBwcWrite() throws IOException {
-        {
-            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null, null));
-            var copy = copyInstance(settings, TransportVersions.V_8_12_0);
-            assertEquals(settings, copy);
-        }
-        {
-            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null, null));
-            var copy = copyInstance(settings, TransportVersions.V_8_11_X);
-            assertEquals(settings, copy);
-        }
     }
 
     @Override

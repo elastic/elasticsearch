@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -45,9 +46,20 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         IndexPattern indexPattern,
         boolean frozen,
         List<Attribute> metadataFields,
+        String unresolvedMessage,
+        SourceCommand sourceCommand
+    ) {
+        this(source, indexPattern, frozen, metadataFields, sourceCommand.indexMode(), unresolvedMessage, sourceCommand.name());
+    }
+
+    public UnresolvedRelation(
+        Source source,
+        IndexPattern indexPattern,
+        boolean frozen,
+        List<Attribute> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage,
-        String commandName
+        @Nullable String commandName
     ) {
         super(source);
         this.indexPattern = indexPattern;
@@ -165,5 +177,13 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
     @Override
     public String toString() {
         return UNRESOLVED_PREFIX + indexPattern.indexPattern();
+    }
+
+    /**
+     * @return true if and only if this relation is being loaded in "time series mode",
+     *         which changes a number of behaviors in the planner.
+     */
+    public boolean isTimeSeriesMode() {
+        return indexMode == IndexMode.TIME_SERIES;
     }
 }

@@ -12,7 +12,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -239,11 +238,7 @@ public class InboundHandlerTests extends ESTestCase {
             PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
             channel.addCloseListener(closeListener);
 
-            final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersionUtils.getFirstVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE)
-            );
+            final TransportVersion remoteVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
                 between(0, 100),

@@ -48,8 +48,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         String username = in.username();
         String clusterName = in.clusterName();
         QueryPragmas pragmas = in.pragmas();
-        int resultTruncationMaxSize = in.resultTruncationMaxSize();
-        int resultTruncationDefaultSize = in.resultTruncationDefaultSize();
+        int resultTruncationMaxSize = in.resultTruncationMaxSize(false);
+        int resultTruncationDefaultSize = in.resultTruncationDefaultSize(false);
         String query = in.query();
         boolean profile = in.profile();
         Map<String, Map<String, Column>> tables = in.tables();
@@ -102,8 +102,10 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             profile,
             tables,
             System.nanoTime(),
-            randomBoolean()
+            randomBoolean(),
+            in.resultTruncationMaxSize(true),
+            in.resultTruncationDefaultSize(true),
+            null
         );
-
     }
 }

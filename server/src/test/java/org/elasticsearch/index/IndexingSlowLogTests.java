@@ -430,18 +430,18 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings.updateIndexMetadata(metadata);
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexTraceThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexDebugThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexInfoThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
         log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
 
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexTraceThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexDebugThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexInfoThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexWarnThreshold());
         try {
             settings.updateIndexMetadata(
                 newIndexMeta(

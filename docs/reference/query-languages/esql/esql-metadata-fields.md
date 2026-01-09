@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Metadata fields"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-metadata-fields.html
@@ -8,7 +11,7 @@ mapped_pages:
 
 {{esql}} can access [metadata fields](/reference/elasticsearch/mapping-reference/document-metadata-fields.md).
 
-To access these fields, use the `METADATA` directive with the [`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command. For example:
+To access these fields, use the `METADATA` directive with the [`FROM`](/reference/query-languages/esql/commands/from.md) source command. For example:
 
 ```esql
 FROM index METADATA _index, _id
@@ -23,6 +26,7 @@ The following metadata fields are available in {{esql}}:
 | [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Unique document ID. |
 | [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Names every field in a document that was ignored when the document was indexed. |
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
+| [`_tier`](/reference/elasticsearch/mapping-reference/mapping-tier-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index top tier preference. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
 | `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
 | [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |

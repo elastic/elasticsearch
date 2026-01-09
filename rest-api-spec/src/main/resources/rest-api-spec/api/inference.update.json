@@ -1,20 +1,26 @@
 {
   "inference.update": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-inference-api.html",
-      "description": "Update inference"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-update",
+      "description": "Update an inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_inference/{inference_id}/_update",
-          "methods": ["PUT"],
+          "methods": [
+            "PUT"
+          ],
           "parts": {
             "inference_id": {
               "type": "string",
@@ -24,11 +30,20 @@
         },
         {
           "path": "/_inference/{task_type}/{inference_id}/_update",
-          "methods": ["PUT"],
+          "methods": [
+            "PUT"
+          ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "sparse_embedding",
+                "text_embedding",
+                "rerank",
+                "completion",
+                "chat_completion"
+              ]
             },
             "inference_id": {
               "type": "string",
@@ -39,7 +54,8 @@
       ]
     },
     "body": {
-      "description": "The inference endpoint's task and service settings"
+      "description": "The inference endpoint's task and service settings",
+      "required": true
     }
   }
 }

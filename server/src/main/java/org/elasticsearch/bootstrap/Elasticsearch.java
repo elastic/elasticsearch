@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
@@ -40,7 +41,6 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapReflectionUtils;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -203,6 +203,8 @@ class Elasticsearch {
         IfConfig.logIfNecessary();
 
         ensureInitialized(
+            // See https://github.com/elastic/elasticsearch/issues/136268
+            TermsEnum.class,
             // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
@@ -216,9 +218,7 @@ class Elasticsearch {
             // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
             // it now (before SM) to be sure
             RequestHandlerRegistry.class,
-            MethodHandlers.class,
-            // Ensure member access and reflection lookup are as expected
-            OffHeapReflectionUtils.class
+            MethodHandlers.class
         );
 
         // load the plugin Java modules and layers now for use in entitlements
@@ -374,7 +374,7 @@ class Elasticsearch {
     private static void ensureInitialized(Class<?>... classes) {
         for (final var clazz : classes) {
             try {
-                MethodHandles.lookup().ensureInitialized(clazz);
+                MethodHandles.publicLookup().ensureInitialized(clazz);
             } catch (IllegalAccessException unexpected) {
                 throw new AssertionError(unexpected);
             }
@@ -479,6 +479,10 @@ class Elasticsearch {
                     return false;
                 });
             }
+        }
+
+        if (IOUtils.LINUX) {
+            setCoredumpFilter();
         }
 
         // init lucene random seed. it will use /dev/urandom where available:
@@ -593,6 +597,20 @@ class Elasticsearch {
             }
         }
         return pluginsWithNativeAccess;
+    }
+
+    @SuppressForbidden(reason = "access proc filesystem")
+    private static void setCoredumpFilter() {
+        // The coredump filter determines which types of memory are added to core dumps. By default, Java
+        // includes memory mapped files, bits 2 and 3. Here we disable those bits. Note that the VM
+        // has special options to disable these, but the filter is then inherited from the parent process
+        // which is the server CLI, which is also a JVM so it has these bits set. Thus, we set it explicitly.
+        // See https://man7.org/linux/man-pages/man5/core.5.html for more info on the relevant bits of the filter
+        try {
+            Files.writeString(Path.of("/proc/self/coredump_filter"), "0x23");
+        } catch (IOException e) {
+            throw new RuntimeException("Could not set coredump filter", e);
+        }
     }
 
     // -- instance

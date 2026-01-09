@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -160,6 +161,31 @@ public class XPackLicenseStateTests extends ESTestCase {
         }
     }
 
+    public void testInferenceAckMessageTrialOrEnterpriseToNotTrialOrEnterprise() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(TRIAL, ENTERPRISE), to, Set.of("The Inference API will be disabled"));
+        }
+    }
+
+    public void testInferenceAckMessageToTrialOrEnterprise() {
+        var fromAll = EnumSet.allOf(License.OperationMode.class);
+        for (OperationMode from : fromAll) {
+            assertAckMessages(XPackField.INFERENCE, from, randomFrom(TRIAL, ENTERPRISE), 0);
+        }
+    }
+
+    public void testInferenceAckMessageUnlicensedToUnlicensed() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(notTrialOrEnterprise), to, 0);
+        }
+    }
+
     public void testExpiredLicense() {
         // use standard feature which would normally be allowed at all license levels
         LicensedFeature feature = LicensedFeature.momentary("family", "enterpriseFeature", STANDARD);
@@ -240,6 +266,13 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(lastUsed.get(usage), equalTo(100L));
 
         currentTime.set(200);
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(200L));
+
+        // updates to the last used timestamp only happen if the time has increased
+        currentTime.set(199);
         goldFeature.check(licenseState);
         lastUsed = licenseState.getLastUsed();
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));

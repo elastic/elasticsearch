@@ -203,7 +203,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 5; ++i) {
             ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
             add512BRequests(requests, index);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
@@ -230,6 +230,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
         add512BRequests(requestsThrottle, index);
         add512BRequests(requestsThrottle, index);
+        // Ensure we'll be above SPLIT_BULK_HIGH_WATERMARK
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes() + 1024, greaterThan(4096L));
 
         CountDownLatch finishLatch = new CountDownLatch(1);
         blockWriteCoordinationPool(threadPool, finishLatch);
@@ -558,7 +560,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     }
 
     private static void fillWriteCoordinationQueue(ThreadPool threadPool) {
-        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getQueueSize().singles());
+        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getQueueSize());
         final var queueFilled = new AtomicBoolean(false);
         final var queueFillingTask = new AbstractRunnable() {
             @Override

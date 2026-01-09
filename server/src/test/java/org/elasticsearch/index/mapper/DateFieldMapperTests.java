@@ -33,11 +33,13 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -56,7 +58,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -756,19 +757,27 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 
+    private static IndexSettings buildIndexSettings(IndexVersion indexVersion) {
+        return new IndexSettings(
+            new IndexMetadata.Builder("index").settings(indexSettings(indexVersion, 1, 1).build()).build(),
+            Settings.EMPTY
+        );
+    }
+
     public void testLegacyDateFormatName() {
+
+        // BWC compatible index, e.g 7.x
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+        );
+
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
             "format",
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
             mock(ScriptService.class),
-            true,
-            // BWC compatible index, e.g 7.x
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            )
+            buildIndexSettings(indexVersion)
         );
 
         // Check that we allow the use of camel case date formats on 7.x indices
@@ -785,8 +794,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
             mock(ScriptService.class),
-            true,
-            IndexVersion.current()
+            buildIndexSettings(IndexVersion.current())
         );
 
         @SuppressWarnings("unchecked")
@@ -804,7 +812,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     }
 
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
     }
 
@@ -847,10 +855,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 {
                     // One big doc block
-                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(to - from));
                     for (int i = 0; i < block.size(); i++) {
                         assertThat(block.get(i), equalTo(to - i - 1L));
@@ -859,11 +867,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 {
                     // Smaller doc blocks
                     int docBlockSize = 1000;
-                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
-                        var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                        var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                         assertThat(block.size(), equalTo(docBlockSize));
                         for (int j = 0; j < block.size(); j++) {
                             long expected = to - ((long) docBlockSize * (i / docBlockSize)) - j - 1L;
@@ -873,10 +881,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 {
                     // One smaller doc block:
-                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(1010));
                     for (int i = 0; i < block.size(); i++) {
                         long expected = 8990 - i - 1L;
@@ -885,10 +893,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 {
                     // Read two tiny blocks:
-                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(32));
                     for (int i = 0; i < block.size(); i++) {
                         long expected = 9968 - i - 1L;
@@ -896,7 +904,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
 
                     docBlock = TestBlock.docs(IntStream.range(64, 96).toArray());
-                    block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(32));
                     for (int i = 0; i < block.size(); i++) {
                         long expected = 9936 - i - 1L;
@@ -905,5 +913,34 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
             }
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(
+                IndexVersion.current(),
+                Settings.builder().put("index.mode", "logsdb").put("index.logsdb.sort_on_host_name", true).build(),
+                "@timestamp",
+                b -> b.field("type", "date").field("ignore_malformed", false),
+                b -> b.startObject("host.name").field("type", "keyword").endObject(),
+                b -> b.field("@timestamp", "2025-10-30T00:00:00").field("host.name", "foo"),
+                Assert::assertNotNull
+            ),
+            new SortShortcutSupport(b -> b.field("type", "date"), b -> b.field("field", "2025-10-30T00:00:00"), true),
+            new SortShortcutSupport(b -> b.field("type", "date_nanos"), b -> b.field("field", "2025-10-30T00:00:00"), true),
+            new SortShortcutSupport(
+                IndexVersion.fromId(5000099),
+                b -> b.field("type", "date"),
+                b -> b.field("field", "2025-10-30T00:00:00"),
+                false
+            ),
+            new SortShortcutSupport(
+                IndexVersion.fromId(5000099),
+                b -> b.field("type", "date_nanos"),
+                b -> b.field("field", "2025-10-30T00:00:00"),
+                false
+            )
+        );
     }
 }

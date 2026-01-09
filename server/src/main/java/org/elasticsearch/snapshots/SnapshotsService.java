@@ -90,7 +90,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotMetrics;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -187,8 +186,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
 
-    private CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
-
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of
@@ -221,8 +218,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
         this.snapshotMetrics = snapshotMetrics;
-        snapshotMetrics.createSnapshotShardsByStateMetric(this::getShardsByState);
-        snapshotMetrics.createSnapshotsByStateMetric(this::getSnapshotsByState);
 
         if (DiscoveryNode.isMasterNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
@@ -277,7 +272,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final SnapshotId snapshotId = new SnapshotId(snapshotName, request.uuid());
         Repository repository = repositoriesService.repository(projectId, request.repository());
         if (repository.isReadOnly()) {
-            listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
+            listener.onFailure(
+                new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
+            );
             return;
         }
         submitCreateSnapshotRequest(
@@ -690,9 +687,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
 
                 if (newMaster
-                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false
-                    || SnapshotsServiceUtils.supportsNodeRemovalTracking(event.state()) != SnapshotsServiceUtils
-                        .supportsNodeRemovalTracking(event.previousState())) {
+                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false) {
                     updateNodeIdsToRemoveQueue.submitTask(
                         "SnapshotsService#updateNodeIdsToRemove",
                         new UpdateNodeIdsForRemovalTask(),
@@ -2393,9 +2388,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     changedCount,
                     startedCount
                 );
-                return SnapshotsServiceUtils.supportsNodeRemovalTracking(initialState)
-                    ? updated.withUpdatedNodeIdsForRemoval(initialState)
-                    : updated;
+                return updated.withUpdatedNodeIdsForRemoval(initialState);
             }
             return existing;
         }
@@ -3125,7 +3118,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var projectMetadata = state.metadata().getProject(task.snapshot.getProjectId());
                         final var repoMeta = RepositoriesMetadata.get(projectMetadata).repository(task.snapshot.getRepository());
                         if (RepositoriesService.isReadOnly(repoMeta.settings())) {
-                            taskContext.onFailure(new RepositoryException(repoMeta.name(), "repository is readonly"));
+                            taskContext.onFailure(new IllegalArgumentException("[" + repoMeta.name() + "] repository is readonly"));
                             continue;
                         }
 
@@ -3357,61 +3350,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private Collection<LongWithAttributes> getShardsByState() {
-        final ClusterState currentState = clusterService.state();
-        // Only the master should report on shards-by-state
-        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
-            return List.of();
-        }
-        return recalculateIfStale(currentState).shardStateMetrics();
-    }
-
-    private Collection<LongWithAttributes> getSnapshotsByState() {
-        final ClusterState currentState = clusterService.state();
-        // Only the master should report on snapshots-by-state
-        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
-            return List.of();
-        }
-        return recalculateIfStale(currentState).snapshotStateMetrics();
-    }
-
-    private CachedSnapshotStateMetrics recalculateIfStale(ClusterState currentState) {
-        if (cachedSnapshotStateMetrics == null || cachedSnapshotStateMetrics.isStale(currentState)) {
-            cachedSnapshotStateMetrics = recalculateSnapshotStats(currentState);
-        }
-        return cachedSnapshotStateMetrics;
-    }
-
-    private CachedSnapshotStateMetrics recalculateSnapshotStats(ClusterState currentState) {
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
-        final List<LongWithAttributes> snapshotStateMetrics = new ArrayList<>();
-        final List<LongWithAttributes> shardStateMetrics = new ArrayList<>();
-
-        currentState.metadata().projects().forEach((projectId, project) -> {
-            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
-            if (repositoriesMetadata != null) {
-                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
-                    final Tuple<Map<SnapshotsInProgress.State, Integer>, Map<ShardState, Integer>> stateSummaries = snapshotsInProgress
-                        .shardStateSummaryForRepository(projectId, repository.name());
-                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
-                    stateSummaries.v1()
-                        .forEach(
-                            (snapshotState, count) -> snapshotStateMetrics.add(
-                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
-                            )
-                        );
-                    stateSummaries.v2()
-                        .forEach(
-                            (shardState, count) -> shardStateMetrics.add(
-                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
-                            )
-                        );
-                }
-            }
-        });
-        return new CachedSnapshotStateMetrics(currentState, snapshotStateMetrics, shardStateMetrics);
-    }
-
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
@@ -3427,50 +3365,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
 
             final var clusterState = batchExecutionContext.initialState();
-            if (SnapshotsServiceUtils.supportsNodeRemovalTracking(clusterState)) {
-                final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
-                final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
-                if (newSnapshotsInProgress != snapshotsInProgress) {
-                    return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
-                }
+            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
+            final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
+            if (newSnapshotsInProgress != snapshotsInProgress) {
+                return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
             }
             return clusterState;
         }
     }
 
     private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
-
-    /**
-     * A cached copy of the snapshot and shard state metrics
-     */
-    private record CachedSnapshotStateMetrics(
-        String clusterStateId,
-        int snapshotsInProgressIdentityHashcode,
-        Collection<LongWithAttributes> snapshotStateMetrics,
-        Collection<LongWithAttributes> shardStateMetrics
-    ) {
-        CachedSnapshotStateMetrics(
-            ClusterState sourceState,
-            Collection<LongWithAttributes> snapshotStateMetrics,
-            Collection<LongWithAttributes> shardStateMetrics
-        ) {
-            this(
-                sourceState.stateUUID(),
-                System.identityHashCode(SnapshotsInProgress.get(sourceState)),
-                snapshotStateMetrics,
-                shardStateMetrics
-            );
-        }
-
-        /**
-         * Are these metrics stale?
-         *
-         * @param currentClusterState The current cluster state
-         * @return true if these metrics were calculated from a prior cluster state and need to be recalculated, false otherwise
-         */
-        public boolean isStale(ClusterState currentClusterState) {
-            return (Objects.equals(clusterStateId, currentClusterState.stateUUID()) == false
-                && System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode);
-        }
-    }
 }

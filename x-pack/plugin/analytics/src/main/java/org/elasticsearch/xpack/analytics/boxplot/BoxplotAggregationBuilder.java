@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -83,11 +82,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
-        } else {
-            executionHint = TDigestExecutionHint.HIGH_ACCURACY;
-        }
+        executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
     }
 
     @Override
@@ -98,9 +93,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(executionHint);
-        }
+        out.writeOptionalWriteable(executionHint);
     }
 
     @Override
@@ -194,6 +187,6 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -48,7 +48,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -94,8 +93,7 @@ class S3Service extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    private final Runnable defaultRegionSetter;
-    private volatile Region defaultRegion;
+    private final S3DefaultRegionHolder defaultRegionHolder;
 
     /**
      * Use a signer that does not require to pre-read (and checksum) the body of PutObject and UploadPart requests since we can rely on
@@ -129,7 +127,7 @@ class S3Service extends AbstractLifecycleComponent {
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
         isStateless = DiscoveryNode.isStateless(nodeSettings);
-        defaultRegionSetter = new RunOnce(() -> defaultRegion = defaultRegionSupplier.get());
+        defaultRegionHolder = new S3DefaultRegionHolder(defaultRegionSupplier);
         s3ClientsManager = new S3ClientsManager(
             nodeSettings,
             this::buildClientReference,
@@ -266,7 +264,7 @@ class S3Service extends AbstractLifecycleComponent {
         } else {
             endpointDescription = "no configured endpoint";
         }
-        final var defaultRegion = this.defaultRegion;
+        final var defaultRegion = defaultRegionHolder.getDefaultRegion();
         if (defaultRegion != null) {
             LOGGER.debug("""
                 found S3 client with no configured region and {}, using region [{}] from SDK""", endpointDescription, defaultRegion);
@@ -312,6 +310,7 @@ class S3Service extends AbstractLifecycleComponent {
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
+        httpClientBuilder.connectionMaxIdleTime(Duration.ofMillis(clientSettings.connectionMaxIdleTimeMillis));
 
         Optional<ProxyConfiguration> proxyConfiguration = buildProxyConfiguration(clientSettings);
         if (proxyConfiguration.isPresent()) {
@@ -344,6 +343,10 @@ class S3Service extends AbstractLifecycleComponent {
             retryStrategyBuilder.retryOnException(S3Service::isInvalidAccessKeyIdException);
         }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
+        final long apiCallTimeoutMillis = clientSettings.apiCallTimeout.millis();
+        if (apiCallTimeoutMillis >= 0) {
+            clientOverrideConfiguration.apiCallTimeout(Duration.ofMillis(apiCallTimeoutMillis));
+        }
         return clientOverrideConfiguration.build();
     }
 
@@ -415,7 +418,7 @@ class S3Service extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        defaultRegionSetter.run();
+        defaultRegionHolder.start();
     }
 
     @Override

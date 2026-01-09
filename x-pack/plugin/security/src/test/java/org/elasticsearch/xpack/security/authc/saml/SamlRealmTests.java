@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -72,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -83,6 +85,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.CONTEXT_TOKEN_DATA;
+import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.PRIVATE_ATTRIBUTES_METADATA;
+import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.TOKEN_METADATA_IN_RESPONSE_TO;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -98,6 +103,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.typeCompatibleWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -392,7 +398,8 @@ public class SamlRealmTests extends SamlTestCase {
             randomBoolean() ? REALM_NAME : null,
             testWithDelimiter ? List.of("STRIKE Team: Delta$shield") : Arrays.asList("avengers", "shield"),
             testWithDelimiter ? "$" : null,
-            randomBoolean() ? List.of("superuser", "kibana_admin") : randomFrom(List.of(), null)
+            randomBoolean() ? List.of("superuser", "kibana_admin") : randomFrom(List.of(), null),
+            null
         );
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
@@ -419,7 +426,8 @@ public class SamlRealmTests extends SamlTestCase {
             authenticatingRealm,
             testWithDelimiter ? List.of("STRIKE Team: Delta$shield") : Arrays.asList("avengers", "shield"),
             testWithDelimiter ? "$" : null,
-            rolesToExclude
+            rolesToExclude,
+            Map.of("top_secret", List.of("Batman's secret identity is Bruce Wayne!"))
         );
 
         assertThat(result, notNullValue());
@@ -440,7 +448,23 @@ public class SamlRealmTests extends SamlTestCase {
             assertThat(result.getValue().metadata().get("saml_nameid"), equalTo(nameIdValue));
             assertThat(result.getValue().metadata().get("saml_uid"), instanceOf(Iterable.class));
             assertThat((Iterable<?>) result.getValue().metadata().get("saml_uid"), contains(uidValue));
+            assertThat(result.getValue().metadata().get("saml_top_secret"), nullValue());
         }
+
+        assertThat(result.getMetadata(), notNullValue());
+        assertThat(result.getMetadata().containsKey(PRIVATE_ATTRIBUTES_METADATA), is(true));
+        @SuppressWarnings("unchecked")
+        Map<String, List<SecureString>> privateAttributesMetadata = (Map<String, List<SecureString>>) result.getMetadata()
+            .get(PRIVATE_ATTRIBUTES_METADATA);
+        assertThat(privateAttributesMetadata, notNullValue());
+        assertThat(privateAttributesMetadata.keySet(), containsInAnyOrder("top_secret"));
+        List<SecureString> secretAttribute = privateAttributesMetadata.get("top_secret");
+        assertThat(secretAttribute, notNullValue());
+        assertThat(secretAttribute.size(), equalTo(1));
+        assertEquals(
+            "SecureString has already been closed",
+            expectThrows(IllegalStateException.class, () -> secretAttribute.getFirst().getChars()).getMessage()
+        );
 
         assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
         if (testWithDelimiter) {
@@ -533,6 +557,7 @@ public class SamlRealmTests extends SamlTestCase {
             authenticatingRealm,
             groups,
             groupsDelimiter,
+            null,
             null
         );
     }
@@ -546,7 +571,8 @@ public class SamlRealmTests extends SamlTestCase {
         String authenticatingRealm,
         List<String> groups,
         String groupsDelimiter,
-        List<String> rolesToExclude
+        List<String> rolesToExclude,
+        Map<String, List<String>> secureAttributes
     ) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SingleSamlSpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
@@ -557,6 +583,7 @@ public class SamlRealmTests extends SamlTestCase {
         final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
         final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
         final String realmType = SingleSpSamlRealmSettings.TYPE;
+        final String inResponseTo = "_request_id_12345";
 
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "mock_lookup");
         final MockLookupRealm lookupRealm = new MockLookupRealm(
@@ -610,6 +637,12 @@ public class SamlRealmTests extends SamlTestCase {
                 String.join(",", rolesToExclude)
             );
         }
+        if (secureAttributes != null) {
+            settingsBuilder.put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+                String.join(",", secureAttributes.keySet())
+            );
+        }
         if (useAuthorizingRealm) {
             settingsBuilder.putList(
                 RealmSettings.getFullSettingKey(
@@ -640,15 +673,45 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.PERSISTENT, nameIdValue, idp.getEntityID(), sp.getEntityId(), null),
             randomAlphaOfLength(16),
-            Arrays.asList(
+            inResponseTo,
+            List.of(
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", Collections.singletonList(uidValue)),
                 new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", groups),
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Arrays.asList("cbarton@shield.gov"))
-            )
+            ),
+            secureAttributes == null
+                ? List.of()
+                : secureAttributes.entrySet()
+                    .stream()
+                    .map(
+                        a -> new SamlAttributes.SamlPrivateAttribute(
+                            a.getKey(),
+                            null,
+                            a.getValue().stream().map(SecureString::new).toList()
+                        )
+                    )
+                    .toList()
         );
         when(authenticator.authenticate(token)).thenReturn(attributes);
 
-        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>() {
+            @Override
+            public void onResponse(AuthenticationResult<User> result) {
+                if (secureAttributes != null && result.isAuthenticated()) {
+                    assertThat(result.getMetadata(), notNullValue());
+                    assertThat(result.getMetadata().containsKey(PRIVATE_ATTRIBUTES_METADATA), is(true));
+                    @SuppressWarnings("unchecked")
+                    var metadata = (Map<String, List<SecureString>>) result.getMetadata().get(PRIVATE_ATTRIBUTES_METADATA);
+                    secureAttributes.forEach((name, value) -> assertThat(metadata.get(name), equalTo(value)));
+                    Object tokenContext = result.getMetadata().get(CONTEXT_TOKEN_DATA);
+                    assertThat(tokenContext, notNullValue());
+                    assertThat(tokenContext.getClass(), typeCompatibleWith(Map.class));
+                    Object returnedInResponseTo = ((Map<?, ?>) tokenContext).get(TOKEN_METADATA_IN_RESPONSE_TO);
+                    assertThat(returnedInResponseTo, equalTo(inResponseTo));
+                }
+                super.onResponse(result);
+            }
+        };
         realm.authenticate(token, future);
         return future.get();
     }
@@ -725,13 +788,15 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
-            Collections.singletonList(
+            randomAlphaOfLength(16),
+            List.of(
                 new SamlAttributes.SamlAttribute(
                     "departments",
                     "departments",
                     Collections.singletonList(String.join(delimiter, returnedGroups))
                 )
-            )
+            ),
+            List.of()
         );
         return parser.getAttribute(attributes);
     }
@@ -796,13 +861,15 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
-            Collections.singletonList(
+            randomAlphaOfLength(16),
+            List.of(
                 new SamlAttributes.SamlAttribute(
                     "departments",
                     "departments",
                     List.of("engineering", String.join(delimiter, "elasticsearch-admins", "employees"))
                 )
-            )
+            ),
+            List.of()
         );
 
         ElasticsearchSecurityException securityException = expectThrows(
@@ -828,13 +895,15 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
-            Collections.singletonList(
+            randomAlphaOfLength(16),
+            List.of(
                 new SamlAttributes.SamlAttribute(
                     "urn:oid:0.9.2342.19200300.100.1.3",
                     "mail",
                     Arrays.asList("john.smith@personal.example.net", "john.smith@corporate.example.com", "jsmith@corporate.example.com")
                 )
-            )
+            ),
+            List.of()
         );
 
         final List<String> strings = parser.getAttribute(attributes);
@@ -909,6 +978,51 @@ public class SamlRealmTests extends SamlTestCase {
         );
     }
 
+    public void testPrivateAttributesSettingValidation() {
+        String attributeName = randomAlphaOfLength(10);
+        String attributeSetting = RealmSettings.getFullSettingKey(
+            REALM_NAME,
+            randomFrom(
+                SamlRealmSettings.PRINCIPAL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute(),
+                SamlRealmSettings.GROUPS_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttributeSetting().getAttribute(),
+                SamlRealmSettings.DN_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute(),
+                SamlRealmSettings.NAME_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute(),
+                SamlRealmSettings.MAIL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()
+            )
+        );
+        {
+            Settings settings = buildSettings("https://example.com").put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+                attributeName
+            ).put(attributeSetting, attributeName).build();
+            final RealmConfig config = realmConfigFromGlobalSettings(settings);
+
+            var e = expectThrows(IllegalArgumentException.class, () -> config.getSetting(SamlRealmSettings.PRIVATE_ATTRIBUTES));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "SAML Attribute ["
+                        + attributeName
+                        + "] cannot be both configured for ["
+                        + REALM_SETTINGS_PREFIX
+                        + ".private_attributes] and ["
+                        + attributeSetting
+                        + "] settings."
+                )
+            );
+        }
+        {
+            String otherAttributeName = randomAlphaOfLength(9);
+            Settings settings = buildSettings("https://example.com").put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+                attributeName
+            ).put(attributeSetting, otherAttributeName).build();
+            final RealmConfig config = realmConfigFromGlobalSettings(settings);
+            assertThat(config.getSetting(SamlRealmSettings.PRIVATE_ATTRIBUTES), containsInAnyOrder(attributeName));
+            assertThat(config.settings().get(attributeSetting), equalTo(otherAttributeName));
+        }
+    }
+
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {
         final Settings realmSettings = Settings.EMPTY;
         final RealmConfig config = buildConfig(realmSettings);
@@ -952,9 +1066,9 @@ public class SamlRealmTests extends SamlTestCase {
             final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(12), null, null, null),
                 randomAlphaOfLength(16),
-                Collections.singletonList(
-                    new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Collections.singletonList(mail))
-                )
+                randomAlphaOfLength(16),
+                List.of(new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Collections.singletonList(mail))),
+                List.of()
             );
             when(authenticator.authenticate(token)).thenReturn(attributes);
 
@@ -1474,6 +1588,112 @@ public class SamlRealmTests extends SamlTestCase {
             .setSecureSettings(mockSecureSettings)
             .build();
         return new TestsSSLService(TestEnvironment.newEnvironment(settings));
+    }
+
+    public void testHttpMetadataWithCustomTimeouts() throws Exception {
+        final Path path = getDataPath("idp1.xml");
+        final String body = Files.readString(path);
+        TestsSSLService sslService = buildTestSslService();
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            proxyServer.start();
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
+
+            final TimeValue customConnectTimeout = TimeValue.timeValueSeconds(3);
+            final TimeValue customReadTimeout = TimeValue.timeValueSeconds(15);
+
+            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort(), builder -> {
+                builder.put(
+                    SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
+                    customConnectTimeout.getStringRep()
+                );
+                builder.put(
+                    SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT),
+                    customReadTimeout.getStringRep()
+                );
+            });
+
+            // Verify settings are correctly configured
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT), equalTo(customConnectTimeout));
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(customReadTimeout));
+
+            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+                logger,
+                config.v1(),
+                config.v2(),
+                watcherService
+            );
+
+            try {
+                assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
+                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
+            } finally {
+                tuple.v1().destroy();
+            }
+        }
+    }
+
+    public void testHttpMetadataWithDefaultTimeouts() throws Exception {
+        final Path path = getDataPath("idp1.xml");
+        final String body = Files.readString(path);
+        TestsSSLService sslService = buildTestSslService();
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            proxyServer.start();
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
+
+            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
+
+            // Verify default timeout values are used
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT), equalTo(TimeValue.timeValueSeconds(5)));
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(TimeValue.timeValueSeconds(10)));
+
+            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+                logger,
+                config.v1(),
+                config.v2(),
+                watcherService
+            );
+
+            try {
+                assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
+                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
+            } finally {
+                tuple.v1().destroy();
+            }
+        }
+    }
+
+    public void testHttpMetadataConnectionTimeout() throws Exception {
+        // Use a non-routable IP address to simulate connection timeout
+        // 192.0.2.1 is reserved for documentation and will not be routable
+        final String unreachableUrl = "https://192.0.2.1:9999/metadata.xml";
+        final TimeValue shortConnectTimeout = TimeValue.timeValueMillis(100);
+
+        Tuple<RealmConfig, SSLService> config = buildConfig(unreachableUrl, builder -> {
+            builder.put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
+                shortConnectTimeout.getStringRep()
+            );
+            builder.put(SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
+        });
+
+        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+
+        // initialization should complete even though the connection fails
+        Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+            logger,
+            config.v1(),
+            config.v2(),
+            watcherService
+        );
+
+        try {
+            EntityDescriptor descriptor = tuple.v2().get();
+            assertThat(descriptor, instanceOf(UnresolvedEntity.class));
+        } finally {
+            tuple.v1().destroy();
+        }
     }
 
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {

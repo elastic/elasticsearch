@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.TimeValue;
@@ -51,8 +50,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest original) {
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        request.query(original.query());
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest(original.query());
         request.pragmas(original.pragmas());
         // deliberately small timeout, to frequently trigger incomplete response
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
@@ -131,7 +129,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
         Block[] blockCopies = new Block[page.getBlockCount()];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+            blockCopies[i] = page.getBlock(i).deepCopy(blockFactory);
         }
         return new Page(blockCopies);
     }

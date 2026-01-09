@@ -10,6 +10,9 @@
   "template": {
     "lifecycle": {},
     "mappings": {
+      "_meta": {
+        "template_version": ${xpack.stack.template.version}
+      },
       "properties": {
         "meta": {
           "properties": {

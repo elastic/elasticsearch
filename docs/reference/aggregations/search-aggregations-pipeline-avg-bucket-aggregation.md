@@ -18,7 +18,7 @@ A sibling pipeline aggregation which calculates the mean value of a specified me
   "format": "#,##0.00;(#,##0.00)"
 }
 ```
-
+% NOTCONSOLE
 
 ## Parameters [avg-bucket-params]
 
@@ -75,6 +75,7 @@ POST _search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. Start of the `avg_bucket` configuration. Comment is not part of the example.
 2. End of the `avg_bucket` configuration. Comment is not part of the example.
@@ -124,5 +125,7 @@ The request returns the following response:
   }
 }
 ```
-
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 

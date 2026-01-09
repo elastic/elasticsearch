@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,8 +39,7 @@ public class ClusterStateRequestTests extends ESTestCase {
                 .indicesOptions(indicesOptions);
 
             TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );
             if (randomBoolean()) {

@@ -45,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
@@ -299,7 +300,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         });
 
         {
-            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalTo(blobBytes));
+            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalBytes(blobBytes));
         }
         {
             int position = randomIntBetween(0, blobBytes.length() - 1);
@@ -307,7 +308,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             assertThat(
                 "Random Range: " + position + '-' + (position + length),
                 readBlob(repository, blobName, position, length),
-                equalTo(blobBytes.slice(position, length))
+                equalBytes(blobBytes.slice(position, length))
             );
         }
         {
@@ -316,7 +317,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             assertThat(
                 "Random Larger Range: " + position + '-' + (position + length),
                 readBlob(repository, blobName, position, length),
-                equalTo(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
+                equalBytes(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
             );
         }
     }
@@ -344,6 +345,55 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             Streams.read(input, byteBuffer, capacity);
             expectThrows(EOFException.class, () -> input.skipNBytes((blobLength - capacity) + randomLongBetween(1, 1000)));
         }
+    }
+
+    public void testFailIfAlreadyExists() {
+        final var blobName = randomIdentifier();
+        final int blobLength = randomIntBetween(100, 2_000);
+        final var initialBlobBytes = randomBytesReference(blobLength);
+        final var overwriteBlobBytes = randomBytesReference(blobLength);
+
+        final var repository = getRepository();
+
+        CheckedFunction<BlobContainer, Void, IOException> initialWrite = blobStore -> {
+            blobStore.writeBlobAtomic(randomPurpose(), blobName, initialBlobBytes, true);
+            return null;
+        };
+
+        // initial write blob
+        var initialWrite1 = submitOnBlobStore(repository, initialWrite);
+        var initialWrite2 = submitOnBlobStore(repository, initialWrite);
+
+        Exception ex1 = null;
+        Exception ex2 = null;
+
+        try {
+            initialWrite1.actionGet();
+        } catch (Exception e) {
+            ex1 = e;
+        }
+
+        try {
+            initialWrite2.actionGet();
+        } catch (Exception e) {
+            ex2 = e;
+        }
+
+        assertTrue("Exactly one of the writes must succeed", (ex1 == null) != (ex2 == null));
+
+        // override if failIfAlreadyExists is set to false
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, overwriteBlobBytes, false);
+            return null;
+        });
+
+        assertThat(readBlob(repository, blobName, 0, overwriteBlobBytes.length()), equalBytes(overwriteBlobBytes));
+
+        // throw exception if failIfAlreadyExists is set to true
+        executeOnBlobStore(repository, blobStore -> {
+            expectThrows(Exception.class, () -> blobStore.writeBlob(randomPurpose(), blobName, initialBlobBytes, true));
+            return null;
+        });
     }
 
     protected void testReadFromPositionLargerThanBlobLength(Predicate<RequestedRangeNotSatisfiedException> responseCodeChecker) {
@@ -381,12 +431,20 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertThat(responseCodeChecker.test(rangeNotSatisfiedException), is(true));
     }
 
-    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+    protected static <T> PlainActionFuture<T> submitOnBlobStore(
+        BlobStoreRepository repository,
+        CheckedFunction<BlobContainer, T, IOException> fn
+    ) {
         final var future = new PlainActionFuture<T>();
         repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
             var blobContainer = repository.blobStore().blobContainer(repository.basePath());
             return fn.apply(blobContainer);
         }));
+        return future;
+    }
+
+    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+        final var future = submitOnBlobStore(repository, fn);
         return future.actionGet();
     }
 

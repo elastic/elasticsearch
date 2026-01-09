@@ -1,0 +1,5 @@
+pr: 138372
+summary: ES|QL - KNN function options support k and visit_percentage parameters
+area: "ES|QL"
+type: enhancement
+issues: []

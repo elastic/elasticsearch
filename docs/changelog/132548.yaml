@@ -1,5 +1,0 @@
-pr: 132548
-summary: Have top level knn searches tracked in query stats
-area: Vector Search
-type: bug
-issues: []

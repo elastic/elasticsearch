@@ -386,4 +386,12 @@ public class ScriptScoreQuery extends Query {
 
     }
 
+    public boolean needsScore() {
+        return scriptBuilder.needs_score();
+    }
+
+    public ScriptScoreQuery cloneWithNewSubQuery(Query newSubQuery) {
+        return new ScriptScoreQuery(newSubQuery, script, scriptBuilder, lookup, minScore, indexName, shardId, indexVersion);
+    }
+
 }

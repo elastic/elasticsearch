@@ -1,0 +1,98 @@
+{
+  "cat.circuit_breaker": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
+      "description": "Get circuit breakers statistics"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain",
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_cat/circuit_breaker",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_cat/circuit_breaker/{circuit_breaker_patterns}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "circuit_breaker_patterns": {
+              "type": "list",
+              "description": "A comma-separated list of regular-expressions to filter the circuit breakers in the output"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "format": {
+        "type": "string",
+        "default": "text",
+        "description": "a short version of the Accept header, e.g. json, yaml"
+      },
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
+      },
+      "local": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "h": {
+        "type": "list",
+        "description": "Comma-separated list of column names to display"
+      },
+      "help": {
+        "type": "boolean",
+        "description": "Return help information",
+        "default": false
+      },
+      "s": {
+        "type": "list",
+        "description": "Comma-separated list of column names or column aliases to sort by"
+      },
+      "v": {
+        "type": "boolean",
+        "description": "Verbose mode. Display column headers",
+        "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
+      }
+    }
+  }
+}

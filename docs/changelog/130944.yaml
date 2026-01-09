@@ -1,6 +1,0 @@
-pr: 130944
-summary: Remove unnecessary calls to Fold
-area: ES|QL
-type: enhancement
-issues:
- - 119756

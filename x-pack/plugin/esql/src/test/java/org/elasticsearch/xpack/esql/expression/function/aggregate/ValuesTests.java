@@ -59,10 +59,13 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.geohashCases(1, 100),
+            MultiRowTestCaseSupplier.geotileCases(1, 100),
+            MultiRowTestCaseSupplier.geohexCases(1, 100)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override
@@ -76,7 +79,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             var expected = new HashSet<>(fieldTypedData.multiRowData());
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "Values[field=Attribute[channel=0]]",
+                standardAggregatorNameAllBytesTheSame("Values", fieldSupplier.type()),
                 fieldSupplier.type(),
                 valuesInAnyOrder(expected)
             );

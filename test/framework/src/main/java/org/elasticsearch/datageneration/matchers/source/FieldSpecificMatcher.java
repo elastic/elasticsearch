@@ -13,9 +13,13 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -47,13 +51,13 @@ interface FieldSpecificMatcher {
         return new HashMap<>() {
             {
                 put("keyword", new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("long", new NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("long", new LongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("unsigned_long", new UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("integer", new NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("short", new NumberMatcher("short", actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("byte", new NumberMatcher("byte", actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("double", new NumberMatcher("double", actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("float", new NumberMatcher("float", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("integer", new IntegerMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("short", new ShortMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("byte", new ByteMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("double", new DoubleMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("float", new FloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("half_float", new HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("scaled_float", new ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("counted_keyword", new CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -136,6 +140,9 @@ interface FieldSpecificMatcher {
         }
 
         private static List<String> normalize(List<Object> values) {
+            if (values == null) {
+                return List.of();
+            }
             return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
         }
     }
@@ -323,9 +330,15 @@ interface FieldSpecificMatcher {
                         yield nullValueBigInt;
                     }
 
-                    yield s;
+                    try {
+                        yield new BigInteger(s);
+                    } catch (NumberFormatException e) {
+                        // malformed
+                        yield value;
+                    }
                 }
                 case Long l -> BigInteger.valueOf(l);
+                case Integer i -> BigInteger.valueOf(i);
                 default -> value;
             };
 
@@ -352,28 +365,145 @@ interface FieldSpecificMatcher {
         }
     }
 
-    class NumberMatcher extends GenericMappingAwareMatcher {
-        NumberMatcher(
-            String fieldType,
+    abstract class NumberMatcher extends GenericMappingAwareMatcher {
+
+        private final NumberFieldMapper.NumberType numberType;
+
+        private NumberMatcher(
+            FieldType fieldType,
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
             Settings.Builder expectedSettings
         ) {
-            super(fieldType, actualMappings, actualSettings, expectedMappings, expectedSettings);
+            super(fieldType.toString(), actualMappings, actualSettings, expectedMappings, expectedSettings);
+            this.numberType = NumberFieldMapper.NumberType.valueOf(fieldType.name());
         }
 
         @Override
         Object convert(Object value, Object nullValue) {
             if (value == null) {
-                return nullValue;
-            }
-            // Special case for number coercion from strings
-            if (value instanceof String s && s.isEmpty()) {
-                return nullValue;
+                return cast(nullValue);
             }
 
+            // Special case for number coercion from strings
+            if (value instanceof String s && s.isEmpty()) {
+                return cast(nullValue);
+            }
+
+            // Attempt to coerce string values into numbers
+            if (value instanceof String s) {
+                try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, "\"" + s + "\"")) {
+                    parser.nextToken();
+                    return numberType.parse(parser, true);
+                } catch (Exception e) {
+                    // malformed string
+                    return value;
+                }
+            }
+
+            return cast(value);
+        }
+
+        // When a number mapping is coerced, the expected value will come from the above parser and will have the correct java type.
+        // Whereas, if it fits, the actual value will be in an Integer or a Double. To correctly treat expected and actual values as
+        // equal the actual value must be cast to the appropriate type.
+        abstract Object cast(Object value);
+    }
+
+    class LongMatcher extends NumberMatcher {
+        LongMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(FieldType.LONG, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        protected Object cast(Object value) {
+            return value instanceof Integer v ? v.longValue() : value;
+        }
+    }
+
+    class IntegerMatcher extends NumberMatcher {
+        IntegerMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(FieldType.INTEGER, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        protected Object cast(Object value) {
             return value;
+        }
+    }
+
+    class ShortMatcher extends NumberMatcher {
+        ShortMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(FieldType.SHORT, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        protected Object cast(Object value) {
+            return value instanceof Integer v ? v.shortValue() : value;
+        }
+    }
+
+    class ByteMatcher extends NumberMatcher {
+        ByteMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(FieldType.BYTE, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        protected Object cast(Object value) {
+            return value instanceof Integer v ? v.byteValue() : value;
+        }
+    }
+
+    class DoubleMatcher extends NumberMatcher {
+        DoubleMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(FieldType.DOUBLE, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        protected Object cast(Object value) {
+            return value;
+        }
+    }
+
+    class FloatMatcher extends NumberMatcher {
+        FloatMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(FieldType.FLOAT, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        protected Object cast(Object value) {
+            return value instanceof Integer v ? v.floatValue() : value;
         }
     }
 

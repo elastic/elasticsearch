@@ -56,8 +56,8 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getStringInputs();
+        EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         var serviceSettings = embeddingsModel.getServiceSettings();

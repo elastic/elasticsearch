@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -93,7 +92,7 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
-        CustomApiKeyAuthenticator customApiKeyAuthenticator,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
         MeterRegistry meterRegistry
     ) {
         this.realms = realms;
@@ -110,14 +109,15 @@ public class AuthenticationService {
         }
 
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
+            pluggableAuthenticatorChain,
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
-            new PluggableApiKeyAuthenticator(customApiKeyAuthenticator),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
         );

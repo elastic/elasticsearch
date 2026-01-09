@@ -19,8 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Predicates;
@@ -38,55 +36,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfig;
 
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
-
-    /**
-     * The remote address for the proxy. The connections will be opened to the configured address.
-     */
-    public static final Setting.AffixSetting<String> PROXY_ADDRESS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "proxy_address",
-        (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY, s -> {
-            if (Strings.hasLength(s)) {
-                parsePort(s);
-            }
-        }), Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    /**
-     * The maximum number of socket connections that will be established to a remote cluster. The default is 18.
-     */
-    public static final Setting.AffixSetting<Integer> REMOTE_SOCKET_CONNECTIONS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "proxy_socket_connections",
-        (ns, key) -> intSetting(
-            key,
-            18,
-            1,
-            new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
-
-    /**
-     * A configurable server_name attribute
-     */
-    public static final Setting.AffixSetting<String> SERVER_NAME = Setting.affixKeySetting(
-        "cluster.remote.",
-        "server_name",
-        (ns, key) -> Setting.simpleString(
-            key,
-            new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
 
     static final int CHANNELS_PER_CONNECTION = 1;
 
@@ -99,78 +53,20 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
-    ProxyConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        Settings settings
-    ) {
-        this(
-            clusterAlias,
-            transportService,
-            connectionManager,
-            settings,
-            REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings)
-        );
+    ProxyConnectionStrategy(ProxyLinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this(config, () -> resolveAddress(config.proxyAddress()), transportService, connectionManager);
     }
 
     ProxyConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        Settings settings,
-        int maxNumConnections,
-        String configuredAddress
-    ) {
-        this(
-            clusterAlias,
-            transportService,
-            connectionManager,
-            settings,
-            maxNumConnections,
-            configuredAddress,
-            () -> resolveAddress(configuredAddress),
-            null
-        );
-    }
-
-    ProxyConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        Settings settings,
-        int maxNumConnections,
-        String configuredAddress,
-        String configuredServerName
-    ) {
-        this(
-            clusterAlias,
-            transportService,
-            connectionManager,
-            settings,
-            maxNumConnections,
-            configuredAddress,
-            () -> resolveAddress(configuredAddress),
-            configuredServerName
-        );
-    }
-
-    ProxyConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        Settings settings,
-        int maxNumConnections,
-        String configuredAddress,
+        ProxyLinkedProjectConfig config,
         Supplier<TransportAddress> address,
-        String configuredServerName
+        TransportService transportService,
+        RemoteConnectionManager connectionManager
     ) {
-        super(clusterAlias, transportService, connectionManager, settings);
-        this.maxNumConnections = maxNumConnections;
-        this.configuredAddress = configuredAddress;
-        this.configuredServerName = configuredServerName;
+        super(config, transportService, connectionManager);
+        this.maxNumConnections = config.maxNumConnections();
+        this.configuredAddress = config.proxyAddress();
+        this.configuredServerName = config.serverName();
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) -> {
@@ -200,10 +96,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         };
     }
 
-    static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(ProxyConnectionStrategy.PROXY_ADDRESS);
-    }
-
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
         return ProxyModeInfo::new;
     }
@@ -214,13 +106,12 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     @Override
-    protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        String address = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        String serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return numOfSockets != maxNumConnections
-            || configuredAddress.equals(address) == false
-            || Objects.equals(serverName, configuredServerName) == false;
+    protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
+        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyLinkedProjectConfig.class;
+        final var proxyConfig = (ProxyLinkedProjectConfig) config;
+        return proxyConfig.maxNumConnections() != maxNumConnections
+            || configuredAddress.equals(proxyConfig.proxyAddress()) == false
+            || Objects.equals(proxyConfig.serverName(), configuredServerName) == false;
     }
 
     @Override
@@ -272,7 +163,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     exceptions.put(new Tuple<>(e.getClass(), e.getMessage()), e);
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
-                            logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
                             if (exceptions.values().stream().allMatch(RemoteConnectionStrategy::isRetryableException)) {
                                 finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
                             } else {
@@ -328,9 +218,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
-        final var e = new NoSeedNodeLeftException(
-            "Unable to open any proxy connections to cluster [" + clusterAlias + "] at address [" + address.get() + "]"
+        final var msg = Strings.format(
+            "Unable to open any proxy connections to cluster [%s] at address [%s], configuredAddress=[%s], configuredServerName=[%s]",
+            clusterAlias,
+            address.get(),
+            configuredAddress,
+            configuredServerName
         );
+        final var e = new NoSeedNodeLeftException(msg);
         suppressedExceptions.forEach(e::addSuppressed);
         return e;
     }
@@ -406,6 +301,22 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public int hashCode() {
             return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
+        }
+
+        @Override
+        public String toString() {
+            return "ProxyModeInfo{"
+                + "address='"
+                + address
+                + '\''
+                + ", serverName='"
+                + serverName
+                + '\''
+                + ", maxSocketConnections="
+                + maxSocketConnections
+                + ", numSocketsConnected="
+                + numSocketsConnected
+                + '}';
         }
     }
 }

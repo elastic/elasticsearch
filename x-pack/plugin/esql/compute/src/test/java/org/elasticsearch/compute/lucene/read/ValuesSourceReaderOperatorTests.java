@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -48,6 +48,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -77,6 +79,8 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -155,16 +159,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     static Operator.OperatorFactory factory(IndexReader reader, String name, ElementType elementType, BlockLoader loader) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, shardIdx -> {
                 if (shardIdx != 0) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
                 return loader;
             })),
-            List.of(
+            new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    () -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -178,7 +182,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private int commitEvery(int numDocs) {
-        return Math.max(1, (int) Math.ceil((double) numDocs / 10));
+        return Math.max(1, (int) Math.ceil((double) numDocs / 8));
     }
 
     private SourceOperator simpleInput(DriverContext context, int size, int commitEvery, int pageSize) {
@@ -192,8 +196,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private SourceOperator sourceOperator(DriverContext context, int pageSize) {
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             DataPartitioning.SHARD,
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -497,10 +501,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
                 List.of(testCase.info, fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
-                List.of(
+                new IndexedByShardIdFromSingleton<>(
                     new ValuesSourceReaderOperator.ShardContext(
                         reader,
-                        () -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 ),
@@ -554,7 +558,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, shardIdx -> {
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> {
             if (shardIdx != 0) {
                 fail("unexpected shardIdx [" + shardIdx + "]");
             }
@@ -617,10 +621,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
                 List.of(fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
-                List.of(
+                new IndexedByShardIdFromSingleton<>(
                     new ValuesSourceReaderOperator.ShardContext(
                         reader,
-                        () -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 ),
@@ -636,10 +640,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.Factory(
                     ByteSizeValue.ofGb(1),
                     b.stream().map(i -> i.info).toList(),
-                    List.of(
+                    new IndexedByShardIdFromSingleton<>(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -723,8 +727,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         int numDocs = between(100, 5000);
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, commitEvery(numDocs), numDocs));
-        assertThat(reader.leaves(), hasSize(10));
-        assertThat(input, hasSize(10));
+        assertThat(reader.leaves(), hasSize(8));
+        assertThat(input, hasSize(8));
         List<FieldCase> cases = infoAndChecksForEachType(
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
@@ -735,10 +739,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 i -> new ValuesSourceReaderOperator.Factory(
                     ByteSizeValue.ofGb(1),
                     List.of(i.info),
-                    List.of(
+                    new IndexedByShardIdFromSingleton<>(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -902,7 +906,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.FieldInfo(
                     "constant_bytes",
                     ElementType.BYTES_REF,
-                    shardIdx -> BlockLoader.constantBytes(new BytesRef("foo"))
+                    false,
+                    shardIdx -> new ConstantBytes(new BytesRef("foo"))
                 ),
                 checks::constantBytes,
                 StatusChecks::constantBytes
@@ -910,7 +915,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
+                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE),
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -942,7 +947,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));
-        assertThat(reader.leaves(), hasSize(manySegments ? greaterThan(5) : equalTo(1)));
+        assertThat(reader.leaves(), hasSize(manySegments ? greaterThan(1) : equalTo(1)));
         assertThat(input, hasSize(reader.leaves().size()));
         if (manySegments) {
             input = List.of(CannedSourceOperator.mergePages(input));
@@ -968,10 +973,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 i -> new ValuesSourceReaderOperator.Factory(
                     ByteSizeValue.ofGb(1),
                     List.of(i.info),
-                    List.of(
+                    new IndexedByShardIdFromSingleton<>(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -1307,16 +1312,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             if (forcedRowByRow) {
                 assertMap(
                     readers,
-                    matchesMap().entry(
-                        "text_with_delegate:row_stride:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
-                        segmentCount
-                    )
+                    matchesMap().entry("text_with_delegate:row_stride:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]", segmentCount)
                 );
             } else {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]",
                         lessThanOrEqualTo(pageCount)
                     )
                 );
@@ -1328,7 +1330,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
                         equalTo(segmentCount)
                     )
                 );
@@ -1336,7 +1338,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
                         lessThanOrEqualTo(pageCount)
                     )
                 );
@@ -1372,15 +1374,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":row_stride:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(segmentCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount)));
             } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount)));
             }
         }
 
@@ -1393,21 +1389,32 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                Integer singletons = (Integer) readers.remove(name + ":row_stride:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":row_stride:" + singleName(type));
                 if (singletons != null) {
                     segmentCount -= singletons;
                 }
-                assertMap(readers, matchesMap().entry(name + ":row_stride:BlockDocValuesReader." + type, segmentCount));
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + multiName(type), segmentCount));
             } else {
-                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
                 if (singletons != null) {
                     pageCount -= singletons;
                 }
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader." + type, lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
             }
+        }
+
+        static String singleName(String type) {
+            return switch (type) {
+                case "Ordinals" -> "BytesRefsFromOrds.Singleton";
+                default -> type + "FromDocValues.Singleton";
+            };
+        }
+
+        static String multiName(String type) {
+            return switch (type) {
+                case "Ordinals" -> "BytesRefsFromOrds.SortedSet";
+                default -> type + "FromDocValues.Sorted";
+            };
         }
 
         static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -1504,8 +1511,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -1572,15 +1579,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ft.setDocValuesType(DocValuesType.NONE);
         ft.setStored(true);
         ft.freeze();
-        return new KeywordFieldMapper.KeywordFieldType(
-            name,
-            ft,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
-            true // TODO randomize - load from stored keyword fields if stored even in synthetic source
-        );
+        return new KeywordFieldMapper.KeywordFieldType(name, ft, false);
     }
 
     private TextFieldMapper.TextFieldType storedTextField(String name) {
@@ -1589,7 +1588,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false,
             true,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-            true, // TODO randomize - if the field is stored we should load from the stored field even if there is source
+            true, // TODO randomize - if the field is stored we should load from the stored field even if there is source]
+            false,
             null,
             Map.of(),
             false,
@@ -1604,6 +1604,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             randomBoolean(),
+            false,
             delegate,
             Map.of(),
             false,
@@ -1622,13 +1623,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new ValuesSourceReaderOperator.Factory(
                         ByteSizeValue.ofGb(1),
                         List.of(
-                            new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
-                            new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
+                            new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE),
+                            new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE)
                         ),
-                        List.of(
+                        new IndexedByShardIdFromSingleton<>(
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
-                                () -> SourceLoader.FROM_STORED_SOURCE,
+                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                                 STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                             )
                         ),
@@ -1677,10 +1678,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 fieldInfo(mapperService.fieldType("key"), ElementType.INT),
                 fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
             ),
-            List.of(
+            new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    () -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -1696,7 +1697,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         assertMap(
             status.readersBuilt(),
-            matchesMap().entry("key:column_at_a_time:BlockDocValuesReader.SingletonInts", 1)
+            matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
                 .entry("stored_text:column_at_a_time:null", 1)
                 .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
@@ -1712,10 +1713,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
-            List.of(
+            new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    () -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -1748,14 +1749,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 readerShardContexts.add(
                     new ValuesSourceReaderOperator.ShardContext(
                         readers[s],
-                        () -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 );
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
-                contexts,
-                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                new IndexedByShardIdFromList<>(contexts),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 randomIntBetween(1, 10),
@@ -1766,11 +1767,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, shardIdx -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
                     seenShards.add(shardIdx);
                     return ft.blockLoader(blContext());
                 })),
-                readerShardContexts,
+                new IndexedByShardIdFromList<>(readerShardContexts),
                 0
             );
             DriverContext driverContext = driverContext();

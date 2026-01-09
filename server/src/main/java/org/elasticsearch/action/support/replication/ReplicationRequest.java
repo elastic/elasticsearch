@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshActio
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -39,6 +41,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(1);
 
+    // superseded
+    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SUMMARY = TransportVersion.fromName("index_reshard_shardcount_summary");
+    // bumped to use VInt instead of Int
+    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SMALL = TransportVersion.fromName("index_reshard_shardcount_small");
+
     /**
      * Target shard the request should execute on. In case of index and delete requests,
      * shard id gets resolved by the transport action before performing request operation
@@ -48,6 +55,12 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     protected TimeValue timeout;
     protected String index;
+
+    /**
+     * The reshardSplitShardCountSummary has been added to support in-place resharding.
+     * See {@link SplitShardCountSummary} for details.
+     */
+    protected final SplitShardCountSummary reshardSplitShardCountSummary;
 
     /**
      * The number of shard copies that must be active before proceeding with the replication action.
@@ -61,6 +74,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        this(shardId, SplitShardCountSummary.UNSET, in);
+    }
+
+    public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary, StreamInput in)
+        throws IOException {
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
@@ -80,15 +98,34 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
+        if (thinRead) {
+            this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+        } else {
+            if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
+                this.reshardSplitShardCountSummary = new SplitShardCountSummary(in);
+            } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
+                this.reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readInt());
+            } else {
+                this.reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
+            }
+        }
     }
 
     /**
      * Creates a new request with resolved shard id
      */
     public ReplicationRequest(@Nullable ShardId shardId) {
+        this(shardId, SplitShardCountSummary.UNSET);
+    }
+
+    /**
+     * Creates a new request with resolved shard id and reshardSplitShardCountSummary
+     */
+    public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
         this.timeout = DEFAULT_TIMEOUT;
+        this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
     }
 
     /**
@@ -135,6 +172,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     @Nullable
     public ShardId shardId() {
         return shardId;
+    }
+
+    /**
+     * @return The effective shard count as seen by the coordinator when creating this request.
+     * can be 0 if this has not yet been resolved.
+     */
+    public SplitShardCountSummary reshardSplitShardCountSummary() {
+        return reshardSplitShardCountSummary;
     }
 
     /**
@@ -191,11 +236,16 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
+        if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
+            reshardSplitShardCountSummary.writeTo(out);
+        } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
+            out.writeInt(reshardSplitShardCountSummary.asInt());
+        }
     }
 
     /**
      * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
-     * {@link #shardId}.
+     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #reshardSplitShardCountSummary}.
      */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);

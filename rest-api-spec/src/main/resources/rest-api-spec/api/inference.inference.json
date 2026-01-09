@@ -1,20 +1,26 @@
 {
   "inference.inference": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
-      "description": "Perform inference"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-inference",
+      "description": "Perform inference on the service"
     },
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_inference/{inference_id}",
-          "methods": ["POST"],
+          "methods": [
+            "POST"
+          ],
           "parts": {
             "inference_id": {
               "type": "string",
@@ -24,11 +30,20 @@
         },
         {
           "path": "/_inference/{task_type}/{inference_id}",
-          "methods": ["POST"],
+          "methods": [
+            "POST"
+          ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "sparse_embedding",
+                "text_embedding",
+                "rerank",
+                "completion",
+                "chat_completion"
+              ]
             },
             "inference_id": {
               "type": "string",
@@ -39,7 +54,15 @@
       ]
     },
     "body": {
-      "description": "The inference payload"
+      "description": "The inference payload",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "The amount of time to wait for the inference request to complete.",
+        "default": "30s"
+      }
     }
   }
 }

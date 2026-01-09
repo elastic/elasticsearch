@@ -1,0 +1,5 @@
+pr: 138822
+summary: "CPS: Enable flatworld search and `project_routing` for `_msearch`"
+area: CCS
+type: enhancement
+issues: []

@@ -58,11 +58,11 @@ public record UnifiedCompletionRequest(
     private static final String ROLE_FIELD = "role";
     private static final String CONTENT_FIELD = "content";
     private static final String STOP_FIELD = "stop";
-    private static final String TEMPERATURE_FIELD = "temperature";
-    private static final String TOOL_CHOICE_FIELD = "tool_choice";
-    private static final String TOOL_FIELD = "tools";
+    public static final String TEMPERATURE_FIELD = "temperature";
+    public static final String TOOL_CHOICE_FIELD = "tool_choice";
+    public static final String TOOL_FIELD = "tools";
     private static final String TEXT_FIELD = "text";
-    private static final String TYPE_FIELD = "type";
+    public static final String TYPE_FIELD = "type";
     private static final String MODEL_FIELD = "model";
     private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
     private static final String MAX_TOKENS_FIELD = "max_tokens";
@@ -89,31 +89,34 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
-     * - Key: {@link #MODEL_FIELD}, Value: modelId
+     * - Key: {@link #MODEL_FIELD}, Value: modelId, if modelId is not null
      * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
-    public static Params withMaxTokens(String modelId, Params params) {
-        return new DelegatingMapParams(
-            Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)),
-            params
-        );
+    public static Params withMaxTokens(@Nullable String modelId, Params params) {
+        Map<String, String> entries = modelId != null
+            ? Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD))
+            : Map.ofEntries(Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD));
+        return new DelegatingMapParams(entries, params);
     }
 
     /**
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
-     * - Key: {@link #MODEL_FIELD}, Value: modelId
-     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
+     * - Key: {@link #MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
      */
-    public static Params withMaxTokensAndSkipStreamOptionsField(String modelId, Params params) {
-        return new DelegatingMapParams(
-            Map.ofEntries(
+    public static Params withMaxTokensAndSkipStreamOptionsField(@Nullable String modelId, Params params) {
+        Map<String, String> entries = modelId != null
+            ? Map.ofEntries(
                 Map.entry(MODEL_ID_PARAM, modelId),
                 Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
                 Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
-            ),
-            params
-        );
+            )
+            : Map.ofEntries(
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
+            );
+        return new DelegatingMapParams(entries, params);
     }
 
     /**
@@ -132,7 +135,7 @@ public record UnifiedCompletionRequest(
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
      * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
-    public static Params withMaxCompletionTokensTokens(Params params) {
+    public static Params withMaxCompletionTokens(Params params) {
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
     }
 

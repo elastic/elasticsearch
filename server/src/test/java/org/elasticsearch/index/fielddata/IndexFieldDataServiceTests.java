@@ -24,17 +24,16 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -79,24 +78,19 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.current()).build(context).fieldType();
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", defaultIndexSettings()).build(context).fieldType();
         ifdService.clear();
-        IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(
-                context
-            ).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType()
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType()
         )) {
             ifdService.clear();
-            fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
+            fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test", "test"));
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
@@ -104,28 +98,17 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             "float",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
+            defaultIndexSettings()
         ).build(context).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
+        fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
-            "double",
-            DOUBLE,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(context).fieldType();
+        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(context)
+            .fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));
+        fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
     }
 
@@ -164,16 +147,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder(
-            "field_1",
-            createDefaultIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
-        ).fielddata(true).build(context).fieldType();
-        final MappedFieldType mapper2 = new TextFieldMapper.Builder(
-            "field_2",
-            createDefaultIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
-        ).fielddata(true).build(context).fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(context)
+            .fieldType();
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(context)
+            .fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
@@ -193,8 +172,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test"));
-        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test", "test"));
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, FieldDataContext.noRuntimeFields("test", "test"));
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
@@ -218,8 +197,6 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertEquals(2, onRemovalCalled.get());
 
         reader.close();
-        loadField1.close();
-        loadField2.close();
         writer.close();
         ifdService.clear();
     }
@@ -235,11 +212,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder(
-            "s",
-            createDefaultIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
-        ).fielddata(true).build(context).fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(context)
+            .fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -270,13 +245,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test", "test"));
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
         reader.close();
-        load.close();
         writer.close();
         assertEquals(1, onCacheCalled.get());
         assertEquals(1, onRemovalCalled.get());
@@ -311,11 +285,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, null);
         IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", settings), cache, null);
         if (ft.hasDocValues()) {
-            ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
+            ifds.getForField(ft, FieldDataContext.noRuntimeFields("test", "test")); // no exception
         } else {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
+                () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test", "test"))
             );
             assertThat(e.getMessage(), containsString("doc values"));
         }
@@ -327,8 +301,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 LONG,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -348,8 +321,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberType.DOUBLE,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -366,7 +338,16 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(
-            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false, false)
+            new BooleanFieldMapper.BooleanFieldType(
+                "field",
+                IndexType.terms(true, false),
+                false,
+                null,
+                null,
+                Collections.emptyMap(),
+                false,
+                false
+            )
         );
     }
 

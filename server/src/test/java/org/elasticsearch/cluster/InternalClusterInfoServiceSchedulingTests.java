@@ -33,7 +33,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
@@ -56,10 +59,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test");
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
         final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
+        final DiscoveryNode joiner = DiscoveryNodeUtils.create("joiner");
+        final DiscoveryNodes withJoiner = DiscoveryNodes.builder(localMaster).add(joiner).build();
 
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName())
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 randomBoolean()
@@ -108,7 +114,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
                 new RerouteService() {
                     @Override
                     public void reroute(String reason, Priority priority, ActionListener<Void> listener) {}
-                }
+                },
+                MeterRegistry.NOOP
             )
         );
         clusterInfoService.addListener(usageMonitor::onNewInfo);
@@ -128,6 +135,45 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             setFlagOnSuccess(becameMaster1)
         );
         runUntilFlag(deterministicTaskQueue, becameMaster1);
+
+        // A node joins the cluster
+        {
+            Mockito.clearInvocations(mockEstimatedHeapUsageCollector, nodeUsageStatsForThreadPoolsCollector);
+            final int initialRequestCount = client.requestCount;
+            final AtomicBoolean nodeJoined = new AtomicBoolean();
+            clusterApplierService.onNewClusterState(
+                "node joins",
+                () -> ClusterState.builder(new ClusterName("cluster")).nodes(withJoiner).build(),
+                setFlagOnSuccess(nodeJoined)
+            );
+            // Don't use runUntilFlag because we don't want the scheduled task to run
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(nodeJoined.get());
+            // Addition of node should have triggered refresh
+            // should have run two client requests: nodes stats request and indices stats request
+            assertThat(client.requestCount, equalTo(initialRequestCount + 2));
+            verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
+            verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
+        }
+
+        // ... then leaves
+        {
+            Mockito.clearInvocations(mockEstimatedHeapUsageCollector, nodeUsageStatsForThreadPoolsCollector);
+            final int initialRequestCount = client.requestCount;
+            final AtomicBoolean nodeLeft = new AtomicBoolean();
+            clusterApplierService.onNewClusterState(
+                "node leaves",
+                () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
+                setFlagOnSuccess(nodeLeft)
+            );
+            // Don't use runUntilFlag because we don't want the scheduled task to run
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(nodeLeft.get());
+            // departing nodes don't trigger refreshes
+            assertThat(client.requestCount, equalTo(initialRequestCount));
+            verifyNoInteractions(mockEstimatedHeapUsageCollector);
+            verifyNoInteractions(nodeUsageStatsForThreadPoolsCollector);
+        }
 
         final AtomicBoolean failMaster1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(

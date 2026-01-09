@@ -113,6 +113,6 @@ public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<Rer
 
     @Override
     protected RerankTaskSettings mutateInstance(RerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, RerankTaskSettingsTests::createRandom);
+        return new RerankTaskSettings(instance.returnDocuments() == false);
     }
 }

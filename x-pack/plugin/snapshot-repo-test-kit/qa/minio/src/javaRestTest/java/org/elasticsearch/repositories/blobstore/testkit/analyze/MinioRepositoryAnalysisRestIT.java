@@ -31,13 +31,10 @@ public class MinioRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         .distribution(DistributionType.DEFAULT)
         .keystore("s3.client.repository_test_kit.access_key", "s3_test_access_key")
         .keystore("s3.client.repository_test_kit.secret_key", "s3_test_secret_key")
+        .setting("thread_pool.snapshot.max", "10")
         .setting("s3.client.repository_test_kit.endpoint", minioFixture::getAddress)
+        .setting("repositories.blobstore.testkit.analyze.copy_during_write_contention", "false")
         .setting("xpack.security.enabled", "false")
-        // Skip listing of pre-existing uploads during a CAS because MinIO sometimes leaks them; also reduce the delay before proceeding
-        // TODO do not set these if running a MinIO version in which https://github.com/minio/minio/issues/21189
-        // and https://github.com/minio/minio/issues/21456 are both fixed
-        .setting("repository_s3.compare_and_exchange.time_to_live", "-1")
-        .setting("repository_s3.compare_and_exchange.anti_contention_delay", "100ms")
         .setting("xpack.ml.enabled", "false")
         .build();
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collection;
@@ -42,15 +43,52 @@ public interface IndicesRequest {
         return false;
     }
 
-    interface Replaceable extends IndicesRequest {
+    /**
+     * Interface for indicating potential work related to cross-project authentication and authorization.
+     */
+    interface CrossProjectCandidate {
+
+        /**
+         * Determines whether the request type can support cross-project processing. Cross-project processing entails
+         * 1. UIAM authentication and authorization projects resolution.
+         * 2. If applicable, cross-project flat-world index resolution and error handling
+         * Note: this method only determines in the request _supports_ cross-project. Whether cross-project processing
+         * is actually performed depends on other factors such as:
+         * - Whether CPS is enabled which impacts both 1 and 2.
+         * - Whether {@link IndicesOptions} supports it when the request is an {@link IndicesRequest}. This only impacts 2.
+         * See also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
+         */
+        default boolean allowsCrossProject() {
+            return false;
+        }
+    }
+
+    interface Replaceable extends IndicesRequest, CrossProjectCandidate {
         /**
          * Sets the indices that the action relates to.
          */
         IndicesRequest indices(String... indices);
 
         /**
+         * Record the results of index resolution. See {@link ResolvedIndexExpressions} for details.
+         * Note: this method does not replace {@link #indices(String...)}. {@link #indices(String...)} must still be called to update
+         * the actual list of indices the request relates to.
+         * Note: the field is transient and not serialized.
+         */
+        default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}
+
+        /**
+         * Returns the results of index resolution, if recorded via
+         * {@link #setResolvedIndexExpressions(ResolvedIndexExpressions)}. Null if not recorded.
+         */
+        @Nullable
+        default ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return null;
+        }
+
+        /**
          * Determines whether the request can contain indices on a remote cluster.
-         *
+         * <p>
          * NOTE in theory this method can belong to the {@link IndicesRequest} interface because whether a request
          * allowing remote indices has no inherent relationship to whether it is {@link Replaceable} or not.
          * However, we don't have an existing request that is non-replaceable but allows remote indices.
@@ -62,6 +100,11 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+
+        @Nullable // if no routing is specified
+        default String getProjectRouting() {
+            return null;
+        }
     }
 
     /**
@@ -71,10 +114,24 @@ public interface IndicesRequest {
      *
      * This may change with https://github.com/elastic/elasticsearch/issues/105598
      */
-    interface SingleIndexNoWildcards extends IndicesRequest {
+    interface SingleIndexNoWildcards extends IndicesRequest, CrossProjectCandidate {
         default boolean allowsRemoteIndices() {
             return true;
         }
+
+        /**
+         * Determines whether the request type allows cross-project processing. Cross-project processing entails cross-project search
+         * index resolution and error handling. Note: this method only determines in the request _supports_ cross-project.
+         * Whether cross-project processing is actually performed is determined by {@link IndicesOptions}.
+         */
+        default boolean allowsCrossProject() {
+            return true;
+        }
+
+        /**
+         * Marks request local. Local requests should be processed on the same cluster, even if they have cluster-alias prefix.
+         */
+        void markOriginOnly();
     }
 
     /**

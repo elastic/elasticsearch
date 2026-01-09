@@ -55,57 +55,57 @@ public final class SearchSlowLog implements SearchOperationListener {
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.info",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.debug",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.trace",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.warn",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.info",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.debug",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING = Setting.timeSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.trace",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -115,10 +115,10 @@ public final class SearchSlowLog implements SearchOperationListener {
      * TODO: Remove in 9.0
      */
     @Deprecated
-    public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
+    public static final Setting<String> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".level",
-        SlowLogLevel.TRACE.name(),
-        SlowLogLevel::parse,
+        "",
+        s -> s,
         Property.Dynamic,
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8

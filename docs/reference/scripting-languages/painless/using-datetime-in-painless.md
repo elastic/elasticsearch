@@ -575,6 +575,7 @@ Under most Painless contexts the current datetime, `now`, is not supported. Ther
           }
         }
         ```
+        % NOTCONSOLE
 
     * Input:
 
@@ -588,6 +589,7 @@ Under most Painless contexts the current datetime, `now`, is not supported. Ther
         }
         ...
         ```
+        % NOTCONSOLE
 
     * Script:
 
@@ -597,6 +599,7 @@ Under most Painless contexts the current datetime, `now`, is not supported. Ther
         long millisDateTime = inputDateTime.toInstant().toEpochMilli();
         long elapsedTime = now - millisDateTime;
         ```
+        % NOTCONSOLE
 
 * Use a string datetime as `now`
 
@@ -622,6 +625,7 @@ Under most Painless contexts the current datetime, `now`, is not supported. Ther
           }
         }
         ```
+        % NOTCONSOLE
 
     * Input:
 
@@ -635,6 +639,7 @@ Under most Painless contexts the current datetime, `now`, is not supported. Ther
         }
         ...
         ```
+        % NOTCONSOLE
 
     * Script:
 
@@ -646,6 +651,7 @@ Under most Painless contexts the current datetime, `now`, is not supported. Ther
         long millisDateTime = zdt.toInstant().toEpochMilli();
         long elapsedTime = now - millisDateTime;
         ```
+        % NOTCONSOLE
 
         1. Note this parses the same string datetime every time the script runs. Use a numeric datetime to avoid a significant performance hit.
 
@@ -704,6 +710,7 @@ Run the following curl commands to load the data necessary for the context examp
     { "index" : { "_index" : "messages", "_id" : "10" } }
     { "priority": 2, "datetime": "2019-07-23T23:39:54Z", "message": "m10" }
     ```
+    % TEST[continued]
 
 
 
@@ -723,7 +730,7 @@ GET /messages/_search?pretty=true
   }
 }
 ```
-
+% TEST[continued]
 
 ### Morning/Evening Bucket Aggregation Example [_morningevening_bucket_aggregation_example]
 
@@ -741,7 +748,7 @@ GET /messages/_search?pretty=true
   }
 }
 ```
-
+% TEST[continued]
 
 ### Age of a Message Script Field Example [_age_of_a_message_script_field_example]
 
@@ -765,6 +772,7 @@ GET /_search?pretty=true
   }
 }
 ```
+% TEST[continued]
 
 The following shows the script broken into multiple lines:
 

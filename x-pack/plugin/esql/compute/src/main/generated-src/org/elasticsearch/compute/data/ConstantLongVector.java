@@ -104,6 +104,11 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public LongVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantLongVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
         return RAM_BYTES_USED;
     }

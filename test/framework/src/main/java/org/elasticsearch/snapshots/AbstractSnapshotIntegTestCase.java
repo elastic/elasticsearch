@@ -102,8 +102,6 @@ import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
-    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
-
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
     protected static final int LARGE_POOL_SIZE = 10;
@@ -381,7 +379,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }
@@ -568,7 +566,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         );
     }
 
-    protected void awaitNDeletionsInProgress(int count) throws Exception {
+    protected void awaitNDeletionsInProgress(int count) {
         logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
         awaitClusterState(state -> SnapshotDeletionsInProgress.get(state).getEntries().size() == count);
     }
@@ -580,7 +578,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(
-            logger,
             viaNode,
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
@@ -615,13 +612,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .execute();
     }
 
-    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) {
         awaitNumberOfSnapshotsInProgress(logger, count);
     }
 
-    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(logger, state -> SnapshotsInProgress.get(state).count() == count);
+        awaitClusterState(state -> SnapshotsInProgress.get(state).count() == count);
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
@@ -855,7 +852,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + randomIdentifier() + "-";
+        final String prefix = randomSnapshotName() + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);

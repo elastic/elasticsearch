@@ -47,8 +47,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -72,6 +75,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
 import java.time.Instant;
@@ -361,7 +365,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -386,7 +390,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -411,7 +415,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -438,7 +442,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             );
 
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -477,7 +481,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -508,7 +512,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ProjectId projectId = randomProjectIdOrDefault();
             var clusterState = createClusterStateWith(projectId, List.of(routingTable), List.of());
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -534,7 +538,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
-            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata(), randomNonNegativeInt());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
@@ -1791,32 +1795,31 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         {
             // assert the full result to check that details, impacts, and symptoms use the correct count of affected indices (5)
-            assertThat(
-                service.calculate(true, 2, HealthInfo.EMPTY_HEALTH_INFO),
-                equalTo(
-                    createExpectedResult(
-                        RED,
-                        "This cluster has 5 unavailable primary shards.",
-                        Map.of("unassigned_primaries", 5),
-                        List.of(
-                            new HealthIndicatorImpact(
-                                NAME,
-                                ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
-                                1,
-                                "Cannot add data to 5 indices [red-index1, red-index2, red-index3, red-index4, red-index5]. Searches might "
-                                    + "return incomplete results.",
-                                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
-                            )
-                        ),
-                        List.of(
-                            new Diagnosis(
-                                ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                                List.of(new Diagnosis.Resource(INDEX, List.of("red-index1", "red-index2")))
-                            )
-                        )
+            // since we limit the number of allocation explanations while looping over the shards, we can't guarantee
+            // which indices end up in the affected resources list, but we can at least check that the size is correct
+            var calculatedResult = service.calculate(true, 2, HealthInfo.EMPTY_HEALTH_INFO);
+            assertEquals(RED, calculatedResult.status());
+            assertEquals("This cluster has 5 unavailable primary shards.", calculatedResult.symptom());
+            assertEquals(new SimpleHealthIndicatorDetails(addDefaults(Map.of("unassigned_primaries", 5))), calculatedResult.details());
+            assertEquals(
+                List.of(
+                    new HealthIndicatorImpact(
+                        NAME,
+                        ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                        1,
+                        "Cannot add data to 5 indices [red-index1, red-index2, red-index3, red-index4, red-index5]. Searches might "
+                            + "return incomplete results.",
+                        List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                     )
-                )
+                ),
+                calculatedResult.impacts()
             );
+            assertEquals("Expected 1 diagnosis but got " + calculatedResult.diagnosisList(), 1, calculatedResult.diagnosisList().size());
+            var diagnosis = calculatedResult.diagnosisList().get(0);
+            assertEquals(ACTION_CHECK_ALLOCATION_EXPLAIN_API, diagnosis.definition());
+            assertEquals("Expected 1 affected resource but got " + diagnosis.affectedResources(), 1, diagnosis.affectedResources().size());
+            var affectedResource = diagnosis.affectedResources().get(0);
+            assertEquals("Expected 2 indices but got " + affectedResource.getValues(), 2, affectedResource.getValues().size());
         }
 
         {
@@ -1838,11 +1841,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
 
         {
-            // 0 affected resources
-            assertThat(
-                service.calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO).diagnosisList(),
-                equalTo(List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of())))))
-            );
+            // 0 affected resources means we don't do any shard allocation explanation and thus do not report any diagnosis
+            assertThat(service.calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO).diagnosisList(), equalTo(List.of()));
         }
     }
 
@@ -2363,6 +2363,32 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testDeterministicShardAvailabilityKeyOrder() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ClusterState clusterState = createClusterStateWith(projectId, List.of(), List.of());
+        final ShardsAvailabilityHealthIndicatorService service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+
+        final HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        final String detailsJson = Strings.toString(result.details());
+        final Map<String, Object> details = XContentHelper.convertToMap(new BytesArray(detailsJson), true, XContentType.JSON).v2();
+
+        final List<String> actualKeys = details.entrySet().stream().map(Map.Entry::getKey).toList();
+        final List<String> expectedKeys = List.of(
+            "unassigned_primaries",
+            "initializing_primaries",
+            "creating_primaries",
+            "restarting_primaries",
+            "started_primaries",
+            "unassigned_replicas",
+            "initializing_replicas",
+            "creating_replicas",
+            "restarting_replicas",
+            "started_replicas"
+        );
+
+        assertThat(actualKeys, equalTo(expectedKeys));
     }
 
     private HealthIndicatorResult createExpectedResult(

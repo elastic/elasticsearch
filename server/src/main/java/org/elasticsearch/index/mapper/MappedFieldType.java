@@ -14,7 +14,6 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -24,7 +23,6 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
@@ -37,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -53,7 +52,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -66,25 +64,14 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 public abstract class MappedFieldType {
 
     private final String name;
-    private final boolean docValues;
-    private final boolean isIndexed;
+    protected final IndexType indexType;
     private final boolean isStored;
-    private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
 
-    public MappedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
+    public MappedFieldType(String name, IndexType indexType, boolean isStored, Map<String, String> meta) {
         this.name = Mapper.internFieldName(name);
-        this.isIndexed = isIndexed;
+        this.indexType = indexType;
         this.isStored = isStored;
-        this.docValues = hasDocValues;
-        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
         // irrelevant
         this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
@@ -133,7 +120,7 @@ public abstract class MappedFieldType {
     }
 
     public boolean hasDocValues() {
-        return docValues;
+        return indexType.hasDocValues();
     }
 
     /**
@@ -156,14 +143,14 @@ public abstract class MappedFieldType {
      * Returns true if the field is searchable.
      */
     public boolean isSearchable() {
-        return isIndexed;
+        return indexType != IndexType.NONE;
     }
 
     /**
-     * Returns true if the field is indexed.
+     * Returns the IndexType of this field
      */
-    public final boolean isIndexed() {
-        return isIndexed;
+    public final IndexType indexType() {
+        return indexType;
     }
 
     /**
@@ -387,7 +374,7 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Returns a Lucine pushable Query for the current field
+     * Returns a Lucene pushable Query for the current field
      * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
      */
     public Query automatonQuery(
@@ -404,7 +391,7 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || (isIndexed() && getTextSearchInfo().hasNorms())) {
+        if (hasDocValues() || (indexType.hasTerms() && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
@@ -445,72 +432,6 @@ public abstract class MappedFieldType {
                 + "["
                 + DistanceFeatureQueryBuilder.NAME
                 + "] query can only be run on a date, date_nanos or geo_point field type!"
-        );
-    }
-
-    /**
-     * Create an {@link IntervalsSource} for the given term.
-     */
-    public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create an {@link IntervalsSource} for the given prefix.
-     */
-    public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a fuzzy {@link IntervalsSource} for the given term.
-     */
-    public IntervalsSource fuzzyIntervals(
-        String term,
-        int maxDistance,
-        int prefixLength,
-        boolean transpositions,
-        SearchExecutionContext context
-    ) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a wildcard {@link IntervalsSource} for the given pattern.
-     */
-    public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a regexp {@link IntervalsSource} for the given pattern.
-     */
-    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a range {@link IntervalsSource} for the given ranges
-     */
-    public IntervalsSource rangeIntervals(
-        BytesRef lowerTerm,
-        BytesRef upperTerm,
-        boolean includeLower,
-        boolean includeUpper,
-        SearchExecutionContext context
-    ) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
@@ -558,21 +479,21 @@ public abstract class MappedFieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (isIndexed == false) {
+        if (indexType.hasOnlyDocValues() || indexType == IndexType.NONE) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
     }
 
     protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
-        if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
+        if (indexType.hasDocValues() == false && context.indexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalArgumentException(
                 "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
             );
-        } else if (isIndexed == false && docValues == false) {
+        } else if (indexType == IndexType.NONE) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
-        } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
+        } else if (indexType.hasOnlyDocValues() && context.allowExpensiveQueries() == false) {
             // if query can only run using doc values, ensure running expensive queries are allowed
             throw new ElasticsearchException(
                 "Cannot search on field ["
@@ -649,7 +570,7 @@ public abstract class MappedFieldType {
      * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
-        return textSearchInfo;
+        return TextSearchInfo.NONE;
     }
 
     public enum CollapseType {
@@ -722,6 +643,10 @@ public abstract class MappedFieldType {
         return null;
     }
 
+    public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+        return false;
+    }
+
     public enum FieldExtractPreference {
         /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.
@@ -740,7 +665,7 @@ public abstract class MappedFieldType {
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED;
+        STORED
     }
 
     /**
@@ -783,6 +708,19 @@ public abstract class MappedFieldType {
          * The {@code _field_names} field mapper, mostly used to check if it is enabled.
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
+
+        /**
+         * MappingLookup for the queried index.
+         */
+        @Nullable
+        default MappingLookup mappingLookup() {
+            return null;
+        }
+
+        @Nullable
+        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
     }
 
 }

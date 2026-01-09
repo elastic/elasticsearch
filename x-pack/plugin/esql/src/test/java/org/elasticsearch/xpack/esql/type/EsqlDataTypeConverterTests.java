@@ -41,7 +41,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
@@ -141,7 +140,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         List<DataType> NUMERICS = Arrays.stream(DataType.values()).filter(DataType::isNumeric).toList();
         List<DataType> DOUBLES = Arrays.stream(DataType.values()).filter(DataType::isRationalNumber).toList();
         for (DataType dataType : DataType.values()) {
-            if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize().equals(numericType.estimatedSize()))) {
+            if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize() == numericType.estimatedSize())) {
                 assertEquals(numericType, commonType(dataType, numericType));
             } else if (lowerTypes.contains(dataType)) {
                 assertEqualsCommonType(numericType, dataType, numericType);
@@ -163,7 +162,6 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             SOURCE,
             DOC_DATA_TYPE,
             TSID_DATA_TYPE,
-            PARTIAL_AGG,
             IP,
             VERSION,
             GEO_POINT,

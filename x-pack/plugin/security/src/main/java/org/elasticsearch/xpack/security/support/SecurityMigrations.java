@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -17,8 +18,8 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -100,35 +102,48 @@ public class SecurityMigrations {
         int minMappingVersion();
     }
 
-    public static final Integer ROLE_METADATA_FLATTENED_MIGRATION_VERSION = 1;
     public static final Integer CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION = 2;
+    public static final Integer ROLE_METADATA_FLATTENED_MIGRATION_VERSION = 3;
     private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
 
     public static final TreeMap<Integer, SecurityMigration> MIGRATIONS_BY_VERSION = new TreeMap<>(
         Map.of(
-            ROLE_METADATA_FLATTENED_MIGRATION_VERSION,
-            new RoleMetadataFlattenedMigration(),
             CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION,
-            new CleanupRoleMappingDuplicatesMigration()
+            new CleanupRoleMappingDuplicatesMigration(),
+            ROLE_METADATA_FLATTENED_MIGRATION_VERSION,
+            new RoleMetadataFlattenedMigration()
         )
     );
 
+    /**
+     * @return The highest migration version that is currently defined
+     */
+    public static int highestMigrationVersion() {
+        return MIGRATIONS_BY_VERSION.lastKey();
+    }
+
     public static class RoleMetadataFlattenedMigration implements SecurityMigration {
+
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
             BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
                 .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
+
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
             SearchRequest countRequest = new SearchRequest(indexManager.forCurrentProject().getConcreteIndexName());
             countRequest.source(searchSourceBuilder);
 
             client.search(countRequest, ActionListener.wrap(response -> {
-                // If there are no roles, skip migration
-                if (response.getHits().getTotalHits().value() > 0) {
-                    logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value() + "] roles");
-                    updateRolesByQuery(indexManager, client, filterQuery, listener);
+                if (response.isTimedOut() == false && response.getFailedShards() == 0) {
+                    // If there are no roles, skip migration
+                    if (response.getHits().getTotalHits() != null && response.getHits().getTotalHits().value() > 0) {
+                        logger.info("Preparing to migrate [{}] roles", response.getHits().getTotalHits().value());
+                        updateRolesByQuery(indexManager, client, filterQuery, listener);
+                    } else {
+                        listener.onResponse(null);
+                    }
                 } else {
-                    listener.onResponse(null);
+                    listener.onFailure(new ElasticsearchException("metadata_flattened migration SearchRequest failed"));
                 }
             }, listener::onFailure));
         }
@@ -140,15 +155,60 @@ public class SecurityMigrations {
             ActionListener<Void> listener
         ) {
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.forCurrentProject().getConcreteIndexName());
+
             updateByQueryRequest.setQuery(filterQuery);
-            updateByQueryRequest.setScript(
-                new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata", Collections.emptyMap())
-            );
+            updateByQueryRequest.setAbortOnVersionConflict(false);
+            updateByQueryRequest.setScript(new Script(ScriptType.INLINE, "painless", """
+                if (ctx._source.metadata != null && ctx._source.metadata instanceof Map && !ctx._source.metadata.isEmpty()) {
+                    ctx._source.metadata_flattened = ctx._source.metadata;
+                } else {
+                    ctx.op = 'noop';
+                }
+                """, Collections.emptyMap()));
+
             client.admin()
                 .cluster()
                 .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
-                    logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
-                    listener.onResponse(null);
+                    logger.debug(
+                        "metadata_flattened update-by-query completed: total=[{}], updated=[{}], conflicts=[{}], failures=[{}], "
+                            + "searchFailures=[{}], noops=[{}], timedOut=[{}]",
+                        bulkByScrollResponse.getTotal(),
+                        bulkByScrollResponse.getUpdated(),
+                        bulkByScrollResponse.getVersionConflicts(),
+                        bulkByScrollResponse.getBulkFailures().size(),
+                        bulkByScrollResponse.getSearchFailures().size(),
+                        bulkByScrollResponse.getNoops(),
+                        bulkByScrollResponse.isTimedOut()
+                    );
+                    if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "metadata_flattened migration update-by-query failed with bulk update failures [{}]",
+                                bulkByScrollResponse.getBulkFailures()
+                            )
+                        );
+                    } else if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "metadata_flattened migration update-by-query failed with search failures [{}]",
+                                bulkByScrollResponse.getSearchFailures()
+                            )
+                        );
+                    } else if (bulkByScrollResponse.isTimedOut()) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "metadata_flattened migration update-by-query failed with timeout after [{}] seconds",
+                                bulkByScrollResponse.getTook().seconds()
+                            )
+                        );
+                    } else if (bulkByScrollResponse.getVersionConflicts() > 0) {
+                        listener.onFailure(
+                            new ElasticsearchException("metadata_flattened migration update-by-query failed with version conflicts")
+                        );
+                    } else {
+                        logger.info("metadata_flattened migration updated [{}] roles", bulkByScrollResponse.getUpdated());
+                        listener.onResponse(null);
+                    }
                 }, listener::onFailure));
         }
 
@@ -264,20 +324,23 @@ public class SecurityMigrations {
 
     public static class Manager {
 
-        private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
+        private static final int MAX_SECURITY_MIGRATION_ATTEMPT_COUNT = 1000;
 
         private final PersistentTasksService persistentTasksService;
         private final SecuritySystemIndices systemIndices;
 
         // Node local retry count for migration jobs that's checked only on the master node to make sure
-        // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
-        // restart or master node change.
-        private final AtomicInteger nodeLocalMigrationRetryCount;
+        // submit migration jobs doesn't get out of hand and retries forever if they fail.
+        // Reset by a restart or master node change.
+        // This tracks the number of tasks that have been started up until the migration is complete (at which point it is cleared)
+        // It just tracks attempts to start jobs (not whether they completed successfully)
+        private final Map<ProjectId, AtomicInteger> taskSubmissionAttemptCounter;
 
         public Manager(ClusterService clusterService, PersistentTasksService persistentTasksService, SecuritySystemIndices systemIndices) {
             this.persistentTasksService = persistentTasksService;
             this.systemIndices = systemIndices;
-            this.nodeLocalMigrationRetryCount = new AtomicInteger(0);
+            this.taskSubmissionAttemptCounter = new ConcurrentHashMap<>();
+            new ProjectDeletedListener(this::projectDeleted).attach(clusterService);
             systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
                 // Only consider applying migrations if it's the master node and the security index exists
                 if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
@@ -286,12 +349,10 @@ public class SecurityMigrations {
             });
         }
 
-        @FixForMultiProject
-        // TODO : The migration task needs to be project aware
         private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
             // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
             if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
-                submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
+                submitPersistentMigrationTask(projectId, SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
                 return;
             }
 
@@ -300,26 +361,27 @@ public class SecurityMigrations {
             );
 
             // Check if next migration that has not been applied is eligible to run on the current cluster
-            if (nextMigration == null
-                || systemIndices.getMainIndexManager()
-                    .getProject(projectId)
-                    .isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+            if (nextMigration == null || newState.isEligibleSecurityMigration(nextMigration.getValue()) == false) {
                 // Reset retry counter if all eligible migrations have been applied successfully
-                nodeLocalMigrationRetryCount.set(0);
-            } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
-                logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-            } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
-                submitPersistentMigrationTask(newState.migrationsVersion);
+                resetNumberOfAttempts(projectId);
+            } else {
+                var retryCount = getNumberOfAttempts(projectId);
+                if (retryCount > MAX_SECURITY_MIGRATION_ATTEMPT_COUNT) {
+                    logger.warn("Security migration attempted [" + retryCount + "] times, restart node to retry again.");
+                } else if (newState.isReadyForSecurityMigration(nextMigration.getValue())) {
+                    submitPersistentMigrationTask(projectId, newState.migrationsVersion);
+                }
             }
         }
 
-        private void submitPersistentMigrationTask(int migrationsVersion) {
-            submitPersistentMigrationTask(migrationsVersion, true);
+        private void submitPersistentMigrationTask(ProjectId projectId, int migrationsVersion) {
+            submitPersistentMigrationTask(projectId, migrationsVersion, true);
         }
 
-        private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
-            nodeLocalMigrationRetryCount.incrementAndGet();
-            persistentTasksService.sendStartRequest(
+        private void submitPersistentMigrationTask(ProjectId projectId, int migrationsVersion, boolean securityMigrationNeeded) {
+            incrementAttemptCount(projectId);
+            persistentTasksService.sendProjectStartRequest(
+                projectId,
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams.TASK_NAME,
                 new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
@@ -330,9 +392,9 @@ public class SecurityMigrations {
                     // Do nothing if the task is already in progress
                     if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
                         // Do not count ResourceAlreadyExistsException as failure
-                        nodeLocalMigrationRetryCount.decrementAndGet();
+                        decrementAttemptCount(projectId);
                     } else {
-                        logger.warn("Submit security migration task failed: " + exception.getCause());
+                        logger.warn("Submit security migration task failed", exception.getCause());
                     }
                 })
             );
@@ -347,5 +409,33 @@ public class SecurityMigrations {
                 SecurityMigrations.MIGRATIONS_BY_VERSION
             );
         }
+
+        private int getNumberOfAttempts(ProjectId project) {
+            var retryCount = taskSubmissionAttemptCounter.get(project);
+            if (retryCount == null) {
+                return 0;
+            }
+            return retryCount.get();
+        }
+
+        private void projectDeleted(ProjectId projectId) {
+            resetNumberOfAttempts(projectId);
+        }
+
+        private void resetNumberOfAttempts(ProjectId project) {
+            taskSubmissionAttemptCounter.remove(project);
+        }
+
+        private void incrementAttemptCount(ProjectId project) {
+            taskSubmissionAttemptCounter.computeIfAbsent(project, ignore -> new AtomicInteger(0)).incrementAndGet();
+        }
+
+        private void decrementAttemptCount(ProjectId project) {
+            final AtomicInteger counter = taskSubmissionAttemptCounter.get(project);
+            if (counter != null) {
+                counter.decrementAndGet();
+            }
+        }
+
     }
 }

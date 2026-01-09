@@ -39,7 +39,8 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
-    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
+    // 20 buckets means the upper bound on the largest bound bucket will be 2^18 ms (~= 4 minutes 20 seconds)
+    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 20;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
@@ -57,8 +58,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ALLOCATION,
     }
 
-    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
+    private final UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
+    private final UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,

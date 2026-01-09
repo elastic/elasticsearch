@@ -11,9 +11,9 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
@@ -56,23 +56,15 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
-                JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
-                    JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.FLOAT
-                )
+                JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, instanceOf(TextEmbeddingFloatResults.class));
+        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
         assertThat(
-            ((TextEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
 
@@ -110,26 +102,18 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
-                JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
-                    JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.FLOAT
-                )
+                JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, instanceOf(TextEmbeddingFloatResults.class));
+        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
         assertThat(
-            ((TextEmbeddingFloatResults) parsedResults).embeddings(),
+            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new TextEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
+                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
                 )
             )
         );
@@ -163,15 +147,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -208,15 +184,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -256,15 +224,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -300,15 +260,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.FLOAT
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -350,21 +302,20 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
+                    null,
+                    "modelName",
+                    JinaAIEmbeddingType.BINARY,
                     JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.BINARY
+                    "secret",
+                    null
                 )
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
-            ((TextEmbeddingBitResults) parsedResults).embeddings(),
-            is(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
+            ((DenseEmbeddingBitResults) parsedResults).embeddings(),
+            is(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
         );
     }
 
@@ -398,21 +349,20 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
+                    null,
+                    "modelName",
+                    JinaAIEmbeddingType.BIT,
                     JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.BIT
+                    "secret",
+                    null
                 )
             ),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
-            ((TextEmbeddingBitResults) parsedResults).embeddings(),
-            is(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
+            ((DenseEmbeddingBitResults) parsedResults).embeddings(),
+            is(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
         );
     }
 
@@ -443,15 +393,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
                     InputTypeTests.randomWithNull(),
-                    JinaAIEmbeddingsModelTests.createModel(
-                        "url",
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        null,
-                        null,
-                        "model",
-                        JinaAIEmbeddingType.BINARY
-                    )
+                    JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
                 ),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -504,19 +446,11 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 }
             }""";
 
-        TextEmbeddingFloatResults parsedResults = (TextEmbeddingFloatResults) JinaAIEmbeddingsResponseEntity.fromResponse(
+        DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
-                JinaAIEmbeddingsModelTests.createModel(
-                    "url",
-                    "secret",
-                    JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                    null,
-                    null,
-                    "model",
-                    JinaAIEmbeddingType.FLOAT
-                )
+                JinaAIEmbeddingsModelTests.createModel(null, "modelName", "secret")
             ),
             new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
         );
@@ -525,9 +459,9 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    new TextEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
-                    new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
-                    new TextEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
+                    new DenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
+                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
+                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
                 )
             )
         );

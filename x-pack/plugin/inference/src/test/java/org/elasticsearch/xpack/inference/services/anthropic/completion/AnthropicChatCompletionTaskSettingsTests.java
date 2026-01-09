@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields;
@@ -151,6 +152,17 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     @Override
     protected AnthropicChatCompletionTaskSettings mutateInstance(AnthropicChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        var maxTokens = instance.maxTokens();
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var topK = instance.topK();
+        switch (randomInt(3)) {
+            case 0 -> maxTokens = randomValueOtherThan(maxTokens, ESTestCase::randomNonNegativeInt);
+            case 1 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomDouble);
+            case 2 -> topP = randomValueOtherThan(topP, ESTestCase::randomDouble);
+            case 3 -> topK = randomValueOtherThan(topK, ESTestCase::randomInt);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AnthropicChatCompletionTaskSettings(maxTokens, temperature, topP, topK);
     }
 }

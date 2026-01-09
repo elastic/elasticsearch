@@ -13,11 +13,10 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -99,8 +98,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
-            false,
-            false,
+            IndexType.NONE,
             false,
             null,
             null,
@@ -188,11 +186,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Upper bound is the min IP and is not inclusive
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             ft.rangeQuery(
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
@@ -291,11 +289,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Upper bound is the min IP and is not inclusive
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             ft.rangeQuery(
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
@@ -334,8 +332,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
-            false,
-            false,
+            IndexType.NONE,
             false,
             null,
             null,
@@ -351,24 +348,16 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new IpFieldMapper.Builder(
-            "field",
-            ScriptCompiler.NONE,
-            true,
-            IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).build(
+            MapperBuilderContext.root(false, false)
+        ).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        MappedFieldType nullValueMapper = new IpFieldMapper.Builder(
-            "field",
-            ScriptCompiler.NONE,
-            true,
-            IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
-        ).nullValue("2001:db8:0:0:0:0:2:7").build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).nullValue(
+            "2001:db8:0:0:0:0:2:7"
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

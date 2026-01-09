@@ -103,8 +103,7 @@ abstract class AbstractPreserveAllocations {
                     0
                 );
 
-                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, newAllocations);
-                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations, requiredMemory)) {
+                if (newAllocations > 0) {
                     mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
                 }
             }

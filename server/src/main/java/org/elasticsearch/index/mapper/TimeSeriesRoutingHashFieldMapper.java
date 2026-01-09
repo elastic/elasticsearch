@@ -77,7 +77,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         };
 
         private TimeSeriesRoutingHashFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override
@@ -125,9 +125,16 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {
                 assert context.sourceToParse().id() != null;
-                routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
-                    Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
-                );
+                if (context.indexSettings().useTimeSeriesSyntheticId()) {
+                    // The extractRoutingHashFromSyntheticId method works from the binary data representation stored in Lucene,
+                    // so we have to reencode the id with Uid#encodeId here.
+                    int hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(Uid.encodeId(context.sourceToParse().id()));
+                    routingHash = encode(hash);
+                } else {
+                    routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                        Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
+                    );
+                }
             }
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);

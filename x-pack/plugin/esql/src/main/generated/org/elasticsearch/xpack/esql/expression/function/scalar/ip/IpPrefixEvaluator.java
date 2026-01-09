@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IpPrefixEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator ip;
@@ -75,46 +78,58 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += ip.baseRamBytesUsed();
+    baseRamBytesUsed += prefixLengthV4.baseRamBytesUsed();
+    baseRamBytesUsed += prefixLengthV6.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock ipBlock, IntBlock prefixLengthV4Block,
       IntBlock prefixLengthV6Block) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (ipBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (ipBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (ipBlock.getValueCount(p) != 1) {
-          if (ipBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (prefixLengthV4Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (prefixLengthV4Block.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (prefixLengthV6Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (prefixLengthV4Block.getValueCount(p) != 1) {
-          if (prefixLengthV4Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV6Block.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV6Block.getValueCount(p) != 1) {
-          if (prefixLengthV6Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);
+        int prefixLengthV4 = prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p));
+        int prefixLengthV6 = prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p));
         try {
-          result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), this.scratch));
+          result.appendBytesRef(IpPrefix.process(ip, prefixLengthV4, prefixLengthV6, this.scratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -129,8 +144,11 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef ip = ipVector.getBytesRef(p, ipScratch);
+        int prefixLengthV4 = prefixLengthV4Vector.getInt(p);
+        int prefixLengthV6 = prefixLengthV6Vector.getInt(p);
         try {
-          result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), this.scratch));
+          result.appendBytesRef(IpPrefix.process(ip, prefixLengthV4, prefixLengthV6, this.scratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

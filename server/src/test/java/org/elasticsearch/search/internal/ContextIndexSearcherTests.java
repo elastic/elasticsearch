@@ -15,6 +15,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -39,8 +40,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -50,6 +51,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -61,12 +63,13 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -88,6 +91,7 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -131,7 +135,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
-        CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
+        CombinedBits bitSet = new CombinedBits(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
             Scorable scorer;
 
@@ -148,7 +152,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -157,7 +161,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -166,7 +170,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -191,6 +195,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
                 document.add(new StringField("field", "value", Field.Store.NO));
+                document.add(new TextField("p_field", "value", Field.Store.NO));
                 iw.addDocument(document);
                 if (rarely()) {
                     iw.flush();
@@ -249,7 +254,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     1
                 );
-                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+                Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
                 int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
                 // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
@@ -351,7 +356,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(1, searcher.count(new TermQuery(new Term("foo", "bar"))));
 
         // make sure scorers are created only once, see #1725
-        assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
+        assertEquals(1, searcher.count(new CreateScorerOnceQuery(Queries.ALL_DOCS_INSTANCE)));
 
         TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
         assertEquals(1, topDocs.totalHits.value());
@@ -612,6 +617,45 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
+    public void testMaxClause() throws Exception {
+        ThreadPoolExecutor executor = null;
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            try (var directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                var searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                var query = new PhraseQuery.Builder().add(new Term("p_field", "value1"))
+                    .add(new Term("p_field", "value2"))
+                    .add(new Term("p_field", "value"))
+                    .build();
+                IndexSearcher.setMaxClauseCount(2);
+                var exc = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 10));
+                assertThat(exc.getMessage(), containsString("too many clauses"));
+                IndexSearcher.setMaxClauseCount(3);
+                var top = searcher.search(query, 10);
+                assertThat(top.totalHits.value(), equalTo(0L));
+                assertThat(top.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
     private static class TestQuery extends Query {
         @Override
         public String toString(String field) {
@@ -715,7 +759,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 return roleQueryBits;
             } else {
                 // apply deletes when needed:
-                return new CombinedBitSet(roleQueryBits, actualLiveDocs);
+                return new CombinedBits(roleQueryBits, actualLiveDocs);
             }
         }
 

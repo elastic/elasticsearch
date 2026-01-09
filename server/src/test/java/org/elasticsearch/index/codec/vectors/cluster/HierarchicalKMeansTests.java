@@ -9,11 +9,16 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 
 public class HierarchicalKMeansTests extends ESTestCase {
 
@@ -28,7 +33,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         int targetSize = (int) ((float) nVectors / (float) nClusters);
-        HierarchicalKMeans hkmeans = new HierarchicalKMeans(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
+        HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
 
         KMeansResult result = hkmeans.cluster(vectors, targetSize);
 
@@ -52,6 +57,24 @@ public class HierarchicalKMeansTests extends ESTestCase {
             }
         } else {
             assertEquals(0, soarAssignments.length);
+        }
+
+        int numWorker = randomIntBetween(2, 8);
+        try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
+            TaskExecutor executor = new TaskExecutor(service);
+            hkmeans = HierarchicalKMeans.ofConcurrent(
+                dims,
+                executor,
+                numWorker,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood,
+                soarLambda
+            );
+            KMeansResult resultConcurrency = hkmeans.cluster(vectors, targetSize);
+            assertArrayEquals(result.centroids(), resultConcurrency.centroids());
+            assertArrayEquals(result.assignments(), resultConcurrency.assignments());
+            assertArrayEquals(result.soarAssignments(), resultConcurrency.soarAssignments());
         }
     }
 
@@ -93,7 +116,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         }
         FloatVectorValues vectors = FloatVectorValues.fromFloats(vectorList, dims);
 
-        HierarchicalKMeans hkmeans = new HierarchicalKMeans(
+        HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(
             dims,
             random().nextInt(1, 100),
             random().nextInt(Math.min(nVectors, 100), nVectors + 1),
@@ -127,7 +150,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             assertEquals(nVectors, soarAssignments.length);
             // verify no duplicates exist
             for (int i = 0; i < assignments.length; i++) {
-                assertTrue(soarAssignments[i] >= 0 && soarAssignments[i] < centroids.length);
+                assertTrue((soarAssignments[i] == NO_SOAR_ASSIGNMENT || soarAssignments[i] >= 0) && soarAssignments[i] < centroids.length);
                 assertNotEquals(assignments[i], soarAssignments[i]);
             }
         } else {

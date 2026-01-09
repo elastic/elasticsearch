@@ -151,7 +151,7 @@ PUT _ilm/policy/my_policy
   }
 }
 ```
-
+% TEST[skip: deprecated]
 
 ### Roll over based on document count [_roll_over_based_on_document_count]
 
@@ -241,7 +241,7 @@ PUT _ilm/policy/my_policy
   }
 }
 ```
-
+% TEST[skip: max_size deprecated]
 
 ### Roll over while maintaining shard sizes [_roll_over_while_maintaining_shard_sizes]
 
@@ -295,6 +295,6 @@ PUT /_ilm/policy/rollover_policy
   }
 }
 ```
-
+% TEST[skip: max_size deprecated]
 
 

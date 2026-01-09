@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -93,7 +94,7 @@ public class LifecycleTests extends ESTestCase {
                 10,
                 TimeUnit.SECONDS,
                 true,
-                EsExecutors.daemonThreadFactory("test"),
+                TestEsExecutors.testOnlyDaemonThreadFactory("test"),
                 new ThreadContext(Settings.EMPTY)
             );
         }

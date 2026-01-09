@@ -49,6 +49,6 @@ $$$slm-health-failed-snapshot-warn-threshold$$$
 $$$repositories-url-allowed$$$
 
 `repositories.url.allowed_urls` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the [read-only URL repositories](docs-content://deploy-manage/tools/snapshot-and-restore/read-only-url-repository.md) that snapshots can be restored from.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the [read-only URL repositories](docs-content://deploy-manage/tools/snapshot-and-restore/read-only-url-repository.md) that snapshots can be restored from. The default value is an empty list.
 
 

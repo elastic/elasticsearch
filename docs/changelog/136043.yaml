@@ -1,0 +1,5 @@
+pr: 136043
+summary: "Allocation: add balancer round summary as metrics"
+area: Allocation
+type: enhancement
+issues: []

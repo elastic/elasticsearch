@@ -112,7 +112,7 @@ class ValuesFromSingleReader extends ValuesReader {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
-                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset);
+                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered());
                 operator.sanityCheckBlock(r.reader, docs.count() - offset, target[r.idx], r.idx);
             }
             if (log.isDebugEnabled()) {
@@ -139,7 +139,7 @@ class ValuesFromSingleReader extends ValuesReader {
         SourceLoader sourceLoader = null;
         ValuesSourceReaderOperator.ShardContext shardContext = operator.shardContexts.get(shard);
         if (storedFieldsSpec.requiresSource()) {
-            sourceLoader = shardContext.newSourceLoader().get();
+            sourceLoader = shardContext.newSourceLoader().apply(storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
         if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {

@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.SyntheticVectorsMapperTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToBFloat16List;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,9 +62,12 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     private final int dims;
 
     public RankVectorsFieldMapperTests() {
-        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
+        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
         int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
-        int randomMultiplier = ElementType.FLOAT == elementType ? randomIntBetween(1, 64) : 1;
+        int randomMultiplier = switch (elementType) {
+            case FLOAT, BFLOAT16 -> randomIntBetween(1, 64);
+            case BYTE, BIT -> 1;
+        };
         this.dims = baseDims * randomMultiplier;
     }
 
@@ -89,13 +94,19 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         int numVectors = randomIntBetween(1, 16);
-        return Stream.generate(
-            () -> elementType == ElementType.FLOAT
-                ? convertToList(randomNormalizedVector(this.dims))
-                : convertToList(randomByteArrayOfLength(elementType == ElementType.BIT ? this.dims / Byte.SIZE : dims))
-        ).limit(numVectors).toList();
+        return Stream.generate(switch (elementType) {
+            case FLOAT -> () -> convertToList(randomNormalizedVector(this.dims));
+            case BFLOAT16 -> () -> convertToBFloat16List(randomNormalizedVector(this.dims));
+            case BYTE -> () -> convertToList(randomByteArrayOfLength(dims));
+            case BIT -> () -> convertToList(randomByteArrayOfLength(dims / Byte.SIZE));
+        }).limit(numVectors).toList();
     }
 
     @Override
@@ -113,6 +124,21 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         checker.registerConflictCheck(
             "element_type",
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "byte")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16")),
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
         );
         checker.registerConflictCheck(
@@ -135,7 +161,6 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(RankVectorsFieldMapper.RankVectorsFieldType.class));
-        assertFalse(fieldType.isIndexed());
         assertFalse(fieldType.isSearchable());
     }
 
@@ -232,7 +257,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        assertEquals(ElementType.FLOAT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
+        assertEquals(DenseVectorFieldMapper.FLOAT_ELEMENT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
         float[][] decodedValues = new float[validVectors.length][];
         for (int i = 0; i < validVectors.length; i++) {
             decodedValues[i] = new float[validVectors[i].length];
@@ -374,6 +399,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -433,6 +459,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 yield vectors;
             }
+            case BFLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -471,10 +498,9 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             Object value = switch (elementType) {
-                case BYTE, BIT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
-                case FLOAT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BYTE, BIT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
+                case FLOAT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BFLOAT16 -> throw new AssertionError();
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }

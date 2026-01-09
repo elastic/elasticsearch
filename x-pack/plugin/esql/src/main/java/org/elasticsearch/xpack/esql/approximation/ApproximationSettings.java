@@ -14,10 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 
 import java.util.Map;
 
-public record ApproximationSettings(
-    Integer rows,
-    Double confidenceLevel
-) {
+public record ApproximationSettings(Integer rows, Double confidenceLevel) {
     public static final ApproximationSettings DEFAULT = new ApproximationSettings(null, null);
 
     public static ApproximationSettings parse(Expression expression) {
@@ -40,12 +37,20 @@ public record ApproximationSettings(
                             throw new IllegalArgumentException("Approximation configuration [rows] must be an integer value");
                         }
                         numberOfRows = (Integer) entry.getValue();
+                        if (numberOfRows < 10000) {
+                            throw new IllegalArgumentException("Approximation configuration [rows] must be at least 10000");
+                        }
                         break;
                     case "confidence_level":
                         if (entry.getValue() instanceof Double == false) {
                             throw new IllegalArgumentException("Approximation configuration [confidence_level] must be a double value");
                         }
                         confidenceLevel = (Double) entry.getValue();
+                        if (confidenceLevel < 0.5 || confidenceLevel > 0.95) {
+                            throw new IllegalArgumentException(
+                                "Approximation configuration [confidence_level] must be between 0.5 and 0.95"
+                            );
+                        }
                         break;
                     default:
                         throw new IllegalArgumentException("Approximation configuration contains unknown key [" + entry.getKey() + "]");

@@ -68,11 +68,11 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
                 return;
             }
 
-            final Set<String> indices = getInferenceFieldsRequest.getIndices();
-            final Map<String, Float> fields = getInferenceFieldsRequest.getFields();
+            final String[] indices = getInferenceFieldsRequest.indices();
+            final Map<String, Float> fields = getInferenceFieldsRequest.fields();
             final boolean resolveWildcards = getInferenceFieldsRequest.resolveWildcards();
             final boolean useDefaultFields = getInferenceFieldsRequest.useDefaultFields();
-            final String query = getInferenceFieldsRequest.getQuery();
+            final String query = getInferenceFieldsRequest.query();
 
             try {
                 var inferenceFieldsMap = getInferenceFieldsMap(indices, fields, resolveWildcards, useDefaultFields);
@@ -92,7 +92,7 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
     }
 
     private Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> getInferenceFieldsMap(
-        Set<String> indices,
+        String[] indices,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
@@ -102,7 +102,7 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
             effectiveFields = Map.of("*", 1.0f);
         }
 
-        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(indices.size());
+        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(indices.length);
         for (String index : indices) {
             var inferenceFieldsMetadataMap = clusterInferenceFieldsMap.get(index);
             if (inferenceFieldsMetadataMap == null) {

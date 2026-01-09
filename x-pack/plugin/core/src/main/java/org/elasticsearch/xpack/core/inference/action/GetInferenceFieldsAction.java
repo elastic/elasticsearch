@@ -25,11 +25,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -63,7 +63,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
-        private final Set<String> indices;
+        private String[] indices;
         private final Map<String, Float> fields;
         private final boolean resolveWildcards;
         private final boolean useDefaultFields;
@@ -71,10 +71,10 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         private final IndicesOptions indicesOptions;
 
         /**
-         * An overload of {@link #Request(Set, Map, boolean, boolean, String, IndicesOptions)} that uses {@link IndicesOptions#DEFAULT}
+         * An overload of {@link #Request(String[], Map, boolean, boolean, String, IndicesOptions)} that uses {@link IndicesOptions#DEFAULT}
          */
         public Request(
-            Set<String> indices,
+            String[] indices,
             Map<String, Float> fields,
             boolean resolveWildcards,
             boolean useDefaultFields,
@@ -105,7 +105,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
          * @param indicesOptions The {@link IndicesOptions} to use when resolving indices.
          */
         public Request(
-            Set<String> indices,
+            String[] indices,
             Map<String, Float> fields,
             boolean resolveWildcards,
             boolean useDefaultFields,
@@ -122,7 +122,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readCollectionAsSet(StreamInput::readString);
+            this.indices = in.readStringArray();
             this.fields = in.readMap(StreamInput::readFloat);
             this.resolveWildcards = in.readBoolean();
             this.useDefaultFields = in.readBoolean();
@@ -133,7 +133,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringCollection(indices);
+            out.writeStringArray(indices);
             out.writeMap(fields, StreamOutput::writeFloat);
             out.writeBoolean(resolveWildcards);
             out.writeBoolean(useDefaultFields);
@@ -164,12 +164,18 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return validationException;
         }
 
-        // TODO: Rename
-        public Set<String> getIndices() {
-            return Collections.unmodifiableSet(indices);
+        @Override
+        public Request indices(String... indices) {
+            this.indices = indices;
+            return this;
         }
 
-        public Map<String, Float> getFields() {
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        public Map<String, Float> fields() {
             return Collections.unmodifiableMap(fields);
         }
 
@@ -181,18 +187,8 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return useDefaultFields;
         }
 
-        public String getQuery() {
+        public String query() {
             return query;
-        }
-
-        @Override
-        public Request indices(String... indices) {
-            return new Request(Set.of(indices), fields, resolveWildcards, useDefaultFields, query, indicesOptions);
-        }
-
-        @Override
-        public String[] indices() {
-            return indices.toArray(new String[0]);
         }
 
         @Override
@@ -207,7 +203,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(indices, request.indices)
+            return Arrays.equals(indices, request.indices)
                 && Objects.equals(fields, request.fields)
                 && resolveWildcards == request.resolveWildcards
                 && useDefaultFields == request.useDefaultFields
@@ -217,7 +213,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, fields, resolveWildcards, useDefaultFields, query, indicesOptions);
+            return Objects.hash(Arrays.hashCode(indices), fields, resolveWildcards, useDefaultFields, query, indicesOptions);
         }
     }
 

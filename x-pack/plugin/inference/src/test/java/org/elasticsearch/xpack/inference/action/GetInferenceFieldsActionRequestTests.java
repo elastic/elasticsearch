@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
@@ -32,7 +31,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
     @Override
     protected GetInferenceFieldsAction.Request createTestInstance() {
         return new GetInferenceFieldsAction.Request(
-            randomIndentifierSet(),
+            randomIndices(),
             randomFields(),
             randomBoolean(),
             randomBoolean(),
@@ -45,51 +44,51 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
     protected GetInferenceFieldsAction.Request mutateInstance(GetInferenceFieldsAction.Request instance) throws IOException {
         return switch (between(0, 5)) {
             case 0 -> new GetInferenceFieldsAction.Request(
-                randomValueOtherThan(instance.getIndices(), GetInferenceFieldsActionRequestTests::randomIndentifierSet),
-                instance.getFields(),
+                randomValueOtherThan(instance.indices(), GetInferenceFieldsActionRequestTests::randomIndices),
+                instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.getQuery(),
+                instance.query(),
                 instance.indicesOptions()
             );
             case 1 -> new GetInferenceFieldsAction.Request(
-                instance.getIndices(),
-                randomValueOtherThan(instance.getFields(), GetInferenceFieldsActionRequestTests::randomFields),
+                instance.indices(),
+                randomValueOtherThan(instance.fields(), GetInferenceFieldsActionRequestTests::randomFields),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.getQuery(),
+                instance.query(),
                 instance.indicesOptions()
             );
             case 2 -> new GetInferenceFieldsAction.Request(
-                instance.getIndices(),
-                instance.getFields(),
+                instance.indices(),
+                instance.fields(),
                 randomValueOtherThan(instance.resolveWildcards(), ESTestCase::randomBoolean),
                 instance.useDefaultFields(),
-                instance.getQuery(),
+                instance.query(),
                 instance.indicesOptions()
             );
             case 3 -> new GetInferenceFieldsAction.Request(
-                instance.getIndices(),
-                instance.getFields(),
+                instance.indices(),
+                instance.fields(),
                 instance.resolveWildcards(),
                 randomValueOtherThan(instance.useDefaultFields(), ESTestCase::randomBoolean),
-                instance.getQuery(),
+                instance.query(),
                 instance.indicesOptions()
             );
             case 4 -> new GetInferenceFieldsAction.Request(
-                instance.getIndices(),
-                instance.getFields(),
+                instance.indices(),
+                instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                randomValueOtherThan(instance.getQuery(), GetInferenceFieldsActionRequestTests::randomQuery),
+                randomValueOtherThan(instance.query(), GetInferenceFieldsActionRequestTests::randomQuery),
                 instance.indicesOptions()
             );
             case 5 -> new GetInferenceFieldsAction.Request(
-                instance.getIndices(),
-                instance.getFields(),
+                instance.indices(),
+                instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.getQuery(),
+                instance.query(),
                 randomValueOtherThan(instance.indicesOptions(), () -> {
                     IndicesOptions newOptions = randomIndicesOptions();
                     while (instance.indicesOptions() == IndicesOptions.DEFAULT && newOptions == null) {
@@ -119,8 +118,8 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
         return instance;
     }
 
-    private static Set<String> randomIndentifierSet() {
-        return randomSet(0, 5, ESTestCase::randomIdentifier);
+    private static String[] randomIndices() {
+        return randomArray(0, 5, String[]::new, ESTestCase::randomIdentifier);
     }
 
     private static Map<String, Float> randomFields() {

@@ -84,16 +84,16 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         GetInferenceFieldsAction.Request request,
         ActionListener<GetInferenceFieldsAction.Response> listener
     ) {
-        final Set<String> indices = request.getIndices();
-        final Map<String, Float> fields = request.getFields();
+        final String[] indices = request.indices();
+        final Map<String, Float> fields = request.fields();
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
-        final String query = request.getQuery();
+        final String query = request.query();
         final IndicesOptions indicesOptions = request.indicesOptions();
 
         try {
             Map<String, OriginalIndices> groupedIndices = transportService.getRemoteClusterService()
-                .groupIndices(indicesOptions, indices.toArray(new String[0]), true);
+                .groupIndices(indicesOptions, indices, true);
             OriginalIndices localIndices = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (groupedIndices.isEmpty() == false) {
                 throw new IllegalArgumentException("GetInferenceFieldsAction does not support remote indices");

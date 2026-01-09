@@ -27,6 +27,71 @@ avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender
 268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null
 ;
 
+
+keepStarSimpleKeep
+required_capability: optional_fields
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP *
+| KEEP foo
+| LIMIT 3
+;
+
+foo:null
+null
+null
+null
+;
+
+keepStarEval
+required_capability: optional_fields
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP *
+| EVAL foo = does_not_exist_field + 1
+| SORT emp_no
+| LIMIT 1
+;
+
+avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
+268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null |null
+;
+
+
+dropPatternSimpleKeep
+required_capability: optional_fields
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| DROP a*, b*, e*, fi*, g*, h*, i*, j*, l*, s*
+| KEEP foo
+| LIMIT 3
+;
+
+foo:null
+null
+null
+null
+;
+
+dropPatternEval
+required_capability: optional_fields
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| DROP a*, b*, e*, fi*, g*, h*, i*, j*, l*, s*
+| EVAL foo = does_not_exist_field + 1
+| LIMIT 3
+;
+
+does_not_exist_field:null | foo:integer
+null                      | null
+null                      | null
+null                      | null
+;
+
 keepWithPattern
 required_capability: optional_fields
 
@@ -93,6 +158,19 @@ emp_no:integer | bar:null | bazz:null
 10001          | null     | null
 10002          | null     | null
 10003          | null     | null
+;
+
+rowRenameEval
+required_capability: optional_fields
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| RENAME x AS whatever
+| EVAL x = does_not_exist_field + 1
+;
+
+whatever:integer | does_not_exist_field:null | x:integer
+1                | null                      | null
 ;
 
 casting

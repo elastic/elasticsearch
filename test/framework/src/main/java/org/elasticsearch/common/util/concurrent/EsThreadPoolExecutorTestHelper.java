@@ -30,8 +30,8 @@ public class EsThreadPoolExecutorTestHelper {
         return executor.getHotThreadsOnLargeQueueConfig();
     }
 
-    public static long getStartTimeOfLargeQueue(EsThreadPoolExecutor executor) {
-        return executor.getStartTimeOfLargeQueue();
+    public static long getStartTimeMillisOfLargeQueue(EsThreadPoolExecutor executor) {
+        return executor.getStartTimeMillisOfLargeQueue();
     }
 
     public static EsThreadPoolExecutor newEsThreadPoolExecutor(

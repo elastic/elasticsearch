@@ -57,9 +57,9 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     // There may be racing on updating this field. It's OK since hot threads logging is very coarse grained time wise
     // and can tolerate some inaccuracies.
-    private volatile long startTimeOfLargeQueue = NOT_TRACKED_TIME;
+    private volatile long startTimeMillisOfLargeQueue = NOT_TRACKED_TIME;
 
-    private final AtomicLong lastLoggingTimeForHotThreads;
+    private final AtomicLong lastLoggingTimeMillisForHotThreads;
 
     EsThreadPoolExecutor(
         String name,
@@ -131,7 +131,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         this.contextHolder = contextHolder;
         this.hotThreadsOnLargeQueueConfig = hotThreadsOnLargeQueueConfig;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
-        this.lastLoggingTimeForHotThreads = hotThreadsOnLargeQueueConfig.isEnabled()
+        this.lastLoggingTimeMillisForHotThreads = hotThreadsOnLargeQueueConfig.isEnabled()
             ? new AtomicLong(currentTimeMillisSupplier.getAsLong() - hotThreadsOnLargeQueueConfig.intervalInMillis())
             : null;
     }
@@ -182,17 +182,17 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         // Use queueSize + 1 so that we start to track when queueSize is 499 and this task is most likely to be queued as well,
         // thus reaching the threshold of 500. It won't log right away due to the duration threshold.
         if (queueSize + 1 >= hotThreadsOnLargeQueueConfig.sizeThreshold()) {
-            final long startTime = startTimeOfLargeQueue;
+            final long startTime = startTimeMillisOfLargeQueue;
             final long now = currentTimeMillisSupplier.getAsLong();
             if (startTime == NOT_TRACKED_TIME) {
-                startTimeOfLargeQueue = now;
+                startTimeMillisOfLargeQueue = now;
                 return;
             }
             final long duration = now - startTime;
             if (duration >= hotThreadsOnLargeQueueConfig.durationThresholdInMillis()) {
-                final var lastLoggingTime = lastLoggingTimeForHotThreads.get();
+                final var lastLoggingTime = lastLoggingTimeMillisForHotThreads.get();
                 if (now - lastLoggingTime >= hotThreadsOnLargeQueueConfig.intervalInMillis()
-                    && lastLoggingTimeForHotThreads.compareAndSet(lastLoggingTime, now)) {
+                    && lastLoggingTimeMillisForHotThreads.compareAndSet(lastLoggingTime, now)) {
                     HotThreads.logLocalHotThreads(
                         logger,
                         Level.INFO,
@@ -208,7 +208,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 }
             }
         } else {
-            startTimeOfLargeQueue = NOT_TRACKED_TIME;
+            startTimeMillisOfLargeQueue = NOT_TRACKED_TIME;
         }
     }
 
@@ -218,8 +218,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     // package private for testing
-    long getStartTimeOfLargeQueue() {
-        return startTimeOfLargeQueue;
+    long getStartTimeMillisOfLargeQueue() {
+        return startTimeMillisOfLargeQueue;
     }
 
     // package-visible for testing

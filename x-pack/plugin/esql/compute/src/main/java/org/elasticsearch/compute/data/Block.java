@@ -162,7 +162,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *     For fields with {@code null} values or multivalued fields, this
      *     will shift. Here's an example:
      * </p>
-     * <pre>
+     * <pre>{@code
      *     0   <---+
      *     1       | Values at first position
      *     2       |
@@ -170,7 +170,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *     5   <---- Value at second position
      *     6   <---+ Values at third position
      *     7   <---+
-     * </pre>
+     * }</pre>
      * <p>
      *     This represents three rows. The first has the value {@code [0, 1, 2, 3]}.
      *     The second has the value {@code 5}. The third has the value {@code [6, 7]}.
@@ -188,7 +188,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *     this will return {@code 0}. For multivalued fields, this will return
      *     the number of values. Here's an example:
      * </p>
-     * <pre>
+     * <pre>{@code
      *     0   <---+
      *     1       | Values at first position
      *     2       |
@@ -196,7 +196,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *     5   <---- Value at second position
      *     6   <---+ Values at third position
      *     7   <---+
-     * </pre>
+     * }</pre>
      * <p>
      *     This represents three rows. The first has the value {@code [0, 1, 2, 3]}.
      *     The second has the value {@code 5}. The third has the value {@code [6, 7]}.

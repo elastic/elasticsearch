@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.approximate.ApproximateSettings;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -98,8 +98,8 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testValidate_Approximate() {
-        var def = QuerySettings.APPROXIMATE;
+    public void testValidate_Approximation() {
+        var def = QuerySettings.APPROXIMATION;
         assertDefault(def, is(nullValue()));
         {
             QuerySetting setting = new QuerySetting(
@@ -108,7 +108,7 @@ public class QuerySettingsTests extends ESTestCase {
             );
             EsqlStatement statement = new EsqlStatement(null, List.of(setting));
             QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-            assertThat(statement.setting(def), is(ApproximateSettings.DEFAULT));
+            assertThat(statement.setting(def), is(ApproximationSettings.DEFAULT));
         }
         {
             QuerySetting setting = new QuerySetting(
@@ -120,7 +120,7 @@ public class QuerySettingsTests extends ESTestCase {
             assertThat(statement.setting(def), is(nullValue()));
         }
 
-        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximateSettings.DEFAULT));
+        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximationSettings.DEFAULT));
         assertValid(
             def,
             new MapExpression(
@@ -132,25 +132,25 @@ public class QuerySettingsTests extends ESTestCase {
                     Literal.fromDouble(Source.EMPTY, 0.9)
                 )
             ),
-            equalTo(new ApproximateSettings(10, 0.9))
+            equalTo(new ApproximationSettings(10, 0.9))
         );
 
         assertInvalid(
             def.name(),
             Literal.integer(Source.EMPTY, 12),
-            "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [12]"
+            "line -1:-1: Error validating setting [approximation]: Invalid approximation configuration [12]"
         );
 
         assertInvalid(
             def.name(),
             Literal.keyword(Source.EMPTY, "foo"),
-            "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [foo]"
+            "line -1:-1: Error validating setting [approximation]: Invalid approximation configuration [foo]"
         );
 
         assertInvalid(
             def.name(),
             new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "foo"), Literal.integer(Source.EMPTY, 10))),
-            "line -1:-1: Error validating setting [approximate]: Approximate configuration contains unknown key [foo]"
+            "line -1:-1: Error validating setting [approximation]: Approximation configuration contains unknown key [foo]"
         );
     }
 

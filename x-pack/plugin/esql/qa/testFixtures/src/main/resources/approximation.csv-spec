@@ -15,9 +15,9 @@
 
 
 approximate stats on large data
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
@@ -29,9 +29,9 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 exact stats on small data
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | WHERE value <= 25
@@ -44,9 +44,9 @@ count:long | avg:double | sum:long
 
 
 with where
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | WHERE value >= 1000
@@ -59,9 +59,9 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 with stats where
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT()  WHERE value >= 1000,
@@ -75,9 +75,9 @@ count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(cou
 
 
 with sample
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | SAMPLE 0.8
@@ -90,9 +90,9 @@ count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(coun
 
 
 with commands before stats
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | EVAL value2 = 2 * value
@@ -114,9 +114,9 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 with commands after stats
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
@@ -133,9 +133,9 @@ avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boole
 
 
 with dependent variables that have confidence interval
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS avg=AVG(value)
@@ -152,9 +152,9 @@ y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | RELIABLE(pl
 
 
 with dependent string variable
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS avg=AVG(value)
@@ -169,9 +169,9 @@ from_str:double
 
 
 with dependent multivalued variable
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS avg=AVG(value)
@@ -185,9 +185,9 @@ mv:double
 
 
 approximate stats by on large data
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT() BY value
@@ -206,9 +206,9 @@ value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):b
 
 
 approximate stats with zero variance
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS avg=avg(value), median=median(value), one=3/(1+SUM(2.0*value)/SUM(value)) BY value
@@ -226,9 +226,9 @@ avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(av
 
 
 exact stats by on small data
-required_capability: approximate
+required_capability: approximation
 
-SET approximate=true\;
+SET approximation=true\;
 FROM many_numbers
     | MV_EXPAND value
     | WHERE value <= 5

@@ -44,7 +44,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
     protected GetInferenceFieldsAction.Request mutateInstance(GetInferenceFieldsAction.Request instance) throws IOException {
         return switch (between(0, 5)) {
             case 0 -> new GetInferenceFieldsAction.Request(
-                randomValueOtherThan(instance.indices(), GetInferenceFieldsActionRequestTests::randomIndices),
+                randomArrayOtherThan(instance.indices(), GetInferenceFieldsActionRequestTests::randomIndices),
                 instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),

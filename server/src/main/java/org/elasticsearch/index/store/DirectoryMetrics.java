@@ -10,14 +10,17 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class DirectoryMetrics {
+public class DirectoryMetrics implements ToXContentFragment {
     private DirectoryMetrics(Map<String, PluggableMetrics<?>> data) {
         this.data = data;
     }
@@ -46,6 +49,14 @@ public class DirectoryMetrics {
                 .map(e -> Tuple.tuple(e.getKey(), e.getValue().get()))
                 .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2))
         );
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        for (Map.Entry<String, PluggableMetrics<?>> entry : data.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
+        return builder;
     }
 
     public static class Builder {

@@ -57,9 +57,9 @@ public class DecodeConstantIntegerBenchmark {
         decode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration(new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        decode.setupTrial(new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
     }
 
     @Benchmark

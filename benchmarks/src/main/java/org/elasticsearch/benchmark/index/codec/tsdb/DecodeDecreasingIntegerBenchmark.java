@@ -57,9 +57,9 @@ public class DecodeDecreasingIntegerBenchmark {
         decode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        decode.setupTrial(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
     }
 
     @Benchmark

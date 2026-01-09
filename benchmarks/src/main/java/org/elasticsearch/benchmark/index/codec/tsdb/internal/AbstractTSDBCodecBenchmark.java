@@ -83,13 +83,23 @@ public abstract class AbstractTSDBCodecBenchmark {
     }
 
     /**
-     * Sets up state for a new benchmark iteration.
-     * Called once per iteration to initialize input data.
+     * Sets up state for a new benchmark trial (once per parameter combination).
+     * Called once at the start of each parameter combination to initialize input data.
      *
-     * @param arraySupplier supplier that generates the input array for this iteration
+     * @param arraySupplier supplier that generates the input array for this trial
      * @throws IOException if setup fails
      */
-    public abstract void setupIteration(Supplier<long[]> arraySupplier) throws IOException;
+    public abstract void setupTrial(Supplier<long[]> arraySupplier) throws IOException;
+
+    /**
+     * Sets up state for a new benchmark iteration.
+     * Called once per iteration. Default implementation does nothing.
+     *
+     * @throws IOException if setup fails
+     */
+    public void setupIteration() throws IOException {
+        // Default: no per-iteration setup needed
+    }
 
     /**
      * Resets state before each benchmark invocation.

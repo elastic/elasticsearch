@@ -58,9 +58,9 @@ public class EncodeDecreasingIntegerBenchmark {
         encode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        encode.setupIteration(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        encode.setupTrial(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
         encode.setupInvocation();
         encode.run();
     }

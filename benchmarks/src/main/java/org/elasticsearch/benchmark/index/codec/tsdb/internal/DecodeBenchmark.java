@@ -32,7 +32,7 @@ public final class DecodeBenchmark extends AbstractTSDBCodecBenchmark {
     private byte[] encodedBuffer;
 
     @Override
-    public void setupIteration(Supplier<long[]> arraySupplier) throws IOException {
+    public void setupTrial(Supplier<long[]> arraySupplier) throws IOException {
         this.output = new long[blockSize];
         long[] input = arraySupplier.get();
 

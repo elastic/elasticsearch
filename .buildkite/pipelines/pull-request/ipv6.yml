@@ -12,7 +12,7 @@ steps:
         agents:
           provider: aws
           imagePrefix: elasticsearch-aws-ubuntu-2404-nvidia
-          instanceType: m6g.8xlarge
+          instanceType: m8a.8xlarge
           diskSizeGb: 350
           diskType: gp3
           diskName: /dev/sda1

@@ -266,7 +266,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                     if (shouldConnectFail) {
                         metricRecorder.collect();
                         final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
-                        final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_COUNTER, counterName);
+                        final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, counterName);
                         assertFalse(measurements.isEmpty());
                         final var measurement = measurements.getLast();
                         assertThat(measurement.getLong(), equalTo(1L));

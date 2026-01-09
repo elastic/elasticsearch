@@ -117,6 +117,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
+            S3ClientSettings.DISABLE_CHUNKED_ENCODING,
             S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
             S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
             S3ClientSettings.REGION,

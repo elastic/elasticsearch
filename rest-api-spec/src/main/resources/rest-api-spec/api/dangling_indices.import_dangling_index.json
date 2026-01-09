@@ -30,6 +30,7 @@
     "params": {
       "accept_data_loss": {
         "type": "boolean",
+        "default": false,
         "description": "Must be set to true in order to import the dangling index"
       },
       "timeout": {

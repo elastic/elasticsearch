@@ -1,0 +1,123 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.benchmark.vector.scorer;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
+import org.openjdk.jmh.annotations.Param;
+
+import java.util.ArrayList;
+import java.util.Random;
+
+public class VectorScorerOSQBenchmarkTests extends ESTestCase {
+
+    private final float delta = 1e-2f;
+    private final int dims;
+    private final int bits;
+    private final VectorScorerOSQBenchmark.DirectoryType directoryType;
+
+    public VectorScorerOSQBenchmarkTests(int dims, int bits, VectorScorerOSQBenchmark.DirectoryType directoryType) {
+        this.dims = dims;
+        this.bits = bits;
+        this.directoryType = directoryType;
+    }
+
+    @BeforeClass
+    public static void skipWindows() {
+        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    }
+
+    public void testSingleScalarVsVectorized() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            var seed = randomLong();
+
+            var scalar = new VectorScorerOSQBenchmark();
+            var vectorized = new VectorScorerOSQBenchmark();
+            try {
+                scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scalar.dims = dims;
+                scalar.bits = bits;
+                scalar.directoryType = directoryType;
+                scalar.setup(new Random(seed));
+
+                float[] expected = scalar.score();
+
+                vectorized.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                vectorized.dims = dims;
+                vectorized.bits = bits;
+                vectorized.directoryType = directoryType;
+                vectorized.setup(new Random(seed));
+
+                float[] result = vectorized.score();
+
+                assertArrayEquals("single scoring, scalar VS vectorized", expected, result, delta);
+            } finally {
+                scalar.teardown();
+                vectorized.teardown();
+            }
+        }
+    }
+
+    public void testBulkScalarVsVectorized() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            var seed = randomLong();
+
+            var scalar = new VectorScorerOSQBenchmark();
+            var vectorized = new VectorScorerOSQBenchmark();
+            try {
+
+                scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scalar.dims = dims;
+                scalar.bits = bits;
+                scalar.directoryType = directoryType;
+                scalar.setup(new Random(seed));
+
+                float[] expected = scalar.bulkScore();
+
+                vectorized.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                vectorized.dims = dims;
+                vectorized.bits = bits;
+                vectorized.directoryType = directoryType;
+                vectorized.setup(new Random(seed));
+
+                float[] result = vectorized.bulkScore();
+
+                assertArrayEquals("bulk scoring, scalar VS vectorized", expected, result, delta);
+            } finally {
+                scalar.teardown();
+                vectorized.teardown();
+            }
+        }
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        try {
+            String[] dims = VectorScorerOSQBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            String[] bits = VectorScorerOSQBenchmark.class.getField("bits").getAnnotationsByType(Param.class)[0].value();
+            var combinations = new ArrayList<Object[]>();
+            for (var dim : dims) {
+                var d = Integer.parseInt(dim);
+                for (var bit : bits) {
+                    var b = Integer.parseInt(bit);
+                    for (var directoryType : VectorScorerOSQBenchmark.DirectoryType.values()) {
+                        combinations.add(new Object[] { d, b, directoryType });
+                    }
+                }
+            }
+            return combinations;
+        } catch (NoSuchFieldException e) {
+            throw new AssertionError(e);
+        }
+    }
+}

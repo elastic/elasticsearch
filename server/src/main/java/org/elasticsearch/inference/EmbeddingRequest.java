@@ -77,7 +77,7 @@ public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inpu
 
     public static final TransportVersion JINA_AI_EMBEDDING_TASK_ADDED = TransportVersion.fromName("jina_ai_embedding_task_added");
 
-    private static final String INPUT_FIELD = "input";
+    public static final String INPUT_FIELD = "input";
     private static final String INPUT_TYPE_FIELD = "input_type";
 
     @SuppressWarnings("unchecked")

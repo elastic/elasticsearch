@@ -85,15 +85,14 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
         if (model.getServiceSettings().isMultimodal()) {
             builder.startArray(INPUT_FIELD);
             for (var inferenceStringGroup : input) {
-                for (var inferenceString : inferenceStringGroup.inferenceStrings()) {
-                    builder.startObject();
-                    if (inferenceString.isText()) {
-                        builder.field(INPUT_TEXT_FIELD, inferenceString.value());
-                    } else if (inferenceString.isImage()) {
-                        builder.field(INPUT_IMAGE_FIELD, inferenceString.value());
-                    }
-                    builder.endObject();
+                var inferenceString = inferenceStringGroup.value();
+                builder.startObject();
+                if (inferenceString.isText()) {
+                    builder.field(INPUT_TEXT_FIELD, inferenceString.value());
+                } else if (inferenceString.isImage()) {
+                    builder.field(INPUT_IMAGE_FIELD, inferenceString.value());
                 }
+                builder.endObject();
             }
             builder.endArray();
         } else {

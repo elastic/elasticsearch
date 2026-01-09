@@ -72,6 +72,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
 import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
+import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -1782,6 +1784,50 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.getMessage(), is("Non-text input provided for text-only model"));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testEmbeddingInfer_returnsError_multipleItemsInContentObject() throws IOException {
+        var model = JinaAIEmbeddingsModelTests.createEmbeddingModel(getUrl(webServer), "modelName", "apiKey");
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            var listSize = randomIntBetween(1, 10);
+            var inputs = new ArrayList<InferenceStringGroup>(listSize);
+            for (int i = 0; i < listSize; ++i) {
+                inputs.add(new InferenceStringGroup("a_string"));
+            }
+
+            // Add an InferenceStringGroup with multiple InferenceStrings at a random point in the input list
+            var indexToAdd = randomIntBetween(0, inputs.size() - 1);
+            var multipleInferenceStrings = new InferenceStringGroup(
+                List.of(
+                    new InferenceString(TEXT, InferenceString.DataFormat.TEXT, "first_input"),
+                    new InferenceString(IMAGE, BASE64, "second_input")
+                )
+            );
+            inputs.add(indexToAdd, multipleInferenceStrings);
+            service.embeddingInfer(
+                model,
+                new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        "Field [content] must contain a single item for [jinaai] service. "
+                            + "[content] object with multiple items found at $.input.content[%d]",
+                        indexToAdd
+                    )
+                )
+            );
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
     }

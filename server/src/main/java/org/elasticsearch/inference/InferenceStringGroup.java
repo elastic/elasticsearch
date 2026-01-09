@@ -40,7 +40,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * </pre>
  */
 public final class InferenceStringGroup implements Writeable, ToXContentObject {
-    private static final String CONTENT_FIELD = "content";
+    public static final String CONTENT_FIELD = "content";
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
@@ -82,6 +82,10 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
 
     public boolean containsNonTextEntry() {
         return containsNonTextEntry;
+    }
+
+    public boolean containsMultipleInferenceStrings() {
+        return inferenceStrings.size() > 1;
     }
 
     @Override
@@ -164,6 +168,23 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      */
     public static boolean containsNonTextEntry(List<InferenceStringGroup> inferenceStringGroups) {
         return inferenceStringGroups.stream().anyMatch(InferenceStringGroup::containsNonTextEntry);
+    }
+
+    /**
+     * Method used to determine if a list of {@link InferenceStringGroup} contains any with more than one {@link InferenceString} in them
+     *
+     * @param inferenceStringGroups the list of {@link InferenceStringGroup} to check
+     * @return the index of the first {@link InferenceStringGroup} found to contain more than one {@link InferenceString}, or null if no
+     * elements in the list contain more than one {@link InferenceString}
+     */
+    public static Integer indexContainingMultipleInferenceStrings(List<InferenceStringGroup> inferenceStringGroups) {
+        for (int i = 0; i < inferenceStringGroups.size(); i++) {
+            InferenceStringGroup inferenceStringGroup = inferenceStringGroups.get(i);
+            if (inferenceStringGroup.containsMultipleInferenceStrings()) {
+                return i;
+            }
+        }
+        return null;
     }
 
     @Override

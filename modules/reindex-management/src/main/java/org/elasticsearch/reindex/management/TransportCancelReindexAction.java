@@ -61,9 +61,10 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
     @Override
     protected List<CancellableTask> processTasks(final CancelReindexRequest request) {
         final CancellableTask requestedTask = taskManager.getCancellableTask(request.getTargetTaskId().getId());
-        return requestedTask != null && super.match(requestedTask) && request.match(requestedTask)
-            ? List.of(requestedTask)
-            : List.of();
+        if (requestedTask != null && super.match(requestedTask) && request.match(requestedTask)) {
+            return List.of(requestedTask);
+        }
+        return List.of();
     }
 
     @Override

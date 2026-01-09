@@ -298,7 +298,7 @@ public class KnnIndexTester {
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
             for (int i = 0; i < results.length; i++) {
                 results[i] = new Results(
-                    testConfiguration.docVectors().get(0).getFileName().toString(),
+                    testConfiguration.docVectors().get(0).getFileName().toString() + testConfiguration.forceMerge(),
                     indexType,
                     testConfiguration.numDocs()
                 );

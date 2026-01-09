@@ -9,8 +9,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
@@ -24,8 +22,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.lang.management.ManagementFactory.getMemoryMXBean;
 
 public class WindowsNativeAccess extends AbstractNativeAccess {
-
-    private static final Logger logger = LogManager.getLogger(WindowsNativeAccess.class);
 
     /**
      * Memory protection constraints

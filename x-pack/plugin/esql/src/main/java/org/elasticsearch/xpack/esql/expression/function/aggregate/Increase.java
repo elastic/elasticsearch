@@ -88,7 +88,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         this(source, field, filter, window, timestamp, false);
     }
 
-    Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
+    public Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
         this.lenientTypeCheck = lenientTypeCheck;

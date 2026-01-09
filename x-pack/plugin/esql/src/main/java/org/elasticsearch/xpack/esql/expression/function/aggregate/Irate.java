@@ -84,7 +84,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         this(source, field, filter, window, timestamp, false);
     }
 
-    Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
+    public Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
         this.lenientTypeCheck = lenientTypeCheck;

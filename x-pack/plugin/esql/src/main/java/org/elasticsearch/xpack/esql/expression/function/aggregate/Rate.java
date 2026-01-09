@@ -88,7 +88,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         this(source, field, filter, window, timestamp, false);
     }
 
-    Rate(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
+    public Rate(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
         this.lenientTypeCheck = lenientTypeCheck;

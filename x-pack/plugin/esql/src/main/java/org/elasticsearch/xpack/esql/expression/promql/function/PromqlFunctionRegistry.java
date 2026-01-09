@@ -202,9 +202,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
             Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> {
-                return builder.build(source, target, window, timestamp, true);  // lenient=true for PromQL
-            }
+            (source, target, timestamp, window, extraParams) -> builder.build(source, target, window, timestamp, true)
         );
     }
 

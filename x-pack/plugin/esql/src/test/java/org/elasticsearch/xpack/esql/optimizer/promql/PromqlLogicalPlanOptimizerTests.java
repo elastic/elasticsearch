@@ -336,7 +336,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     }
 
-    @AwaitsFix(bugUrl = "Invalid call to dataType on an unresolved object ?RATE_$1")
     public void testRate() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"

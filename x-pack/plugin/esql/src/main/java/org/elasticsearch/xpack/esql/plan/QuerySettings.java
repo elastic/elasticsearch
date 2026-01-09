@@ -34,7 +34,7 @@ public class QuerySettings {
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled."
     )
-    @Example(file = "from", tag = "project-routing")
+    @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,

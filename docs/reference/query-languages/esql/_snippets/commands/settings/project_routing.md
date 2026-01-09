@@ -14,6 +14,8 @@ A project routing expression, used to define which projects to route the query t
 
 **Example**
 
+Routes the query to the specified project.
+
 ```esql
 SET project_routing = "_alias:my_project";
 FROM apps

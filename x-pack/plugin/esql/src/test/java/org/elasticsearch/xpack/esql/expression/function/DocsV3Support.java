@@ -1206,6 +1206,9 @@ public abstract class DocsV3Support {
                 String exampleContent = loadExample(example.file(), example.tag());
                 if (exampleContent != null) {
                     builder.append("**Example**\n\n");
+                    if (example.description().length() > 0) {
+                        builder.append(example.description()).append("\n\n");
+                    }
                     builder.append("```esql\n");
                     builder.append(exampleContent);
                     builder.append("\n```\n\n");

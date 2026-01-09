@@ -3053,10 +3053,10 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBeforeInlineStats_WithTS() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
         assertThat(
-            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            error("TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod"),
             containsString(
-                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
+                "1:67: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(m) BY pod] after [LIMIT 5] [@1:57]"
             )
         );
     }

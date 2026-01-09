@@ -568,7 +568,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     public void testIsNotNullOnOperatorWithOneField() {
         EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
-        Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE));
+        Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE, TEST_CFG));
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
@@ -579,7 +579,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
         var fieldB = getFieldAttribute("b");
-        Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB));
+        Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB, TEST_CFG));
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
@@ -590,7 +590,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
         var pattern = L("abc");
-        Expression inn = isNotNull(new And(EMPTY, new StartsWith(EMPTY, fieldA, pattern), greaterThanOf(new Add(EMPTY, ONE, TWO), THREE)));
+        Expression inn = isNotNull(
+            new And(EMPTY, new StartsWith(EMPTY, fieldA, pattern), greaterThanOf(new Add(EMPTY, ONE, TWO, TEST_CFG), THREE))
+        );
 
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));

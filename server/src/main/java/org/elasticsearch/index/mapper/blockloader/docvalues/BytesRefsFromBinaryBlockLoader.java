@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
@@ -43,7 +44,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
     public static AllReader createReader(@Nullable BinaryDocValues docValues) {
         if (docValues == null) {
-            return new ConstantNullsReader();
+            return ConstantNull.READER;
         }
         return new BytesRefsFromBinary(docValues);
     }

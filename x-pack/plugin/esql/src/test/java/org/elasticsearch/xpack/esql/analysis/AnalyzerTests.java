@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -111,6 +112,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -5710,6 +5712,28 @@ public class AnalyzerTests extends ESTestCase {
             RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
             assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
         }
+    }
+
+    public void testConfigurationAwareResolved() {
+        var query = """
+            from test
+            | eval a = hire_date + 1d, b = hire_date - 1d
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("a", "b")));
+        var add = as(Alias.unwrap(eval.fields().get(0)), Add.class);
+        var sub = as(Alias.unwrap(eval.fields().get(1)), Sub.class);
+        assertThat(add.configuration(), is(configuration));
+        assertThat(sub.configuration(), is(configuration));
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

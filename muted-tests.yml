@@ -108,9 +108,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/127689
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/350_point_in_time/point-in-time with index filter}
-  issue: https://github.com/elastic/elasticsearch/issues/127741
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
@@ -279,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
   method: testILMWaitsForTimeSeriesEndTimeToLapse
   issue: https://github.com/elastic/elasticsearch/issues/138843
-- class: org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitorTests
-  method: testRerouteIsNotCalledWhenNoNodesAreHotSpotting
-  issue: https://github.com/elastic/elasticsearch/issues/138924
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024

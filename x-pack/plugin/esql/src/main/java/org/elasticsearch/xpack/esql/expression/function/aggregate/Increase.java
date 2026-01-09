@@ -48,6 +48,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     private final Expression timestamp;
 
+    /**
+     * When true, accepts any numeric type (for PromQL compatibility).
+     * When false, requires counter types only (ESQL TS behavior).
+     */
+    private final boolean lenientTypeCheck;
+
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
@@ -71,12 +77,21 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, false);
+    }
+
+    public Increase(Source source, Expression field, Expression window, Expression timestamp, boolean lenientTypeCheck) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, lenientTypeCheck);
     }
 
     public Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        this(source, field, filter, window, timestamp, false);
+    }
+
+    Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
+        this.lenientTypeCheck = lenientTypeCheck;
     }
 
     public Increase(StreamInput in) throws IOException {
@@ -85,7 +100,8 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst(),
+            false
         );
     }
 
@@ -96,17 +112,17 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     protected NodeInfo<Increase> info() {
-        return NodeInfo.create(this, Increase::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Increase::new, field(), filter(), window(), timestamp, lenientTypeCheck);
     }
 
     @Override
     public Increase replaceChildren(List<Expression> newChildren) {
-        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), lenientTypeCheck);
     }
 
     @Override
     public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), filter, window(), timestamp);
+        return new Increase(source(), field(), filter, window(), timestamp, lenientTypeCheck);
     }
 
     @Override
@@ -116,6 +132,9 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     protected TypeResolution resolveType() {
+        if (lenientTypeCheck) {
+            return isType(field(), dt -> dt.isNumeric() || DataType.isCounter(dt), sourceText(), FIRST, "numeric or counter");
+        }
         return isType(field(), dt -> DataType.isCounter(dt), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
     }
 
@@ -125,9 +144,9 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_LONG, LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER, INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE, DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -56,9 +56,9 @@ public class PromqlFunctionRegistry {
         //
         withinSeries("delta", Delta::new),
         withinSeries("idelta", Idelta::new),
-        withinSeries("increase", Increase::new),
-        withinSeries("irate", Irate::new),
-        withinSeries("rate", Rate::new),
+        withinSeriesLenient("increase", Increase::new),
+        withinSeriesLenient("irate", Irate::new),
+        withinSeriesLenient("rate", Rate::new),
         withinSeries("first_over_time", FirstOverTime::new),
         withinSeries("last_over_time", LastOverTime::new),
         withinSeries("deriv", Deriv::new),
@@ -181,6 +181,11 @@ public class PromqlFunctionRegistry {
         T build(Source source, Expression field, Expression filter, Expression window, Expression param);
     }
 
+    @FunctionalInterface
+    protected interface WithinSeriesLenient<T extends TimeSeriesAggregateFunction> {
+        T build(Source source, Expression field, Expression window, Expression timestamp, boolean lenientTypeCheck);
+    }
+
     private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder) {
         return new FunctionDefinition(
             name,
@@ -188,6 +193,17 @@ public class PromqlFunctionRegistry {
             Arity.ONE,
             (source, target, timestamp, window, extraParams) -> {
                 return builder.build(source, target, window, timestamp);
+            }
+        );
+    }
+
+    private static FunctionDefinition withinSeriesLenient(String name, WithinSeriesLenient<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.WITHIN_SERIES_AGGREGATION,
+            Arity.ONE,
+            (source, target, timestamp, window, extraParams) -> {
+                return builder.build(source, target, window, timestamp, true);  // lenient=true for PromQL
             }
         );
     }

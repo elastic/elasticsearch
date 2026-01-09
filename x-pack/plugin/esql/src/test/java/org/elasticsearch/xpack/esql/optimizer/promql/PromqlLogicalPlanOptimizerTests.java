@@ -654,6 +654,36 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
     }
 
+    public void testIncreaseLenientTypes() {
+        // gauge integer field
+        var gaugePlan = planPromql("PROMQL index=k8s step=1m increase=(increase(network.eth0.tx[1m]))");
+        assertThat(gaugePlan.output().stream().map(Attribute::name).toList(), equalTo(List.of("increase", "step", "_timeseries")));
+
+        // counter long field
+        var counterPlan = planPromql("PROMQL index=k8s step=1m increase=(increase(network.total_bytes_in[1m]))");
+        assertThat(counterPlan.output().stream().map(Attribute::name).toList(), equalTo(List.of("increase", "step", "_timeseries")));
+    }
+
+    public void testIrateLenientTypes() {
+        // gauge integer field
+        var gaugePlan = planPromql("PROMQL index=k8s step=1m irate=(irate(network.eth0.rx[1m]))");
+        assertThat(gaugePlan.output().stream().map(Attribute::name).toList(), equalTo(List.of("irate", "step", "_timeseries")));
+
+        // counter long field
+        var counterPlan = planPromql("PROMQL index=k8s step=1m irate=(irate(network.total_bytes_in[1m]))");
+        assertThat(counterPlan.output().stream().map(Attribute::name).toList(), equalTo(List.of("irate", "step", "_timeseries")));
+    }
+
+    public void testRateLenientTypes() {
+        // gauge integer field
+        var gaugePlan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.eth0.tx[1m]))");
+        assertThat(gaugePlan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+
+        // counter long field
+        var counterPlan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
+        assertThat(counterPlan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+    }
+
     protected LogicalPlan planPromql(String query) {
         return planPromql(query, false);
     }

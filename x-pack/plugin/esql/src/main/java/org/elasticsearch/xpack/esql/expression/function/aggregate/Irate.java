@@ -42,6 +42,12 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     private final Expression timestamp;
 
+    /**
+     * When true, accepts any numeric type (for PromQL compatibility).
+     * When false, requires counter types only (ESQL TS behavior).
+     */
+    private final boolean lenientTypeCheck;
+
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
@@ -67,12 +73,21 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, false);
+    }
+
+    public Irate(Source source, Expression field, Expression window, Expression timestamp, boolean lenientTypeCheck) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, lenientTypeCheck);
     }
 
     public Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        this(source, field, filter, window, timestamp, false);
+    }
+
+    Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp, boolean lenientTypeCheck) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
+        this.lenientTypeCheck = lenientTypeCheck;
     }
 
     public Irate(StreamInput in) throws IOException {
@@ -81,7 +96,8 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst(),
+            false
         );
     }
 
@@ -92,17 +108,17 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<Irate> info() {
-        return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp, lenientTypeCheck);
     }
 
     @Override
     public Irate replaceChildren(List<Expression> newChildren) {
-        return new Irate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Irate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), lenientTypeCheck);
     }
 
     @Override
     public Irate withFilter(Expression filter) {
-        return new Irate(source(), field(), filter, window(), timestamp);
+        return new Irate(source(), field(), filter, window(), timestamp, lenientTypeCheck);
     }
 
     @Override
@@ -112,6 +128,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected TypeResolution resolveType() {
+        if (lenientTypeCheck) {
+            return isType(field(), dt -> dt.isNumeric() || DataType.isCounter(dt), sourceText(), FIRST, "numeric or counter");
+        }
         return isType(field(), dt -> DataType.isCounter(dt), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
     }
 
@@ -121,9 +140,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false, isDateNanos);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false, isDateNanos);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_LONG, LONG -> new IrateLongAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER, INTEGER -> new IrateIntAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE, DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

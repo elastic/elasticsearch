@@ -258,8 +258,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         var centroidTracker = leafSearchFilterMeta.centroidTracker;
         boolean postFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         if (postFilter && iteration >= MAX_POST_FILTER_ITERATIONS) {
-            LogManager.getLogger("org.elasticsearch.test.knn.KnnSearcher").warn("Reached max iterations for adding results." +
-                " Collected " + alreadyCollectedResults + " while requested " + knnCollectorManager.k / 2);
+            LogManager.getLogger("org.elasticsearch.test.knn.KnnSearcher")
+                .warn(
+                    "Reached max iterations for adding results."
+                        + " Collected "
+                        + alreadyCollectedResults
+                        + " while requested "
+                        + knnCollectorManager.k / 2
+                );
             return Lucene.EMPTY_TOP_DOCS;
         }
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio, centroidTracker);

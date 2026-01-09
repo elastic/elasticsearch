@@ -17,6 +17,8 @@ import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 
 import java.util.List;
 
@@ -42,7 +44,12 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
         ) {
             for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
                 List<ChatCompletionResults.Result> results = List.of(new ChatCompletionResults.Result("Completion result #" + currentPos));
-                outputBuilder.addInferenceResponse(new InferenceAction.Response(new ChatCompletionResults(results)));
+                outputBuilder.addInferenceResponse(
+                    new BulkInferenceResponse(
+                        new BulkInferenceRequestItem(null, new int[] { 1 }),
+                        new InferenceAction.Response(new ChatCompletionResults(results))
+                    )
+                );
             }
 
             final Page outputPage = outputBuilder.buildOutput();

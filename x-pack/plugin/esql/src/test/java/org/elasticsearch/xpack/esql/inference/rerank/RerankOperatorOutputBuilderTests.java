@@ -16,9 +16,12 @@ import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +53,12 @@ public class RerankOperatorOutputBuilderTests extends ComputeTestCase {
                     currentPos++;
                 }
 
-                outputBuilder.addInferenceResponse(new InferenceAction.Response(new RankedDocsResults(rankedDocs)));
+                outputBuilder.addInferenceResponse(
+                    new BulkInferenceResponse(
+                        new BulkInferenceRequestItem(null, IntStream.range(0, rankedDocs.size()).map(i -> 1).toArray()),
+                        new InferenceAction.Response(new RankedDocsResults(rankedDocs))
+                    )
+                );
             }
 
             final Page outputPage = outputBuilder.buildOutput();

@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -24,11 +23,28 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 public class BulkInferenceExecutionState {
     private final LocalCheckpointTracker checkpoint = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
     private final FailureCollector failureCollector = new FailureCollector();
-    private final Map<Long, InferenceAction.Response> bufferedResponses;
+    private final Map<Long, BulkInferenceResponse> bufferedResponses;
     private final AtomicBoolean finished = new AtomicBoolean(false);
 
+    /**
+     * Creates a new execution state with default buffer capacity.
+     */
     public BulkInferenceExecutionState() {
-        this.bufferedResponses = new ConcurrentHashMap<>();
+        this(16);
+    }
+
+    /**
+     * Creates a new execution state with the specified initial buffer capacity.
+     * <p>
+     * The initial capacity should be sized based on the expected number of out-of-order responses.
+     * A good heuristic is to use a fraction of maxRunningTasks, as that bounds the number of
+     * concurrent in-flight responses that could arrive out-of-order.
+     * </p>
+     *
+     * @param initialCapacity The initial capacity for the response buffer
+     */
+    public BulkInferenceExecutionState(int initialCapacity) {
+        this.bufferedResponses = new HashMap<>(initialCapacity);
     }
 
     /**
@@ -69,16 +85,15 @@ public class BulkInferenceExecutionState {
     }
 
     /**
-     *  Add an inference response to the buffer and marks the corresponding sequence number as processed.
+     * Buffers an inference response and marks the corresponding sequence number as processed.
      *
-     *  @param seqNo    The sequence number of the inference request.
-     *  @param response The inference response.
+     * @param response The bulk inference response object
      */
-    public synchronized void onInferenceResponse(long seqNo, InferenceAction.Response response) {
+    public synchronized void onInferenceResponse(BulkInferenceResponse response) {
         if (response != null && failureCollector.hasFailure() == false) {
-            bufferedResponses.put(seqNo, response);
+            bufferedResponses.put(response.seqNo(), response);
         }
-        checkpoint.markSeqNoAsProcessed(seqNo);
+        checkpoint.markSeqNoAsProcessed(response.seqNo());
     }
 
     /**
@@ -95,11 +110,11 @@ public class BulkInferenceExecutionState {
     }
 
     /**
-     * Retrieves and removes the buffered response by  sequence number.
+     * Retrieves and removes the buffered response by sequence number.
      *
      * @param seqNo The sequence number of the response to fetch.
      */
-    public synchronized InferenceAction.Response fetchBufferedResponse(long seqNo) {
+    public synchronized BulkInferenceResponse fetchBufferedResponse(long seqNo) {
         return bufferedResponses.remove(seqNo);
     }
 

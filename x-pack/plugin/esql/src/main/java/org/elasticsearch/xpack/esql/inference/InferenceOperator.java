@@ -16,9 +16,11 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -75,10 +77,19 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
         try {
-            BulkInferenceRequestIterator requests = requests(input);
+            BulkInferenceRequestItemIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
 
-            bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
+            // ✅ Pre-size based on estimated request count
+            int estimatedSize = requests.estimatedSize();
+            int initialCapacity = Math.max(10, Math.min(estimatedSize, 10000)); // Cap at 10k for safety
+            OngoingInferenceResult result = new OngoingInferenceResult(input, new ArrayList<>(initialCapacity));
+            listener = listener.delegateResponse((l, e) -> {
+                Releasables.close(result);
+                l.onFailure(e);
+            });
+
+            bulkInferenceRunner.executeBulk(requests, result.responses()::add, listener.map(responses -> result));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -103,7 +114,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
 
         try (OutputBuilder outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
-            for (InferenceAction.Response response : ongoingInferenceResult.responses) {
+            for (BulkInferenceResponse response : ongoingInferenceResult.responses) {
                 outputBuilder.addInferenceResponse(response);
             }
             return outputBuilder.buildOutput();
@@ -118,7 +129,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      *
      * @param input The input page to process.
      */
-    protected abstract BulkInferenceRequestIterator requests(Page input);
+    protected abstract BulkInferenceRequestItemIterator requests(Page input);
 
     /**
      * Creates a new {@link OutputBuilder} instance used to build the output page.
@@ -141,7 +152,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          *
          * @param inferenceResponse The inference response to include.
          */
-        void addInferenceResponse(InferenceAction.Response inferenceResponse);
+        void addInferenceResponse(BulkInferenceResponse inferenceResponse);
 
         /**
          * Builds the final output page from accumulated inference responses.
@@ -169,11 +180,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     /**
      * Represents the result of an ongoing inference operation, including the original input page
      * and the list of inference responses.
-     *
-     * @param inputPage The input page used to generate inference requests.
-     * @param responses The inference responses returned by the inference service.
      */
-    public record OngoingInferenceResult(Page inputPage, List<InferenceAction.Response> responses) implements Releasable {
+    public record OngoingInferenceResult(Page inputPage, List<BulkInferenceResponse> responses) implements Releasable {
 
         @Override
         public void close() {

@@ -81,6 +81,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Iterator;
@@ -1332,7 +1333,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                     case DATE_RANGE -> {
                         BlockLoader.LongRangeBuilder b = (BlockLoader.LongRangeBuilder) builder;
-                        var ll = parseDateRange(value.toString());
+                        var ll = parseDateRange(value.toString(), ZoneOffset.UTC);
                         b.from().appendLong(ll.from());
                         b.to().appendLong(ll.to());
                     }

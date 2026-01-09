@@ -36,6 +36,7 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -257,6 +258,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         var centroidTracker = leafSearchFilterMeta.centroidTracker;
         boolean postFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         if (postFilter && iteration >= MAX_POST_FILTER_ITERATIONS) {
+            LogManager.getLogger("org.elasticsearch.test.knn.KnnSearcher").warn("Reached max iterations for adding results." +
+                " Collected " + alreadyCollectedResults + " while requested " + knnCollectorManager.k / 2);
             return Lucene.EMPTY_TOP_DOCS;
         }
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio, centroidTracker);

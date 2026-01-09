@@ -306,11 +306,17 @@ class KnnSearcher {
                         (1000L * numQueryVectors) / elapsed,
                         totalCpuTimeMS
                     );
-                    logger.info(
-                        "needed an average of {} recurse steps per query. Specific runs: {} ",
-                        (float) Arrays.stream(recurseSteps).sum() / (float) numQueryVectors,
-                        Arrays.toString(recurseSteps)
-                    );
+                    if (searchParameters.postFilteringThreshold() < 1) {
+                        logger.info(
+                            "needed an average of {} recurse steps per query for {} segments"
+                                + " with [postFilterThreshold={}, filterSelectivity={}]. Specific runs: {} ",
+                            (float) Arrays.stream(recurseSteps).sum() / (float) numQueryVectors,
+                            searcher.getIndexReader().leaves().size(),
+                            searchParameters.postFilteringThreshold(),
+                            searchParameters.filterSelectivity(),
+                            Arrays.toString(recurseSteps)
+                        );
+                    }
                 }
             }
         }

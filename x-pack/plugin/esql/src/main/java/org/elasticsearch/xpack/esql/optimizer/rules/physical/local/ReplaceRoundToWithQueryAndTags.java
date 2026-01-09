@@ -616,7 +616,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             long selectedInterval = -1;
             for (int i = TIME_SERIES_BUCKETS.length - 1; i >= 0; i--) {
                 long numSlices = Math.ceilDiv(queryInterval, TIME_SERIES_BUCKETS[i]);
-                if (numSlices <= maxSlice && numSlices >= minSlice) {
+                if (numSlices >= minSlice) {
                     selectedInterval = TIME_SERIES_BUCKETS[i];
                     break;
                 }

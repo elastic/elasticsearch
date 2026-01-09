@@ -17,7 +17,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;

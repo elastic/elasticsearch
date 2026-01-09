@@ -78,3 +78,35 @@ from dense_vector_bfloat16
 count_vectors:long
 4               
 ;
+
+denseBFloat16VectorCompareSpecifically
+required_capability: dense_vector_equality
+
+FROM dense_vector_bfloat16
+| EVAL same = bfloat16_vector == [1.0, 2.0, 3.0]
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | true
+1    | false
+2    | false
+3    | false
+;
+
+denseBFloat16VectorCompareDifferentDimensions
+required_capability: dense_vector_equality
+
+FROM dense_vector_bfloat16
+| EVAL same = bfloat16_vector == [1.0, 2.0]
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | false
+1    | false
+2    | false
+3    | false
+;

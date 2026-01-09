@@ -74,3 +74,35 @@ from dense_vector
 count_vectors:long
 4               
 ;
+
+denseByteVectorCompareSpecifically
+required_capability: dense_vector_equality
+
+FROM dense_vector
+| EVAL same = byte_vector == [10, 20, 30]
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | true
+1    | false
+2    | false
+3    | false
+;
+
+denseByteVectorCompareDifferentDimensions
+required_capability: dense_vector_equality
+
+FROM dense_vector
+| EVAL same = byte_vector == [10, 20]
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | false
+1    | false
+2    | false
+3    | false
+;

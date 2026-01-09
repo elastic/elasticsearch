@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
@@ -38,7 +39,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     public AllReader reader(LeafReaderContext context) throws IOException {
         BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
         if (docValues == null) {
-            return new ConstantNullsReader();
+            return ConstantNull.READER;
         }
         return new BytesRefsFromCustomBinary(docValues);
     }

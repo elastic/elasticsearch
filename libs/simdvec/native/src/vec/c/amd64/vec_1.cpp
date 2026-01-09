@@ -477,10 +477,6 @@ static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {
 }
 
 EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int32_t length) {
-    int64_t subRet0 = 0;
-    int64_t subRet1 = 0;
-    int64_t subRet2 = 0;
-    int64_t subRet3 = 0;
     int r = 0;
     int upperBound = length & -sizeof(__m256i);
     __m256i acc0 = _mm256_setzero_si256();
@@ -503,26 +499,10 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
         acc3 = _mm256_add_epi64(acc3, _mm256_sad_epu8(local, _mm256_setzero_si256()));
     }
 
-    subRet0 += static_cast<uint64_t>(_mm256_extract_epi64(acc0, 0));
-    subRet0 += static_cast<uint64_t>(_mm256_extract_epi64(acc0, 1));
-    subRet0 += static_cast<uint64_t>(_mm256_extract_epi64(acc0, 2));
-    subRet0 += static_cast<uint64_t>(_mm256_extract_epi64(acc0, 3));
-
-    subRet1 += static_cast<uint64_t>(_mm256_extract_epi64(acc1, 0));
-    subRet1 += static_cast<uint64_t>(_mm256_extract_epi64(acc1, 1));
-    subRet1 += static_cast<uint64_t>(_mm256_extract_epi64(acc1, 2));
-    subRet1 += static_cast<uint64_t>(_mm256_extract_epi64(acc1, 3));
-
-    subRet2 += static_cast<uint64_t>(_mm256_extract_epi64(acc2, 0));
-    subRet2 += static_cast<uint64_t>(_mm256_extract_epi64(acc2, 1));
-    subRet2 += static_cast<uint64_t>(_mm256_extract_epi64(acc2, 2));
-    subRet2 += static_cast<uint64_t>(_mm256_extract_epi64(acc2, 3));
-
-    subRet3 += static_cast<uint64_t>(_mm256_extract_epi64(acc3, 0));
-    subRet3 += static_cast<uint64_t>(_mm256_extract_epi64(acc3, 1));
-    subRet3 += static_cast<uint64_t>(_mm256_extract_epi64(acc3, 2));
-    subRet3 += static_cast<uint64_t>(_mm256_extract_epi64(acc3, 3));
-
+    int64_t subRet0 = hsum_i32_8(acc0);
+    int64_t subRet1 = hsum_i32_8(acc1);
+    int64_t subRet2 = hsum_i32_8(acc2);
+    int64_t subRet3 = hsum_i32_8(acc3);
 
     upperBound = length & -sizeof(int32_t);
     for (; r < upperBound; r += sizeof(int32_t)) {

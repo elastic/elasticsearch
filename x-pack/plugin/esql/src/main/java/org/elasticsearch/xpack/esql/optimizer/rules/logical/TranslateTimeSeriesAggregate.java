@@ -17,11 +17,9 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
@@ -30,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -166,22 +165,15 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
         Holder<Attribute> tsid = new Holder<>();
-        Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
                 if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
                     tsid.set(attr);
                 }
-                if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                    timestamp.set(attr);
-                }
             }
         });
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
-        }
-        if (timestamp.get() == null) {
-            throw new IllegalArgumentException("@timestamp field is missing from the time-series source");
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
@@ -226,10 +218,10 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
                     // We use merge_over_time as default for histograms and last_over_time for other types
                     TimeSeriesAggregateFunction tsAgg;
-                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM || aggField.dataType() == DataType.TDIGEST) {
                         tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
                     } else {
-                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
+                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), aggregate.timestamp());
                     }
                     final AggregateFunction firstStageFn;
                     if (inlineFilter != null) {
@@ -252,28 +244,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         }
                     }));
                 }
-            }
-        }
-        if (aggregate.child().output().contains(timestamp.get()) == false) {
-            var timestampAwareFunctions = timeSeriesAggs.keySet()
-                .stream()
-                .filter(ts -> ts instanceof TimestampAware)
-                .map(Node::sourceText)
-                .sorted()
-                .toList();
-            if (timestampAwareFunctions.isEmpty() == false) {
-                int size = timestampAwareFunctions.size();
-                throw new IllegalArgumentException(
-                    "Function"
-                        + (size > 1 ? "s " : " ")
-                        + "["
-                        + String.join(", ", timestampAwareFunctions.subList(0, Math.min(size, 3)))
-                        + (size > 3 ? ", ..." : "")
-                        + "] require"
-                        + (size > 1 ? " " : "s ")
-                        + "a @timestamp field of type date or date_nanos to be present when run with the TS command, "
-                        + "but it was not present."
-                );
+            } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
+                firstPassAggs.add(agg);
             }
         }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
@@ -285,22 +257,37 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
-                if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
+                if (child instanceof Bucket bucket && bucket.field().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
                     timeBucketRef.set(e);
-                } else if (child instanceof TBucket tbucket && tbucket.timestamp().equals(timestamp.get())) {
+                } else if (child instanceof TBucket tbucket && tbucket.timestamp().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }
                     Bucket bucket = (Bucket) tbucket.surrogate();
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
+                } else if (child instanceof DateTrunc dateTrunc && dateTrunc.field().equals(aggregate.timestamp())) {
+                    if (timeBucketRef.get() != null) {
+                        throw new IllegalArgumentException("expected at most one time bucket");
+                    }
+                    Bucket bucket = new Bucket(
+                        dateTrunc.source(),
+                        dateTrunc.field(),
+                        dateTrunc.interval(),
+                        null,
+                        null,
+                        dateTrunc.configuration()
+                    );
+                    timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                 }
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
-        for (var group : aggregate.groupings()) {
+        boolean[] packPositions = new boolean[aggregate.groupings().size()];
+        for (int i = 0; i < aggregate.groupings().size(); i++) {
+            var group = aggregate.groupings().get(i);
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
@@ -312,21 +299,26 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             } else {
                 var valuesAgg = new Alias(g.source(), g.name(), valuesAggregate(context, g));
                 firstPassAggs.add(valuesAgg);
-                Alias pack = new Alias(
-                    g.source(),
-                    internalNames.next("pack" + g.name()),
-                    new PackDimension(g.source(), valuesAgg.toAttribute())
-                );
-                packDimensions.add(pack);
-                Alias grouping = new Alias(g.source(), internalNames.next("group" + g.name()), pack.toAttribute());
-                secondPassGroupings.add(grouping);
-                Alias unpack = new Alias(
-                    g.source(),
-                    g.name(),
-                    new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
-                    g.id()
-                );
-                unpackDimensions.add(unpack);
+                if (g.isDimension()) {
+                    Alias pack = new Alias(
+                        g.source(),
+                        internalNames.next("pack_" + g.name()),
+                        new PackDimension(g.source(), valuesAgg.toAttribute())
+                    );
+                    packDimensions.add(pack);
+                    Alias grouping = new Alias(g.source(), internalNames.next("group_" + g.name()), pack.toAttribute());
+                    secondPassGroupings.add(grouping);
+                    Alias unpack = new Alias(
+                        g.source(),
+                        g.name(),
+                        new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
+                        g.id()
+                    );
+                    unpackDimensions.add(unpack);
+                    packPositions[i] = true;
+                } else {
+                    secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
+                }
             }
         }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
@@ -342,7 +334,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket)
+            (Bucket) Alias.unwrap(timeBucket),
+            aggregate.timestamp()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {
@@ -365,13 +358,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             for (NamedExpression agg : secondPassAggs) {
                 projects.add(Expressions.attribute(agg));
             }
-            int pos = 0;
-            for (Expression group : secondPassGroupings) {
-                Attribute g = Expressions.attribute(group);
-                if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    projects.add(g);
+            int packPos = 0;
+            for (int i = 0; i < secondPassGroupings.size(); i++) {
+                if (packPositions[i]) {
+                    projects.add(unpackDimensions.get(packPos++).toAttribute());
                 } else {
-                    projects.add(unpackDimensions.get(pos++).toAttribute());
+                    projects.add(Expressions.attribute(secondPassGroupings.get(i)));
                 }
             }
             return new Project(newChild.source(), unpackValues, projects);
@@ -437,9 +429,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         final long bucketInMillis = getTimeBucketInMillis(agg);
         if (bucketInMillis <= 0) {
-            throw new EsqlIllegalArgumentException(
-                "Using a window in aggregation [{}] requires a time bucket in groupings",
-                agg.sourceText()
+            throw new IllegalArgumentException(
+                "Using a window in aggregation [" + agg.sourceText() + "] requires a time bucket in groupings"
             );
         }
         for (NamedExpression aggregate : agg.aggregates()) {
@@ -451,15 +442,19 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         continue;
                     }
                 }
-                throw new EsqlIllegalArgumentException(
-                    "Unsupported window [{}] for aggregate function [{}]; "
-                        + "the window must be larger than the time bucket [{}] and an exact multiple of it",
-                    window.sourceText(),
-                    af.sourceText(),
-                    Objects.requireNonNull(agg.timeBucket()).sourceText()
+                throw new IllegalArgumentException(
+                    "Unsupported window ["
+                        + window.sourceText()
+                        + "] for aggregate function ["
+                        + af.sourceText()
+                        + "]; "
+                        + "the window must be larger than the time bucket ["
+                        + Objects.requireNonNull(agg.timeBucket()).sourceText()
+                        + "] and an exact multiple of it"
                 );
             }
         }
+
     }
 
     private long getTimeBucketInMillis(TimeSeriesAggregate agg) {

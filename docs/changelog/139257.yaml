@@ -1,0 +1,5 @@
+pr: 139257
+summary: Fix metrics for took between 1 and 10 hours
+area: ES|QL
+type: bug
+issues: []

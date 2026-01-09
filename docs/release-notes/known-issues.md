@@ -8,6 +8,12 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.2.0 [elasticsearch-9.2.0-known-issues]
+
+* The `bbq_disk` index format, licensed under the [Enterprise subscription tier](https://www.elastic.co/subscriptions) was introduced in 9.2.0 without appropriate license enforcement. This allowed users to create and use `bbq_disk` indices without an Enterprise license. This will be addressed in version 9.3.0. Upon upgrading to 9.3+ indices created on 9.2 will still be available for updates and queries, but new indices created on 9.3+ will require an Enterprise license.
+
+  This will be addressed in version 9.3.0.
+
 ## 9.1.1 [elasticsearch-9.1.1-known-issues]
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.

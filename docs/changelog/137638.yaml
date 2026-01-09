@@ -1,6 +1,0 @@
-pr: 137638
-summary: "ILM Explain: valid JSON on truncated step info"
-area: ILM+SLM
-type: bug
-issues:
- - 135458

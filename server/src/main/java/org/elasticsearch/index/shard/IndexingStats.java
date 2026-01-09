@@ -10,18 +10,15 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -35,7 +32,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = TransportVersion.fromName(
             "index_stats_and_metadata_include_peak_write_load"
         );
-        private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersions.V_8_6_0;
         private static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = TransportVersion.fromName(
             "write_load_includes_buffer_writes"
         );
@@ -67,19 +63,15 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
             indexFailedCount = in.readVLong();
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                indexFailedDueToVersionConflictCount = in.readVLong();
-            }
+            indexFailedDueToVersionConflictCount = in.readVLong();
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
-            if (in.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
-                totalIndexingTimeSinceShardStartedInNanos = in.readLong();
-                totalActiveTimeInNanos = in.readLong();
-            }
+            totalIndexingTimeSinceShardStartedInNanos = in.readLong();
+            totalActiveTimeInNanos = in.readLong();
             if (in.getTransportVersion().supports(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 recentIndexingLoad = in.readDouble();
             } else {
@@ -307,19 +299,15 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
             out.writeVLong(indexFailedCount);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeVLong(indexFailedDueToVersionConflictCount);
-            }
+            out.writeVLong(indexFailedDueToVersionConflictCount);
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-            if (out.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
-                out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
-                out.writeLong(totalActiveTimeInNanos);
-            }
+            out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
+            out.writeLong(totalActiveTimeInNanos);
             if (out.getTransportVersion().supports(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 out.writeDouble(recentIndexingLoad);
             }
@@ -406,13 +394,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readBoolean()) {
-                Map<String, Stats> typeStats = in.readMap(Stats::new);
-                assert typeStats.size() == 1;
-                assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
-            }
-        }
     }
 
     public IndexingStats(Stats totalStats) {
@@ -482,8 +463,5 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
     }
 }

@@ -24,7 +24,6 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +33,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -510,7 +511,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // wildcard queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -519,7 +520,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // regexp queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // regexp queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -534,7 +535,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             return toIntervalsSource(
                 Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // range queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -606,9 +607,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // otherwise, delegate block loading to the synthetic source delegate if possible
                 if (textFieldType.canUseSyntheticSourceDelegateForLoading()) {
-                    return new BlockLoader.Delegating(textFieldType.syntheticSourceDelegate().get().blockLoader(blContext)) {
+                    return new DelegatingBlockLoader(textFieldType.syntheticSourceDelegate().get().blockLoader(blContext)) {
                         @Override
-                        protected String delegatingTo() {
+                        public String delegatingTo() {
                             return textFieldType.syntheticSourceDelegate().get().name();
                         }
                     };
@@ -627,9 +628,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
-                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                        return new DelegatingBlockLoader(kwd.blockLoader(blContext)) {
                             @Override
-                            protected String delegatingTo() {
+                            public String delegatingTo() {
                                 return kwd.name();
                             }
                         };

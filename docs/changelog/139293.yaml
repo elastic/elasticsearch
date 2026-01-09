@@ -1,0 +1,7 @@
+pr: 139293
+summary: Ensure integer sorts are rewritten to long sorts for BWC indexes
+area: Search
+type: bug
+issues:
+ - 139127
+ - 139128

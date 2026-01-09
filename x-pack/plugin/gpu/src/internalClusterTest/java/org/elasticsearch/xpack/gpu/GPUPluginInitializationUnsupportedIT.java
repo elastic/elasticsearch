@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.gpu;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -20,7 +21,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.gpu.TestVectorsFormatUtils.randomGPUSupportedSimilarity;
-import static org.hamcrest.Matchers.equalTo;
 
 public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
 
@@ -29,29 +29,33 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
         TestCuVSServiceProvider.mockedGPUInfoProvider = p -> { throw new UnsupportedOperationException("cuvs-java UnsupportedProvider"); };
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(GPUPlugin.class);
+    public static class TestGPUPlugin extends GPUPlugin {
+        public TestGPUPlugin() {
+            super(Settings.EMPTY);
+        }
     }
 
-    public void testIndexSettingOnGPUSupportThrowsRethrows() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestGPUPlugin.class);
+    }
 
-        GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
+    public void testAutoModeWithUnavailableGPU() {
+        TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
-        createIndex("index1", Settings.builder().put(GPUPlugin.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), GPUPlugin.GpuMode.TRUE).build());
+        createIndex("index1");
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions, randomGPUSupportedSimilarity(indexOptions.getType()))
+        // With AUTO mode (default) and no GPU, should return null (fallback to CPU)
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
-        assertThat(
-            ex.getMessage(),
-            equalTo("[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node.")
-        );
+        assertNull(format);
     }
 
     private IndexSettings getIndexSettings() {

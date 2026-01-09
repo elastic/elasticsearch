@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,6 +64,8 @@ import static java.util.Map.entry;
  */
 public abstract class StreamOutput extends OutputStream {
 
+    // required for backwards compatibility with objects that use older transport versions for persistent serialization
+    private static final TransportVersion V_8_7_0 = TransportVersion.fromId(8070099);
     private TransportVersion version = TransportVersion.current();
 
     /**
@@ -194,10 +195,8 @@ public abstract class StreamOutput extends OutputStream {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
-    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
-
-    public final void writeShort(short v) throws IOException {
-        final byte[] buffer = scratch.get();
+    public void writeShort(short v) throws IOException {
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);
     }
@@ -206,7 +205,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes an int as four bytes.
      */
     public void writeInt(int i) throws IOException {
-        final byte[] buffer = scratch.get();
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeIntBE(i, buffer, 0);
         writeBytes(buffer, 0, 4);
     }
@@ -215,7 +214,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes an int as four bytes, least significant bytes first.
      */
     public void writeIntLE(int i) throws IOException {
-        final byte[] buffer = scratch.get();
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeIntLE(i, buffer, 0);
         writeBytes(buffer, 0, 4);
     }
@@ -241,34 +240,16 @@ public abstract class StreamOutput extends OutputStream {
             writeByte((byte) i);
             return;
         }
-        byte[] buffer = scratch.get();
-        int index = putMultiByteVInt(buffer, i, 0);
+        byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
+        int index = StreamOutputHelper.putMultiByteVInt(buffer, i, 0);
         writeBytes(buffer, 0, index);
-    }
-
-    public static int putVInt(byte[] buffer, int i, int off) {
-        if (Integer.numberOfLeadingZeros(i) >= 25) {
-            buffer[off] = (byte) i;
-            return 1;
-        }
-        return putMultiByteVInt(buffer, i, off);
-    }
-
-    protected static int putMultiByteVInt(byte[] buffer, int i, int off) {
-        int index = off;
-        do {
-            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
-            i >>>= 7;
-        } while ((i & ~0x7F) != 0);
-        buffer[index++] = (byte) i;
-        return index - off;
     }
 
     /**
      * Writes a long as eight bytes.
      */
     public void writeLong(long i) throws IOException {
-        final byte[] buffer = scratch.get();
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeLongBE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
@@ -277,7 +258,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a long as eight bytes.
      */
     public void writeLongLE(long i) throws IOException {
-        final byte[] buffer = scratch.get();
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeLongLE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
@@ -308,7 +289,7 @@ public abstract class StreamOutput extends OutputStream {
      * {@link #writeVLong(long)} instead.
      */
     void writeVLongNoCheck(long i) throws IOException {
-        final byte[] buffer = scratch.get();
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         int index = 0;
         while ((i & ~0x7F) != 0) {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
@@ -326,7 +307,7 @@ public abstract class StreamOutput extends OutputStream {
      * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
      */
     public void writeZLong(long i) throws IOException {
-        final byte[] buffer = scratch.get();
+        final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         int index = 0;
         // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
         long value = BitUtil.zigZagEncode(i);
@@ -347,16 +328,14 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalString(@Nullable String str) throws IOException {
-        if (str == null) {
-            writeBoolean(false);
-        } else {
-            byte[] buffer = scratch.get();
-            // put the true byte into the buffer instead of writing it outright to do fewer flushes
-            buffer[0] = ONE;
-            writeString(str, buffer, 1);
-        }
-    }
+    /**
+     * Write a possibly-null {@link String}, represented as a {@link boolean} which is {@code false} if the string is null, or else
+     * {@code true} if it is not null, and in this latter case it is followed by the string itself written as if with {@link #writeString}.
+     * <p>
+     * May be performance-critical, so subclasses must specify an explicit implementation. If performance is unimportant, consider using
+     * {@link StreamOutputHelper#writeOptionalString}.
+     */
+    public abstract void writeOptionalString(@Nullable String str) throws IOException;
 
     public void writeOptionalSecureString(@Nullable SecureString secureStr) throws IOException {
         if (secureStr == null) {
@@ -426,44 +405,14 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeString(String str) throws IOException {
-        writeString(str, scratch.get(), 0);
-    }
-
     /**
-     * Write string as well as possibly the beginning of the given {@code buffer}. The given {@code buffer} will also be used when encoding
-     * the given string.
-     *
-     * @param str string to write
-     * @param buffer buffer that may hold some bytes to write
-     * @param off how many bytes in {code buffer} to write
-     * @throws IOException on failure
+     * Write a {@link String}: its length in Unicode code units (chars) (NB not bytes) written using {@link #writeVInt} followed by the
+     * sequence of characters themselves encoded as UTF-8.
+     * <p>
+     * May be performance-critical, so subclasses must specify an explicit implementation. If performance is unimportant, consider using
+     * {@link StreamOutputHelper#writeString}.
      */
-    private void writeString(String str, byte[] buffer, int off) throws IOException {
-        final int charCount = str.length();
-        int offset = off + putVInt(buffer, charCount, off);
-        for (int i = 0; i < charCount; i++) {
-            final int c = str.charAt(i);
-            if (c <= 0x007F) {
-                buffer[offset++] = ((byte) c);
-            } else if (c > 0x07FF) {
-                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
-                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            } else {
-                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            }
-            // make sure any possible char can fit into the buffer in any possible iteration
-            // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
-            // left before we start another iteration
-            if (offset > buffer.length - 3) {
-                writeBytes(buffer, offset);
-                offset = 0;
-            }
-        }
-        writeBytes(buffer, offset);
-    }
+    public abstract void writeString(String str) throws IOException;
 
     public void writeSecureString(SecureString secureStr) throws IOException {
         final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());
@@ -613,7 +562,7 @@ public abstract class StreamOutput extends OutputStream {
         Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (this.getTransportVersion().supports(V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -751,7 +700,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (o.getTransportVersion().supports(V_8_7_0)) {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {
@@ -809,12 +758,8 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                o.writeZLong(instant.getEpochSecond());
-                o.writeInt(instant.getNano());
-            } else {
-                o.writeLong(instant.toEpochMilli());
-            }
+            o.writeZLong(instant.getEpochSecond());
+            o.writeInt(instant.getNano());
         }),
         entry(Set.class, (o, v) -> {
             if (v instanceof LinkedHashSet) {
@@ -875,12 +820,14 @@ public abstract class StreamOutput extends OutputStream {
         writeCollection(v, writer);
     }
 
-    public void writeGenericString(String value) throws IOException {
-        byte[] buffer = scratch.get();
-        // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
-        buffer[0] = 0;
-        writeString(value, buffer, 1);
-    }
+    /**
+     * Write a {@link String} within {@link #writeGenericValue}, represented as the type code byte {@code 0} followed by the string itself
+     * written as if with {@link #writeString}.
+     * <p>
+     * May be performance-critical, so subclasses must specify an explicit implementation. If performance is unimportant, consider using
+     * {@link StreamOutputHelper#writeGenericString}.
+     */
+    public abstract void writeGenericString(String value) throws IOException;
 
     public void writeGenericNull() throws IOException {
         writeByte((byte) -1);

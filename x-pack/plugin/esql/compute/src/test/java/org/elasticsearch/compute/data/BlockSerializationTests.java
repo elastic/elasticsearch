@@ -35,10 +35,6 @@ import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
 
-    private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName(
-        "esql_aggregate_metric_double_block"
-    );
-
     public void testConstantIntBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
     }
@@ -428,7 +424,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(random(), ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
@@ -490,17 +486,10 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        AggregateMetricDoubleArrayBlock.WRITE_TYPED_BLOCK,
-                        TransportVersion.current()
-                    )
+                    TransportVersionUtils.randomVersionBetween(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
                 )
             ) {
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
+                assertThat(deserBlock, equalTo(origBlock));
                 EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }

@@ -265,13 +265,6 @@ setup:
   - lte: {hits.hits.2._score: 0.791}
 ---
 "Vector rescoring has the same scoring as exact search for kNN section":
-  - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -318,42 +311,7 @@ setup:
   - match: { hits.hits.1._score: $rescore_score1 }
   - match: { hits.hits.2._score: $rescore_score2 }
 ---
-"Test bad parameters":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_int8_flat
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                element_type: bfloat16
-                dims: 5
-                index: true
-                index_options:
-                  type: int8_flat
-                  m: 42
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_int8_flat
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 5
-                element_type: byte
-                index: true
-                index_options:
-                  type: int8_flat
----
 "Test index configured rescore vector":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_vector"]
-      reason: Needs rescore_vector feature
   - skip:
       features: "headers"
   - do:
@@ -443,9 +401,6 @@ setup:
 
 ---
 "no default oversample value":
-  - requires:
-      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
-      reason: "Needs default_oversample_value_for_bbq feature"
   - do:
       indices.get_mapping:
         index: int8_flat

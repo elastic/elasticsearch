@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -79,6 +79,8 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -195,7 +197,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private SourceOperator sourceOperator(DriverContext context, int pageSize) {
         var luceneFactory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             DataPartitioning.SHARD,
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -905,7 +907,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> BlockLoader.constantBytes(new BytesRef("foo"))
+                    shardIdx -> new ConstantBytes(new BytesRef("foo"))
                 ),
                 checks::constantBytes,
                 StatusChecks::constantBytes
@@ -913,7 +915,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, false, shardIdx -> BlockLoader.CONSTANT_NULLS),
+                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE),
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -1510,7 +1512,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -1621,18 +1623,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new ValuesSourceReaderOperator.Factory(
                         ByteSizeValue.ofGb(1),
                         List.of(
-                            new ValuesSourceReaderOperator.FieldInfo(
-                                "null1",
-                                ElementType.NULL,
-                                false,
-                                shardIdx -> BlockLoader.CONSTANT_NULLS
-                            ),
-                            new ValuesSourceReaderOperator.FieldInfo(
-                                "null2",
-                                ElementType.NULL,
-                                false,
-                                shardIdx -> BlockLoader.CONSTANT_NULLS
-                            )
+                            new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE),
+                            new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE)
                         ),
                         new IndexedByShardIdFromSingleton<>(
                             new ValuesSourceReaderOperator.ShardContext(
@@ -1764,7 +1756,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
                 new IndexedByShardIdFromList<>(contexts),
-                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 randomIntBetween(1, 10),

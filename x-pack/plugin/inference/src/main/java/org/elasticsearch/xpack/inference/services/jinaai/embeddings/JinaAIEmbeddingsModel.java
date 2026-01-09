@@ -52,7 +52,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     ) {
         this(
             inferenceId,
-            BaseJinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, taskType, context),
+            createServiceSettings(serviceSettings, taskType, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets),
@@ -106,5 +106,18 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     @Override
     public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
+    }
+
+    private static BaseJinaAIEmbeddingsServiceSettings createServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> JinaAITextEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            case EMBEDDING -> JinaAIEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            // Should not be possible
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

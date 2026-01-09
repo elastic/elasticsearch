@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.xpack.inference.TaskTypeTests.randomEmbeddingTaskType;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMap;
@@ -109,7 +110,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
      * Returns a model with empty task settings, service settings and chunking settings, using the {@link TaskType#EMBEDDING} task type
      */
     public static JinaAIEmbeddingsModel createEmbeddingModel(String url, String modelName, String apiKey) {
-        return createModel(url, modelName, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, apiKey, TaskType.EMBEDDING);
+        return createModel(url, modelName, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, apiKey, EMBEDDING);
     }
 
     /**
@@ -122,7 +123,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         TaskType taskType
     ) {
-        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false, taskType, null);
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false, taskType, taskType == EMBEDDING);
         return createModel(url, serviceSettings, taskSettings, null, apiKey, taskType);
     }
 
@@ -137,7 +138,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         TaskType taskType
     ) {
-        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false, taskType, null);
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false, taskType, taskType == EMBEDDING);
         return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey, taskType);
     }
 
@@ -152,7 +153,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         @Nullable Integer dimensions,
         TaskType taskType,
-        @Nullable Boolean multimodalModel
+        boolean multimodalModel
     ) {
         var serviceSettings = getEmbeddingServiceSettings(
             modelName,
@@ -181,7 +182,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         boolean dimensionsSetByUser,
         TaskType taskType,
-        @Nullable Boolean multimodalModel
+        boolean multimodalModel
     ) {
         var serviceSettings = getEmbeddingServiceSettings(
             modelName,
@@ -225,7 +226,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         @Nullable JinaAIEmbeddingType embeddingType,
         boolean dimensionsSetByUser,
         TaskType taskType,
-        @Nullable Boolean multimodalModel
+        boolean multimodalModel
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return new JinaAITextEmbeddingServiceSettings(
@@ -236,7 +237,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
                 embeddingType,
                 dimensionsSetByUser
             );
-        } else if (taskType == TaskType.EMBEDDING) {
+        } else if (taskType == EMBEDDING) {
             return new JinaAIEmbeddingServiceSettings(
                 new JinaAIServiceSettings(modelName, rateLimitSettings),
                 similarity,

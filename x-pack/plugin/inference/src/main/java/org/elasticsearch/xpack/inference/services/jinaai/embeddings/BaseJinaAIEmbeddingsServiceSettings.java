@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -27,13 +26,13 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -48,19 +47,36 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
         "jina_ai_embedding_dimensions_support_added"
     );
 
-    static BaseJinaAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, TaskType taskType, ConfigurationParseContext context) {
-        Objects.requireNonNull(taskType);
+    @FunctionalInterface
+    public interface ConstructorInvoker<T extends BaseJinaAIEmbeddingsServiceSettings> {
+        T construct(
+            JinaAIServiceSettings commonSettings,
+            @Nullable SimilarityMeasure similarity,
+            @Nullable Integer dimensions,
+            @Nullable Integer maxInputTokens,
+            @Nullable JinaAIEmbeddingType embeddingType,
+            boolean dimensionsSetByUser,
+            boolean multimodalModel
+        );
+    }
+
+    static <T extends BaseJinaAIEmbeddingsServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        BiFunction<Map<String, Object>, ValidationException, Boolean> handleMultimodalModelField,
+        ConstructorInvoker<T> constructor
+    ) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class, validationException);
 
         JinaAIEmbeddingType embeddingType = parseEmbeddingType(map, validationException);
 
         Boolean dimensionsSetByUser;
         if (context == ConfigurationParseContext.PERSISTENT) {
-            dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
+            dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class, validationException);
             if (dimensionsSetByUser == null) {
                 dimensionsSetByUser = Boolean.FALSE;
             }
@@ -68,39 +84,21 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
             dimensionsSetByUser = dimensions != null;
         }
 
-        Boolean multimodalModel = null;
-        // Do not remove the MULTIMODAL_MODEL field from the map for TEXT_EMBEDDING since it's not supported
-        if (taskType == TaskType.EMBEDDING) {
-            multimodalModel = removeAsType(map, MULTIMODAL_MODEL, Boolean.class);
-            if (multimodalModel == null) {
-                multimodalModel = true;
-            }
-        }
+        boolean multimodalModel = handleMultimodalModelField.apply(map, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        if (taskType == TaskType.EMBEDDING) {
-            return new JinaAIEmbeddingServiceSettings(
-                commonServiceSettings,
-                similarity,
-                dimensions,
-                maxInputTokens,
-                embeddingType,
-                dimensionsSetByUser,
-                multimodalModel
-            );
-        } else {
-            return new JinaAITextEmbeddingServiceSettings(
-                commonServiceSettings,
-                similarity,
-                dimensions,
-                maxInputTokens,
-                embeddingType,
-                dimensionsSetByUser
-            );
-        }
+        return constructor.construct(
+            commonServiceSettings,
+            similarity,
+            dimensions,
+            maxInputTokens,
+            embeddingType,
+            dimensionsSetByUser,
+            multimodalModel
+        );
     }
 
     static JinaAIEmbeddingType parseEmbeddingType(Map<String, Object> map, ValidationException validationException) {
@@ -134,7 +132,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     private final Integer maxInputTokens;
     private final JinaAIEmbeddingType embeddingType;
     private final boolean dimensionsSetByUser;
-    private final Boolean multimodalModel;
+    private final boolean multimodalModel;
 
     public BaseJinaAIEmbeddingsServiceSettings(
         JinaAIServiceSettings commonSettings,
@@ -143,7 +141,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingType,
         boolean dimensionsSetByUser,
-        @Nullable Boolean multimodalModel
+        boolean multimodalModel
     ) {
         this.commonSettings = commonSettings;
         this.similarity = similarity;
@@ -172,17 +170,11 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
         }
 
         if (in.getTransportVersion().supports(JINA_AI_EMBEDDING_TASK_ADDED)) {
-            this.multimodalModel = in.readOptionalBoolean();
+            this.multimodalModel = in.readBoolean();
         } else {
-            this.multimodalModel = null;
+            this.multimodalModel = false;
         }
     }
-
-    /**
-     * Returns whether this {@link BaseJinaAIEmbeddingsServiceSettings} defaults to supporting multimodal inputs or not
-     * @return {@code true} if these settings default to supporting multimodal inputs
-     */
-    public abstract boolean getDefaultMultimodal();
 
     /**
      * Returns a new {@link BaseJinaAIEmbeddingsServiceSettings} with updated similarity and dimensions but all other fields unchanged
@@ -191,6 +183,8 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
      * @return a new {@link BaseJinaAIEmbeddingsServiceSettings}
      */
     public abstract BaseJinaAIEmbeddingsServiceSettings update(SimilarityMeasure similarity, Integer dimensions);
+
+    protected abstract void optionallyWriteMultimodalField(XContentBuilder builder) throws IOException;
 
     public JinaAIServiceSettings getCommonSettings() {
         return commonSettings;
@@ -231,7 +225,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
 
     @Override
     public boolean isMultimodal() {
-        return multimodalModel != null ? multimodalModel : getDefaultMultimodal();
+        return multimodalModel;
     }
 
     @Override
@@ -263,9 +257,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
             builder.field(SIMILARITY, similarity);
         }
 
-        if (multimodalModel != null) {
-            builder.field(MULTIMODAL_MODEL, multimodalModel);
-        }
+        optionallyWriteMultimodalField(builder);
 
         return builder;
     }

@@ -1074,7 +1074,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 apiKey,
                 dimensions,
                 TEXT_EMBEDDING,
-                null
+                false
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             List<String> input = List.of("abc");

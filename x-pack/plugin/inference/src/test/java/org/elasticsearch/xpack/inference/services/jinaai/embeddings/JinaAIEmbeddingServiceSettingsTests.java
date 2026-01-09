@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -37,13 +36,16 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.PERSISTENT;
+import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.REQUEST;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.JINA_AI_EMBEDDING_DIMENSIONS_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettingsTests.getMapOfCommonEmbeddingSettings;
-import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIEmbeddingServiceSettings> {
@@ -90,35 +92,46 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dimensions = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    public void testFromMap_persistentContext_createsSettingsCorrectly() {
+        testFromMap(randomNonNegativeInt(), PERSISTENT);
+    }
+
+    public void testFromMap_requestContext_createsSettingsCorrectly() {
+        testFromMap(randomNonNegativeInt(), REQUEST);
+    }
+
+    public void testFromMap_requestContext_nullDimensions_createsSettingsCorrectly() {
+        testFromMap(null, REQUEST);
+    }
+
+    private static void testFromMap(Integer dimensions, ConfigurationParseContext parseContext) {
+        var similarity = randomSimilarityMeasure();
+        var maxInputTokens = randomNonNegativeInt();
+        var model = randomAlphanumericOfLength(8);
         var embeddingType = randomFrom(JinaAIEmbeddingType.values());
-        var requestsPerMinute = 1234;
-        var multiModalModel = false;
-        var serviceSettings = JinaAIEmbeddingServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity.toString(),
-                    ServiceFields.DIMENSIONS,
-                    dimensions,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model,
-                    EMBEDDING_TYPE,
-                    embeddingType.toString(),
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)),
-                    MULTIMODAL_MODEL,
-                    multiModalModel
-                )
-            ),
-            ConfigurationParseContext.REQUEST
+        var requestsPerMinute = randomNonNegativeInt();
+        var multimodalModel = randomBoolean();
+        var settingsMap = getMapOfCommonEmbeddingSettings(
+            model,
+            similarity,
+            dimensions,
+            null,
+            maxInputTokens,
+            embeddingType,
+            requestsPerMinute
         );
+
+        settingsMap.put(MULTIMODAL_MODEL, multimodalModel);
+
+        boolean dimensionsSetByUser;
+        if (parseContext == REQUEST) {
+            dimensionsSetByUser = dimensions != null;
+        } else {
+            dimensionsSetByUser = randomBoolean();
+            settingsMap.put(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        }
+
+        var serviceSettings = JinaAIEmbeddingServiceSettings.fromMap(settingsMap, parseContext);
 
         assertThat(
             serviceSettings,
@@ -129,8 +142,8 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
                     dimensions,
                     maxInputTokens,
                     embeddingType,
-                    true,
-                    multiModalModel
+                    dimensionsSetByUser,
+                    multimodalModel
                 )
             )
         );
@@ -140,7 +153,6 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         var model = "model";
         var serviceSettings = JinaAIEmbeddingServiceSettings.fromMap(
             new HashMap<>(Map.of(MODEL_ID, model)),
-            TaskType.EMBEDDING,
             randomFrom(ConfigurationParseContext.values())
         );
 
@@ -166,8 +178,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
             ValidationException.class,
             () -> JinaAIEmbeddingServiceSettings.fromMap(
                 new HashMap<>(Map.of(MODEL_ID, "model", ServiceFields.SIMILARITY, similarity)),
-                TaskType.EMBEDDING,
-                ConfigurationParseContext.PERSISTENT
+                randomFrom(ConfigurationParseContext.values())
             )
         );
 
@@ -183,14 +194,35 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
+    public void testFromMap_nonPositiveDimensions_throwsError() {
+        var dimensions = randomIntBetween(-5, 0);
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> JinaAIEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", DIMENSIONS, dimensions)),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [%s] must be a positive integer;",
+                    dimensions,
+                    DIMENSIONS
+                )
+            )
+        );
+    }
+
     public void testFromMap_InvalidEmbeddingType_ThrowsError() {
         var embeddingType = "invalid";
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAIEmbeddingServiceSettings.fromMap(
                 new HashMap<>(Map.of(MODEL_ID, "model", EMBEDDING_TYPE, embeddingType)),
-                TaskType.EMBEDDING,
-                ConfigurationParseContext.PERSISTENT
+                randomFrom(ConfigurationParseContext.values())
             )
         );
 
@@ -296,13 +328,13 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
 
     @Override
     protected JinaAIEmbeddingServiceSettings mutateInstanceForVersion(JinaAIEmbeddingServiceSettings instance, TransportVersion version) {
-        Boolean multimodalModel = instance.isMultimodal();
+        boolean multimodalModel = instance.isMultimodal();
         boolean dimensionsSetByUser = instance.dimensionsSetByUser();
         JinaAIEmbeddingType embeddingType = instance.getEmbeddingType();
 
-        // default to null for multimodal if node is on a version before embedding task support was added
+        // default to false for multimodal if node is on a version before embedding task support was added
         if (version.supports(JINA_AI_EMBEDDING_TASK_ADDED) == false) {
-            multimodalModel = null;
+            multimodalModel = false;
         }
         // default to false for dimensionsSetByUser if node is on a version before support for setting embedding dimensions was added
         if (version.supports(JINA_AI_EMBEDDING_DIMENSIONS_SUPPORT_ADDED) == false) {

@@ -331,7 +331,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, imageInput))),
             null,
-            createModel(null, modelName, null, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "apiKey", null, TaskType.EMBEDDING, null)
+            createModel(null, modelName, null, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "apiKey", null, TaskType.EMBEDDING, true)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

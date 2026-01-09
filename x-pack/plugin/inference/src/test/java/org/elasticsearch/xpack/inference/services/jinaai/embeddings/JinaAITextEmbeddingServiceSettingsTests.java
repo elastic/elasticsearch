@@ -35,16 +35,20 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.PERSISTENT;
+import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.REQUEST;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.JINA_AI_EMBEDDING_DIMENSIONS_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettingsTests.getMapOfCommonEmbeddingSettings;
-import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAITextEmbeddingServiceSettings> {
 
@@ -86,32 +90,43 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         );
     }
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dimensions = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    public void testFromMap_persistentContext_createsSettingsCorrectly() {
+        testFromMap(randomNonNegativeInt(), PERSISTENT);
+    }
+
+    public void testFromMap_requestContext_createsSettingsCorrectly() {
+        testFromMap(randomNonNegativeInt(), REQUEST);
+    }
+
+    public void testFromMap_requestContext_nullDimensions_createsSettingsCorrectly() {
+        testFromMap(null, REQUEST);
+    }
+
+    private static void testFromMap(Integer dimensions, ConfigurationParseContext parseContext) {
+        var similarity = randomSimilarityMeasure();
+        var maxInputTokens = randomNonNegativeInt();
+        var model = randomAlphanumericOfLength(8);
         var embeddingType = randomFrom(JinaAIEmbeddingType.values());
-        var requestsPerMinute = 1234;
-        var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity.toString(),
-                    ServiceFields.DIMENSIONS,
-                    dimensions,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model,
-                    EMBEDDING_TYPE,
-                    embeddingType.toString(),
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(REQUESTS_PER_MINUTE_FIELD, requestsPerMinute))
-                )
-            ),
-            ConfigurationParseContext.REQUEST
+        var requestsPerMinute = randomNonNegativeInt();
+        var settingsMap = getMapOfCommonEmbeddingSettings(
+            model,
+            similarity,
+            dimensions,
+            null,
+            maxInputTokens,
+            embeddingType,
+            requestsPerMinute
         );
+
+        boolean dimensionsSetByUser;
+        if (parseContext == REQUEST) {
+            dimensionsSetByUser = dimensions != null;
+        } else {
+            dimensionsSetByUser = randomBoolean();
+            settingsMap.put(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        }
+
+        var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(settingsMap, parseContext);
 
         assertThat(
             serviceSettings,
@@ -122,18 +137,17 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
                     dimensions,
                     maxInputTokens,
                     embeddingType,
-                    true
+                    dimensionsSetByUser
                 )
             )
         );
     }
 
-    public void testFromMap_Request_DimensionsSetByUser_IsFalse_WhenDimensionsAreNotPresent() {
-        var url = "https://www.abc.com";
+    public void testFromMap_onlyRequiredFields() {
         var model = "model";
         var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(
-            new HashMap<>(Map.of(URL, url, ServiceFields.MODEL_ID, model)),
-            ConfigurationParseContext.REQUEST
+            new HashMap<>(Map.of(MODEL_ID, model)),
+            randomFrom(ConfigurationParseContext.values())
         );
 
         assertThat(
@@ -151,123 +165,23 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         );
     }
 
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var url = "https://www.abc.com";
-        var similarity = randomSimilarityMeasure();
-        var dimensions = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var embeddingType = randomFrom(JinaAIEmbeddingType.values());
-        var requestsPerMinute = 1234;
-        var dimensionsSetByUser = randomBoolean();
-        var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    URL,
-                    url,
-                    SIMILARITY,
-                    similarity.toString(),
-                    DIMENSIONS,
-                    dimensions,
-                    MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model,
-                    EMBEDDING_TYPE,
-                    embeddingType.toString(),
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)),
-                    ServiceFields.DIMENSIONS_SET_BY_USER,
-                    dimensionsSetByUser
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new JinaAITextEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(model, new RateLimitSettings(requestsPerMinute)),
-                    similarity,
-                    dimensions,
-                    maxInputTokens,
-                    embeddingType,
-                    dimensionsSetByUser
-                )
+    public void testFromMap_InvalidEmbeddingType_ThrowsError() {
+        var embeddingType = "invalid";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> JinaAITextEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(MODEL_ID, "model", EMBEDDING_TYPE, embeddingType)),
+                randomFrom(ConfigurationParseContext.values())
             )
         );
-    }
-
-    public void testFromMap_WithModelId() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dimensions = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity.toString(),
-                    DIMENSIONS,
-                    dimensions,
-                    MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
 
         assertThat(
-            serviceSettings,
+            thrownException.getMessage(),
             is(
-                new JinaAITextEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(model, null),
-                    similarity,
-                    dimensions,
-                    maxInputTokens,
-                    JinaAIEmbeddingType.FLOAT,
-                    true
-                )
-            )
-        );
-    }
-
-    public void testFromMap_WithEmbeddingType() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dimensions = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity.toString(),
-                    DIMENSIONS,
-                    dimensions,
-                    MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model,
-                    EMBEDDING_TYPE,
-                    JinaAIEmbeddingType.BIT.toString()
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new JinaAITextEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(model, null),
-                    similarity,
-                    dimensions,
-                    maxInputTokens,
-                    JinaAIEmbeddingType.BIT,
-                    true
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%s] received. [embedding_type] "
+                        + "must be one of [binary, bit, float];",
+                    embeddingType
                 )
             )
         );
@@ -312,6 +226,15 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
                 )
             )
         );
+    }
+
+    public void testFromMap_doesNotRemoveMultimodalModelField() {
+        var model = "model";
+        HashMap<String, Object> settingsMap = new HashMap<>(Map.of(MODEL_ID, model, MULTIMODAL_MODEL, true));
+        var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings.isMultimodal(), is(false));
+        assertThat(settingsMap, not(anEmptyMap()));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

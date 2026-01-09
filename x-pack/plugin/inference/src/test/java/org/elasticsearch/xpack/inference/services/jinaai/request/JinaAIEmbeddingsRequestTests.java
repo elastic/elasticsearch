@@ -53,7 +53,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
                 apiKey,
                 dimensions,
                 TaskType.TEXT_EMBEDDING,
-                null
+                false
             )
         );
 
@@ -164,7 +164,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
                 apiKey,
                 dimensions,
                 TaskType.TEXT_EMBEDDING,
-                null
+                false
             )
         );
 

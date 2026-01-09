@@ -10,18 +10,28 @@ package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     public static final String NAME = "jinaai_multimodal_embedding_service_settings";
+    public static final boolean DEFAULT_MULTIMODAL_MODEL = true;
 
     public static JinaAIEmbeddingServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return (JinaAIEmbeddingServiceSettings) BaseJinaAIEmbeddingsServiceSettings.fromMap(map, TaskType.EMBEDDING, context);
+        return BaseJinaAIEmbeddingsServiceSettings.fromMap(
+            map,
+            context,
+            (m, v) -> Objects.requireNonNullElse(removeAsType(m, MULTIMODAL_MODEL, Boolean.class, v), DEFAULT_MULTIMODAL_MODEL),
+            JinaAIEmbeddingServiceSettings::new
+        );
     }
 
     public JinaAIEmbeddingServiceSettings(
@@ -31,18 +41,13 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingType,
         boolean dimensionsSetByUser,
-        @Nullable Boolean multimodalModel
+        boolean multimodalModel
     ) {
         super(commonSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser, multimodalModel);
     }
 
     public JinaAIEmbeddingServiceSettings(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public boolean getDefaultMultimodal() {
-        return true;
     }
 
     @Override
@@ -56,6 +61,11 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
             dimensionsSetByUser(),
             isMultimodal()
         );
+    }
+
+    @Override
+    protected void optionallyWriteMultimodalField(XContentBuilder builder) throws IOException {
+        builder.field(MULTIMODAL_MODEL, isMultimodal());
     }
 
     @Override

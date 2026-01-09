@@ -185,9 +185,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/127689
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/350_point_in_time/point-in-time with index filter}
-  issue: https://github.com/elastic/elasticsearch/issues/127741
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
@@ -320,9 +317,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithNulls {TestCase=<double>, <double>, <double>, <_source> #11}"
   issue: https://github.com/elastic/elasticsearch/issues/134447
-- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionTests
-  method: testGetClusterStateWithDefaultProjectOnly
-  issue: https://github.com/elastic/elasticsearch/issues/134450
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/134500
@@ -479,9 +473,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettings
   issue: https://github.com/elastic/elasticsearch/issues/135972
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
-  issue: https://github.com/elastic/elasticsearch/issues/137732
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
@@ -503,18 +494,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testNodeShutdown {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/140414
-- class: org.elasticsearch.upgrades.RunningSnapshotIT
-  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/140415
-- class: org.elasticsearch.upgrades.RunningSnapshotIT
-  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/140416
-- class: org.elasticsearch.upgrades.RunningSnapshotIT
-  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/140417
+- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
+  method: testReindexWithShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/139806
 
 # Examples:
 #

@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -353,7 +354,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertFalse(blockLoader instanceof BlockLoader.Delegating);
+        assertFalse(blockLoader instanceof DelegatingBlockLoader);
     }
 
     public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
@@ -403,7 +404,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertFalse(blockLoader instanceof BlockLoader.Delegating);
+        assertFalse(blockLoader instanceof DelegatingBlockLoader);
     }
 
     public void testBlockLoaderLoadsFromSourceByDefault() {
@@ -497,8 +498,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // should delegate to the keyword multi-field
-        assertThat(blockLoader, instanceOf(BlockLoader.Delegating.class));
-        assertThat(((BlockLoader.Delegating) blockLoader).delegatingTo(), equalTo("field.keyword"));
+        assertThat(blockLoader, instanceOf(DelegatingBlockLoader.class));
+        assertThat(((DelegatingBlockLoader) blockLoader).delegatingTo(), equalTo("field.keyword"));
     }
 
     public void testBlockLoaderDelegatesToParentKeywordField() {
@@ -521,8 +522,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should delegate to parent keyword field
-        assertThat(blockLoader, instanceOf(BlockLoader.Delegating.class));
-        assertThat(((BlockLoader.Delegating) blockLoader).delegatingTo(), equalTo(parentFieldName));
+        assertThat(blockLoader, instanceOf(DelegatingBlockLoader.class));
+        assertThat(((DelegatingBlockLoader) blockLoader).delegatingTo(), equalTo(parentFieldName));
     }
 
     public void testBlockLoaderLoadsFromIgnoredSourceInLegacyIndexVersion() {

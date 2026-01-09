@@ -1364,7 +1364,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return The generation date of the index, or null if this is the write index
      */
     @Nullable
-    public static TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
+    public TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
         if (indexMetadata.getIndex().equals(getWriteIndex()) || indexMetadata.getIndex().equals(getWriteFailureIndex())) {
             return null;
         }

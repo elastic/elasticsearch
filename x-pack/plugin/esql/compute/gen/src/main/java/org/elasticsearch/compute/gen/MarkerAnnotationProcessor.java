@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.gen;
 
+import org.elasticsearch.core.UpdateForV10;
+
 import java.util.Set;
 
 import javax.annotation.processing.Completion;
@@ -37,7 +39,7 @@ public class MarkerAnnotationProcessor implements Processor {
     @Override
     public Set<String> getSupportedAnnotationTypes() {
         // Marker annotations that are documentation-only and don't require processing.
-        return Set.of("org.elasticsearch.core.UpdateForV10");
+        return Set.of(UpdateForV10.class.getCanonicalName());
     }
 
     @Override

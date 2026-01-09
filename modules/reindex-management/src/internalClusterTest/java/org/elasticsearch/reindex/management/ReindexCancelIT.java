@@ -11,6 +11,7 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -216,8 +217,11 @@ public class ReindexCancelIT extends ESIntegTestCase {
             final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", deleteByQueryTaskId);
             final var exception = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(deleteByQueryTaskId));
             assertThat(exception.getMessage(), is(expectedExceptionMessage));
-        } finally { // cleanup, gracefully handles if task is dead (in case of *very slow* CI)
-            clusterAdmin().prepareCancelTasks().setTargetTaskId(deleteByQueryTaskId).get();
+        } finally { // cleanup by killing deleteByQuery, gracefully handles if task is dead (in case of *very slow* CI)
+            final CancelTasksRequest cancelRequest = new CancelTasksRequest();
+            cancelRequest.setWaitForCompletion(true);
+            cancelRequest.setTargetTaskId(deleteByQueryTaskId);
+            clusterAdmin().cancelTasks(cancelRequest).get();
         }
     }
 

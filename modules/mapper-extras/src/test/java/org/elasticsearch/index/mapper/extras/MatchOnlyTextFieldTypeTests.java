@@ -38,11 +38,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
-import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
@@ -233,7 +231,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void testBlockLoaderUsesStoredFieldsForLoadingWhenSyntheticSourceDelegateIsAbsentInLegacyIndexVersion() {
+    public void testBlockLoaderUsesStoredFieldsForLoadingWhenSyntheticSourceDelegateIsAbsent() {
         // given
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "field",
@@ -244,8 +242,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
-            IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES,  // legacy version before binary doc values
-            IndexMode.STANDARD
+            false
         );
 
         // when
@@ -253,6 +250,27 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then - should load from a fallback stored field
         assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
+    }
+
+    public void testBlockLoaderUsesBinaryDocValuesForLoadingWhenSyntheticSourceDelegateIsAbsent() {
+        // given
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "field",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            true
+        );
+
+        // when
+        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+
+        // then - should load from a fallback stored field
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
     public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
@@ -273,8 +291,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
-            IndexVersion.current(),
-            IndexMode.STANDARD
+            true
         );
 
         // when
@@ -320,8 +337,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
-            IndexVersion.current(),
-            IndexMode.STANDARD
+            false
         );
 
         // when
@@ -370,8 +386,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
-            IndexVersion.current(),
-            IndexMode.STANDARD
+            false
         );
 
         // when
@@ -405,8 +420,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             keywordFieldType,
-            IndexVersion.current(),
-            IndexMode.STANDARD
+            false
         );
 
         var mockedSearchLookup = mock(SearchLookup.class);
@@ -442,6 +456,28 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
     }
 
+    public void testBlockLoaderLoadsFromFallbackStoredFieldWhenSyntheticSourceIsEnabled() {
+        // given
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "field",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            false
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then - should load from a fallback binary doc values field
+        assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
+    }
+
     public void testBlockLoaderLoadsFromFallbackBinaryDocValuesWhenSyntheticSourceIsEnabled() {
         // given
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
@@ -453,8 +489,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
-            IndexVersion.current(),
-            IndexMode.STANDARD
+            true
         );
 
         // when
@@ -465,26 +500,4 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
-    public void testBlockLoaderLoadsFromStoredFieldsWhenSyntheticSourceIsEnabledWithStoredFieldInBinaryFormat() {
-        // given
-        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
-            "field",
-            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-            mock(NamedAnalyzer.class),
-            true,
-            Collections.emptyMap(),
-            false,
-            true,
-            null,
-            IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES,  // legacy version that uses stored fields
-            IndexMode.STANDARD
-        );
-
-        // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
-        BlockLoader blockLoader = ft.blockLoader(context);
-
-        // then - should load from stored fields with bytes format
-        assertThat(blockLoader, Matchers.instanceOf(BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader.class));
-    }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldStorageVerifier;
@@ -294,113 +293,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         {
             List<IndexableField> fields = doc.rootDoc().getFields("name._original");
             IndexableFieldType fieldType = fields.get(0).fieldType();
-            assertThat(fieldType.stored(), is(false));
-        }
-
-        // the field should be stored in a fallback binary doc values field name._original
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
-        assertIgnoredSourceIsEmpty(doc);
-    }
-
-    public void testStoreParameterDefaultsSyntheticSourceInLegacyIndexVersion() throws IOException {
-        var indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
-        var indexSettings = indexSettingsBuilder.build();
-
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "match_only_text");
-            b.endObject();
-        });
-
-        IndexVersion bwcIndexVersion = IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES;
-        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
-
-        var source = source(b -> b.field("name", "quick brown fox"));
-        ParsedDocument doc = mapper.parse(source);
-
-        {
-            List<IndexableField> fields = doc.rootDoc().getFields("name");
-            IndexableFieldType fieldType = fields.get(0).fieldType();
-            assertThat(fieldType.stored(), is(false));
-        }
-        {
-            List<IndexableField> fields = doc.rootDoc().getFields("name._original");
-            IndexableFieldType fieldType = fields.get(0).fieldType();
             assertThat(fieldType.stored(), is(true));
         }
-
-        // the field should be stored in a fallback stored field name._original
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
-        assertIgnoredSourceIsEmpty(doc);
-    }
-
-    public void testStoreParameterDefaultsSyntheticSourceWithKeywordMultiField() throws IOException {
-        var indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
-        var indexSettings = indexSettingsBuilder.build();
-
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "match_only_text");
-            b.startObject("fields");
-            b.startObject("keyword");
-            b.field("type", "keyword");
-            b.endObject();
-            b.endObject();
-            b.endObject();
-        });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
-
-        var source = source(b -> b.field("name", "quick brown fox"));
-        ParsedDocument doc = mapper.parse(source);
-        {
-            List<IndexableField> fields = doc.rootDoc().getFields("name");
-            IndexableFieldType fieldType = fields.get(0).fieldType();
-            assertThat(fieldType.stored(), is(false));
-        }
-
-        // The match_only_text field should not store anything - storage is delegated to the keyword multi-field
-        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
-
-        // The keyword multi-field stores in doc values by default
-        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
-
-        assertIgnoredSourceIsEmpty(doc);
-    }
-
-    public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiField() throws IOException {
-        var indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
-        var indexSettings = indexSettingsBuilder.build();
-
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "keyword");
-            b.startObject("fields");
-            b.startObject("text");
-            b.field("type", "match_only_text");
-            b.endObject();
-            b.endObject();
-            b.endObject();
-        });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
-
-        var source = source(b -> b.field("name", "quick brown fox"));
-        ParsedDocument doc = mapper.parse(source);
-        {
-            List<IndexableField> fields = doc.rootDoc().getFields("name.text");
-            IndexableFieldType fieldType = fields.get(0).fieldType();
-            assertThat(fieldType.stored(), is(false));
-        }
-
-        // The match_only_text multi-field should not store anything - storage is handled by the parent keyword field
-        FieldStorageVerifier.forField("name.text", doc.rootDoc()).verify();
-
-        // The parent keyword field stores in doc values by default
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
-
-        assertIgnoredSourceIsEmpty(doc);
     }
 
     public void testLoadSyntheticSourceFromStringOrBytesRef() throws IOException {
@@ -432,7 +326,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testStoringDefaults() throws IOException {
+    public void testStoring() throws IOException {
         // given
         var mapping = mapping(b -> {
             b.startObject("name");
@@ -476,8 +370,71 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
+        // the field should be stored in a fallback stored field field name._original
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledInLogsDbIndices() throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .put(IndexSettings.MODE.getKey(), "logsdb");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "match_only_text");
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        // then
+        var source = source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("name", "quick brown fox");
+        });
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false since match only text fields don't store anything
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // logsdb indices use binary doc values
         // the field should be stored in a fallback binary doc values field name._original
         FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAParentField() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("parent");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("child");
+            b.field("type", "match_only_text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("parent", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // the match_only_text field should not store anything - storage is handled by the parent field
+        FieldStorageVerifier.forField("parent.child", doc.rootDoc()).verify();
+
+        // the parent keyword field sores in doc values by default
+        FieldStorageVerifier.forField("parent", doc.rootDoc()).expectDocValues().verify();
 
         assertIgnoredSourceIsEmpty(doc);
     }
@@ -542,6 +499,50 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
+        // the field should stored in a fallback stored field field name._original since keyword cannot act as delegate due to the value
+        // exceeding ignore_above
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        // there should be nothing stored by the keyword multi field since the value exceeds ignore_above
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldWithIgnoreAboveInLogsDbIndices() throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .put(IndexSettings.MODE.getKey(), "logsdb");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "match_only_text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        // then - value exceeds ignore_above
+        var source = source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("name", "quick brown fox");
+        });
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // logsdb indices use binary doc values
         // the field should stored in a fallback binary doc values field name._original since keyword cannot act as delegate
         // due to the value exceeding ignore_above
         FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
@@ -585,74 +586,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
 
         assertIgnoredSourceIsEmpty(doc);
-    }
-
-    public void testStoreFallbackFieldsInStoredFieldsForStandardIndexMode() throws IOException {
-        // Standard index mode should NOT use binary doc values for fallback fields
-        var settings = Settings.builder().put("index.mode", "standard").put("index.mapping.source.mode", "synthetic").build();
-
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "match_only_text");
-            b.endObject();
-        });
-
-        DocumentMapper mapper = createMapperService(settings, mapping).documentMapper();
-
-        var source = source(b -> b.field("name", "quick brown fox"));
-        ParsedDocument doc = mapper.parse(source);
-
-        // For standard index mode, fallback field should be stored in stored fields, NOT binary doc values
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
-    }
-
-    public void testStoreFallbackFieldsInBinaryDocValuesForLogsdbIndexMode() throws IOException {
-        // Logsdb index mode should use binary doc values for fallback fields
-        var settings = Settings.builder().put("index.mode", "logsdb").build();
-
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "match_only_text");
-            b.endObject();
-        });
-
-        DocumentMapper mapper = createMapperService(settings, mapping).documentMapper();
-
-        var source = source(b -> b.field("name", "quick brown fox"));
-        ParsedDocument doc = mapper.parse(source);
-
-        // For logsdb index mode, fallback field should be stored in binary doc values
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
-    }
-
-    public void testStoreFallbackFieldsInBinaryDocValuesForTimeSeriesIndexMode() throws IOException {
-        // Time series index mode should use binary doc values for fallback fields
-        var settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "dimension").build();
-
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "match_only_text");
-            b.endObject();
-            b.startObject("dimension");
-            b.field("type", "keyword");
-            b.field("time_series_dimension", true);
-            b.endObject();
-            b.startObject("@timestamp");
-            b.field("type", "date");
-            b.endObject();
-        });
-
-        DocumentMapper mapper = createMapperService(settings, mapping).documentMapper();
-
-        var source = source(b -> {
-            b.field("name", "quick brown fox");
-            b.field("dimension", "dim1");
-            b.field("@timestamp", "2024-01-01T00:00:00Z");
-        });
-        ParsedDocument doc = mapper.parse(source);
-
-        // For time series index mode, fallback field should be stored in binary doc values
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
     }
 
     @Override

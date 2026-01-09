@@ -395,7 +395,8 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false, false, ActionListener.noop()).clusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
@@ -454,7 +455,8 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            () -> new SnapshotShardSizeInfo(snapshotShardSizes)
+            () -> new SnapshotShardSizeInfo(snapshotShardSizes),
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false, false, ActionListener.noop()).clusterState();
 

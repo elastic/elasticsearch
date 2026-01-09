@@ -1411,10 +1411,6 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
         }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
-            checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
-        }
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
@@ -1541,9 +1537,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
-        }
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
@@ -1593,9 +1586,6 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
     }
 
@@ -1656,9 +1646,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
     }
 
@@ -1725,9 +1712,6 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
         }
     }
 
@@ -2576,9 +2560,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Meditation\", title)");
         }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
-        }
     }
 
     private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
@@ -2600,10 +2581,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
             checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
-            checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
     }
 
@@ -3076,10 +3053,10 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBeforeInlineStats_WithTS() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
         assertThat(
-            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            error("TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod"),
             containsString(
-                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
+                "1:67: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(m) BY pod] after [LIMIT 5] [@1:57]"
             )
         );
     }

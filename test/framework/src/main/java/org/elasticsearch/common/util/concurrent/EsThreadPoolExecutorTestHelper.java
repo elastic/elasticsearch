@@ -7,18 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.upgrades;
+package org.elasticsearch.common.util.concurrent;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
+public class EsThreadPoolExecutorTestHelper {
 
-public class TextRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
-
-    public TextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
+    public static EsExecutors.HotThreadsOnLargeQueueConfig getHotThreadsOnLargeQueueConfig(EsThreadPoolExecutor executor) {
+        return executor.getHotThreadsOnLargeQueueConfig();
     }
 
-    @Override
-    public String stringType() {
-        return "text";
+    public static long getStartTimeMillisOfLargeQueue(EsThreadPoolExecutor executor) {
+        return executor.getStartTimeMillisOfLargeQueue();
     }
 }

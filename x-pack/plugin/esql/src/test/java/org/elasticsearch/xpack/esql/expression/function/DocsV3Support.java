@@ -1161,57 +1161,51 @@ public abstract class DocsV3Support {
 
             builder.append(SETTINGS_WARNING);
 
-            builder.append("***");
+            builder.append("`");
             builder.append(param != null ? param.name() : mapParam.name());
-            builder.append("***\n\n");
+            builder.append("`");
 
-            builder.append("```yaml {applies_to}\n");
-            builder.append("serverless: ");
-            builder.append(setting.preview() ? "preview" : "ga");
-            builder.append("\n");
+            builder.append(" {applies_to}`serverless: ");
+            builder.append(setting.preview() ? "preview`" : "ga`");
             if (setting.serverlessOnly() == false) {
-                builder.append("stack: ");
-                builder.append(setting.preview() ? "preview" : "ga");
-                builder.append("\n");
+                builder.append(" {applies_to}`stack: ");
+                builder.append(setting.preview() ? "preview`" : "ga`");
             }
-            builder.append("```");
             builder.append("\n\n");
 
-            builder.append("Type: ");
+            builder.append(":   ");
+            builder.append(param != null ? param.description() : mapParam.description());
+            builder.append(" **Type**:");
             String[] types = param != null ? param.type() : new String[] { "map_param" };
 
             for (String type : types) {
-                builder.append("`").append(type).append("` ");
+                builder.append(" `").append(type).append("`");
             }
-            builder.append("\n\n");
-
-            builder.append(param != null ? param.description() : mapParam.description());
-            builder.append("\n\n");
+            builder.append(".\n    \n");
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
-                builder.append("Map entries: \n");
+                builder.append("    Map entries: \n    ");
 
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
-                    builder.append("- `").append(mapArgSignature.name()).append("` ");
+                    builder.append("    - `").append(mapArgSignature.name()).append("` ");
                     builder.append("(`").append(mapArgSignature.type()).append("`): ");
                     builder.append(mapArgSignature.description()).append("\n");
                 }
+                builder.append("\n   \n");
             }
-
-            builder.append("\n\n");
 
             if (example != null) {
                 String exampleContent = loadExample(example.file(), example.tag());
                 if (exampleContent != null) {
-                    builder.append("**Example**\n\n");
+                    builder.append("    **Example**\n\n");
                     if (example.description().length() > 0) {
-                        builder.append(example.description()).append("\n\n");
+                        builder.append("    ").append(example.description()).append("\n\n");
                     }
-                    builder.append("```esql\n");
-                    builder.append(exampleContent);
-                    builder.append("\n```\n\n");
+                    builder.append("    ```esql\n");
+                    builder.append("    " + exampleContent.replaceAll("\n", "\n    "));
+                    builder.append("\n    ```\n");
                 }
             }
 

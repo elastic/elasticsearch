@@ -41,8 +41,8 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -205,11 +205,11 @@ public class EsqlSession {
         PlanRunner planRunner,
         ActionListener<Versioned<Result>> listener
     ) {
-        executionInfo.planningProfile().planning().start();
+        executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        PlanningProfile.TimeSpanMarker parsingProfile = executionInfo.planningProfile().parsing();
+        EsqlQueryProfile.TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
         parsingProfile.stop();
@@ -593,7 +593,7 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        PlanningProfile.TimeSpanMarker preAnalysisProfile = executionInfo.planningProfile().preAnalysis();
+        EsqlQueryProfile.TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
@@ -626,7 +626,7 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        PlanningProfile.TimeSpanMarker dependencyResolutionProfile = executionInfo.planningProfile().dependencyResolution();
+        EsqlQueryProfile.TimeSpanMarker dependencyResolutionProfile = executionInfo.queryProfile().dependencyResolution();
         dependencyResolutionProfile.start();
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
@@ -1078,7 +1078,7 @@ public class EsqlSession {
                     requestFilter != null
                 );
             }
-            PlanningProfile.TimeSpanMarker analysisProfile = executionInfo.planningProfile().analysis();
+            EsqlQueryProfile.TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
             analysisProfile.stop();

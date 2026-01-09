@@ -1,0 +1,71 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.io.IOException;
+
+public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQueryProfile> {
+
+    @Override
+    protected Writeable.Reader<EsqlQueryProfile> instanceReader() {
+        return EsqlQueryProfile::readFrom;
+    }
+
+    @Override
+    protected EsqlQueryProfile createTestInstance() {
+        return new EsqlQueryProfile(
+            randomTimeSpan(),
+            randomTimeSpan(),
+            randomTimeSpan(),
+            randomTimeSpan(),
+            randomTimeSpan(),
+            randomTimeSpan()
+        );
+    }
+
+    @Override
+    protected EsqlQueryProfile mutateInstance(EsqlQueryProfile instance) throws IOException {
+        TimeSpan query = instance.query().timeSpan();
+        TimeSpan planning = instance.planning().timeSpan();
+        TimeSpan parsing = instance.parsing().timeSpan();
+        TimeSpan preAnalysis = instance.preAnalysis().timeSpan();
+        TimeSpan dependencyResolution = instance.dependencyResolution().timeSpan();
+        TimeSpan analysis = instance.analysis().timeSpan();
+        switch (randomIntBetween(0, 5)) {
+            case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
+            case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
+            case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
+            case 3 -> preAnalysis = randomValueOtherThan(preAnalysis, EsqlQueryProfileTests::randomTimeSpan);
+            case 4 -> dependencyResolution = randomValueOtherThan(dependencyResolution, EsqlQueryProfileTests::randomTimeSpan);
+            case 5 -> analysis = randomValueOtherThan(analysis, EsqlQueryProfileTests::randomTimeSpan);
+        }
+        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis);
+    }
+
+    @Override
+    protected EsqlQueryProfile copyInstance(EsqlQueryProfile instance, TransportVersion version) throws IOException {
+        return new EsqlQueryProfile(
+            instance.query().timeSpan(),
+            instance.planning().timeSpan(),
+            instance.parsing().timeSpan(),
+            instance.preAnalysis().timeSpan(),
+            instance.dependencyResolution().timeSpan(),
+            instance.analysis().timeSpan()
+        );
+    }
+
+    private static TimeSpan randomTimeSpan() {
+        return randomBoolean()
+            ? new TimeSpan(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            : null;
+    }
+}

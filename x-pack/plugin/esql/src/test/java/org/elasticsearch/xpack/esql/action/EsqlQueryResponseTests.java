@@ -520,12 +520,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             if (clusterInfoMap.isEmpty()) {
                 return createEsqlExecutionInfo(true);
             } else {
-                return new EsqlExecutionInfo(
-                    clusterInfoMap,
-                    Predicates.always(),
-                    EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY,
-                    null
-                );
+                return new EsqlExecutionInfo(clusterInfoMap, Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY);
             }
         }
 

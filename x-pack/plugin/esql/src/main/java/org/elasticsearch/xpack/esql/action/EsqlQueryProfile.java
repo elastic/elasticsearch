@@ -23,16 +23,19 @@ import java.util.Objects;
 /**
  * Tracks profiling for the planning phase
  */
-public class PlanningProfile implements Writeable, ToXContentFragment {
+public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
+    public static final String QUERY = "query";
     public static final String PLANNING = "planning";
     public static final String PARSING = "parsing";
     public static final String PRE_ANALYSIS = "preanalysis";
     public static final String DEPENDENCY_RESOLUTION = "dependency_resolution";
     public static final String ANALYSIS = "analysis";
 
+    private final TimeSpanMarker queryMarker;
+
     /** Time elapsed since start of query to calling ComputeService.execute */
-    private final transient TimeSpanMarker planningMarker;
+    private final TimeSpanMarker planningMarker;
 
     /** Time elapsed for query parsing */
     private final transient TimeSpanMarker parsingMarker;
@@ -48,12 +51,20 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
 
     private static final TransportVersion ESQL_QUERY_PLANNING_PROFILE = TransportVersion.fromName("esql_query_planning_profile");
 
-    public PlanningProfile() {
-        this(null, null, null, null, null);
+    public EsqlQueryProfile() {
+        this(null, null, null, null, null, null);
     }
 
     // For testing
-    public PlanningProfile(TimeSpan planning, TimeSpan parsing, TimeSpan preAnalysis, TimeSpan dependencyResolution, TimeSpan analysis) {
+    public EsqlQueryProfile(
+        TimeSpan query,
+        TimeSpan planning,
+        TimeSpan parsing,
+        TimeSpan preAnalysis,
+        TimeSpan dependencyResolution,
+        TimeSpan analysis
+    ) {
+        queryMarker = new TimeSpanMarker(QUERY, false, query);
         planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
@@ -61,7 +72,8 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
     }
 
-    public static PlanningProfile readFrom(StreamInput in) throws IOException {
+    public static EsqlQueryProfile readFrom(StreamInput in) throws IOException {
+        TimeSpan query = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan parsing = null, preAnalysis = null, dependencyResolution = null, analysis = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
@@ -71,11 +83,12 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             analysis = in.readOptionalWriteable(TimeSpan::readFrom);
         }
-        return new PlanningProfile(planning, parsing, preAnalysis, dependencyResolution, analysis);
+        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(queryMarker.timeSpan);
         out.writeOptionalWriteable(planningMarker.timeSpan);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
             && out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
@@ -89,8 +102,9 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
-        PlanningProfile that = (PlanningProfile) o;
-        return Objects.equals(planningMarker, that.planningMarker)
+        EsqlQueryProfile that = (EsqlQueryProfile) o;
+        return Objects.equals(queryMarker, that.queryMarker)
+            && Objects.equals(planningMarker, that.planningMarker)
             && Objects.equals(parsingMarker, that.parsingMarker)
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
             && Objects.equals(dependencyResolutionMarker, that.dependencyResolutionMarker)
@@ -99,12 +113,14 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
+        return Objects.hash(queryMarker, planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
     }
 
     @Override
     public String toString() {
         return "PlanningProfile{"
+            + "queryMarker="
+            + queryMarker
             + "planningMarker="
             + planningMarker
             + ", parsingMarker="
@@ -116,6 +132,10 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             + ", analysisMarker="
             + analysisMarker
             + '}';
+    }
+
+    public TimeSpanMarker query() {
+        return queryMarker;
     }
 
     /**
@@ -157,7 +177,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     }
 
     public Collection<TimeSpanMarker> timeSpanMarkers() {
-        return List.of(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
+        return List.of(queryMarker, planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
     }
 
     @Override
@@ -165,7 +185,6 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {
             builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan);
         }
-
         return builder;
     }
 
@@ -206,6 +225,10 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
 
         public TimeValue timeTook() {
             return timeSpan == null ? null : timeSpan.toTimeValue();
+        }
+
+        public TimeValue timeSinceStarted() {
+            return timeSpanBuilder != null ? timeSpanBuilder.stop().toTimeValue() : TimeValue.ZERO;
         }
 
         @Override

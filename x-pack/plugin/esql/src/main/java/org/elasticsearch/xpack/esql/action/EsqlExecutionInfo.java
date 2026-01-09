@@ -93,31 +93,27 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
 
-    private final transient TimeSpan.Builder relativeStart;
-    private final PlanningProfile planningProfile;
+    private final EsqlQueryProfile queryProfile;
     private TimeValue overallTook;
-    private transient TimeSpan overallTimeSpan;
 
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
      * @param includeExecutionMetadata (user defined setting) whether to include the execution/CCS metadata in the HTTP response
      */
     public EsqlExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate, IncludeExecutionMetadata includeExecutionMetadata) {
-        this(new ConcurrentHashMap<>(), skipOnPlanTimeFailurePredicate, includeExecutionMetadata, TimeSpan.start());
+        this(new ConcurrentHashMap<>(), skipOnPlanTimeFailurePredicate, includeExecutionMetadata);
     }
 
     EsqlExecutionInfo(
         ConcurrentMap<String, Cluster> clusterInfo,
         Predicate<String> skipOnPlanTimeFailurePredicate,
-        IncludeExecutionMetadata includeExecutionMetadata,
-        TimeSpan.Builder relativeStart
+        IncludeExecutionMetadata includeExecutionMetadata
     ) {
         assert includeExecutionMetadata != null;
         this.clusterInfo = clusterInfo;
         this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
         this.includeExecutionMetadata = includeExecutionMetadata;
-        this.relativeStart = relativeStart;
-        this.planningProfile = new PlanningProfile();
+        this.queryProfile = new EsqlQueryProfile();
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -130,13 +126,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
         this.isPartial = in.readBoolean();
         this.skipOnFailurePredicate = Predicates.always();
-        this.relativeStart = null;
-        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
-            this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
-            this.planningProfile = PlanningProfile.readFrom(in);
-        } else {
-            this.planningProfile = new PlanningProfile();
-        }
+        this.queryProfile = in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)
+            ? EsqlQueryProfile.readFrom(in)
+            : new EsqlQueryProfile();
     }
 
     @Override
@@ -154,8 +146,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
         out.writeBoolean(isPartial);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
-            out.writeOptionalWriteable(overallTimeSpan);
-            planningProfile.writeTo(out);
+            queryProfile.writeTo(out);
         }
 
         assert inSubplan == false : "Should not be serializing execution info while in subplans";
@@ -175,8 +166,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         if (isMainPlan()) {
-            overallTimeSpan = relativeStart.stop();
-            overallTook = overallTimeSpan.toTimeValue();
+            queryProfile.query().stop();
+            overallTook = queryProfile.query().timeSpan().toTimeValue();
         }
     }
 
@@ -188,23 +179,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return overallTook;
     }
 
-    /**
-     * How much time the query took since starting.
-     */
-    public TimeValue tookSoFar() {
-        return relativeStart != null ? relativeStart.stop().toTimeValue() : TimeValue.ZERO;
-    }
-
-    public TimeSpan overallTimeSpan() {
-        return overallTimeSpan;
-    }
-
     public Set<String> clusterAliases() {
         return clusterInfo.keySet();
     }
 
-    public PlanningProfile planningProfile() {
-        return planningProfile;
+    public EsqlQueryProfile queryProfile() {
+        return queryProfile;
     }
 
     /**

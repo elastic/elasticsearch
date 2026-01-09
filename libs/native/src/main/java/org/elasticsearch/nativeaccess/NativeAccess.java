@@ -32,8 +32,8 @@ public interface NativeAccess {
      * @param callback A callback consuming a Posix-specific native access instance
      */
     static void onPosix(Consumer<PosixNativeAccess> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess) {
-            callback.accept((PosixNativeAccess) NativeAccessHolder.INSTANCE);
+        if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess posixNativeAccess) {
+            callback.accept(posixNativeAccess);
         }
     }
 
@@ -43,8 +43,8 @@ public interface NativeAccess {
      * @return An optional containing the result of the callback if the platform is POSIX, or empty otherwise
      */
     static <T> Optional<T> onPosix(Function<PosixNativeAccess, T> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess) {
-            return Optional.of(callback.apply((PosixNativeAccess) NativeAccessHolder.INSTANCE));
+        if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess posixNativeAccess) {
+            return Optional.of(callback.apply(posixNativeAccess));
         } else {
             return Optional.empty();
         }
@@ -55,8 +55,8 @@ public interface NativeAccess {
      * @param callback A callback consuming a Windows-specific native access instance
      */
     static void onWindows(Consumer<WindowsNativeAccess> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess) {
-            callback.accept((WindowsNativeAccess) NativeAccessHolder.INSTANCE);
+        if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess windowsNativeAccess) {
+            callback.accept(windowsNativeAccess);
         }
     }
 
@@ -66,8 +66,8 @@ public interface NativeAccess {
      * @return An optional containing the result of the callback if the platform is Windows, or empty otherwise
      */
     static <T> Optional<T> onWindows(Function<WindowsNativeAccess, T> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess) {
-            return Optional.of(callback.apply((WindowsNativeAccess) NativeAccessHolder.INSTANCE));
+        if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess windowsNativeAccess) {
+            return Optional.of(callback.apply(windowsNativeAccess));
         } else {
             return Optional.empty();
         }
@@ -78,8 +78,8 @@ public interface NativeAccess {
      * @param callback A callback consuming a Mac-specific native access instance
      */
     static void onMac(Consumer<MacNativeAccess> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess) {
-            callback.accept((MacNativeAccess) NativeAccessHolder.INSTANCE);
+        if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess macNativeAccess) {
+            callback.accept(macNativeAccess);
         }
     }
 
@@ -89,8 +89,8 @@ public interface NativeAccess {
      * @return An optional containing the result of the callback if the platform is Mac, or empty otherwise
      */
     static <T> Optional<T> onMac(Function<MacNativeAccess, T> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess) {
-            return Optional.of(callback.apply((MacNativeAccess) NativeAccessHolder.INSTANCE));
+        if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess macNativeAccess) {
+            return Optional.of(callback.apply(macNativeAccess));
         } else {
             return Optional.empty();
         }
@@ -101,8 +101,8 @@ public interface NativeAccess {
      * @param callback A callback consuming a Linux-specific native access instance
      */
     static void onLinux(Consumer<LinuxNativeAccess> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess) {
-            callback.accept((LinuxNativeAccess) NativeAccessHolder.INSTANCE);
+        if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess linuxNativeAccess) {
+            callback.accept(linuxNativeAccess);
         }
     }
 
@@ -112,8 +112,8 @@ public interface NativeAccess {
      * @return An optional containing the result of the callback if the platform is Linux, or empty otherwise
      */
     static <T> Optional<T> onLinux(Function<LinuxNativeAccess, T> callback) {
-        if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess) {
-            return Optional.of(callback.apply((LinuxNativeAccess) NativeAccessHolder.INSTANCE));
+        if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess linuxNativeAccess) {
+            return Optional.of(callback.apply(linuxNativeAccess));
         } else {
             return Optional.empty();
         }

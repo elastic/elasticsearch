@@ -33,9 +33,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 
 import java.util.HashMap;
 import java.util.List;
@@ -43,44 +40,6 @@ import java.util.Map;
 // end generated imports
 
 public final class RateLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
-
-    private static class LocalSingletonCircuitBreakerService extends CircuitBreakerService implements Releasable {
-
-        private final CircuitBreakerService delegateService;
-        private LocalCircuitBreaker localCircuitBreaker;
-
-        private LocalSingletonCircuitBreakerService(CircuitBreakerService delegateService) {
-            this.delegateService = delegateService;
-        }
-
-        @Override
-        public CircuitBreaker getBreaker(String name) {
-            if (localCircuitBreaker == null) {
-                this.localCircuitBreaker = new LocalCircuitBreaker(
-                    delegateService.getBreaker(name),
-                    ByteSizeValue.ofKb(8).getBytes(),
-                    ByteSizeValue.ofKb(512).getBytes()
-                );
-            }
-            assert localCircuitBreaker.getName().equals(name) : "this service only supports a single breaker";
-            return localCircuitBreaker;
-        }
-
-        @Override
-        public AllCircuitBreakerStats stats() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public CircuitBreakerStats stats(String name) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(localCircuitBreaker);
-        }
-    }
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         // Overriding constructor to support isRateOverTime flag
@@ -128,7 +87,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     private ObjectArray<Buffer> buffers;
     private final List<Integer> channels;
     private final DriverContext driverContext;
-    private final LocalSingletonCircuitBreakerService localCircuitBreakerService;
+    private final LocalCircuitBreaker.SingletonService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
@@ -147,7 +106,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        localCircuitBreakerService = new LocalSingletonCircuitBreakerService(driverContext.bigArrays().breakerService());
+        localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
+            driverContext.bigArrays().breakerService(),
+            ByteSizeValue.ofKb(8).getBytes(),
+            ByteSizeValue.ofKb(512).getBytes()
+        );
         this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
         this.isRateOverTime = isRateOverTime;
         ObjectArray<Buffer> buffers = bigArrays.newObjectArray(256);

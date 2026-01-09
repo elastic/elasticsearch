@@ -20,11 +20,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class StoreMetricIndexInputTests extends ESTestCase {
+public class StoreMetricsIndexInputTests extends ESTestCase {
 
     public void testReadByteUpdatesMetrics() throws Exception {
-        MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
-        StoreMetricIndexInput indexInput = new StoreMetricIndexInput("test", mock(IndexInput.class), metricHolder);
+        DirectoryMetricHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());
         indexInput.readByte();
@@ -36,9 +36,9 @@ public class StoreMetricIndexInputTests extends ESTestCase {
     }
 
     public void testSnapshotMetricBeforeUsageSnapshotDoesNotChange() throws IOException {
-        MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
+        DirectoryMetricHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         var snapshot = metricHolder.instance().snapshot();
-        StoreMetricIndexInput indexInput = new StoreMetricIndexInput("test", mock(IndexInput.class), metricHolder);
+        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());
         assertEquals(0, snapshot.getBytesRead());
@@ -48,8 +48,8 @@ public class StoreMetricIndexInputTests extends ESTestCase {
     }
 
     public void testThreadIsolationOnMetrics() throws Exception {
-        MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
-        StoreMetricIndexInput indexInput = new StoreMetricIndexInput("test", mock(IndexInput.class), metricHolder);
+        DirectoryMetricHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());
         indexInput.readByte();
@@ -73,17 +73,17 @@ public class StoreMetricIndexInputTests extends ESTestCase {
     }
 
     public void testSliceMetrics() throws IOException {
-        MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
+        DirectoryMetricHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockIndexInput = mock(IndexInput.class);
         when(mockIndexInput.clone()).thenReturn(mockIndexInput);
         when(mockIndexInput.slice(anyString(), anyLong(), anyLong())).thenReturn(mockIndexInput);
-        StoreMetricIndexInput indexInput = new StoreMetricIndexInput("test", mockIndexInput, metricHolder);
+        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mockIndexInput, metricHolder);
 
         try {
             IndexInput sliceInput = indexInput.slice("slice", 0, 100);
             assertNotNull(sliceInput);
-            assertTrue(sliceInput instanceof StoreMetricIndexInput);
-            StoreMetricIndexInput storeMetricSlice = (StoreMetricIndexInput) sliceInput;
+            assertTrue(sliceInput instanceof StoreMetricsIndexInput);
+            StoreMetricsIndexInput storeMetricSlice = (StoreMetricsIndexInput) sliceInput;
 
             assertEquals(0, metricHolder.instance().getBytesRead());
             storeMetricSlice.readByte();
@@ -96,11 +96,11 @@ public class StoreMetricIndexInputTests extends ESTestCase {
     }
 
     public void testRandomAccessInputReadPrimitiveTypes() throws IOException {
-        MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
+        DirectoryMetricHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockIndexInput = mock(IndexInput.class);
         RandomAccessInput mockRandomAccessInput = mock(RandomAccessInput.class);
         when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn(mockRandomAccessInput);
-        StoreMetricIndexInput indexInput = new StoreMetricIndexInput("test", mockIndexInput, metricHolder);
+        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mockIndexInput, metricHolder);
 
         RandomAccessInput randomAccessInput = indexInput.randomAccessSlice(0, 1000);
 
@@ -116,11 +116,11 @@ public class StoreMetricIndexInputTests extends ESTestCase {
     }
 
     public void testRandomAccessInputReadyThreadIsolation() throws Exception {
-        MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
+        DirectoryMetricHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockIndexInput = mock(IndexInput.class);
         RandomAccessInput mockRandomAccessInput = mock(RandomAccessInput.class);
         when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn(mockRandomAccessInput);
-        StoreMetricIndexInput indexInput = new StoreMetricIndexInput("test", mockIndexInput, metricHolder);
+        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mockIndexInput, metricHolder);
 
         RandomAccessInput randomAccessInput = indexInput.randomAccessSlice(0, 1000);
 

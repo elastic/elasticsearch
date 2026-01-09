@@ -11,7 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.store.MetricHolder;
+import org.elasticsearch.index.store.DirectoryMetricHolder;
 
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -35,7 +35,7 @@ public interface EnginePlugin {
      * Register the metrics available from the plugin
      * @param registrator accepts a string, which is a unique key for the registration, used for xcontent, and the base metric object
      */
-    default void registerMetrics(BiConsumer<String, MetricHolder<?>> registrator) {
+    default void registerMetrics(BiConsumer<String, DirectoryMetricHolder<?>> registrator) {
 
     }
 }

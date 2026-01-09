@@ -31,9 +31,9 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.store.MetricHolder;
+import org.elasticsearch.index.store.DirectoryMetricHolder;
 import org.elasticsearch.index.store.StoreMetrics;
-import org.elasticsearch.index.store.ThreadLocalMetricHolder;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -110,8 +110,8 @@ public class IndicesServiceBuilder {
         }
 
     };
-    Map<String, MetricHolder<?>> directoryMetricHolderMap;
-    ThreadLocalMetricHolder<StoreMetrics> storeMetricsHolder;
+    Map<String, DirectoryMetricHolder<?>> directoryMetricHolderMap;
+    ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -268,13 +268,13 @@ public class IndicesServiceBuilder {
             .toList();
 
         directoryMetricHolderMap = new HashMap<>();
-        var directoryMetricsRegistrator = new BiConsumer<String, MetricHolder<?>>() {
+        var directoryMetricsRegistrator = new BiConsumer<String, DirectoryMetricHolder<?>>() {
             @Override
-            public void accept(String s, MetricHolder<?> metricHolder) {
+            public void accept(String s, DirectoryMetricHolder<?> metricHolder) {
                 directoryMetricHolderMap.put(s, metricHolder);
             }
         };
-        storeMetricsHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
+        storeMetricsHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         directoryMetricHolderMap.put("store", storeMetricsHolder);
 
         pluginsService.filterPlugins(EnginePlugin.class).forEach(plugin -> plugin.registerMetrics(directoryMetricsRegistrator));

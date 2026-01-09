@@ -16,10 +16,10 @@ import org.apache.lucene.store.RandomAccessInput;
 
 import java.io.IOException;
 
-public class StoreMetricIndexInput extends FilterIndexInput {
-    private final MetricHolder<StoreMetrics> metricHolder;
+public class StoreMetricsIndexInput extends FilterIndexInput {
+    private final DirectoryMetricHolder<StoreMetrics> metricHolder;
 
-    public StoreMetricIndexInput(String resourceDescription, IndexInput in, MetricHolder<StoreMetrics> metricHolder) {
+    public StoreMetricsIndexInput(String resourceDescription, IndexInput in, DirectoryMetricHolder<StoreMetrics> metricHolder) {
         super(resourceDescription, in);
         this.metricHolder = metricHolder;
     }
@@ -39,17 +39,17 @@ public class StoreMetricIndexInput extends FilterIndexInput {
 
     @Override
     public IndexInput clone() {
-        return new StoreMetricIndexInput(toString(), in.clone(), metricHolder.singleThreaded());
+        return new StoreMetricsIndexInput(toString(), in.clone(), metricHolder.singleThreaded());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-        return new StoreMetricIndexInput(sliceDescription, super.slice(sliceDescription, offset, length), metricHolder.singleThreaded());
+        return new StoreMetricsIndexInput(sliceDescription, super.slice(sliceDescription, offset, length), metricHolder.singleThreaded());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length, IOContext context) throws IOException {
-        return new StoreMetricIndexInput(
+        return new StoreMetricsIndexInput(
             sliceDescription,
             super.slice(sliceDescription, offset, length, context),
             metricHolder.singleThreaded()
@@ -61,7 +61,7 @@ public class StoreMetricIndexInput extends FilterIndexInput {
         RandomAccessInput delegate = in.randomAccessSlice(offset, length);
 
         return new RandomAccessInput() {
-            private final MetricHolder<StoreMetrics> metricHolder = StoreMetricIndexInput.this.metricHolder;
+            private final DirectoryMetricHolder<StoreMetrics> metricHolder = StoreMetricsIndexInput.this.metricHolder;
 
             @Override
             public long length() {

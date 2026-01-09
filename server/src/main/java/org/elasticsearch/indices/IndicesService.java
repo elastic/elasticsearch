@@ -136,7 +136,7 @@ import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.MetricHolder;
+import org.elasticsearch.index.store.DirectoryMetricHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -291,8 +291,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
-    private final MetricHolder<StoreMetrics> storeMetricHolder;
-    private final Map<String, MetricHolder<?>> directoryMetricHolderMap;
+    private final DirectoryMetricHolder<StoreMetrics> storeMetricHolder;
+    private final Map<String, DirectoryMetricHolder<?>> directoryMetricHolderMap;
 
     @Override
     protected void doStart() {

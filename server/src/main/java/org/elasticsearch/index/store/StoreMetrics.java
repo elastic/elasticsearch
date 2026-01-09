@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
-    public static final MetricHolder<StoreMetrics> NOOP_HOLDER = MetricHolder.noop(new StoreMetrics() {
+    public static final DirectoryMetricHolder<StoreMetrics> NOOP_HOLDER = DirectoryMetricHolder.noop(new StoreMetrics() {
         @Override
         public void addBytesRead(long amount) {}
     });

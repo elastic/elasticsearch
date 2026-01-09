@@ -15,16 +15,16 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 
 public class StoreMetricsDirectory extends ByteSizeDirectory {
-    private final MetricHolder<StoreMetrics> metricHandler;
+    private final DirectoryMetricHolder<StoreMetrics> metricHandler;
 
-    public StoreMetricsDirectory(ByteSizeDirectory in, MetricHolder<StoreMetrics> metricHandler) {
+    public StoreMetricsDirectory(ByteSizeDirectory in, DirectoryMetricHolder<StoreMetrics> metricHandler) {
         super(in);
         this.metricHandler = metricHandler;
     }
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        return new StoreMetricIndexInput(name, super.openInput(name, context), metricHandler.singleThreaded());
+        return new StoreMetricsIndexInput(name, super.openInput(name, context), metricHandler.singleThreaded());
     }
 
     @Override

@@ -5,7 +5,7 @@
 .New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+For the most up-to-date API details, refer to {api-es}/operation/operation-inference-completion[Perform completion inference on the service].
 --
 
 Performs an inference task on an input text by using an {infer} endpoint.

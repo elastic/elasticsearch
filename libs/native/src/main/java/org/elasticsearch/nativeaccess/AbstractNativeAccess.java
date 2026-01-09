@@ -63,7 +63,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
 
     @Override
     public CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
-        assert fileChannel != null && position > 0 && size > 0;
+        assert fileChannel != null && position >= 0 && size > 0;
         return javaLib.map(fileChannel, mode, position, size);
     }
 

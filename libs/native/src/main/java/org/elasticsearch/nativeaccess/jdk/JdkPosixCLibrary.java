@@ -38,6 +38,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     private static final Logger logger = LogManager.getLogger(JdkPosixCLibrary.class);
 
+    private static final int PAGE_SIZE;
+
     // errno can change between system calls, so we capture it
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
     static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
@@ -97,6 +99,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
             );
         }
         fstat$mh = fstat;
+
+        try {
+            PAGE_SIZE = (int) downcallHandle("getpagesize", FunctionDescriptor.of(JAVA_INT)).invokeExact();
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
     private static final MethodHandle socket$mh = downcallHandleWithErrno(
         "socket",
@@ -202,6 +210,11 @@ class JdkPosixCLibrary implements PosixCLibrary {
         } finally {
             Reference.reachabilityFence(segment);
         }
+    }
+
+    @Override
+    public int getPageSize() {
+        return PAGE_SIZE;
     }
 
     @Override

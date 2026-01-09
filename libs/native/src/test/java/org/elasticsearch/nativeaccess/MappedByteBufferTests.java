@@ -9,25 +9,97 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.stream.IntStream;
+
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.READ;
+import static java.nio.file.StandardOpenOption.WRITE;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MappedByteBufferTests extends ESTestCase {
 
     static NativeAccess nativeAccess;
 
     @BeforeClass
-    public static void getZstd() {
+    public static void getAccess() {
         nativeAccess = NativeAccess.instance();
     }
 
-    public void testBasic() {
-        // nativeAccess.map() //TODO
+    public void testBasic() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testBasic");
+        Files.write(file, newByteArray(size), CREATE, WRITE);
+        // we need to unwrap our test-only file system layers
+        file = Unwrappable.unwrapAll(file);
+        try (FileChannel fileChannel = FileChannel.open(file, READ)) {
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size);
+            mappedByteBuffer.prefetch(0, size);
+
+            var buffer = mappedByteBuffer.buffer();
+            assertThat(buffer.position(), equalTo(0));
+            assertThat(buffer.limit(), equalTo(size));
+            assertThat((byte) (size - 1), equalTo(buffer.get(size - 1)));
+            mappedByteBuffer.prefetch(0, size);
+
+            assertSliceOfBuffer(mappedByteBuffer, 0, size);
+            assertSliceOfBuffer(mappedByteBuffer, 1, size - 1);
+            assertSliceOfBuffer(mappedByteBuffer, 2, size - 2);
+            assertSliceOfBuffer(mappedByteBuffer, 3, size - 3);
+        }
     }
 
-    private byte[] randomBytes(int size) {
+    // We just check that the variations do not fail or crash - no
+    // positive assertion that the prefetch has any observable action
+    public void testPrefetchWithOffsets() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testPrefetchWithOffsets");
+        Files.write(file, newByteArray(size), CREATE, WRITE);
+        // we need to unwrap our test-only file system layers
+        file = Unwrappable.unwrapAll(file);
+        try (FileChannel fileChannel = FileChannel.open(file, READ)) {
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size);
+            mappedByteBuffer.prefetch(0, size);
+            mappedByteBuffer.prefetch(0, 0);
+            mappedByteBuffer.prefetch(0, size - 1);
+            mappedByteBuffer.prefetch(0, size - 2);
+            mappedByteBuffer.prefetch(0, size - 3);
+            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(-2, size));
+            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(-1, size));
+            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(1, size));
+            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(2, size));
+            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(3, size));
+        }
+    }
+
+    static void assertSliceOfBuffer(CloseableMappedByteBuffer mappedByteBuffer, int offset, int length) {
+        var buffer = mappedByteBuffer.buffer();
+        var slice = mappedByteBuffer.slice(offset, length);
+        slice.prefetch(0, length);
+
+        // sanitize backing data
+        var sliceBuffer = slice.buffer();
+        assertThat(sliceBuffer.position(), equalTo(0));
+        assertThat(sliceBuffer.limit(), equalTo(length));
+        assertThat(sliceBuffer.get(), equalTo((byte) offset));
+        byte expectedLastByte = buffer.get(buffer.limit() - 1);
+        byte sliceLastByte = sliceBuffer.get(sliceBuffer.limit() - 1);
+        assertThat(sliceLastByte, equalTo(expectedLastByte));
+    }
+
+    private byte[] newByteArray(int size) {
         byte[] buffer = new byte[size];
-        random().nextBytes(buffer);
+        IntStream.range(0, buffer.length).forEach(i -> buffer[i] = (byte) i);
         return buffer;
     }
 }

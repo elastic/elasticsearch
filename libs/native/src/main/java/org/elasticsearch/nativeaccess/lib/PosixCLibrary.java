@@ -24,12 +24,12 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
     /** socket type indicating a datagram-oriented socket */
     int SOCK_DGRAM = 2;
 
-    int POSIX_FADV_NORMAL = 0;
-    int POSIX_FADV_RANDOM = 1;
-    int POSIX_FADV_SEQUENTIAL = 2;
-    int POSIX_FADV_WILLNEED = 3;
-    int POSIX_FADV_DONTNEED = 4;
-    int POSIX_FADV_NOREUSE = 5;
+    int POSIX_MADV_NORMAL = 0;
+    int POSIX_MADV_RANDOM = 1;
+    int POSIX_MADV_SEQUENTIAL = 2;
+    int POSIX_MADV_WILLNEED = 3;
+    int POSIX_MADV_DONTNEED = 4;
+    int POSIX_MADV_NOREUSE = 5;
 
     /**
      * Gets the effective userid of the current process.
@@ -100,6 +100,9 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      *     if {@code segment} does not represent native memory
      */
     int madvise(MemorySegment segment, long offset, long length, int advice);
+
+    /** Returns native page size. */
+    int getPageSize();
 
     /** corresponds to struct stat64 */
     interface Stat64 {

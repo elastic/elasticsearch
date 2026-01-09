@@ -17,6 +17,8 @@ public interface CloseableMappedByteBuffer extends CloseableByteBuffer {
      */
     CloseableMappedByteBuffer slice(long index, long length);
 
-    /** Prefetches the given offset and length. */
+    /**
+     * Prefetches the given offset and length.
+     */
     void prefetch(long offset, long length);
 }

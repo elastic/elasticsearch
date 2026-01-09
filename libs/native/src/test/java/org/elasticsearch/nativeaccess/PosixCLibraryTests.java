@@ -19,9 +19,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.StandardOpenOption;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class PosixCLibraryTests extends ESTestCase {
     NativeAccess nativeAccess;
@@ -39,13 +41,7 @@ public class PosixCLibraryTests extends ESTestCase {
         }
     }
 
-    private byte[] randomBytes(int size) {
-        byte[] buffer = new byte[size];
-        random().nextBytes(buffer);
-        return buffer;
-    }
-
-    public void test_madvise() throws IOException {
+    public void testMadvise() throws IOException {
         long size = randomInt(4096);
         var tmp = createTempDir();
         try (var dir = newFSDirectory(tmp)) {
@@ -54,16 +50,32 @@ public class PosixCLibraryTests extends ESTestCase {
             }
         }
         try (var fc = FileChannel.open(tmp.resolve("foo.dat"), StandardOpenOption.READ)) {
-            var map = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
+            var map = fc.map(MapMode.READ_ONLY, 0, fc.size());
             var mem = MemorySegment.ofBuffer(map);
             long length = randomLongBetween(1, fc.size());
-            assertThat(clib.madvise(mem, 0, length, PosixCLibrary.POSIX_FADV_WILLNEED), equalTo(0));
+            assertThat(clib.madvise(mem, 0, length, PosixCLibrary.POSIX_MADV_WILLNEED), equalTo(0));
         }
     }
 
-    public void test_madvise_iae() throws IOException {
+    public void testMadviseIAE() {
         byte[] buf = randomBytes(randomInt(16));
         var mem = MemorySegment.ofArray(buf);
-        expectThrows(IllegalArgumentException.class, () -> clib.madvise(mem, 0, buf.length, PosixCLibrary.POSIX_FADV_WILLNEED));
+        expectThrows(IllegalArgumentException.class, () -> clib.madvise(mem, 0, buf.length, PosixCLibrary.POSIX_MADV_WILLNEED));
+    }
+
+    public void testPageSize() {
+        int pageSize = clib.getPageSize();
+        assertThat(pageSize, greaterThan(1));
+        assertTrue(isPowerOfTwo(pageSize));
+    }
+
+    private byte[] randomBytes(int size) {
+        byte[] buffer = new byte[size];
+        random().nextBytes(buffer);
+        return buffer;
+    }
+
+    private static boolean isPowerOfTwo(int value) {
+        return (value & (value - 1)) == 0;
     }
 }

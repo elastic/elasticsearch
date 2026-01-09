@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -81,6 +82,8 @@ public class SharedBytes extends AbstractRefCounted {
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
             preallocate(cacheFile, fileSize);
+            // we need to unwrap our test-only file system layers
+            cacheFile = Unwrappable.unwrapAll(cacheFile);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             assert this.fileChannel.size() == fileSize : "expected file size " + fileSize + " but was " + fileChannel.size();
         } else {
@@ -319,6 +322,10 @@ public class SharedBytes extends AbstractRefCounted {
             this.mappedByteBuffer = mappedByteBuffer;
         }
 
+        void prefetch(long offset, long length) {
+            mappedByteBuffer.prefetch(offset, length);
+        }
+
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, int position) throws IOException {
             int remaining = dst.remaining();
@@ -361,6 +368,6 @@ public class SharedBytes extends AbstractRefCounted {
     static final NativeAccess NATIVE_ACCESS = NativeAccess.instance();
 
     private static CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
-        return NATIVE_ACCESS.map(fileChannel, MapMode.READ_ONLY, position, size);
+        return NATIVE_ACCESS.map(fileChannel, mode, position, size);
     }
 }

@@ -19,10 +19,12 @@ import java.lang.foreign.MemorySegment;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
+import java.util.Objects;
 
 class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
 
-    private static final JdkPosixCLibrary LIB = NativeLibraryProvider.instance().getLibrary(JdkPosixCLibrary.class);
+    private static final PosixCLibrary LIB = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
+    private static final int PAGE_SIZE = LIB.getPageSize();
 
     private final Arena arena;
     private final MemorySegment segment;
@@ -35,6 +37,10 @@ class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
     }
 
     static JdkCloseableMappedByteBuffer ofAuto(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
+
+        // Work around for JDK-8259028: we need to unwrap our test-only file system layers
+        // path = Unwrappable.unwrapAll(path);
+
         var seg = fileChannel.map(mode, position, size, Arena.ofAuto());
         return new JdkCloseableMappedByteBuffer(seg, null);
     }
@@ -65,6 +71,21 @@ class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
 
     @Override
     public void prefetch(long offset, long length) {
-        LIB.madvise(segment, offset, length, PosixCLibrary.POSIX_FADV_WILLNEED);
+        Objects.checkFromIndexSize(offset, length, segment.byteSize());
+        // Align offset with the page size, this is required for madvise.
+        // Compute the offset of the current position in the OS's page.
+        final long offsetInPage = (segment.address() + offset) % PAGE_SIZE;
+        offset -= offsetInPage;
+        length += offsetInPage;
+        if (offset < 0) {
+            // start of the page is before the start of this segment, ignore the first page.
+            offset += PAGE_SIZE;
+            length -= PAGE_SIZE;
+            if (length <= 0) {
+                // This segment has no data beyond the first page.
+                return;
+            }
+        }
+        LIB.madvise(segment, offset, length, PosixCLibrary.POSIX_MADV_WILLNEED);
     }
 }

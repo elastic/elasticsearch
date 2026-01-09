@@ -35,9 +35,9 @@ public class PreconditioningProviderTests extends LuceneTestCase {
             query[i] = random().nextFloat();
         }
 
-        int blockDim = random().nextInt(8, 384);
+        int blockDim = random().nextInt(8, dim);
 
-        PreconditioningProvider.Preconditioner preconditioner = PreconditioningProvider.createPreconditioner(blockDim, dim);
+        PreconditioningProvider.Preconditioner preconditioner = PreconditioningProvider.createPreconditioner(dim, blockDim);
 
         preconditioner.applyTransform(query);
 

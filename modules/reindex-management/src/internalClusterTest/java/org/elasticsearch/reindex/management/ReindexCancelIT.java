@@ -207,15 +207,18 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
     public void testCancellingExistingNonReindexTaskReturns404() throws Exception {
         final TaskId deleteByQueryTaskId = startAsyncThrottledDeleteByQuery();
+        try {
+            final TaskInfo running = getRunningTask(deleteByQueryTaskId);
+            assertThat(running.description(), equalTo("delete-by-query [reindex_src]"));
+            assertThat(running.cancellable(), is(true));
+            assertThat(running.cancelled(), is(false));
 
-        final TaskInfo running = getRunningTask(deleteByQueryTaskId);
-        assertThat(running.description(), equalTo("delete-by-query [reindex_src]"));
-        assertThat(running.cancellable(), is(true));
-        assertThat(running.cancelled(), is(false));
-
-        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", deleteByQueryTaskId);
-        final var exception = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(deleteByQueryTaskId));
-        assertThat(exception.getMessage(), is(expectedExceptionMessage));
+            final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", deleteByQueryTaskId);
+            final var exception = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(deleteByQueryTaskId));
+            assertThat(exception.getMessage(), is(expectedExceptionMessage));
+        } finally { // cleanup, gracefully handles if task is dead (in case of *very slow* CI)
+            clusterAdmin().prepareCancelTasks().setTargetTaskId(deleteByQueryTaskId).get();
+        }
     }
 
     private TaskId startAsyncThrottledReindex() throws Exception {

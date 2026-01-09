@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,10 +20,12 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * This version of {@link EsqlProject} saves part of its state the computing of projections based on its child's output. This allows
- * reapplying the modeled rules (RENAME/DROP/KEEP) transparently, in case its child changes its output; this can occur if
- * {@link ResolveUnmapped} injects null attributes or source extractors, as these are discovered downstream from this node and injected
- * upstream of it.
+ * This version of {@link EsqlProject} saves part of its state for computing its projections based on its child's output. This avoids
+ * the problem that once the projections are computed, we don't know which pattern was used to generate them. This is important
+ * when dealing with unmapped fields: E.g. in
+ * {@code SET unmapped_fields="nullify"; FROM idx | KEEP foo* | WHERE foo_bar > 10}, if {@code foo_bar} is not mapped, we need to inject
+ * a {@code NULL} literal for it before the {@code KEEP}. It's correct to update the projection of the {@code KEEP} to include this new
+ * attribute because the pattern {@code foo*} matches it. But if the pattern was {@code foo_baz}, it would be incorrect to do so.
  */
 public class ResolvingProject extends EsqlProject {
 
@@ -34,7 +35,7 @@ public class ResolvingProject extends EsqlProject {
         this(source, child, resolver, resolver.apply(child.output()));
     }
 
-    public ResolvingProject(
+    private ResolvingProject(
         Source source,
         LogicalPlan child,
         Function<List<Attribute>, List<? extends NamedExpression>> resolver,

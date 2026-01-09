@@ -113,6 +113,12 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
+- class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
+  method: test {yaml=delete_by_query/20_validation/Remote indices are not allowed in delete-by-query}
+  issue: https://github.com/elastic/elasticsearch/issues/140472
+- class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
+  method: test {yaml=update_by_query/20_validation/Remote indices are not allowed in update-by-query}
+  issue: https://github.com/elastic/elasticsearch/issues/140474
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102

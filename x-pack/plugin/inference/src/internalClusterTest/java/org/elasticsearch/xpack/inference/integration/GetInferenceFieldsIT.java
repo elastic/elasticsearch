@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -70,7 +71,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     private static final String INDEX_1 = "index-1";
     private static final String INDEX_2 = "index-2";
-    private static final Set<String> ALL_INDICES = Set.of(INDEX_1, INDEX_2);
+    private static final String[] ALL_INDICES = new String[] { INDEX_1, INDEX_2 };
     private static final String INDEX_ALIAS = "index-alias";
 
     private static final String INFERENCE_FIELD_1 = "inference-field-1";
@@ -204,20 +205,20 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testUseDefaultFields() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Map.of(), true, true, "foo"),
+            new GetInferenceFieldsAction.Request(new String[] { INDEX_1 }, Map.of(), true, true, "foo"),
             Map.of(INDEX_1, Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 5.0f))),
             filterExpectedInferenceResults(ALL_EXPECTED_INFERENCE_RESULTS, Set.of(SPARSE_EMBEDDING_INFERENCE_ID))
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_2), Map.of(), true, true, "foo"),
+            new GetInferenceFieldsAction.Request(new String[] { INDEX_2 }, Map.of(), true, true, "foo"),
             Map.of(INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
     }
 
     public void testMissingIndexName() {
-        Set<String> indicesWithIndex1 = Set.of(INDEX_1, "missing-index");
+        String[] indicesWithIndex1 = new String[] { INDEX_1, "missing-index" };
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(indicesWithIndex1, ALL_FIELDS, false, false, "foo"),
             IndexNotFoundException.class,
@@ -229,7 +230,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             ALL_EXPECTED_INFERENCE_RESULTS
         );
 
-        Set<String> indicesWithoutIndex1 = Set.of("missing-index");
+        String[] indicesWithoutIndex1 = new String[] { "missing-index" };
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(indicesWithoutIndex1, ALL_FIELDS, false, false, "foo"),
             IndexNotFoundException.class,
@@ -259,14 +260,21 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     public void testNoIndices() {
         // By default, an empty index set will be interpreted as _all
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(Strings.EMPTY_ARRAY, ALL_FIELDS, false, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
 
         // We can provide an IndicesOptions that changes this behavior to interpret an empty index set as no indices
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(), ALL_FIELDS, false, false, "foo", IndicesOptions.STRICT_NO_EXPAND_FORBID_CLOSED),
+            new GetInferenceFieldsAction.Request(
+                Strings.EMPTY_ARRAY,
+                ALL_FIELDS,
+                false,
+                false,
+                "foo",
+                IndicesOptions.STRICT_NO_EXPAND_FORBID_CLOSED
+            ),
             Map.of(),
             Map.of()
         );
@@ -275,7 +283,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     public void testAllIndices() {
         // By default, _all expands to all indices
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of("_all"), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(new String[] { "_all" }, ALL_FIELDS, false, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
@@ -283,7 +291,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         // We can provide an IndicesOptions that changes this behavior to interpret it as no indices
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(
-                Set.of("_all"),
+                new String[] { "_all" },
                 ALL_FIELDS,
                 false,
                 false,
@@ -297,7 +305,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testIndexAlias() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_ALIAS), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(new String[] { INDEX_ALIAS }, ALL_FIELDS, false, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
@@ -305,20 +313,20 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testResolveIndexWildcards() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of("index-*"), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(new String[] { "index-*" }, ALL_FIELDS, false, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of("*-1"), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(new String[] { "*-1" }, ALL_FIELDS, false, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
 
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(
-                Set.of("index-*"),
+                new String[] { "index-*" },
                 ALL_FIELDS,
                 false,
                 false,
@@ -349,7 +357,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             e -> validator.accept(e, List.of("indices must not be null"))
         );
         assertFailedRequest(
-            new GetInferenceFieldsAction.Request(Set.of(), null, false, false, null),
+            new GetInferenceFieldsAction.Request(Strings.EMPTY_ARRAY, null, false, false, null),
             ActionRequestValidationException.class,
             e -> validator.accept(e, List.of("fields must not be null"))
         );
@@ -362,7 +370,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         Map<String, Float> fields = new HashMap<>();
         fields.put(INFERENCE_FIELD_1, null);
         assertFailedRequest(
-            new GetInferenceFieldsAction.Request(Set.of(), fields, false, false, null),
+            new GetInferenceFieldsAction.Request(Strings.EMPTY_ARRAY, fields, false, false, null),
             ActionRequestValidationException.class,
             e -> validator.accept(e, List.of("weight for field [" + INFERENCE_FIELD_1 + "] must not be null"))
         );
@@ -398,7 +406,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(
-                Set.of(INDEX_1),
+                new String[] { INDEX_1 },
                 generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_3)),
                 false,
                 false,

@@ -311,7 +311,7 @@ public final class InferenceQueryUtils {
             OriginalIndices originalIndices = entry.getValue();
 
             GetInferenceFieldsAction.Request request = new GetInferenceFieldsAction.Request(
-                Set.of(originalIndices.indices()),
+                originalIndices.indices(),
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),

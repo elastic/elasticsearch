@@ -85,7 +85,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
         ResolveIndexAction.NAME,
-        TransportResolveClusterAction.NAME
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsAction.NAME  // cross-cluster inference for semantic search
     );
     private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
@@ -94,8 +95,7 @@ public final class IndexPrivilege extends Privilege {
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,
         "indices:data/read/esql",
-        "indices:data/read/esql/compute",
-        GetInferenceFieldsAction.NAME  // cross-cluster inference for semantic search
+        "indices:data/read/esql/compute"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",

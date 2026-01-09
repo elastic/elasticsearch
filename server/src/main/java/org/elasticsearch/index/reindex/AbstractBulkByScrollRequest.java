@@ -20,9 +20,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -166,6 +168,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
             e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
+        }
+        if (supportsRemoteIndicesSearch() == false) {
+            List<String> remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(searchRequest.indices());
+            if (remoteIndices.isEmpty() == false) {
+                e = addValidationError(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + remoteIndices,
+                    e
+                );
+            }
         }
         return e;
     }

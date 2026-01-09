@@ -24,7 +24,7 @@ setup:
               {
                 "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
                 "field_caps_index_3", "point_in_time_index"],
-                "privileges": ["read", "read_cross_cluster"]
+                "privileges": ["read"]
               }
             ]
           }
@@ -47,7 +47,7 @@ setup:
               {
                 "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
                 "field_caps_index_3", "point_in_time_index"],
-                "privileges": ["read", "read_cross_cluster"]
+                "privileges": ["read"]
               }
             ]
           }
@@ -61,7 +61,7 @@ setup:
             "indices": [
               {
                 "names": ["shared_index"],
-                "privileges": ["read", "read_cross_cluster"],
+                "privileges": ["read"],
                 "query": "{ \"term\": { \"public\" : true } }",
                 "field_security": { "grant": ["*"], "except": ["secret"] }
               }

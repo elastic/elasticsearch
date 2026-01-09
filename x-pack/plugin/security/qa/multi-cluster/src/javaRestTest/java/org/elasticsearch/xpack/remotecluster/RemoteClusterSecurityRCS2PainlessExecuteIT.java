@@ -202,7 +202,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
                   "remote_indices": [
                     {
                       "names": ["index*"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]

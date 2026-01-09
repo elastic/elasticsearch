@@ -209,13 +209,13 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
               "indices": [
                 {
                   "names": ["points", "squares"],
-                  "privileges": ["read", "read_cross_cluster", "create_index", "monitor"]
+                  "privileges": ["read", "create_index", "monitor"]
                 }
               ],
               "remote_indices": [
                 {
                   "names": ["points", "squares"],
-                  "privileges": ["read", "read_cross_cluster", "create_index", "monitor"],
+                  "privileges": ["read", "create_index", "monitor"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]

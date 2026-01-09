@@ -359,7 +359,7 @@ public class AuthenticationTestHelper {
                         "_remote_user",
                         null,
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
+                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
                         null,
                         null,
                         null,
@@ -453,7 +453,7 @@ public class AuthenticationTestHelper {
                   "cross_cluster": {
                     "cluster": ["cross_cluster_search", "cross_cluster_replication"],
                     "indices": [
-                      { "names":["logs*"], "privileges":["read","read_cross_cluster","view_index_metadata"] },
+                      { "names":["logs*"], "privileges":["read","view_index_metadata"] },
                       { "names":["archive*"],"privileges":["cross_cluster_replication","cross_cluster_replication_internal"] }
                     ]
                   }

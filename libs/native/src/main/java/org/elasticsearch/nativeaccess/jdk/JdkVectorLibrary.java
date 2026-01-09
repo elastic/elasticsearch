@@ -188,7 +188,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return doti1i4(a, query, length);
         }
 
-        static void dotProductI1I4Bulk(MemorySegment dataset, MemorySegment query, int datasetVectorLengthInBytes, int count, MemorySegment result) {
+        static void dotProductI1I4Bulk(
+            MemorySegment dataset,
+            MemorySegment query,
+            int datasetVectorLengthInBytes,
+            int count,
+            MemorySegment result
+        ) {
             Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) dataset.byteSize());
             Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
@@ -539,11 +545,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     "dotProductI1I4",
                     MethodType.methodType(long.class, MemorySegment.class, MemorySegment.class, int.class)
                 );
-                DOT_HANDLE_I1I4_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "dotProductI1I4Bulk",
-                    bulkScorer
-                );
+                DOT_HANDLE_I1I4_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductI1I4Bulk", bulkScorer);
                 DOT_HANDLE_I1I4_BULK_WITH_OFFSETS = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
                     "dotProductI1I4BulkWithOffsets",

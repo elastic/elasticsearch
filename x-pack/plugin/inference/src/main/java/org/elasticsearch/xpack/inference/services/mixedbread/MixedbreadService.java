@@ -38,9 +38,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
-import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionCreator;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
@@ -61,7 +59,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 public class MixedbreadService extends SenderService implements RerankingInferenceService {
@@ -124,9 +121,9 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 ConfigurationParseContext.REQUEST
             );
 
-//            throwIfNotEmptyMap(config, NAME);
-//            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-//            throwIfNotEmptyMap(taskSettingsMap, NAME);
+            // throwIfNotEmptyMap(config, NAME);
+            // throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            // throwIfNotEmptyMap(taskSettingsMap, NAME);
 
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
@@ -163,8 +160,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
-            case RERANK -> new MixedbreadRerankModel(
-                inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            case RERANK -> new MixedbreadRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         };
     }
@@ -234,8 +230,13 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     protected void doChunkedInfer(
-        Model model, List<ChunkInferenceInput> inputs, Map<String, Object> taskSettings,
-        InputType inputType, TimeValue timeout, ActionListener<List<ChunkedInference>> listener) {
+        Model model,
+        List<ChunkInferenceInput> inputs,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        TimeValue timeout,
+        ActionListener<List<ChunkedInference>> listener
+    ) {
 
     }
 
@@ -263,8 +264,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
     }
-
-
 
     @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
@@ -337,8 +336,8 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 configurationMap.put(
                     MODEL_ID,
                     new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                            "The name of the model to use for the inference task."
-                        )
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)

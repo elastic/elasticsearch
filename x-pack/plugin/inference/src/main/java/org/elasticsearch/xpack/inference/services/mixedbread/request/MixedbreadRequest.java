@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadAccount;
@@ -113,4 +112,3 @@ public abstract class MixedbreadRequest implements Request, ToXContentObject {
         return null;
     }
 }
-

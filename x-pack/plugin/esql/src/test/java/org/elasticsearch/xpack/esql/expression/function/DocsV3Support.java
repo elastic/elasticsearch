@@ -1171,7 +1171,7 @@ public abstract class DocsV3Support {
                 builder.append(" {applies_to}`stack: ");
                 builder.append(setting.preview() ? "preview`" : "ga`");
             }
-            builder.append("\n\n");
+            builder.append("\n");
 
             builder.append(":   ");
             builder.append(param != null ? param.description() : mapParam.description());

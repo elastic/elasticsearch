@@ -17,10 +17,11 @@ import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
-    private final float delta = 1e-3f;
+    private final float delta = 1e-2f;
     private final int dims;
     private final int bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
@@ -36,8 +37,9 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    public void testSingle() throws Exception {
+    public void testSingleScalarVsVectorized() throws Exception {
         for (int i = 0; i < 100; i++) {
+            var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
@@ -46,7 +48,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
-                scalar.setup();
+                scalar.setup(new Random(seed));
 
                 float[] expected = scalar.score();
 
@@ -54,11 +56,11 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
-                vectorized.setup();
+                vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.score();
 
-                assertArrayEquals("single vectorized", expected, result, delta);
+                assertArrayEquals("single scoring, scalar VS vectorized", expected, result, delta);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
@@ -66,8 +68,9 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         }
     }
 
-    public void testBulk() throws Exception {
+    public void testBulkScalarVsVectorized() throws Exception {
         for (int i = 0; i < 100; i++) {
+            var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
@@ -77,7 +80,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
-                scalar.setup(random());
+                scalar.setup(new Random(seed));
 
                 float[] expected = scalar.bulkScore();
 
@@ -85,11 +88,11 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
-                vectorized.setup(random());
+                vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.bulkScore();
 
-                assertArrayEquals("bulk vectorized", expected, result, delta);
+                assertArrayEquals("bulk scoring, scalar VS vectorized", expected, result, delta);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();

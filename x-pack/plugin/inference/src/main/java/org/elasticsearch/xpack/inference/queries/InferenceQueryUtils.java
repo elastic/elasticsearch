@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public final class InferenceQueryUtils {
     /**
@@ -210,7 +210,7 @@ public final class InferenceQueryUtils {
         String queryName
     ) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false
+        if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false
             && inferenceInfo.inferenceFieldCount() > 0
             && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
             && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
@@ -220,7 +220,7 @@ public final class InferenceQueryUtils {
                     + queryName
                     + " query cross-cluster search when"
                     + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
+                    + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
             );
         }
     }
@@ -677,7 +677,7 @@ public final class InferenceQueryUtils {
             final String clusterAlias = getClusterAlias();
             client.getConnection(request, listener.delegateFailureAndWrap((l1, connection) -> {
                 TransportVersion transportVersion = connection.getTransportVersion();
-                if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
+                if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false) {
                     // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
                     // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
                     // intercepted. We track the transport version in the response so that more thorough error checking can be

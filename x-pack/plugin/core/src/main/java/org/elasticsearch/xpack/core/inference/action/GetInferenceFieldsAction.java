@@ -47,7 +47,14 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
     public static final GetInferenceFieldsAction INSTANCE = new GetInferenceFieldsAction();
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
+    // This is a defunct transport version for when GetInferenceFieldsAction was an internal cluster action. This was the case only for
+    // 9.3.0 development builds, so there should be no real-world deployments using GetInferenceFieldsAction as an internal cluster action.
+    // Therefore, this transport version can be disregarded.
     public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_TV = TransportVersion.fromName("get_inference_fields_action");
+
+    public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV = TransportVersion.fromName(
+        "get_inference_fields_action_as_indices_action"
+    );
 
     public static final String NAME = "indices:admin/inference/fields/get";
 

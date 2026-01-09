@@ -21,7 +21,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSerializationTestCase<GetInferenceFieldsAction.Request> {
     @Override
@@ -104,7 +104,10 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
 
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        TransportVersion minVersion = TransportVersion.max(TransportVersion.minimumCompatible(), GET_INFERENCE_FIELDS_ACTION_TV);
+        TransportVersion minVersion = TransportVersion.max(
+            TransportVersion.minimumCompatible(),
+            GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV
+        );
         return TransportVersionUtils.allReleasedVersions().tailSet(minVersion, true);
     }
 

@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.generateRandomChunkingSettings;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public class GetInferenceFieldsActionResponseTests extends AbstractBWCWireSerializationTestCase<GetInferenceFieldsAction.Response> {
 
@@ -81,7 +81,10 @@ public class GetInferenceFieldsActionResponseTests extends AbstractBWCWireSerial
 
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        TransportVersion minVersion = TransportVersion.max(TransportVersion.minimumCompatible(), GET_INFERENCE_FIELDS_ACTION_TV);
+        TransportVersion minVersion = TransportVersion.max(
+            TransportVersion.minimumCompatible(),
+            GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV
+        );
         return TransportVersionUtils.allReleasedVersions().tailSet(minVersion, true);
     }
 

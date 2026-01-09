@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.mockito.Mockito.when;
 
 public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
@@ -63,7 +63,7 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
             @SuppressWarnings("unchecked")
             ActionListener<GetInferenceFieldsAction.Response> actionListener = (ActionListener<GetInferenceFieldsAction.Response>) listener;
 
-            if (connection.getTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
+            if (connection.getTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false) {
                 actionListener.onFailure(new IllegalStateException("Mock remote cluster does not support GetInferenceFieldsAction"));
                 return;
             }

@@ -1271,7 +1271,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                var fileRegion = cache.get(cacheKey, this.length, region);
+                var fileRegion = lastAccessedRegion;
+                try {
+                    fileRegion = cache.get(cacheKey, this.length, region);
+                } catch (AlreadyClosedException exc) {
+                    // consider missing
+                    continue;
+                }
                 final var chunk = fileRegion.chunk;
                 if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
                     continue;

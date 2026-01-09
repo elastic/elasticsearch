@@ -114,7 +114,9 @@ public class ESIndexInputTestCase extends ESTestCase {
                             indexInput.seek(readPos);
                         }
                         indexInput.seek(readPos); // BUG these random-access reads shouldn't affect the current position
-                        indexInput.prefetch(readPos, randomIntBetween(1, Math.max(length - readPos - 1, 1)));
+                        if (readPos < length) {
+                            indexInput.prefetch(readPos, randomIntBetween(1, Math.max(length - readPos - 1, 1)));
+                        }
                     }
                     break;
                 case 4:
@@ -162,7 +164,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     // Prefetch at random positions
                     int loop = randomIntBetween(2, 5);
                     for (int i = 0; i < loop; i++) {
-                        int offset = randomIntBetween(0, length);
+                        int offset = randomIntBetween(0, length - 1);
                         indexInput.prefetch(offset, randomIntBetween(1, Math.max(length - offset - 1, 1)));
                     }
                     break;

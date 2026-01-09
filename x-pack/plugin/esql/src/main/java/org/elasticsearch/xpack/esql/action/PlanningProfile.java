@@ -64,7 +64,8 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     public static PlanningProfile readFrom(StreamInput in) throws IOException {
         TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan parsing = null, preAnalysis = null, dependencyResolution = null, analysis = null;
-        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
+        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
+            && in.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
             parsing = in.readOptionalWriteable(TimeSpan::readFrom);
             preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
             dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
@@ -76,7 +77,8 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(planningMarker.timeSpan);
-        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
+        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
+            && out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
             out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan);
             out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan);
             out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan);

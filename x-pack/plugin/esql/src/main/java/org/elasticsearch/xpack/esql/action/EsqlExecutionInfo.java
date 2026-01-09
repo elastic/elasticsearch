@@ -67,14 +67,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
-
-    // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
-    // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
-    // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
-    // old Cluster Object to a new Cluster Object with the remapping function.
-    public final ConcurrentMap<String, Cluster> clusterInfo;
-    // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
-    private transient volatile boolean clusterInfoInitializing;
+    public static final TransportVersion EXECUTION_TRANSIENT_PROFILING_VERSION = TransportVersion.fromName("esql_transient_profiling");
 
     public enum IncludeExecutionMetadata {
         ALWAYS,
@@ -85,6 +78,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // whether the user has asked for execution/CCS metadata to be in the JSON response (the overall took will always be present)
     private final IncludeExecutionMetadata includeExecutionMetadata;
 
+    // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
+    // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
+    // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
+    // old Cluster Object to a new Cluster Object with the remapping function.
+    public final ConcurrentMap<String, Cluster> clusterInfo;
+    // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
+    private transient volatile boolean clusterInfoInitializing;
+    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
+    private transient boolean inSubplan = false;
+
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
@@ -94,9 +97,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final PlanningProfile planningProfile;
     private TimeValue overallTook;
     private transient TimeSpan overallTimeSpan;
-
-    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
-    private transient boolean inSubplan = false;
 
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.

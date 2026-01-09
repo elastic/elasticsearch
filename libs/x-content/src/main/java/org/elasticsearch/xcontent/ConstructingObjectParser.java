@@ -10,11 +10,17 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -128,6 +134,50 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      */
     public ConstructingObjectParser(String name, boolean ignoreUnknownFields, Function<Object[], Value> builder) {
         this(name, ignoreUnknownFields, (args, context) -> builder.apply(args));
+    }
+
+    /**
+     * Build a parser for the given {@code recordClass}.
+     *
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
+     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
+     *        from external systems, never when parsing requests from users.
+     * @param recordClass the {@link Class} of the {@link Record} type to build
+     * @param lookup a {@link java.lang.invoke.MethodHandles.Lookup Lookup} object that can access the record's canonical constructor;
+     *               typically just {@code MethodHandles.lookup()} called by some code that can access the constructor.
+     * @return a function suitable to use as the {@code builder} argument for one of the constructors of this class.
+     */
+    public static <R extends Record, Context> ConstructingObjectParser<R, Context> forRecord(
+        String name,
+        boolean ignoreUnknownFields,
+        Class<R> recordClass,
+        MethodHandles.Lookup lookup
+    ) {
+        Function<Object[], R> builder = recordBuilder(recordClass, lookup);
+        return new ConstructingObjectParser<>(name, ignoreUnknownFields, (args, context) -> builder.apply(args));
+    }
+
+    private static <R extends Record> Function<Object[], R> recordBuilder(Class<R> recordClass, MethodHandles.Lookup lookup) {
+        Class<?>[] ctorArgs = Arrays.stream(recordClass.getRecordComponents()).map(RecordComponent::getType).toArray(Class<?>[]::new);
+        MethodHandle ctor;
+        try {
+            ctor = lookup.findConstructor(recordClass, MethodType.methodType(void.class, ctorArgs));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new IllegalStateException("Cannot access record constructor", e);
+        }
+        return (args) -> recordClass.cast(constructRecord(args, ctor));
+    }
+
+    @SuppressForbidden(reason = "We can't use invokeExact because we don't know the argument types statically")
+    private static Object constructRecord(Object[] args, MethodHandle ctor) {
+        Object result;
+        try {
+            result = ctor.invokeWithArguments(args);
+        } catch (Throwable e) {
+            throw new IllegalStateException("Unable to call record constructor", e);
+        }
+        return result;
     }
 
     /**

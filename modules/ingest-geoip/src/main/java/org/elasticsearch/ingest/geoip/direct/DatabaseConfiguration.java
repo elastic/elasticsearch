@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
@@ -245,10 +246,12 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         private static final ParseField ACCOUNT_ID = new ParseField("account_id");
 
-        private static final ConstructingObjectParser<Maxmind, Void> PARSER = new ConstructingObjectParser<>("maxmind", false, (a, id) -> {
-            String accountId = (String) a[0];
-            return new Maxmind(accountId);
-        });
+        private static final ConstructingObjectParser<Maxmind, Void> PARSER = ConstructingObjectParser.forRecord(
+            "maxmind",
+            false,
+            Maxmind.class,
+            MethodHandles.lookup()
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), ACCOUNT_ID);

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
@@ -44,10 +45,11 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     public static final ParseField ENABLED_FIELD = new ParseField(ENABLED);
     public static final ParseField LIFECYCLE_FIELD = new ParseField(LIFECYCLE);
 
-    public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = ConstructingObjectParser.forRecord(
         FAILURE_STORE,
         false,
-        (args, unused) -> new DataStreamFailureStore((Boolean) args[0], (DataStreamLifecycle) args[1])
+        DataStreamFailureStore.class,
+        MethodHandles.lookup()
     );
 
     static {

@@ -10,9 +10,17 @@
 package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
+
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 
 public non-sealed interface JavaLibrary extends NativeLibrary {
     CloseableByteBuffer newSharedBuffer(int len);
 
     CloseableByteBuffer newConfinedBuffer(int len);
+
+    CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;
+
 }

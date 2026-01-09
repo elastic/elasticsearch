@@ -23,6 +23,7 @@ import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.lang.ref.Reference;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -55,7 +56,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
     private static final MethodHandle madvise$mh = downcallHandleWithErrno(
         "madvise",
-        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT)
+        FunctionDescriptor.of(JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_INT)
     );
     private static final MethodHandle fcntl$mh = downcallHandle(
         "fcntl",
@@ -187,13 +188,19 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public int madvise(MemorySegment segment, long length, int advice) {
+    public int madvise(MemorySegment segment, long offset, long length, int advice) {
+        if (segment.isNative() == false) {
+            throw new IllegalArgumentException("unexpected non-native segment: " + segment);
+        }
+        long base = segment.address() + offset;
         try {
-            return (int) madvise$mh.invokeExact(errnoState, segment, length, advice);
+            return (int) madvise$mh.invokeExact(errnoState, base, length, advice);
         } catch (IllegalArgumentException exc) {
             throw exc;
         } catch (Throwable t) {
             throw new AssertionError(t);
+        } finally {
+            Reference.reachabilityFence(segment);
         }
     }
 

@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
+import java.lang.foreign.MemorySegment;
+
 /**
  * Provides access to methods in libc.so available on POSIX systems.
  */
@@ -97,7 +99,7 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      * @throws IllegalArgumentException
      *     if {@code segment} does not represent native memory
      */
-    int madvise(MemorySegment segment, long length, int advice);
+    int madvise(MemorySegment segment, long offset, long length, int advice);
 
     /** corresponds to struct stat64 */
     interface Stat64 {

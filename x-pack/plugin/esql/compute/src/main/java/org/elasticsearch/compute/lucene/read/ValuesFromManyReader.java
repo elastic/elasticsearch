@@ -228,8 +228,6 @@ class ValuesFromManyReader extends ValuesReader {
      * the {@link #finalBuilder} immediately.
      */
     private static class CurrentWork implements Releasable {
-        private final ValuesSourceReaderOperator.FieldWork field;
-
         private final Block.Builder builder;
         @Nullable
         private final ValuesSourceReaderOperator.ConverterEvaluator converter;
@@ -241,7 +239,6 @@ class ValuesFromManyReader extends ValuesReader {
             ValuesSourceReaderOperator.FieldWork field,
             Block.Builder finalBuilder
         ) {
-            this.field = field;
             this.converter = field.converter;
             this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
             this.finalBuilder = finalBuilder;

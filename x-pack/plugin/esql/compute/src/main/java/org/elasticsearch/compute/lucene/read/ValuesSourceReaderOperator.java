@@ -27,7 +27,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -152,6 +151,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final int docChannel;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
+    final Map<String, Integer> convertersUsed = new TreeMap<>();
     long valuesLoaded;
 
     private int lastShard = -1;
@@ -252,6 +252,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         final FieldInfo info;
 
         BlockLoader loader;
+        @Nullable
         ConverterEvaluator converter;
         BlockLoader.ColumnAtATimeReader columnAtATime;
         BlockLoader.RowStrideReader rowStride;
@@ -277,7 +278,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         void newShard(int shard) {
             LoaderAndConverter l = info.loaderAndConverter.apply(shard);
             loader = l.loader;
-            converter = l.converter == null ? null : converterEvaluators.get(l.converter);
+            converter = l.converter == null ? null : converterEvaluators.get(info.name, l.converter);
             columnAtATime = null;
             rowStride = null;
         }
@@ -335,10 +336,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         long rowsReceived,
         long rowsEmitted
     ) {
-        LogManager.getLogger(ValuesSourceReaderOperator.class)
-            .error("ASD NOCOMMIT {}", converterEvaluators.built.values().stream().map(Object::toString).toList());
         return new ValuesSourceReaderOperatorStatus(
             new TreeMap<>(readersBuilt),
+            new TreeMap<>(convertersUsed),
             processNanos,
             pagesReceived,
             pagesEmitted,
@@ -390,8 +390,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             Releasables.close(built.values());
         }
 
-        public ConverterEvaluator get(ConverterFactory converter) {
-            return built.computeIfAbsent(converter, unused -> converter.build(driverContext));
+        public ConverterEvaluator get(String field, ConverterFactory converter) {
+            ConverterEvaluator evaluator =  built.computeIfAbsent(converter, unused -> converter.build(driverContext));
+            convertersUsed.merge(field + ":" + evaluator, 1, Integer::sum);
+            return evaluator;
         }
     }
 

@@ -212,6 +212,10 @@ class ValuesFromSingleReader extends ValuesReader {
         int idx
     ) {
         Block convert(Block block) {
+            if (converter == null) {
+                return block;
+            }
+
             return converter == null ? block : converter.convert(block);
         }
     }

@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -532,9 +531,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
-                case Drop d -> resolveDrop(d, context);
-                case Rename r -> resolveRename(r, context);
-                case Keep k -> resolveKeep(k, context);
+                case Drop d -> resolveDrop(d, context.unmappedResolution());
+                case Rename r -> resolveRename(r, context.unmappedResolution());
+                case Keep k -> resolveKeep(k, context.unmappedResolution());
                 case Fork f -> resolveFork(f);
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
@@ -606,8 +605,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            boolean groupingsResolved = groupings.size() == resolvedGroupings.size(); // meaning: are _all_ groupings resolved?
-            if (groupingsResolved == false || Resolvables.resolved(aggregates) == false) {
+            boolean allGroupingsResolved = groupings.size() == resolvedGroupings.size();
+            if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
 
@@ -626,7 +625,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
                             // to get resolved in the next iteration.
                             // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
-                            if (groupingsResolved || maybeResolved.resolved()) {
+                            if (allGroupingsResolved || maybeResolved.resolved()) {
                                 changed.set(true);
                                 ne = maybeResolved;
                             }
@@ -956,7 +955,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), null);
+                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.FAIL);
                 }
 
                 newSubPlans.add(logicalPlan);
@@ -1305,14 +1304,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
-        private static LogicalPlan resolveKeep(Keep keep, @Nullable AnalyzerContext context) {
-            return context == null || failUnmappedFields(context)
+        private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
+            return unmappedResolution == UnmappedResolution.FAIL
                 ? new EsqlProject(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
                 : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
-        }
-
-        private static boolean failUnmappedFields(AnalyzerContext context) {
-            return context.unmappedResolution() == UnmappedResolution.FAIL;
         }
 
         private static List<NamedExpression> keepResolver(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
@@ -1361,8 +1356,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedProjections;
         }
 
-        private static LogicalPlan resolveDrop(Drop drop, AnalyzerContext context) {
-            return failUnmappedFields(context)
+        private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
+            return unmappedResolution == UnmappedResolution.FAIL
                 ? new EsqlProject(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
                 : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
         }
@@ -1397,8 +1392,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedProjections;
         }
 
-        private LogicalPlan resolveRename(Rename rename, AnalyzerContext context) {
-            return failUnmappedFields(context)
+        private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
+            return unmappedResolution == UnmappedResolution.FAIL
                 ? new EsqlProject(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
                     rename.source(),

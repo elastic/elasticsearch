@@ -152,9 +152,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/41_knn_search_byte_quantized/kNN search plus query}
   issue: https://github.com/elastic/elasticsearch/issues/124687
-- class: org.elasticsearch.packaging.test.BootstrapCheckTests
-  method: test20RunWithBootstrapChecks
-  issue: https://github.com/elastic/elasticsearch/issues/124940
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
@@ -349,6 +346,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/139806
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test140CgroupOsStatsAreAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/131372
 
 # Examples:
 #

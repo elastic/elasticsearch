@@ -235,7 +235,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float centroidDp,
         float[] scores
     ) throws IOException {
-        assert q.length == length * 4;
+        assert q.length == length * 2;
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {

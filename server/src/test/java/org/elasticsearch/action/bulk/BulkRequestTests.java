@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -304,7 +305,7 @@ public class BulkRequestTests extends ESTestCase {
         }
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(data, null, xContentType);
+        bulkRequest.add(data, null, xContentType, RestBulkAction.BulkFormat.MARKER_SUFFIX);
         assertEquals(1, bulkRequest.requests().size());
         DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(0);
         assertEquals(DocWriteRequest.OpType.INDEX, docWriteRequest.opType());
@@ -345,7 +346,7 @@ public class BulkRequestTests extends ESTestCase {
             data = out.bytes();
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(data, null, xContentType);
+        bulkRequest.add(data, null, xContentType, RestBulkAction.BulkFormat.MARKER_SUFFIX);
         assertThat(bulkRequest.validate().validationErrors(), contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
     }
 
@@ -381,7 +382,7 @@ public class BulkRequestTests extends ESTestCase {
             { "index" : {"dynamic_templates":{}}}
             { "field1" : "value3" }
             """);
-        BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON, RestBulkAction.BulkFormat.MARKER_SUFFIX);
         assertThat(bulkRequest.requests, hasSize(5));
         assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(), equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
         assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplates(), equalTo(Map.of("bar", "t1")));
@@ -424,7 +425,7 @@ public class BulkRequestTests extends ESTestCase {
             """);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON)
+            () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON, RestBulkAction.BulkFormat.MARKER_SUFFIX)
         );
         assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_templates"));
 
@@ -434,7 +435,7 @@ public class BulkRequestTests extends ESTestCase {
             """);
         error = expectThrows(
             IllegalArgumentException.class,
-            () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON)
+            () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON, RestBulkAction.BulkFormat.MARKER_SUFFIX)
         );
         assertThat(error.getMessage(), equalTo("Update request in line [1] does not accept dynamic_templates"));
 
@@ -442,7 +443,10 @@ public class BulkRequestTests extends ESTestCase {
             { "index":{"_index":"test","dynamic_templates":[]}
             { "field1" : "value1" }
             """);
-        error = expectThrows(IllegalArgumentException.class, () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON));
+        error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON, RestBulkAction.BulkFormat.MARKER_SUFFIX)
+        );
         assertThat(
             error.getMessage(),
             equalTo(

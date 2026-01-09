@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
@@ -377,6 +378,7 @@ public abstract class CoreTestTranslater {
                     null,
                     true,
                     XContentType.JSON,
+                    RestBulkAction.BulkFormat.MARKER_SUFFIX,
                     (index, type) -> indexRequests.add(index),
                     u -> {},
                     d -> {}

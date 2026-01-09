@@ -32,7 +32,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
-* `dense_vector` {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -47,29 +47,23 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
-* TSDB metrics {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]
 
-{{esql}} does not yet support the following field types:
+{{esql}} does not support certain field types. If the limitation only applies to specific product versions, it is indicated in the following list:
 
-::::{tab-set}
-:::{tab-item} 9.0-9.1
-* `dense_vector`
-* TSDB metrics
+* {applies_to}`stack: ga 9.0-9.1` `dense_vector`
+* {applies_to}`stack: ga 9.0-9.1` TSDB metrics
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
-:::
-:::{tab-item} 9.2+
-This limitation no longer exists and TSDB metrics and `dense_vector` are now supported (preview).
-:::
-::::
+
 * Date/time
 
     * `date_range`
@@ -208,12 +202,12 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](/refer
 
 ## Time series data streams [esql-tsdb]
 
-::::{tab-set}
-:::{tab-item} 9.0-9.1
-{{esql}} does not support querying time series data streams (TSDS).
+::::{applies-switch}
+:::{applies-item} stack: preview 9.2+
+Time series data streams (TSDS) are supported in technical preview.
 :::
-:::{tab-item} 9.2+
-This limitation no longer exists and time series data streams (TSDS) are now supported (preview).
+:::{applies-item} stack: ga 9.0-9.1
+{{esql}} does not support querying time series data streams (TSDS).
 :::
 ::::
 

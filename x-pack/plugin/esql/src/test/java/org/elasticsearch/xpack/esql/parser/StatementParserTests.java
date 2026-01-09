@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -299,7 +300,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Eval(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                List.of(new Alias(EMPTY, "b", attribute("a")), new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1))))
+                List.of(
+                    new Alias(EMPTY, "b", attribute("a")),
+                    new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                )
             ),
             processingCommand("eval b = a, c = a + 1")
         );
@@ -319,7 +323,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(
                         EMPTY,
                         "fn(a + 1)",
-                        new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "fn",
+                            DEFAULT,
+                            List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                        )
                     )
                 )
             ),

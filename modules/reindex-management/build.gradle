@@ -28,7 +28,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'index', 'bulk', 'reindex', 'reindex.get', 'reindex.list', 'reindex_rethrottle', 'delete_by_query', 'tasks', 'capabilities'
+    include '_common', 'index', 'bulk', 'reindex', 'reindex_get', 'reindex_list', 'reindex_rethrottle', 'delete_by_query', 'tasks', 'capabilities'
   }
 }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -90,6 +91,8 @@ public class Verifier {
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures);
+
+        ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {

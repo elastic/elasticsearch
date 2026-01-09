@@ -158,7 +158,7 @@ public class EvalBenchmark {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataType.LONG)),
+                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration()),
                     layout(longField)
                 ).get(driverContext);
             }
@@ -166,7 +166,7 @@ public class EvalBenchmark {
                 FieldAttribute doubleField = doubleField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE)),
+                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE), configuration()),
                     layout(doubleField)
                 ).get(driverContext);
             }
@@ -177,8 +177,8 @@ public class EvalBenchmark {
                 Expression lhs = f1;
                 Expression rhs = f2;
                 if (operation.endsWith("lazy")) {
-                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
-                    rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
+                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
+                    rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                 }
                 EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
@@ -196,7 +196,7 @@ public class EvalBenchmark {
                 FieldAttribute f2 = longField();
                 Expression lhs = f1;
                 if (operation.endsWith("lazy")) {
-                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
+                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                 }
                 EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,

@@ -17,11 +17,9 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
@@ -167,22 +165,15 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
         Holder<Attribute> tsid = new Holder<>();
-        Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
                 if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
                     tsid.set(attr);
                 }
-                if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                    timestamp.set(attr);
-                }
             }
         });
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
-        }
-        if (timestamp.get() == null) {
-            throw new IllegalArgumentException("@timestamp field is missing from the time-series source");
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
@@ -230,7 +221,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM || aggField.dataType() == DataType.TDIGEST) {
                         tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
                     } else {
-                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
+                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), aggregate.timestamp());
                     }
                     final AggregateFunction firstStageFn;
                     if (inlineFilter != null) {
@@ -257,28 +248,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 firstPassAggs.add(agg);
             }
         }
-        if (aggregate.child().output().contains(timestamp.get()) == false) {
-            var timestampAwareFunctions = timeSeriesAggs.keySet()
-                .stream()
-                .filter(ts -> ts instanceof TimestampAware)
-                .map(Node::sourceText)
-                .sorted()
-                .toList();
-            if (timestampAwareFunctions.isEmpty() == false) {
-                int size = timestampAwareFunctions.size();
-                throw new IllegalArgumentException(
-                    "Function"
-                        + (size > 1 ? "s " : " ")
-                        + "["
-                        + String.join(", ", timestampAwareFunctions.subList(0, Math.min(size, 3)))
-                        + (size > 3 ? ", ..." : "")
-                        + "] require"
-                        + (size > 1 ? " " : "s ")
-                        + "a @timestamp field of type date or date_nanos to be present when run with the TS command, "
-                        + "but it was not present."
-                );
-            }
-        }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
@@ -288,18 +257,18 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
-                if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
+                if (child instanceof Bucket bucket && bucket.field().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
                     timeBucketRef.set(e);
-                } else if (child instanceof TBucket tbucket && tbucket.timestamp().equals(timestamp.get())) {
+                } else if (child instanceof TBucket tbucket && tbucket.timestamp().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }
                     Bucket bucket = (Bucket) tbucket.surrogate();
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
-                } else if (child instanceof DateTrunc dateTrunc && dateTrunc.field().equals(timestamp.get())) {
+                } else if (child instanceof DateTrunc dateTrunc && dateTrunc.field().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
@@ -365,7 +334,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket)
+            (Bucket) Alias.unwrap(timeBucket),
+            aggregate.timestamp()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {

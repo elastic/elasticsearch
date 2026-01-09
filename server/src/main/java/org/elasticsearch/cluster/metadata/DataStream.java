@@ -1282,7 +1282,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * be filtered according to the predicate definition. This is useful for things like "return only
      * the indices that are managed by the data stream lifecycle".
      */
-    private static List<Index> getNonWriteIndicesOlderThan(
+    private List<Index> getNonWriteIndicesOlderThan(
         List<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
@@ -1301,7 +1301,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return olderIndices;
     }
 
-    private static boolean isIndexOlderThan(
+    private boolean isIndexOlderThan(
         Index index,
         long retentionPeriod,
         long now,

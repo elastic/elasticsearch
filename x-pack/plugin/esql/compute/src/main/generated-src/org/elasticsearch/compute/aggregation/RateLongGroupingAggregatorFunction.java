@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;

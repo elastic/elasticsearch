@@ -1165,11 +1165,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexVersionAllProjects() {
         final int numProjects = between(1, 5);
-        final List<IndexVersion> indexVersions = randomList(
-            numProjects,
-            numProjects,
-            () -> IndexVersionUtils.randomCompatibleVersion(random())
-        );
+        final List<IndexVersion> indexVersions = randomList(numProjects, numProjects, () -> IndexVersionUtils.randomCompatibleVersion());
 
         final Map<ProjectId, ProjectMetadata> projectMetadataMap = new HashMap<>();
         for (int i = 0; i < numProjects; i++) {

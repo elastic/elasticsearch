@@ -784,7 +784,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
-        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
         assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
     }

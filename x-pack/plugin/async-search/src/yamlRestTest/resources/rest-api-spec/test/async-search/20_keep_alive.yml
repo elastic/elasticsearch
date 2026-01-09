@@ -87,3 +87,20 @@ setup:
   - match:  { completion_status:                  200 }
   - match:  { _shards.total:                        6 }
   - match:  { _shards.successful:                   6 }
+
+---
+"Submit invalid keep_alive":
+  - skip:
+      features: "warnings"
+
+  - do:
+      async_search.submit:
+        index: test-*
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        keep_alive: 31d
+        body: { "query" : { "match_all" : {} } }
+      catch: "bad_request"
+
+  - match:  { error.type: "action_request_validation_exception" }
+  - match:  { error.reason: "Validation Failed: 1: [keep_alive] must be less or equal to 30 days, got:31d;" }

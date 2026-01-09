@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
@@ -54,19 +55,18 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
-public class PutLifecycleMetadataService {
+public class LifecycleMetadataService {
 
-    private static final Logger logger = LogManager.getLogger(PutLifecycleMetadataService.class);
+    private static final Logger logger = LogManager.getLogger(LifecycleMetadataService.class);
 
-    private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
-    private final MasterServiceTaskQueue<UpdateLifecyclePolicyTask> taskQueue;
+    private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    public PutLifecycleMetadataService(
+    public LifecycleMetadataService(
         ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
         Client client,
@@ -74,18 +74,12 @@ public class PutLifecycleMetadataService {
         ThreadPool threadPool,
         ProjectResolver projectResolver
     ) {
-        this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
-        this.taskQueue = clusterService.createTaskQueue("ilm-put-lifecycle-queue", Priority.NORMAL, new IlmLifecycleExecutor());
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+        this.taskQueue = clusterService.createTaskQueue("ilm-lifecycle-queue", Priority.NORMAL, new IlmLifecycleExecutor());
     }
 
     public void addLifecycle(PutLifecycleRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
@@ -163,7 +157,7 @@ public class PutLifecycleMetadataService {
         for (Phase phase : phasesWithSearchableSnapshotActions) {
             SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
             String repository = action.getSnapshotRepository();
-            if (RepositoriesMetadata.get(state.cluster()).repository(repository) == null) {
+            if (RepositoriesMetadata.get(state.metadata()).repository(repository) == null) {
                 throw new IllegalArgumentException(
                     "no such repository ["
                         + repository
@@ -314,9 +308,64 @@ public class PutLifecycleMetadataService {
         }
     }
 
-    private static class IlmLifecycleExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateLifecyclePolicyTask> {
+    public void deleteLifecycle(DeleteLifecycleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        final var projectId = projectResolver.getProjectId();
+        DeleteLifecyclePolicyTask deleteTask = new DeleteLifecyclePolicyTask(
+            projectId,
+            request.getPolicyName(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            listener
+        );
+        taskQueue.submitTask("delete-lifecycle-" + request.getPolicyName(), deleteTask, deleteTask.timeout());
+    }
+
+    public static class DeleteLifecyclePolicyTask extends AckedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String policyName;
+
+        public DeleteLifecyclePolicyTask(
+            ProjectId projectId,
+            String policyName,
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(masterNodeTimeout, ackTimeout, listener);
+            this.projectId = projectId;
+            this.policyName = policyName;
+        }
+
         @Override
-        public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateLifecyclePolicyTask task, ClusterState clusterState)
+        public ClusterState execute(ClusterState currentState) {
+            ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+            List<String> indicesUsingPolicy = projectMetadata.indices()
+                .values()
+                .stream()
+                .filter(idxMeta -> policyName.equals(idxMeta.getLifecyclePolicyName()))
+                .map(idxMeta -> idxMeta.getIndex().getName())
+                .toList();
+            if (indicesUsingPolicy.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Cannot delete policy [" + policyName + "]. It is in use by one or more indices: " + indicesUsingPolicy
+                );
+            }
+            IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+            if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(policyName) == false) {
+                throw new ResourceNotFoundException("Lifecycle policy not found: {}", policyName);
+            }
+            SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
+            newPolicies.remove(policyName);
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(projectMetadata));
+            ProjectMetadata.Builder newProjectMetadata = ProjectMetadata.builder(projectMetadata)
+                .putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
+            return ClusterState.builder(currentState).putProjectMetadata(newProjectMetadata).build();
+        }
+    }
+
+    private static class IlmLifecycleExecutor extends SimpleBatchedAckListenerTaskExecutor<AckedClusterStateUpdateTask> {
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(AckedClusterStateUpdateTask task, ClusterState clusterState)
             throws Exception {
             return Tuple.tuple(task.execute(clusterState), task);
         }

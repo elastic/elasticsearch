@@ -23,7 +23,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
-import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
+import org.elasticsearch.xpack.ilm.LifecycleMetadataService;
 
 import java.util.Optional;
 import java.util.Set;
@@ -34,7 +34,7 @@ import java.util.Set;
  */
 public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLifecycleRequest, AcknowledgedResponse> {
 
-    private final PutLifecycleMetadataService putLifecycleMetadataService;
+    private final LifecycleMetadataService lifecycleMetadataService;
 
     @Inject
     public TransportPutLifecycleAction(
@@ -42,7 +42,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        PutLifecycleMetadataService putLifecycleMetadataService
+        LifecycleMetadataService lifecycleMetadataService
     ) {
         super(
             ILMActions.PUT.name(),
@@ -54,7 +54,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.putLifecycleMetadataService = putLifecycleMetadataService;
+        this.lifecycleMetadataService = lifecycleMetadataService;
     }
 
     @Override
@@ -64,7 +64,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        putLifecycleMetadataService.addLifecycle(request, state, listener);
+        lifecycleMetadataService.addLifecycle(request, state, listener);
     }
 
     @Override

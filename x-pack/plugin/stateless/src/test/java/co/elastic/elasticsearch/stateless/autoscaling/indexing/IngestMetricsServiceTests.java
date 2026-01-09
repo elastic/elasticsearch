@@ -98,6 +98,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -998,13 +999,13 @@ public class IngestMetricsServiceTests extends ESTestCase {
         // after INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE, the new node also reports
         // a stable write average task execution time. Just advance time here...
         now.addAndGet(randomTimeValue(1, 5, TimeUnit.MINUTES).millis());
-        final double node2StableExecTime = randomStableAvgExecTimeNanos.getAsDouble();
-        avgTaskExecTimePerNode = Maps.copyMapWithAddedOrReplacedEntry(avgTaskExecTimePerNode, NODE2, node2StableExecTime);
+        final double node2StableExecTimeNanos = randomStableAvgExecTimeNanos.getAsDouble();
+        avgTaskExecTimePerNode = Maps.copyMapWithAddedOrReplacedEntry(avgTaskExecTimePerNode, NODE2, node2StableExecTimeNanos);
         var node2IngestionLoad2 = nodeIngestionLoadWithWriteActivity(
             writeLoadPerNode.get(NODE2),
             queueSizePerNode.get(NODE2),
             avgTaskExecTimePerNode.get(NODE2),
-            OptionalDouble.of(node2StableExecTime)
+            OptionalDouble.of(node2StableExecTimeNanos)
         );
         service.trackNodeIngestLoad(stateWithNewNode, newNode.getId(), newNode.getName(), seqNoSupplier.getAsLong(), node2IngestionLoad2);
         ingestionLoadSnapshots = service.getIndexTierMetrics(stateWithNewNode, null).getNodesLoad();
@@ -1016,7 +1017,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         // the tier-wide average is updated
         assertThat(
             nodeIngestLoadTracker.getTierWideAverageWriteThreadpoolTaskExecutionTime().get(),
-            equalTo(average(node0StableExecTimeNanos, node1StableExecTimeNanos, node2StableExecTime))
+            equalTo(average(node0StableExecTimeNanos, node1StableExecTimeNanos, node2StableExecTimeNanos))
         );
         // two nodes are marked for shutdown, all nodes used tier wide and adjusted loads are returned
         final var shutdownMetadata = createShutdownMetadata(initialNodes);
@@ -1032,12 +1033,27 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(lastRawAndAdjustedLoads.raw().size(), equalTo(stateWithShutdowns.nodes().size()));
         assertThat(lastRawAndAdjustedLoads.adjusted().size(), equalTo(stateWithShutdowns.nodes().size()));
         assertThat(ingestionLoadSnapshots.size(), equalTo(stateWithShutdowns.nodes().size()));
-        double tierWideAvgExecTime = average(node0StableExecTimeNanos, node1StableExecTimeNanos, node2StableExecTime);
+        double tierWideAvgExecTime = average(node0StableExecTimeNanos, node1StableExecTimeNanos, node2StableExecTimeNanos);
+        var stableAvgTaskExecTimePerNode = Map.of(
+            NODE0,
+            node0StableExecTimeNanos,
+            NODE1,
+            node1StableExecTimeNanos,
+            NODE2,
+            node2StableExecTimeNanos
+        );
         for (var adjustedLoad : ingestionLoadSnapshots) {
             final var nodeId = adjustedLoad.nodeId();
-            assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
-            final double threadsForQueue = queueThreadsNeeded(queueSizePerNode.get(nodeId), tierWideAvgExecTime);
-            assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(nodeId) + threadsForQueue, 0.01));
+            final var stableAvgTaskExecTime = stableAvgTaskExecTimePerNode.get(nodeId);
+            final var avgTaskExecTime = avgTaskExecTimePerNode.get(nodeId);
+            // The adjustment happens only if we have a lower estimate available (tier wide or the node's last stable avg task exec time)
+            if (stableAvgTaskExecTime < avgTaskExecTime || tierWideAvgExecTime < avgTaskExecTime) {
+                assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
+                final double threadsForQueue = queueThreadsNeeded(queueSizePerNode.get(nodeId), tierWideAvgExecTime);
+                assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(nodeId) + threadsForQueue, 0.01));
+            } else {
+                assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.EXACT));
+            }
         }
         // One node leaves and the tier wide average task execution time is updated
         final var stateWithNodeLeft = ClusterState.builder(stateWithShutdowns)
@@ -1046,22 +1062,49 @@ public class IngestMetricsServiceTests extends ESTestCase {
         service.clusterChanged(new ClusterChangedEvent("node-left", stateWithNodeLeft, stateWithShutdowns));
         assertThat(
             nodeIngestLoadTracker.getTierWideAverageWriteThreadpoolTaskExecutionTime().get(),
-            equalTo(average(node0StableExecTimeNanos, node2StableExecTime))
+            equalTo(average(node0StableExecTimeNanos, node2StableExecTimeNanos))
         );
         ingestionLoadSnapshots = service.getIndexTierMetrics(stateWithNodeLeft, null).getNodesLoad();
         lastRawAndAdjustedLoads = service.getLastNodeIngestLoadSnapshots();
         assertThat(ingestionLoadSnapshots.size(), equalTo(stateWithNodeLeft.nodes().size()));
-        assertNotNull(lastRawAndAdjustedLoads.adjusted());
-        assertThat(lastRawAndAdjustedLoads.raw().size(), equalTo(stateWithNodeLeft.nodes().size()));
-        assertThat(lastRawAndAdjustedLoads.adjusted().size(), equalTo(stateWithNodeLeft.nodes().size()));
-        tierWideAvgExecTime = average(node0StableExecTimeNanos, node2StableExecTime);
-        for (var adjustedLoad : ingestionLoadSnapshots) {
-            final var nodeId = adjustedLoad.nodeId();
-            assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
-            final double threadsForQueue = queueThreadsNeeded(queueSizePerNode.get(nodeId), tierWideAvgExecTime);
-            assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(nodeId) + threadsForQueue, 0.01));
+        tierWideAvgExecTime = average(node0StableExecTimeNanos, node2StableExecTimeNanos);
+        if (lastRawAndAdjustedLoads.adjusted() == null) {
+            assertTrue(ingestionLoadSnapshots.stream().allMatch(l -> l.metricQuality() == MetricQuality.EXACT));
+            // There was no adjustment. This can happen if none of the nodes would see a lower ingestion load using the tier-wide or
+            // node's last stable average task execution time.
+            final var loadPerNode = ingestionLoadSnapshots.stream().collect(Collectors.toMap(l -> l.nodeId(), l -> l.load()));
+            for (var nodeId : loadPerNode.keySet()) {
+                final var stableAvgTaskExecTime = stableAvgTaskExecTimePerNode.get(nodeId);
+                final var estimateUsingTierWide = writeLoadPerNode.get(nodeId) + queueThreadsNeeded(
+                    queueSizePerNode.get(nodeId),
+                    tierWideAvgExecTime
+                );
+                final var estimateUsingLastStable = writeLoadPerNode.get(nodeId) + queueThreadsNeeded(
+                    queueSizePerNode.get(nodeId),
+                    stableAvgTaskExecTime
+                );
+                final var unadjustedEstimate = loadPerNode.get(nodeId);
+                assertThat(unadjustedEstimate, lessThanOrEqualTo(estimateUsingLastStable));
+                assertThat(unadjustedEstimate, lessThanOrEqualTo(estimateUsingTierWide));
+            }
+        } else {
+            assertThat(lastRawAndAdjustedLoads.raw().size(), equalTo(stateWithNodeLeft.nodes().size()));
+            assertThat(lastRawAndAdjustedLoads.adjusted().size(), equalTo(stateWithNodeLeft.nodes().size()));
+            for (var adjustedLoad : ingestionLoadSnapshots) {
+                final var nodeId = adjustedLoad.nodeId();
+                final var stableAvgTaskExecTime = stableAvgTaskExecTimePerNode.get(nodeId);
+                final var avgTaskExecTime = avgTaskExecTimePerNode.get(nodeId);
+                // The adjustment happens only if we have a lower estimate available (tier wide or the node's last stable avg
+                // task exec time)
+                if (stableAvgTaskExecTime < avgTaskExecTime || tierWideAvgExecTime < avgTaskExecTime) {
+                    assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
+                    final double threadsForQueue = queueThreadsNeeded(queueSizePerNode.get(nodeId), tierWideAvgExecTime);
+                    assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(nodeId) + threadsForQueue, 0.01));
+                } else {
+                    assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.EXACT));
+                }
+            }
         }
-
         // INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE passes, and we should go back to no adjustments
         now.addAndGet(initialScalingWindowConsideredUnstable.getNanos() + 1);
         ingestionLoadSnapshots = service.getIndexTierMetrics(stateWithNodeLeft, null).getNodesLoad();

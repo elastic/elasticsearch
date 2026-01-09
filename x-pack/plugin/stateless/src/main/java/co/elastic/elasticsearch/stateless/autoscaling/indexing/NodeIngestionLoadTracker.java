@@ -261,7 +261,16 @@ public class NodeIngestionLoadTracker {
                         nodeIngestStatsEntry.getKey()
                     );
                 }
-                rawIngestLoads.add(nodeIngestLoad.getIngestLoadSnapshot());
+                final var rawIngestLoad = nodeIngestLoad.getIngestLoadSnapshot();
+                rawIngestLoads.add(rawIngestLoad);
+                // If available, use the min of tier-wide average and last stable per-node average task execution times
+                Optional<Double> lowerAlternativeAvgTaskExecTime = tierWriteAvgTaskExecTime;
+                Double lastStableAvgTaskExecTime = writeThreadpoolAvgTaskExecTimePerNode.get(nodeIngestLoad.nodeId);
+                if (lastStableAvgTaskExecTime != null
+                    && lastStableAvgTaskExecTime > 0.0
+                    && (lowerAlternativeAvgTaskExecTime.isEmpty() || lowerAlternativeAvgTaskExecTime.get() > lastStableAvgTaskExecTime)) {
+                    lowerAlternativeAvgTaskExecTime = Optional.of(lastStableAvgTaskExecTime);
+                }
                 // If we are within {@link INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE} of scaling, or
                 // this is an ingestion load for a recently added node, use the tier-wide average for all indexing nodes if
                 // tier wide value is available.
@@ -270,32 +279,45 @@ public class NodeIngestionLoadTracker {
                 if (useTierWideAvgTaskExecTimeDuringScaling  // enabled
                     && (initialScalingWindow || nodeIsNew)  // within a scaling event
                     && nodeIngestLoad.queueContributionFromWriteThreadPool() > 0.0  // there is queueing to re-estimate
-                    && tierWriteAvgTaskExecTime.isPresent()  // We have a tier-wide average to use
+                    && lowerAlternativeAvgTaskExecTime.isPresent()  // We have an alternative value to use
                 ) {
                     final var adjustedIngestLoad = getIngestLoadSnapshotUsingTierAvgTaskExecTimeForWrite(
                         nodeIngestLoad,
-                        tierWriteAvgTaskExecTime.get()
+                        lowerAlternativeAvgTaskExecTime.get()
                     );
-                    adjustedIngestLoads.add(adjustedIngestLoad);
-                    if (logger.isDebugEnabled()) {
-                        final var reason = nodeIsNew
-                            ? "node is recently added and has not reported a stable average task execution time"
-                            : Strings.format(
-                                "index tier is within a scaling window (%s = %s)",
-                                INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(),
-                                initialScalingWindowToConsiderAvgTaskExecTimesUnstable
+                    // Use it if it's less
+                    if (adjustedIngestLoad.load() < rawIngestLoad.load()) {
+                        adjustedIngestLoads.add(adjustedIngestLoad);
+                        if (logger.isDebugEnabled()) {
+                            final var reason = nodeIsNew
+                                ? "node is recently added and has not reported a stable average task execution time"
+                                : Strings.format(
+                                    "index tier is within a scaling window (%s = %s)",
+                                    INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(),
+                                    initialScalingWindowToConsiderAvgTaskExecTimesUnstable
+                                );
+                            final var exeTimeMillis = TimeValue.nsecToMSec(tierWriteAvgTaskExecTime.get().longValue());
+                            logger.debug(
+                                "re-estimated ingestion load for node [{}] "
+                                    + "using average WRITE task execution time of {}ms "
+                                    + "because [{}] (original reported load: {}, adjusted load: {})",
+                                nodeIngestLoad.nodeName,
+                                exeTimeMillis,
+                                reason,
+                                nodeIngestLoad,
+                                adjustedIngestLoad
                             );
-                        final var exeTimeMillis = TimeValue.nsecToMSec(tierWriteAvgTaskExecTime.get().longValue());
-                        logger.debug(
-                            "re-estimated ingestion load for node [{}] "
-                                + "using tier-wide average WRITE task execution time of {}ms "
-                                + "because [{}] (original reported load: {}, adjusted load: {})",
-                            nodeIngestLoad.nodeName,
-                            exeTimeMillis,
-                            reason,
-                            nodeIngestLoad,
-                            adjustedIngestLoad
-                        );
+                        }
+                    } else {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "not adjusting ingestion load for node [{}] because "
+                                    + "adjusted load {} is not less than original reported load {}",
+                                nodeIngestLoad.nodeName,
+                                adjustedIngestLoad,
+                                rawIngestLoad
+                            );
+                        }
                     }
                 }
             }

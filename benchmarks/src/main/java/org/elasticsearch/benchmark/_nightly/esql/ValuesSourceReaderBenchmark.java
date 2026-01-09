@@ -56,7 +56,9 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -234,44 +236,7 @@ public class ValuesSourceReaderBenchmark {
                     break;
             }
             ft.freeze();
-            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(
-                new MappedFieldType.BlockLoaderContext() {
-                    @Override
-                    public String indexName() {
-                        return "benchmark";
-                    }
-
-                    @Override
-                    public IndexSettings indexSettings() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                        return MappedFieldType.FieldExtractPreference.NONE;
-                    }
-
-                    @Override
-                    public SearchLookup lookup() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Set<String> sourcePaths(String name) {
-                        return Set.of(name);
-                    }
-
-                    @Override
-                    public String parentField(String field) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                        return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-                    }
-                }
-            );
+            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(blContext());
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
     }
@@ -313,42 +278,7 @@ public class ValuesSourceReaderBenchmark {
             null,
             null,
             false
-        ).blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return "benchmark";
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                throw new UnsupportedOperationException();
-            }
-        });
+        ).blockLoader(blContext());
     }
 
     /**
@@ -650,5 +580,54 @@ public class ValuesSourceReaderBenchmark {
     @TearDown
     public void teardownIndex() throws IOException {
         IOUtils.close(reader, directory);
+    }
+
+    private static MappedFieldType.BlockLoaderContext blContext() {
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                return "benchmark";
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                return Set.of(name);
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+
+            @Override
+            public MappingLookup mappingLookup() {
+                return null;
+            }
+
+            @Override
+            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                return null;
+            }
+        };
     }
 }

@@ -1735,12 +1735,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             }
 
             expectThrows(ResourceNotFoundException.class, () -> getAsyncSearch(response.getId()));
-
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertTrue(statusResponse.isPartial());
-            assertTrue(statusResponse.isRunning());
-            assertThat(statusResponse.getClusters().getTotal(), equalTo(2));
-            assertNull(statusResponse.getCompletionStatus());
+            expectThrows(ResourceNotFoundException.class, () -> getAsyncStatus(response.getId()));
         } finally {
             SearchListenerPlugin.allowLocalQueryPhase();
             SearchListenerPlugin.allowRemoteQueryPhase();

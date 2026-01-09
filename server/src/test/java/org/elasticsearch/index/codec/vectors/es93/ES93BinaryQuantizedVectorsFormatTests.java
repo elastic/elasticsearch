@@ -195,13 +195,12 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
             Locale.ROOT,
             expected,
             "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
-            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={})"
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}())"
         );
-        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
-        expected = format(Locale.ROOT, expected, "ES93FlatVectorScorer(delegate={})");
+        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())");
 
-        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer()");
-        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer()");
+        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
+        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
 
         KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));

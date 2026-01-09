@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.index.codec.vectors.es816;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -27,7 +28,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorScorer;
 
 import java.io.IOException;
 
@@ -47,9 +47,13 @@ public class ES816BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(ES93FlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
 
-    private static final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(ES93FlatVectorScorer.INSTANCE);
+    private static final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
 
     /** Creates a new instance with the default number of vectors per cluster. */
     public ES816BinaryQuantizedVectorsFormat() {

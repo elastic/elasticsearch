@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.floatVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeFloatVectorData;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
@@ -183,15 +184,15 @@ public class VectorScorerFloatBenchmark {
                 break;
             case LUCENE:
                 scorer = luceneScoreSupplier(values, function.function()).scorer();
-                /*if (supportsHeapSegments()) {
+                if (supportsHeapSegments()) {
                     queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
-                }*/
+                }
                 break;
             case NATIVE:
                 scorer = factory.getFloatVectorScorerSupplier(function, in, values).orElseThrow().scorer();
-                /*if (supportsHeapSegments()) {
+                if (supportsHeapSegments()) {
                     queryScorer = factory.getFloatVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
-                }*/
+                }
                 break;
         }
 

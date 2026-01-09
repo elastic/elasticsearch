@@ -18,6 +18,9 @@ import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
+import java.util.List;
+
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerFloatBenchmarkTests extends ESTestCase {
 
@@ -62,7 +65,7 @@ public class VectorScorerFloatBenchmarkTests extends ESTestCase {
         }
     }
 
-    /*public void testQueryScores() throws Exception {
+    public void testQueryScores() throws Exception {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
         for (int i = 0; i < 100; i++) {
             VectorScorerFloatBenchmark.VectorData data = new VectorScorerFloatBenchmark.VectorData(dims);
@@ -88,7 +91,7 @@ public class VectorScorerFloatBenchmarkTests extends ESTestCase {
                 }
             }
         }
-    }*/
+    }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {

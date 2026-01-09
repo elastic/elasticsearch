@@ -196,8 +196,6 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return indicesOptions;
         }
 
-        // TODO: Need to override ResolvedIndexExpressions methods?
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

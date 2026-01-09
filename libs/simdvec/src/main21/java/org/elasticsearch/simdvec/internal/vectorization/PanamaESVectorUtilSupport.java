@@ -20,6 +20,7 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -1139,5 +1140,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return -1;
+    }
+
+    @Override
+    public VectorComparisonUtils getVectorComparisonUtils() {
+        return PanamaVectorComparisonUtils.INSTANCE;
     }
 }

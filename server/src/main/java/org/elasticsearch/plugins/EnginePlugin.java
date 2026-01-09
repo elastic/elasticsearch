@@ -35,7 +35,7 @@ public interface EnginePlugin {
      * Register the metrics available from the plugin
      * @param registrator accepts a string, which is a unique key for the registration, used for xcontent, and the base metric object
      */
-    default void registerMetrics(BiConsumer<String, DirectoryMetricHolder<?>> registrator) {
+    default void registerDirectoryMetrics(BiConsumer<String, DirectoryMetricHolder<?>> registrator) {
 
     }
 }

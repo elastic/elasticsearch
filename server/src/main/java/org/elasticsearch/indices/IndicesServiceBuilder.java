@@ -277,7 +277,7 @@ public class IndicesServiceBuilder {
         storeMetricsHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         directoryMetricHolderMap.put("store", storeMetricsHolder);
 
-        pluginsService.filterPlugins(EnginePlugin.class).forEach(plugin -> plugin.registerMetrics(directoryMetricsRegistrator));
+        pluginsService.filterPlugins(EnginePlugin.class).forEach(plugin -> plugin.registerDirectoryMetrics(directoryMetricsRegistrator));
         directoryFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
             .map(IndexStorePlugin::getDirectoryFactories)
             .flatMap(m -> m.entrySet().stream())

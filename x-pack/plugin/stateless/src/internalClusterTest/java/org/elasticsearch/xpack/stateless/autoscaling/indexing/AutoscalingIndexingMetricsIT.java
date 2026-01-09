@@ -51,6 +51,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -80,6 +81,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1263,6 +1265,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
         indexer.join();
     }
 
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker:DEBUG",
+        reason = "test based on logging of tier wide avg usage"
+    )
     public void testUseTierWideWriteAvgTaskExecTimeDuringScaling() throws Exception {
         final var nodeSettings = Settings.builder()
             .put(USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING.getKey(), true)
@@ -1339,21 +1345,32 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
                 }
             });
         }
-        assertBusy(() -> {
-            final var plugin2 = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
-            plugin2.resetMeter();
-            var ingestionLoads = getNodesIngestLoad();
-            plugin2.collect();
-            var measurements = plugin2.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
-            assertThat(measurements.size(), equalTo(1));
-            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
-            assertThat(ingestionLoads.size(), equalTo(2));
-            assertTrue(
-                ingestionLoads.toString(),
-                ingestionLoads.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM) && l.load() > 0.0)
+        // To make sure we see metrics after the re-estimation attempt we rely on the debug logs, as depending on the actual
+        // values of the tier-wide average and the node's average task execution time we might or might not adjust the ingestion load.
+        try (var mockLog = MockLog.capture(NodeIngestionLoadTracker.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "re-estimation attempt",
+                    NodeIngestionLoadTracker.class.getCanonicalName(),
+                    Level.DEBUG,
+                    Pattern.quote("not adjusting ingestion load") + "|" + Pattern.quote("re-estimated ingestion load") + " for node .*"
+                )
             );
-        });
-
+            assertBusy(() -> {
+                final var plugin2 = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+                plugin2.resetMeter();
+                var ingestionLoads = getNodesIngestLoad();
+                plugin2.collect();
+                var measurements = plugin2.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
+                assertThat(measurements.size(), equalTo(1));
+                assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+                assertThat(ingestionLoads.size(), equalTo(2));
+                mockLog.assertAllExpectationsMatched();
+                assertTrue(ingestionLoads.toString(), ingestionLoads.stream().allMatch(l -> l.load() > 0.0 &&
+                // Depending on whether the alternative estimates are lower or not we might get EXACT or MINIMUM
+                    (l.metricQuality().equals(MetricQuality.MINIMUM) || l.metricQuality().equals(MetricQuality.EXACT))));
+            });
+        }
         if (randomBoolean()) {
             updateClusterSettings(
                 Settings.builder().put(INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(), TimeValue.ZERO)

@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximate.ApproximateSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -27,7 +28,6 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
@@ -146,7 +146,7 @@ public class QuerySettingsTests extends ESTestCase {
             );
             EsqlStatement statement = new EsqlStatement(null, List.of(setting));
             QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-            assertThat(statement.setting(def), is(Map.of()));
+            assertThat(statement.setting(def), is(ApproximateSettings.DEFAULT));
         }
         {
             QuerySetting setting = new QuerySetting(
@@ -158,19 +158,19 @@ public class QuerySettingsTests extends ESTestCase {
             assertThat(statement.setting(def), is(nullValue()));
         }
 
-        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(Map.of()));
+        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximateSettings.DEFAULT));
         assertValid(
             def,
             new MapExpression(
                 Source.EMPTY,
                 List.of(
-                    Literal.keyword(Source.EMPTY, "num_rows"),
+                    Literal.keyword(Source.EMPTY, "rows"),
                     Literal.integer(Source.EMPTY, 10),
                     Literal.keyword(Source.EMPTY, "confidence_level"),
-                    Literal.fromDouble(Source.EMPTY, 10.0d)
+                    Literal.fromDouble(Source.EMPTY, 0.9)
                 )
             ),
-            equalTo(Map.of("num_rows", 10, "confidence_level", 10.0d))
+            equalTo(new ApproximateSettings(10, 0.9))
         );
 
         assertInvalid(

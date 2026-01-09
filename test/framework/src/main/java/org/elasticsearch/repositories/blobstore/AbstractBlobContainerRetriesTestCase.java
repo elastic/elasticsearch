@@ -270,13 +270,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // A list to track response sizes, some streams (i.e. RetryingInputStream) allow more retries when meaningful amount of bytes
         // is transferred in a single try. See below.
-        final List<Long> contentPartSizes = Collections.synchronizedList(new ArrayList<>());
+        final List<Long> retryContentSizes = Collections.synchronizedList(new ArrayList<>());
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
-            exchange -> contentPartSizes.add((long) sendIncompleteContent(exchange, bytes))
+            exchange -> retryContentSizes.add((long) sendIncompleteContent(exchange, bytes))
         );
 
         final int position = randomIntBetween(0, bytes.length - 1);
@@ -305,9 +305,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             )
         );
         int meaningfulProgressRetries = Math.toIntExact(
-            contentPartSizes.stream().filter(partSize -> partSize >= meaningfulProgressSize.get()).count()
+            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
         );
-        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries + meaningfulProgressRetries));
+        assertEquals(exception.getSuppressed().length, maxRetries + meaningfulProgressRetries);
     }
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {

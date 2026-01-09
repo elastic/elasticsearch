@@ -11,8 +11,10 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.store.MetricHolder;
 
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 /**
  * A plugin that provides alternative engine implementations.
@@ -28,4 +30,13 @@ public interface EnginePlugin {
      * @return an optional engine factory
      */
     Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings);
+
+
+    /**
+     * Register the metrics available from the plugin
+     * @param registrator accepts a string, which is a unique key for the registration, used for xcontent, and the base metric object
+     */
+    default void registerMetrics(BiConsumer<String, MetricHolder<?>> registrator) {
+
+    }
 }

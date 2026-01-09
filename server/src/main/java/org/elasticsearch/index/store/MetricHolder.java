@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.store;
 
-public interface MetricHolder<M> {
+public interface MetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> {
     static <M> MetricHolder<M> noop(M noopData) {
         return new MetricHolder<>() {
 

@@ -135,6 +135,8 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.MetricHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalMetricHolder;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -290,7 +292,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
-    private final ThreadLocalMetricHolder<StoreMetrics> metricHolder;
+    private final MetricHolder<StoreMetrics> storeMetricHolder;
+    private final Map<String, MetricHolder<?>> directoryMetricHolderMap;
 
     @Override
     protected void doStart() {
@@ -418,9 +421,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
         this.slowLogFieldProvider = builder.slowLogFieldProvider;
-        this.metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
+        this.storeMetricHolder = builder.storeMetricsHolder;
+        this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -820,7 +824,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
-            metricHolder
+            storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -920,7 +924,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
-            metricHolder
+            storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         // If an IndexService with a DocumentMapper already exists for this index, reuse its DocumentMapper to avoid parsing/merging
@@ -2023,5 +2027,17 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
+    }
+
+    /**
+     * Start measuring directory level metrics in the current thread, returning the delta when the supplier is invoked.
+     * This will be the amount consumed between calling this method and the supplier.
+     * @return supplier to give the delta of all directory metrics.
+     */
+    public Supplier<DirectoryMetrics> directoryMetricsDelta() {
+        DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
+        directoryMetricHolderMap.forEach((s, m)  -> directoryMetricsBuilder.add(s, m.instance()));
+        DirectoryMetrics metrics = directoryMetricsBuilder.build();
+        return metrics.delta();
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class StoreMetrics implements Metrics.PluggableMetrics<StoreMetrics> {
+public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
     public static final MetricHolder<StoreMetrics> NOOP_HOLDER = MetricHolder.noop(new StoreMetrics() {
         @Override
         public void addBytesRead(long amount) {}

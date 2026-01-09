@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class Metrics {
-    private Metrics(Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data) {
+public class DirectoryMetrics {
+    private DirectoryMetrics(Map<String, PluggableMetrics<?>> data) {
         this.data = data;
     }
 
@@ -28,22 +28,21 @@ public class Metrics {
         T snapshot();
     }
 
-    private Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data;
+    private Map<String, PluggableMetrics<?>> data;
 
-    public <T extends PluggableMetrics<T>> T metrics(Class<T> type) {
+    public <T extends PluggableMetrics<T>> T metrics(String type) {
         Object result = data.get(type);
-        assert result.getClass() == type;
         // noinspection unchecked
         return (T) result;
     }
 
-    public Supplier<Metrics> delta() {
-        Map<? extends Class<? extends PluggableMetrics<?>>, Supplier<? extends PluggableMetrics<?>>> delta = data.entrySet()
+    public Supplier<DirectoryMetrics> delta() {
+        Map<String, Supplier<? extends PluggableMetrics<?>>> delta = data.entrySet()
             .stream()
             .map(e -> Tuple.tuple(e.getKey(), e.getValue().delta()))
             .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
 
-        return () -> new Metrics(
+        return () -> new DirectoryMetrics(
             delta.entrySet()
                 .stream()
                 .map(e -> Tuple.tuple(e.getKey(), e.getValue().get()))
@@ -52,14 +51,14 @@ public class Metrics {
     }
 
     public static class Builder {
-        private final Map<Class<? extends PluggableMetrics<?>>, PluggableMetrics<?>> data = new HashMap<>();
+        private final Map<String, PluggableMetrics<?>> data = new HashMap<>();
 
-        public <T extends PluggableMetrics<T>> void add(Class<T> type, T metrics) {
+        public <T extends PluggableMetrics<T>> void add(String type, T metrics) {
             data.put(type, metrics);
         }
 
-        public Metrics build() {
-            return new Metrics(Map.copyOf(data));
+        public DirectoryMetrics build() {
+            return new DirectoryMetrics(Map.copyOf(data));
         }
     }
 }

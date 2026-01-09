@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 public class ClusterRequestTests extends AbstractWireSerializingTestCase<ClusterComputeRequest> {
 
@@ -183,7 +184,8 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                 Map.of(),
                 emptyPolicyResolution(),
                 emptyInferenceResolution(),
-                minimumVersion
+                minimumVersion,
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );

@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -66,31 +65,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         List<TestCaseSupplier> suppliers,
-        boolean entirelyNullPreservesType,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                withNoRowsExpectingNull(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers))),
-                positionalErrorMessageSupplier
-            )
+            errorsForCasesWithoutExamples(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)), positionalErrorMessageSupplier)
         );
-    }
-
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
-     */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        List<TestCaseSupplier> suppliers,
-        boolean entirelyNullPreservesType
-    ) {
-        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
     }
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
@@ -451,10 +430,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             }
 
             expression = surrogate;
-        }
-
-        if (Expressions.anyMatch(expression.children(), Expressions::isGuaranteedNull)) {
-            return new Literal(expression.source(), null, expression.dataType());
         }
 
         return expression;

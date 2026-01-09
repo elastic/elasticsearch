@@ -23,8 +23,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,7 +38,6 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
     CancelReindexTaskResponse> {
 
     public static final ActionType<CancelReindexResponse> TYPE = new ActionType<>("cluster:admin/reindex/cancel");
-    private static final Logger LOG = LogManager.getLogger(TransportCancelReindexAction.class);
 
     @Inject
     public TransportCancelReindexAction(

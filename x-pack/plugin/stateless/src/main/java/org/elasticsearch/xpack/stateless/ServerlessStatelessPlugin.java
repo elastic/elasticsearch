@@ -238,6 +238,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -1073,7 +1074,10 @@ public class ServerlessStatelessPlugin extends Plugin
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING,
-            MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING
+            MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING,
+            ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING,
+            ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING,
+            ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING
         );
     }
 

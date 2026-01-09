@@ -19,8 +19,12 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.test.ESTestCase.randomFloat;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class EqualsTests extends AbstractScalarFunctionTestCase {
     public EqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -252,11 +256,41 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
             );
         }
 
+        // Dense vector cases
+        List<TestCaseSupplier.TypedDataSupplier> denseVectorSuppliers = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            List<Float> vector = randomDenseVector();
+            denseVectorSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<dense_vector_" + i + ">", () -> vector, DataType.DENSE_VECTOR));
+        }
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsDenseVectorEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                denseVectorSuppliers,
+                denseVectorSuppliers,
+                List.of(),
+                false
+            )
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Equals(source, args.get(0), args.get(1));
+    }
+
+    private static List<Float> randomDenseVector() {
+        int dimensions = randomIntBetween(64, 128);
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimensions; i++) {
+            vector.add(randomFloat());
+        }
+        return vector;
     }
 }

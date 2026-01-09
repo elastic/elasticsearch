@@ -27,7 +27,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.'}",
+          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options."
         }
@@ -58,7 +58,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.'}",
+          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options."
         }
@@ -89,7 +89,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.'}",
+          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options."
         }

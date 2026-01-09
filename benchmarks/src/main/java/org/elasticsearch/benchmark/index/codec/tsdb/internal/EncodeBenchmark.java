@@ -22,21 +22,24 @@ import java.util.function.Supplier;
  *
  * @see DecodeBenchmark
  */
-public class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
+public final class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
 
     private ByteArrayDataOutput dataOutput;
+    private long[] originalInput;
     private long[] input;
     private byte[] output;
 
     @Override
     public void setupIteration(Supplier<long[]> arraySupplier) throws IOException {
-        this.input = arraySupplier.get();
+        this.originalInput = arraySupplier.get();
+        this.input = new long[originalInput.length];
         this.output = new byte[Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
         this.dataOutput = new ByteArrayDataOutput(this.output);
     }
 
     @Override
     public void setupInvocation() {
+        System.arraycopy(originalInput, 0, input, 0, originalInput.length);
         dataOutput.reset(this.output);
     }
 

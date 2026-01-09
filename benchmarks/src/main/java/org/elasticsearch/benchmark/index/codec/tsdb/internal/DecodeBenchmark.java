@@ -25,7 +25,7 @@ import java.util.function.Supplier;
  *
  * @see EncodeBenchmark
  */
-public class DecodeBenchmark extends AbstractTSDBCodecBenchmark {
+public final class DecodeBenchmark extends AbstractTSDBCodecBenchmark {
 
     private ByteArrayDataInput dataInput;
     private long[] output;

@@ -317,6 +317,14 @@ public class SharedBytes extends AbstractRefCounted {
             this.mappedByteBuffer = mappedByteBuffer;
         }
 
+        public boolean prefetch(long offset, long length) {
+            if (mmap) {
+                // mappedByteBuffer.prefetch...
+                return true;
+            }
+            return false;
+        }
+
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, int position) throws IOException {
             int remaining = dst.remaining();

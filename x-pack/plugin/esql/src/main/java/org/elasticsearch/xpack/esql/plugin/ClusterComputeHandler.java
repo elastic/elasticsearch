@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -127,7 +128,11 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
                     return completionInfo;
                 }))) {
-                    var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
+                    var remotePlan = new RemoteClusterPlan(
+                        plan,
+                        cluster.concreteIndices,
+                        new OriginalIndices(cluster.originalIndices, SearchRequest.DEFAULT_INDICES_OPTIONS)
+                    );
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
@@ -208,15 +213,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             }
             if (concreteIndices.indices().length > 0) {
                 Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
-                remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                remoteClusters.add(new RemoteCluster(clusterAlias, connection, originalIndices.indices(), concreteIndices.indices()));
             }
         }
         return remoteClusters;
     }
 
-    record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] concreteIndices, OriginalIndices originalIndices) {
-
-    }
+    record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] originalIndices, String[] concreteIndices) {}
 
     @Override
     public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
@@ -313,8 +316,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     flags,
                     configuration,
                     reductionPlan.dataNodePlan(),
+                    originalIndices.indices(),
                     concreteIndices,
-                    originalIndices,
                     exchangeSource,
                     cancelQueryOnFailure,
                     computeListener.acquireCompute().map(r -> {

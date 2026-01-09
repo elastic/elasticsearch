@@ -11,8 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -692,21 +690,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        new DataNodeRequestSender(
-            null,
-            null,
-            transportService,
-            executor,
-            task,
-            new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
-            null,
-            "",
-            allowPartialResults,
-            concurrentRequests,
-            10
-        ) {
+        new DataNodeRequestSender(null, null, transportService, executor, task, null, "", allowPartialResults, concurrentRequests, 10) {
             @Override
-            void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
+            void searchShards(String[] originalIndices, Set<String> concreteIndices, ActionListener<TargetShards> listener) {
                 runWithDelay(
                     () -> listener.onResponse(
                         new TargetShards(shards.stream().collect(toMap(TargetShard::shardId, Function.identity())), shards.size(), 0)
@@ -728,7 +714,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             ) {
                 sender.sendRequestToOneNode(node, shards, aliasFilters, listener);
             }
-        }.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
+        }.startComputeOnDataNodes(new String[0], Set.of(randomAlphaOfLength(10)), () -> {}, future);
         return future;
     }
 

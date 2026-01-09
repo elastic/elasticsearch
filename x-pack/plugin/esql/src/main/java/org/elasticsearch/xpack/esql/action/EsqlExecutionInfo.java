@@ -67,6 +67,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
+    public static final TransportVersion EXECUTION_TRANSIENT_PROFILING_VERSION = TransportVersion.fromName("esql_transient_profiling");
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.

@@ -10,7 +10,7 @@
 package org.elasticsearch.index.store;
 
 public interface MetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> {
-    static <M> MetricHolder<M> noop(M noopData) {
+    static <M extends DirectoryMetrics.PluggableMetrics<M>> MetricHolder<M> noop(M noopData) {
         return new MetricHolder<>() {
 
             @Override

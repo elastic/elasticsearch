@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.store;
 
-public class SingleThreadMetricHolder<M> implements MetricHolder<M> {
+public class SingleThreadMetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> implements MetricHolder<M> {
     private final ThreadLocalMetricHolder<M> delegate;
     private Thread owner;
     private M current;

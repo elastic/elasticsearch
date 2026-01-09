@@ -1,5 +1,5 @@
 {
-  "reindex.cancel": {
+  "reindex_cancel": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Cancel a reindex operation"

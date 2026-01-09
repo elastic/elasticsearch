@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -31,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -42,6 +46,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -58,6 +64,8 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -986,14 +994,14 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     public void testRoundToWithTimeSeriesIndices() {
-        Map<String, Object> minValue = Map.of(
-            "@timestamp",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
-        );
-        Map<String, Object> maxValue = Map.of(
-            "@timestamp",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T14:55:01.543Z")
-        );
+        long minTimestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z");
+        long maxTimestamp = minTimestamp + 45 * 60 * 1000; // 45 minutes -> one minutes? -> 5 minutes -> 9 slices should be perfect?
+        Map<String, Object> minValue = Map.of("@timestamp", minTimestamp);
+        Map<String, Object> maxValue = Map.of("@timestamp", maxTimestamp);
+        long totalDocs = 4 * 1000_000L; // 4 M -> 10 slices -> 400_000 * 16 =
+        var rateBufferSize = ByteSizeValue.ofMb(75);
+        long taskConcurrency = 12; // 8 CPUs
+        // 20MB -> 262144 docs per slice -> 16 slices
         SearchStats searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue) {
             @Override
             public Map<ShardId, IndexMetadata> targetShards() {
@@ -1005,17 +1013,43 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     .build();
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
             }
+
+            @Override
+            public long count() {
+                return totalDocs;
+            }
         };
+        var plannerSettings = new PlannerSettings(
+            DataPartitioning.SHARD,
+            ByteSizeValue.ofMb(1),
+            rateBufferSize,
+            10_000,
+            ByteSizeValue.ofMb(1)
+        );
+        Configuration config = configuration(
+            new QueryPragmas(
+                Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey().toLowerCase(Locale.ROOT), taskConcurrency).build()
+            )
+        );
+        var planner = new TestPlannerOptimizer(
+            config,
+            timeSeriesAnalyzer,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+        );
         // enable filter-by-filter for rate aggregations
+        // verify all the queries
         {
             String q = """
                 TS k8s
                 | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
                 """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            PhysicalPlan plan = planner.physicalPlan(q, timeSeriesAnalyzer);
+            plan = PlannerUtils.integrateEsFilterIntoFragment(plan, null);
+            plan = planner.optimizedPlan(plan, plannerSettings, searchStats, new EsqlFlags(true));
             int queryAndTags = plainQueryAndTags(plan);
-            assertThat(queryAndTags, equalTo(4));
+            // 46 slices ->
+            assertThat(queryAndTags, equalTo(10));
         }
         // disable filter-by-filter for non-rate aggregations
         {
@@ -1024,7 +1058,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
                 """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            PhysicalPlan plan = planner.plan(q, searchStats, timeSeriesAnalyzer);
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(1));
         }

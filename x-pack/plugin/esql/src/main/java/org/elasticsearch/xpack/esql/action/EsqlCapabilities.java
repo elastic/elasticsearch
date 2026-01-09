@@ -157,7 +157,7 @@ public class EsqlCapabilities {
         /**
          * Support for optional fields (might or might not be present in the mappings).
          */
-        OPTIONAL_FIELDS,
+        OPTIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently

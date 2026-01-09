@@ -74,8 +74,25 @@ ROW x = 1
 | RENAME x AS y, foo AS bar
 ;
 
-y:integer      |bar:null
-1              |null
+y:integer | bar:null
+1         |null
+;
+
+fieldRename
+required_capability: optional_fields
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| RENAME foo AS bar
+| KEEP emp_no, bar, bazz
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | bar:null | bazz:null
+10001          | null     | null
+10002          | null     | null
+10003          | null     | null
 ;
 
 casting
@@ -189,7 +206,7 @@ s:long | bar:null
 0      | null
 ;
 
-inlinestats
+inlinestatsSum
 required_capability: optional_fields
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -330,7 +347,7 @@ emp_no:integer |x:long         |y:long         |xyz:keyword    |_fork:keyword
 null           |1985           |null           |abc            |fork3
 ;
 
-inlineStats
+inlinestatsCount
 required_capability: optional_fields
 required_capability: inline_stats
 

@@ -168,6 +168,7 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSetUnmappedFields() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         var modes = List.of("FAIL", "NULLIFY", "LOAD");
         assertThat(modes.size(), is(UnmappedResolution.values().length));
         for (var mode : modes) {

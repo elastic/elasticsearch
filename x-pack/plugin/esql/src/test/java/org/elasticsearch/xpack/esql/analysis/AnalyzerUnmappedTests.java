@@ -3041,10 +3041,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedNullify(String query) {
+        assumeTrue("Requires OPTIONAL_FIELDS", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         return "SET unmapped_fields=\"nullify\"; " + query;
     }
 
     private static String setUnmappedLoad(String query) {
+        assumeTrue("Requires OPTIONAL_FIELDS", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 

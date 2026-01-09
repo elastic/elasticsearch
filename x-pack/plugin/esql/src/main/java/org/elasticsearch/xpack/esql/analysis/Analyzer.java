@@ -533,18 +533,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
         }
 
-        private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
             List<Expression> groupings = aggregate.groupings();
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
+            Function<UnresolvedAttribute, Expression> resolve = ua -> maybeResolveAttribute(ua, childrenOutput);
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
                 List<Expression> newGroupings = new ArrayList<>(groupings.size());
                 for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, resolve);
                     if (resolved != g) {
                         changed.set(true);
                     }
@@ -596,8 +597,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // TODO: remove this when Stats interface is removed
                 aggregate = changed.get() ? aggregate.with(aggregate.child(), groupings, newAggregates) : aggregate;
             }
-
-            return aggregate;
+            if (aggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
+                return ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput));
+            } else {
+                return aggregate;
+            }
         }
 
         private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
@@ -1578,10 +1582,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
-            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate)
-                .stream()
-                .toList()
+            // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand)
                 .isEmpty() == false;
+
             int limit;
             if (limits.isEmpty()) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a

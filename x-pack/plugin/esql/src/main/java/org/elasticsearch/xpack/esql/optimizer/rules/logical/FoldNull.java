@@ -25,7 +25,6 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
 
     @Override
     public Expression rule(Expression e, LogicalOptimizerContext ctx) {
-        Expression result = tryReplaceIsNullIsNotNull(e);
 
         // convert an aggregate null filter into a false
         // perform this early to prevent the rule from converting the null filter into nullifying the whole expression
@@ -36,9 +35,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             }
         }
 
-        if (result != e) {
-            return result;
-        } else if (e instanceof In in) {
+        if (e instanceof In in) {
             if (Expressions.isGuaranteedNull(in.value())) {
                 return Literal.of(in, null);
             }
@@ -49,13 +46,14 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
             // AggregateMapper cannot handle aggregate functions with literal values.
             && e instanceof AggregateFunction == false
-            && Expressions.anyMatch(e.children(), Expressions::isGuaranteedNull)) {
+            && e.children().stream().anyMatch(FoldNull::isNull)) {
                 return Literal.of(e, null);
             }
         return e;
     }
 
-    protected Expression tryReplaceIsNullIsNotNull(Expression e) {
-        return e;
+    private static boolean isNull(Expression e) {
+        return Expressions.isGuaranteedNull(e) || e.nullable() == Nullability.TRUE && e.children().stream().anyMatch(FoldNull::isNull);
     }
+
 }

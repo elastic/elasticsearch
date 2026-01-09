@@ -141,6 +141,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "jinaai",
                     "test_reranking_service",
                     "voyageai",
+                    "watsonxai",
                     "hugging_face",
                     "amazon_sagemaker",
                     "elastic"

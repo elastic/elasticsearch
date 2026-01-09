@@ -8,11 +8,8 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.approximate.ApproximateSettings;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -76,17 +73,17 @@ public class QuerySettings {
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
     @SuppressWarnings("unchecked")
-    public static final QuerySettingDef<ApproximateSettings> APPROXIMATE = new QuerySettingDef<>(
-        "approximate",
+    public static final QuerySettingDef<ApproximationSettings> APPROXIMATION = new QuerySettingDef<>(
+        "approximation",
         null,
         false,
         false,
         true,
-        ApproximateSettings::parse,
+        ApproximationSettings::parse,
         null
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(APPROXIMATE, PROJECT_ROUTING, TIME_ZONE)
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(APPROXIMATION, PROJECT_ROUTING, TIME_ZONE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {

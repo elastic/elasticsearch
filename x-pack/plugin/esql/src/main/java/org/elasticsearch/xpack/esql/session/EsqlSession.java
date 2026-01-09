@@ -49,8 +49,8 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.approximate.Approximate;
-import org.elasticsearch.xpack.esql.approximate.ApproximateSettings;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -219,7 +219,7 @@ public class EsqlSession {
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
-        ApproximateSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+        ApproximationSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATION);
 
         Configuration configuration = new Configuration(
             request.timeZone() == null
@@ -275,8 +275,8 @@ public class EsqlSession {
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen((l, p) -> {
-                            if (statement.setting(QuerySettings.APPROXIMATE) != null) {
-                                Approximate.verifyPlan(p);
+                            if (statement.setting(QuerySettings.APPROXIMATION) != null) {
+                                Approximation.verifyPlan(p);
                             }
                             l.onResponse(p);
                         })
@@ -413,8 +413,8 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
-        } else if (statement.setting(QuerySettings.APPROXIMATE) != null) {
-            new Approximate(
+        } else if (statement.setting(QuerySettings.APPROXIMATION) != null) {
+            new Approximation(
                 optimizedPlan,
                 logicalPlanOptimizer,
                 p -> logicalPlanToPhysicalPlan(

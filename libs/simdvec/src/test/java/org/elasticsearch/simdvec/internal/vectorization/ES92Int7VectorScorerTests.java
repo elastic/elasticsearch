@@ -230,7 +230,8 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                         queryCorrections.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        scoresDefault
+                        scoresDefault,
+                        ES91Int4VectorsScorer.BULK_SIZE
                     );
                     panamaScorer.scoreBulk(
                         quantizeQuery,
@@ -240,7 +241,8 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                         queryCorrections.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        scoresPanama
+                        scoresPanama,
+                        ES91Int4VectorsScorer.BULK_SIZE
                     );
                     for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
                         assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);

@@ -224,8 +224,12 @@ public class SplitTargetService {
                 case State.StartSplitRpcComplete startSplitRpcComplete -> {
                     // Now that the handoff is complete and we know that all needed data is present,
                     // we can proceed with recovery and start this shard.
-                    // We fork recovery since we don't need to wait for it here.
+                    // We fork recovery and then for the shard to be started
+                    // so that it is ready for the next steps.
                     clusterService.threadPool().generic().submit(() -> startSplitRpcComplete.recoveryListener.onResponse(null));
+                    waitForShardStarted(new State.Handoff());
+                }
+                case State.Handoff ignored -> {
                     waitUntilSearchShardsAreOnline();
                 }
                 case State.SearchShardsOnline ignored -> {
@@ -243,10 +247,10 @@ public class SplitTargetService {
                 }
 
                 case State.RecoveringInHandoff ignored -> {
-                    waitUntilSearchShardsAreOnline();
+                    waitForShardStarted(new State.Handoff());
                 }
                 case State.RecoveringInSplit ignored -> {
-                    waitForShardStarted();
+                    waitForShardStarted(new State.Split());
                 }
 
                 case State.FailedInRecovery failedInRecovery -> {
@@ -282,7 +286,8 @@ public class SplitTargetService {
                 put(State.WaitingForHandoff.class, Set.of(State.Clone.class));
                 put(State.HandoffReceived.class, Set.of(State.WaitingForHandoff.class));
                 put(State.StartSplitRpcComplete.class, Set.of(State.HandoffReceived.class));
-                put(State.SearchShardsOnline.class, Set.of(State.StartSplitRpcComplete.class, State.RecoveringInHandoff.class));
+                put(State.Handoff.class, Set.of(State.StartSplitRpcComplete.class, State.RecoveringInHandoff.class));
+                put(State.SearchShardsOnline.class, Set.of(State.Handoff.class));
                 put(State.Split.class, Set.of(State.SearchShardsOnline.class, State.RecoveringInSplit.class));
                 put(State.UnownedDataDeleted.class, Set.of(State.Split.class));
                 put(State.Done.class, Set.of(State.UnownedDataDeleted.class));
@@ -299,8 +304,8 @@ public class SplitTargetService {
         /// State transitions are always performed in the order of definition except for the failure states.
         /// E.g.  we always transition SearchShardsOnline -> Split.
         sealed interface State permits State.Clone, State.WaitingForHandoff, State.HandoffReceived, State.StartSplitRpcComplete,
-            State.SearchShardsOnline, State.Split, State.UnownedDataDeleted, State.Done, State.RecoveringInHandoff, State.RecoveringInSplit,
-            State.FailedInRecovery, State.Failed {
+            State.Handoff, State.SearchShardsOnline, State.Split, State.UnownedDataDeleted, State.Done, State.RecoveringInHandoff,
+            State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
             // Corresponds to CLONE state of a target shard.
             record Clone(ActionListener<Void> recoveryListener) implements State {}
 
@@ -309,6 +314,9 @@ public class SplitTargetService {
             record HandoffReceived(ActionListener<Void> handoffRpcListener) implements State {}
 
             record StartSplitRpcComplete(ActionListener<Void> recoveryListener) implements State {}
+
+            // Corresponds to HANDOFF state of a target shard.
+            record Handoff() implements State {}
 
             record SearchShardsOnline() implements State {}
 
@@ -388,37 +396,39 @@ public class SplitTargetService {
 
         private void waitUntilSearchShardsAreOnline() {
             ShardId shardId = split.shardId();
-            ClusterStateObserver observer = new ClusterStateObserver(
+
+            ClusterStateObserver.waitForState(
                 clusterService,
-                searchShardsOnlineTimeout,
-                logger,
-                clusterService.threadPool().getThreadContext()
-            );
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    final Index index = shardId.getIndex();
-                    final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
-                    if (projectMetadata != null) {
-                        if (newPrimaryTerm(index, projectMetadata, shardId, split.targetPrimaryTerm()) == false) {
-                            assert isShardGreen(state, projectMetadata, shardId);
-                            advance(new State.SearchShardsOnline());
+                clusterService.threadPool().getThreadContext(),
+                new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        final Index index = shardId.getIndex();
+                        final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
+                        if (projectMetadata != null) {
+                            if (newPrimaryTerm(index, projectMetadata, shardId, split.targetPrimaryTerm()) == false) {
+                                assert isShardGreen(state, projectMetadata, shardId);
+                                advance(new State.SearchShardsOnline());
+                            }
                         }
                     }
-                }
 
-                @Override
-                public void onClusterServiceClose() {
-                    // Ignore. No action needed
-                }
+                    @Override
+                    public void onClusterServiceClose() {
+                        // Nothing to do, shard will be closed when the node closes.
+                    }
 
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    // After the timeout we proceed to SPLIT. The timeout is just best effort to ensure search shards are running to prevent
-                    // downtime.
-                    advance(new State.SearchShardsOnline());
-                }
-            }, newState -> searchShardsOnlineOrNewPrimaryTerm(newState, shardId, split.targetPrimaryTerm()));
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // After the timeout we proceed to SPLIT anyway.
+                        // The timeout is just best effort to ensure search shards are running to prevent downtime.
+                        advance(new State.SearchShardsOnline());
+                    }
+                },
+                state -> searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
+                searchShardsOnlineTimeout,
+                logger
+            );
         }
 
         private void changeStateToSplit() {
@@ -471,7 +481,7 @@ public class SplitTargetService {
             changeState.run();
         }
 
-        private void waitForShardStarted() {
+        private void waitForShardStarted(State nextState) {
             Predicate<ClusterState> predicate = state -> {
                 if (cancelled.get()) {
                     return true;
@@ -492,7 +502,7 @@ public class SplitTargetService {
                             return;
                         }
 
-                        advance(new State.Split());
+                        advance(nextState);
                     }
 
                     @Override

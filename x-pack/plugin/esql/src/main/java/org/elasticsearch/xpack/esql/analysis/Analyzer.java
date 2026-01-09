@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -219,6 +220,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Initialize",
             Limiter.ONCE,
+            new ResolveConfigurationAware(),
             new ResolveTable(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -549,17 +551,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return context.unmappedResolution() == UnmappedResolution.LOAD ? resolvePartiallyMapped(resolved, context) : resolved;
         }
 
-        private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
-
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             List<Expression> newGroupings = maybeResolveGroupings(aggregate, childrenOutput);
             List<? extends NamedExpression> newAggregates = maybeResolveAggregates(aggregate, newGroupings, childrenOutput);
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
+            LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
-            return changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
+            return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
+                ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
+                : maybeNewAggregate;
+
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -568,8 +573,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (Resolvables.resolved(groupings) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
                 List<Expression> newGroupings = new ArrayList<>(groupings.size());
+                Function<UnresolvedAttribute, Expression> resolve = ua -> maybeResolveAttribute(ua, childrenOutput);
                 for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, resolve);
                     if (resolved != g) {
                         changed.set(true);
                     }
@@ -1555,6 +1561,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return named.withLocation(u.source());
     }
 
+    private static class ResolveConfigurationAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformExpressionsUp(
+                Expression.class,
+                expression -> resolveConfigurationAware(expression, context.configuration())
+            );
+        }
+
+        private static Expression resolveConfigurationAware(Expression expression, Configuration configuration) {
+            if (expression instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
+                return ca.withConfiguration(configuration);
+            }
+            return expression;
+        }
+    }
+
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
@@ -1682,10 +1711,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
-            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate)
-                .stream()
-                .toList()
+            // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand)
                 .isEmpty() == false;
+
             int limit;
             if (limits.isEmpty()) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a

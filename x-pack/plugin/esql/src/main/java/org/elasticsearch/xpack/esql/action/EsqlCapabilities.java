@@ -59,6 +59,11 @@ public class EsqlCapabilities {
         GEO_VALIDATION,
 
         /**
+         * Fold in spatial functions should return null for null input.
+         */
+        GEO_NULL_LITERALS_FOLDING,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -924,11 +929,6 @@ public class EsqlCapabilities {
         METADATA_SCORE,
 
         /**
-         * Term function
-         */
-        TERM_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Additional types for match function and operator
          */
         MATCH_ADDITIONAL_TYPES,
@@ -1356,6 +1356,11 @@ public class EsqlCapabilities {
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
         DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in + and - operators.
+         */
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command
@@ -1837,6 +1842,10 @@ public class EsqlCapabilities {
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
+        /**
+         * Support for requesting the "_tier" metadata field.
+         */
+        METADATA_TIER_FIELD,
         /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887

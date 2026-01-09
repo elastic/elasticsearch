@@ -440,7 +440,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput,
         CentroidGroups centroidGroups
     ) throws IOException {
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
@@ -485,7 +485,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,

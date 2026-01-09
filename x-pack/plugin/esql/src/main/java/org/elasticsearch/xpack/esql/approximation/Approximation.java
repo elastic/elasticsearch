@@ -119,7 +119,7 @@ import java.util.stream.Stream;
  * confidence intervals.
  * <p>
  * To obtain an appropriate sample probability, first a target number of rows
- * is set. For now this is a fixed number ({@link Approximation#SAMPLE_ROW_COUNT}).
+ * is set. For now this is determined via the ({@link ApproximationSettings}).
  * Next, the total number of rows in the source index is counted via the plan
  * {@link Approximation#sourceCountPlan}. This plan always executes fast. When
  * there are no commands that can change the number of rows, the sample
@@ -128,12 +128,12 @@ import java.util.stream.Stream;
  * <p>
  * In the presence of commands that can change the number of rows, another step
  * is needed. The first goal is to find a sample probability that leads to
- * {@link Approximation#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} rows, and when is
+ * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows, and when is
  * probability is found, a sample probability leading to the target number of
  * row is computed.
  * <p>
  * This is done by setting the initial sample probability to the ratio of
- * {@link Approximation#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} and the total number
+ * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} and the total number
  * of rows in the source index, and a number of rows is sampled with the plan
  * {@link Approximation#countPlan}. As long as the sampled number of rows is too
  * small, the probability is scaled up until a good probability is reached. This
@@ -249,13 +249,17 @@ public class Approximation {
      * that can change the number of rows. This value leads to an error of about
      * 1% in the estimated count.
      */
-    private static final int SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION = 10_000;
+    private static final int ROW_COUNT_FOR_COUNT_ESTIMATION = 10_000;
 
-    // TODO: set via a query setting; and find a good default value
-    private static final int SAMPLE_ROW_COUNT = 100_000;
+    /**
+     * Default number of rows to sample for approximation.
+     */
+    private static final int DEFAULT_ROW_COUNT = 100_000;
 
-    // TODO: set via a query setting
-    private static final double CONFIDENCE_LEVEL = 0.90;
+    /**
+     * Default confidence level for confidence intervals.
+     */
+    private static final double DEFAULT_CONFIDENCE_LEVEL = 0.90;
 
     /**
      * Don't sample with a probability higher than this threshold. The cost of
@@ -278,6 +282,7 @@ public class Approximation {
     private static final AggregateFunction COUNT_ALL_ROWS = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
 
     private final LogicalPlan logicalPlan;
+    private final ApproximationSettings settings;
     private final QueryProperties queryProperties;
     private final EsqlSession.PlanRunner runner;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
@@ -290,6 +295,7 @@ public class Approximation {
 
     public Approximation(
         LogicalPlan logicalPlan,
+        ApproximationSettings settings,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Function<LogicalPlan, PhysicalPlan> toPhysicalPlan,
         EsqlSession.PlanRunner runner,
@@ -298,6 +304,7 @@ public class Approximation {
         PlanTimeProfile planTimeProfile
     ) {
         this.logicalPlan = logicalPlan;
+        this.settings = settings;
         this.queryProperties = verifyPlan(logicalPlan);
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.toPhysicalPlan = toPhysicalPlan;
@@ -394,6 +401,14 @@ public class Approximation {
         );
     }
 
+    private int sampleRowCount() {
+        return settings.rows() != null ? settings.rows() : DEFAULT_ROW_COUNT;
+    }
+
+    private double confidenceLevel() {
+        return settings.confidenceLevel() != null ? settings.confidenceLevel() : DEFAULT_CONFIDENCE_LEVEL;
+    }
+
     private ActionListener<Result> approximateListener(ActionListener<Result> listener) {
         return new ActionListener<>() {
             @Override
@@ -479,7 +494,7 @@ public class Approximation {
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
                 return;
             }
-            double sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT / sourceRowCount);
+            double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
                 runner.reset();
@@ -492,7 +507,7 @@ public class Approximation {
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
-                sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
+                sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
                 runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
@@ -553,15 +568,15 @@ public class Approximation {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
-            double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount));
+            double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
                 runner.reset();
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
-            } else if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
+            } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
-                newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
+                newSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
                 runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
@@ -886,7 +901,7 @@ public class Approximation {
         Expression constNaN = new Literal(Source.EMPTY, Double.NaN, DataType.DOUBLE);
         Expression trialCount = Literal.integer(Source.EMPTY, TRIAL_COUNT);
         Expression bucketCount = Literal.integer(Source.EMPTY, BUCKET_COUNT);
-        Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, CONFIDENCE_LEVEL);
+        Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, confidenceLevel());
 
         // Compute the confidence interval for all output fields that have buckets.
         List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();

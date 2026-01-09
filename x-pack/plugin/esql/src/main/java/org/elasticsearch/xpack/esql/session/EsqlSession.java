@@ -427,6 +427,7 @@ public class EsqlSession {
         } else if (statement.setting(QuerySettings.APPROXIMATION) != null) {
             new Approximation(
                 optimizedPlan,
+                statement.setting(QuerySettings.APPROXIMATION),
                 logicalPlanOptimizer,
                 p -> logicalPlanToPhysicalPlan(
                     optimizedPlan(p, logicalPlanOptimizer, planTimeProfile),

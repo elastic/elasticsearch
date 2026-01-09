@@ -99,13 +99,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1323,10 +1321,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        Collection<BytesRef> valueCollection = keepDuplicatesInBinaryDocValues()
-                            ? new ArrayList<>()
-                            : new LinkedHashSet<>();
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, valueCollection);
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, keepDuplicatesInBinaryDocValues());
                         context.doc().addWithKey(fieldName, field);
                     }
                     field.add(bytesRef);
@@ -1376,7 +1371,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getByKey(fieldType().name());
             var countField = (NumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
             if (field == null) {
-                field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldType().name(), new TreeSet<>());
+                field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldType().name(), false);
                 context.doc().addWithKey(fieldType().name(), field);
                 countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
                 context.doc().addWithKey(countField.name(), countField);

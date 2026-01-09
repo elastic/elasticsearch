@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 
 import java.io.IOException;
 
 /**
  * Base class that reads fields from the source index and produces their downsampled values
  */
-abstract class AbstractDownsampleFieldProducer<T> implements DownsampleFieldSerializer {
+abstract class AbstractDownsampleFieldProducer implements DownsampleFieldSerializer {
 
     private final String name;
     protected boolean isEmpty;
@@ -43,5 +44,5 @@ abstract class AbstractDownsampleFieldProducer<T> implements DownsampleFieldSeri
         return isEmpty;
     }
 
-    public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
+    public abstract void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException;
 }

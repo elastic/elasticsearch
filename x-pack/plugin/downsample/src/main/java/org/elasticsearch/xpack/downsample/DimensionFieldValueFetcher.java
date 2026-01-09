@@ -22,15 +22,15 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
     private final DimensionFieldProducer dimensionFieldProducer = createFieldProducer();
 
     protected DimensionFieldValueFetcher(final String fieldName, final MappedFieldType fieldType, final IndexFieldData<?> fieldData) {
-        super(fieldName, fieldType, fieldData, null);
+        super(fieldName, fieldType, fieldData);
     }
 
     private DimensionFieldProducer createFieldProducer() {
-        return new DimensionFieldProducer(name);
+        return new DimensionFieldProducer(name, new DimensionFieldProducer.Dimension(name));
     }
 
     @Override
-    AbstractDownsampleFieldProducer<?> fieldProducer() {
+    AbstractDownsampleFieldProducer fieldProducer() {
         return this.dimensionFieldProducer;
     }
 

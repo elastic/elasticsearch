@@ -746,8 +746,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
             sourceMapping.get(TIME_SERIES_METRIC_PARAM).toString()
         );
-        if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
-            && metricType == TimeSeriesParams.MetricType.GAUGE
+        if (metricType == TimeSeriesParams.MetricType.GAUGE
             && AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(sourceMapping.get(FIELD_TYPE)) == false) {
             var supportedMetrics = getSupportedMetrics(metricType, sourceMapping);
 

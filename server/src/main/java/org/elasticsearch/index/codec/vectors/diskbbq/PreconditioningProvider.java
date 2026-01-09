@@ -55,6 +55,7 @@ public class PreconditioningProvider {
                     int idx = permutationMatrix[j][k];
                     x[k] = vector[idx];
                 }
+                // TODO: can be optimized to do all blocks in one pass?
                 matrixVectorMultiply(block, x, blockOut);
                 System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
                 blockIdx += blockDim;
@@ -127,6 +128,7 @@ public class PreconditioningProvider {
             assert m.length == x.length;
             assert m.length == out.length;
             int dim = out.length;
+            // TODO: write Panama version of this to do all multiplications in one pass
             for (int i = 0; i < dim; i++) {
                 out[i] = VectorUtil.dotProduct(m[i], x);
             }

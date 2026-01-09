@@ -274,8 +274,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        mergeState.segmentInfo.files();
-
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {

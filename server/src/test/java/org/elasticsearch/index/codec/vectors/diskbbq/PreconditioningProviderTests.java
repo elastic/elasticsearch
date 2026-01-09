@@ -36,20 +36,20 @@ public class PreconditioningProviderTests extends LuceneTestCase {
         }
 
         int blockDim = random().nextInt(8, 384);
-        //
-        // PreconditioningProvider preconditioningProvider = new PreconditioningProvider(blockDim, dim);
-        //
-        // preconditioningProvider.applyPreconditioningTransform(query);
-        //
-        // assertEquals(blockDim, preconditioningProvider.blockDim);
-        // assertEquals(dim / blockDim + 1, preconditioningProvider.permutationMatrix.length);
-        // assertEquals(Math.min(blockDim, dim), preconditioningProvider.permutationMatrix[0].length);
-        // assertEquals(
-        // dim - (long) (dim / blockDim) * blockDim,
-        // preconditioningProvider.permutationMatrix[preconditioningProvider.permutationMatrix.length - 1].length
-        // );
-        // assertEquals(dim / blockDim + 1, preconditioningProvider.blocks.length);
-        // assertEquals(Math.min(blockDim, dim), preconditioningProvider.blocks[0].length);
-        // assertEquals(Math.min(blockDim, dim), preconditioningProvider.blocks[0][0].length);
+
+        PreconditioningProvider.Preconditioner preconditioner = PreconditioningProvider.createPreconditioner(blockDim, dim);
+
+        preconditioner.applyTransform(query);
+
+        assertEquals(blockDim, preconditioner.blockDim());
+        assertEquals(dim / blockDim + 1, preconditioner.permutationMatrix().length);
+        assertEquals(Math.min(blockDim, dim), preconditioner.permutationMatrix()[0].length);
+        assertEquals(
+            dim - (long) (dim / blockDim) * blockDim,
+            preconditioner.permutationMatrix()[preconditioner.permutationMatrix().length - 1].length
+        );
+        assertEquals(dim / blockDim + 1, preconditioner.blocks().length);
+        assertEquals(Math.min(blockDim, dim), preconditioner.blocks()[0].length);
+        assertEquals(Math.min(blockDim, dim), preconditioner.blocks()[0][0].length);
     }
 }

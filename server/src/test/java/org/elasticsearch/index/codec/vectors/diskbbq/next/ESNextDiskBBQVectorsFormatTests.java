@@ -160,7 +160,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ESNextDiskBBQVectorsFormat(16, 128, 4);
+                return new ESNextDiskBBQVectorsFormat(128, 4);
             }
         };
         String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128)";
@@ -171,10 +171,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(16, MIN_VECTORS_PER_CLUSTER - 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(16, MAX_VECTORS_PER_CLUSTER + 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(16, 128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(16, 128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
     }
 
     public void testSimpleOffHeapSize() throws IOException {

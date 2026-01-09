@@ -70,7 +70,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final boolean doPrecondition;
     private final IndexOutput ivfPreConditioning;
     private PreconditioningProvider.Preconditioner preconditioner;
-    private long preconditionerStartOffset;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -114,7 +113,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         ivfPreConditioning.alignFilePointer(Float.BYTES);
-        preconditionerStartOffset = ivfPreConditioning.getFilePointer();
         if (preconditioner != null) {
             ivfPreConditioning.writeByte((byte) 1);
             PreconditioningProvider.write(preconditioner, ivfPreConditioning);
@@ -160,7 +158,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
             @Override
             public FloatVectorValues copy() throws IOException {
-
                 return vectors.copy();
             }
 
@@ -172,6 +169,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             @Override
             public int size() {
                 return vectors.size();
+            }
+
+            @Override
+            public DocIndexIterator iterator() {
+                return vectors.iterator();
             }
         };
     }
@@ -482,7 +484,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
         metaOutput.writeInt(quantEncoding.id());
-        metaOutput.writeLong(preconditionerStartOffset);
     }
 
     @Override

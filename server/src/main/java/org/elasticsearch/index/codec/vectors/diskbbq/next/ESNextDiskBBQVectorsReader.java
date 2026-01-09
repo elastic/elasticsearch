@@ -10,9 +10,11 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
@@ -28,10 +30,12 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
@@ -53,18 +57,45 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
-    private PreconditioningProvider preconditioningProvider;
-
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(state, getFormatReader);
     }
 
     private IndexInput ivfPreconditioning;
+    private PreconditioningProvider.Preconditioner preconditioner;
 
     @Override
     public void doInitExtraFiles(SegmentReadState state, int versionMeta, FieldInfos field) throws IOException {
-        ivfPreconditioning = openDataInput(state, versionMeta, PRECONDITIONING_EXTENSION, ESNextDiskBBQVectorsFormat.NAME, state.context);
+        long startPosition;
+        final String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, PRECONDITIONING_EXTENSION);
+        ivfPreconditioning = state.directory.openInput(fileName, state.context);
+        try {
+            final int versionVectorData = CodecUtil.checkIndexHeader(
+                ivfPreconditioning,
+                ESNextDiskBBQVectorsFormat.NAME,
+                ES920DiskBBQVectorsFormat.VERSION_START,
+                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
+            startPosition = ivfPreconditioning.getFilePointer();
+            if (versionMeta != versionVectorData) {
+                throw new CorruptIndexException(
+                    "Format versions mismatch: meta=" + versionMeta + ", " + ESNextDiskBBQVectorsFormat.NAME + "=" + versionVectorData,
+                    ivfPreconditioning
+                );
+            }
+            CodecUtil.retrieveChecksum(ivfPreconditioning);
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(ivfPreconditioning);
+            throw t;
+        }
+        ivfPreconditioning.seek(startPosition);
+        // the reader is only ever instantiated for a given dimension and block dimension so we can safely read the preconditioner here
+        if (ivfPreconditioning.readByte() == 1) {
+            preconditioner = PreconditioningProvider.read(ivfPreconditioning);
+        }
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
@@ -206,13 +237,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
     @Override
     protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
-        long startOffset = ((NextFieldEntry) entry).preconditionerStartOffset();
-        ivfPreconditioning.seek(startOffset);
-        if (ivfPreconditioning.readByte() == 0) {
+        if (preconditioner == null) {
             return vector;
         } else {
-            PreconditioningProvider.Preconditioner preconditioner = PreconditioningProvider.read(ivfPreconditioning);
             return preconditioner.applyTransform(vector);
         }
     }
@@ -233,7 +260,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float globalCentroidDp
     ) throws IOException {
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
-        long preconditionerStartOffset = input.readLong();
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -246,8 +272,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            quantEncoding,
-            preconditionerStartOffset
+            quantEncoding
         );
     }
 
@@ -258,7 +283,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
     static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
-        private final long preconditionerStartOffset;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -272,8 +296,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
-            long preconditionerStartOffset
+            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding
         ) {
             super(
                 rawVectorFormat,
@@ -289,15 +312,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 globalCentroidDp
             );
             this.quantEncoding = quantEncoding;
-            this.preconditionerStartOffset = preconditionerStartOffset;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
-        }
-
-        public long preconditionerStartOffset() {
-            return preconditionerStartOffset;
         }
     }
 

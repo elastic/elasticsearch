@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximate.Approximate;
+import org.elasticsearch.xpack.esql.approximate.ApproximateSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -218,7 +219,7 @@ public class EsqlSession {
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
-        Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+        ApproximateSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
 
         Configuration configuration = new Configuration(
             request.timeZone() == null

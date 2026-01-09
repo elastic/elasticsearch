@@ -46,7 +46,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         this.indexBits = indexBits;
     }
 
-
     public void testQuantizeScore() throws Exception {
 
         final int dimensions = random().nextInt(1, 2000);
@@ -326,7 +325,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        return () -> Stream.of((byte)1, (byte)2, (byte)4)
+        return () -> Stream.of((byte) 1, (byte) 2, (byte) 4)
             .flatMap(i -> Arrays.stream(DirectoryType.values()).map(f -> new Object[] { f, i }))
             .iterator();
     }

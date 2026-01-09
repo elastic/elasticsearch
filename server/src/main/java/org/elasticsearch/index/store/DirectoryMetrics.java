@@ -28,12 +28,10 @@ public class DirectoryMetrics {
         T snapshot();
     }
 
-    private Map<String, PluggableMetrics<?>> data;
+    private final Map<String, PluggableMetrics<?>> data;
 
-    public <T extends PluggableMetrics<T>> T metrics(String type) {
-        Object result = data.get(type);
-        // noinspection unchecked
-        return (T) result;
+    public PluggableMetrics<?> metrics(String type) {
+        return data.get(type);
     }
 
     public Supplier<DirectoryMetrics> delta() {
@@ -53,7 +51,7 @@ public class DirectoryMetrics {
     public static class Builder {
         private final Map<String, PluggableMetrics<?>> data = new HashMap<>();
 
-        public <T extends PluggableMetrics<T>> void add(String type, T metrics) {
+        public void add(String type, PluggableMetrics<?> metrics) {
             data.put(type, metrics);
         }
 

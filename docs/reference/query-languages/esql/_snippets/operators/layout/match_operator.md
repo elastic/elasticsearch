@@ -1,6 +1,6 @@
 ### Match operator (`:`) [esql-match-operator]
 ```{applies_to}
-stack: preview 9.0, ga 9.1
+stack: preview =9.0, ga 9.1+
 ```
 
 Use the match operator (`:`) to perform full-text search and filter rows that match a given query string.

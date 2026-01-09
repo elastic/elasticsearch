@@ -178,7 +178,6 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         return true;
     }
 
-
     /**
      * A {@link CircuitBreakerService} that only supports a single {@link LocalCircuitBreaker}.
      * Mainly intended to be used with {@link org.elasticsearch.common.util.BigArrays#withBreakerService(CircuitBreakerService)}

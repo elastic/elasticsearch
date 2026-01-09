@@ -1683,8 +1683,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Collection<TestCaseSupplier> suppliers,
         Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
     ) {
+        return mapTestCases(suppliers, mapper, TestCaseSupplier::types);
+    }
+
+    public static List<TestCaseSupplier> mapTestCases(
+        Collection<TestCaseSupplier> suppliers,
+        Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper,
+        Function<TestCaseSupplier, List<DataType>> typesMapper
+    ) {
         return suppliers.stream()
-            .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
+            .map(supplier -> new TestCaseSupplier(supplier.name(), typesMapper.apply(supplier), () -> mapper.apply(supplier.get())))
             .collect(Collectors.toCollection(ArrayList::new));
     }
 

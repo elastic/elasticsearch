@@ -80,19 +80,24 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      *
      * <p><strong>Requirements:</strong>
      * <ul>
-     *   <li>The starting address must be aligned to the system page size.</li>
+     *   <li>The starting address of {@code segment} must be aligned to the system page size.</li>
+     *   <li>{@code segment} must represent native (off-heap) memory.
+     *       Passing a non-native {@link MemorySegment} will result in an {@link IllegalArgumentException}.</li>
      * </ul>
      *
-     * @param address
-     *     the starting memory address of the region to be advised; must refer to native memory and be page-size aligned
+     * @param segment
+     *     the starting memory segment of the region to be advised; must refer to native memory and be page-size aligned
      * @param length
-     *     the length in bytes of the memory region starting at {@code address}
+     *     the length in bytes of the memory region starting at {@code segment}
      * @param advice
      *     the access pattern advice (for example {@code MADV_WILLNEED}, {@code MADV_DONTNEED}, {@code MADV_SEQUENTIAL}, etc.)
      * @return
      *     {@code 0} on success, or {@code -1} on failure with {@code errno} set to indicate the error
+     *
+     * @throws IllegalArgumentException
+     *     if {@code segment} does not represent native memory
      */
-    int madvise(long address, long length, int advice);
+    int madvise(MemorySegment segment, long length, int advice);
 
     /** corresponds to struct stat64 */
     interface Stat64 {

@@ -56,7 +56,13 @@ public class PosixCLibraryTests extends ESTestCase {
             var map = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
             var mem = MemorySegment.ofBuffer(map);
             long length = randomLongBetween(1, fc.size());
-            assertThat(clib.madvise(mem.address(), length, PosixCLibrary.POSIX_FADV_WILLNEED), equalTo(0));
+            assertThat(clib.madvise(mem, length, PosixCLibrary.POSIX_FADV_WILLNEED), equalTo(0));
         }
+    }
+
+    public void test_madvise_iae() throws IOException {
+        byte[] buf = randomBytes(randomInt(16));
+        var mem = MemorySegment.ofArray(buf);
+        expectThrows(IllegalArgumentException.class, () -> clib.madvise(mem, buf.length, PosixCLibrary.POSIX_FADV_WILLNEED));
     }
 }

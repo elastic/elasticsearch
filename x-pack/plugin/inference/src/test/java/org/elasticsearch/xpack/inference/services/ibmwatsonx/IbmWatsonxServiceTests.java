@@ -938,59 +938,59 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     public void testGetConfiguration() throws Exception {
         try (var service = createIbmWatsonxService()) {
             String content = XContentHelper.stripWhitespace("""
-                                {
-                                       "service": "watsonxai",
-                                       "name": "IBM Watsonx",
-                                       "task_types": ["text_embedding", "rerank"],
-                                       "configurations": {
-                                           "project_id": {
-                                               "description": "",
-                                               "label": "Project ID",
-                                               "required": true,
-                                               "sensitive": false,
-                                               "updatable": false,
-                                               "type": "str",
-                                               "supported_task_types": ["text_embedding", "rerank"]
-                                           },
-                                           "model_id": {
-                                               "description": "The name of the model to use for the inference task.",
-                                               "label": "Model ID",
-                                               "required": true,
-                                               "sensitive": false,
-                                               "updatable": false,
-                                               "type": "str",
-                                               "supported_task_types": ["text_embedding", "rerank"]
-                                           },
-                                           "api_version": {
-                                               "description": "The IBM Watsonx API version ID to use.",
-                                               "label": "API Version",
-                                               "required": true,
-                                               "sensitive": false,
-                                               "updatable": false,
-                                               "type": "str",
-                                               "supported_task_types": ["text_embedding", "rerank"]
-                                           },
-                                           "max_input_tokens": {
-                                               "description": "Allows you to specify the maximum number of tokens per input.",
-                                               "label": "Maximum Input Tokens",
-                                               "required": false,
-                                               "sensitive": false,
-                                               "updatable": false,
-                                               "type": "int",
-                                               "supported_task_types": ["text_embedding"]
-                                           },
-                                           "url": {
-                                               "description": "",
-                                               "label": "URL",
-                                               "required": true,
-                                               "sensitive": false,
-                                               "updatable": false,
-                                               "type": "str",
-                                               "supported_task_types": ["text_embedding", "rerank"]
-                                           }
-                                       }
-                                   }
-                                """);
+                {
+                       "service": "watsonxai",
+                       "name": "IBM Watsonx",
+                       "task_types": ["text_embedding", "rerank"],
+                       "configurations": {
+                           "project_id": {
+                               "description": "",
+                               "label": "Project ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "rerank"]
+                           },
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "rerank"]
+                           },
+                           "api_version": {
+                               "description": "The IBM Watsonx API version ID to use.",
+                               "label": "API Version",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "rerank"]
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["text_embedding"]
+                           },
+                           "url": {
+                               "description": "",
+                               "label": "URL",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "rerank"]
+                           }
+                       }
+                   }
+                """);
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

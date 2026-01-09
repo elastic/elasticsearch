@@ -119,8 +119,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -3055,10 +3053,5 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static ProjectMetadata emptyProject() {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-    }
-
-    public static SlowLogFieldProvider mockLogFieldProvider() {
-        return context -> new SlowLogFields(context) {
-        };
     }
 }

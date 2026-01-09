@@ -99,6 +99,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         };
     }
 
+    public static SlowLogFieldProvider mockLogFieldProvider() {
+        return context -> new SlowLogFields(context) {
+        };
+    }
+
     public void testLevelPrecedence() {
         try (SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"))) {
             String uuid = UUIDs.randomBase64UUID();

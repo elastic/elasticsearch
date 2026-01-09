@@ -42,6 +42,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;

@@ -54,6 +54,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;

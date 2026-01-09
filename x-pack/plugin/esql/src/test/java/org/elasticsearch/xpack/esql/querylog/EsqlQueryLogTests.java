@@ -20,6 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.PlanningProfile;
@@ -85,6 +87,11 @@ public class EsqlQueryLogTests extends ESTestCase {
         Loggers.removeAppender(queryLog, appender);
         appender.stop();
         Loggers.setLevel(queryLog, origQueryLogLevel);
+    }
+
+    public static SlowLogFieldProvider mockLogFieldProvider() {
+        return context -> new SlowLogFields(context) {
+        };
     }
 
     public void testPrioritiesOnSuccess() {

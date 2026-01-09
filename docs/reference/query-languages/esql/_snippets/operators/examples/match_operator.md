@@ -2,6 +2,8 @@
 
 **Examples**
 
+The match operator can be used to perform full-text search on a `text` field. Notice how the match operator handles multi-valued columns, if a single value matches the query string, the expression evaluates to `TRUE`.
+
 ```esql
 FROM books
 | WHERE author:"Faulkner"
@@ -15,8 +17,7 @@ FROM books
 | 2883 | William Faulkner |
 | 3293 | Danny Faulkner |
 
-
-This example illustrates how to do full-text search on a `text` field. Notice how the match operator handles multi-valued columns, if a single value matches the query string, the expression evaluates to `TRUE`
+The match operator can be also be used with `keyword` columns to filter multi-values.
 
 ```esql
 FROM employees
@@ -30,8 +31,7 @@ FROM employees
 | 10009 | [Internship, Senior Python Developer] |
 | 10022 | [Data Scientist, Internship, Python Developer, Reporting Analyst] |
 
-
-This example illustrates how to use match operator with a `keyword` field to filter multi-values.
+This example illustrates how to do semantic search using the match operator on `semantic_text` fields. By including the metadata field `_score` and sorting on `_score`, we can retrieve the most relevant results in order.
 
 ```esql
 FROM books METADATA _score
@@ -45,8 +45,5 @@ FROM books METADATA _score
 | 9.5770 | Romeo and Juliet |
 | 9.6850 | Hamlet |
 | 8.232 | Othello |
-
-
-This example illustrates how to do semantic search using the match operator on `semantic_text` fields. By including the metadata field `_score` and sorting on `_score`, we can retrieve the most relevant results in order.
 
 

@@ -3600,6 +3600,96 @@ a:double | b:double | c:long
 6.0      | 6.0      | 8
 ;
 
+fixStatsValuesOnReferenceToNullUncasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS VALUES(x)
+;
+
+VALUES(x):null
+null
+;
+
+fixStatsValuesOnReferenceToNullCasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null::long
+| STATS VALUES(x)
+;
+
+VALUES(x):long
+null
+;
+
+fixStatsValuesOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 1
+| STATS y = VALUES(null)
+;
+
+y:null
+null
+;
+
+fixStatsAggOnNullGivenMultipleAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1, x = null, y = null, z = 42
+| STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z)
+;
+
+a:integer | b:null | c:null | d:double
+1         | null   | null   | 42
+;
+
+fixStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1 * 10, x = null, y = null + 3, z = 42
+| STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z) + 1 by x
+;
+
+a:integer | b:null | c:integer | d:double | x:null
+10        | null   | null      | 43       | null
+;
+
+fixStatsAggOnNullGivenMultipleAggsWithWhereClauses
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null, y = null, z = 1
+| STATS a = MIN(x) WHERE z + 1 == 2,
+        b = MAX(y) WHERE z + 1 == 3,
+        c = VALUES(z) WHERE z + 1 == 3
+;
+
+a:null | b:null | c:integer
+null   | null   | null
+;
+
+
+fixStatsAggOnNullWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x), d = ABSENT(x)
+;
+
+a:long | b:long | c:boolean | d:boolean
+0      | 0      | false     | true
+;
+
+fixStatsAggOnNullAsChildWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| STATS a = COUNT(null), b = COUNT_DISTINCT(null), c = PRESENT(null), d = ABSENT(null)
+;
+
+a:long | b:long | c:boolean | d:boolean
+0      | 0      | false     | true
+;
 
 statsMvConstantGroupByWhere
 required_capability: fix_stats_mv_constant_fold

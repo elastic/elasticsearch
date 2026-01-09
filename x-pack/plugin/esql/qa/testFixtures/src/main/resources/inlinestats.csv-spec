@@ -5113,3 +5113,80 @@ FROM employees
 29175          |2.0            |281.0          |48248.55       
 30404          |3.0            |281.0          |48248.55       
 ;
+
+fixInlineStatsValuesOnReferenceToNullUncasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| INLINE STATS VALUES(x)
+;
+
+x:null | VALUES(x):null
+null   | null
+;
+
+fixInlineStatsValuesOnReferenceToNullCasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null::long
+| INLINE STATS VALUES(x)
+;
+
+x:long | VALUES(x):long
+null   | null
+;
+
+fixInlineStatsValuesOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 1
+| INLINE STATS y = VALUES(null)
+;
+
+x:integer | y:null
+1         | null
+;
+
+fixInlineStatsAggOnNullGivenMultipleAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1, x = null, y = null, z = 42
+| INLINE STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z)
+;
+
+w:integer | x:null | y:null | z:integer | a:integer | b:null | c:null | d:double
+1         | null   | null   | 42        | 1         | null   | null   | 42
+;
+
+fixInlineStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1 * 10, x = null, y = null + 3, z = 42
+| INLINE STATS a = MIN(w) + 1, b = MIN(x), c = MAX(y) by z
+;
+
+w:integer | x:null | y:integer | a:integer | b:null | c:integer | z:integer
+10        | null   | null      | 11        | null   | null      | 42
+;
+
+fixInlineStatsAggOnNullWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| INLINE STATS a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x), d = ABSENT(x)
+;
+
+x:null | a:long | b:long | c:boolean | d:boolean
+null   | 0      | 0      | false     | true
+;
+
+fixInlineStatsAggOnNullAsChildWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| INLINE STATS a = COUNT(null), b = COUNT_DISTINCT(null), c = PRESENT(null), d = ABSENT(null)
+;
+
+x:integer | a:long | b:long | c:boolean | d:boolean
+0         | 0      | 0      | false     | true
+;

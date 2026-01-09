@@ -37,6 +37,15 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<ByteSizeValue> RATE_BUFFER_SIZE = new Setting<>("esql.rate_buffer_size", settings -> {
+        long oneThird = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 3;
+        return ByteSizeValue.ofBytes(Math.max(oneThird, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
+    },
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.rate_buffer_size"),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Integer> LUCENE_TOPN_LIMIT = Setting.intSetting(
         "esql.lucene_topn_limit",
         IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(Settings.EMPTY),
@@ -61,6 +70,7 @@ public class PlannerSettings {
 
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
+    private volatile ByteSizeValue rateBufferSize;
     private volatile int luceneTopNLimit;
     private volatile ByteSizeValue intermediateLocalRelationMaxSize;
 
@@ -71,6 +81,7 @@ public class PlannerSettings {
         var clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
         clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
+        clusterSettings.initializeAndWatch(RATE_BUFFER_SIZE, v -> this.rateBufferSize = v);
         clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
     }
@@ -118,5 +129,9 @@ public class PlannerSettings {
 
     public ByteSizeValue intermediateLocalRelationMaxSize() {
         return intermediateLocalRelationMaxSize;
+    }
+
+    public ByteSizeValue getRateBufferSize() {
+        return rateBufferSize;
     }
 }

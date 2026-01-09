@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -304,22 +305,11 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                     );
                     return evalExec;
                 }
-                // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
-                // leading to reading many small chunks of data. It is more efficient to query sequentially
-                // and apply round_to on the timestamp field.
-                //
-                // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
-                // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
-                // of many doc-value blocks.
-                //
-                // However, if the EsQueryExec index mode is time-series (e.g., rate), we should replace round_to with
-                // QueryAndTags when possible, as we currently lack a method to partition the data for increased parallelism.
-                if (queryExec.indexMode() != IndexMode.TIME_SERIES
-                    && ((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
-                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
-                    return evalExec;
+                if (ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
+                    return planForTimeSeriesIndices(roundTo, evalExec, queryExec, ctx);
+                } else {
+                    return planRoundTo(roundTo, evalExec, queryExec, ctx);
                 }
-                plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
         }
         return plan;
@@ -577,4 +567,139 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         }
         return 1;
     }
+
+    /**
+     * Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
+     * leading to reading many small chunks of data. It is more efficient to query sequentially
+     * and apply round_to on the timestamp field.
+     * For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
+     * 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
+     * of many doc-value blocks.
+     * However, if the EsQueryExec index mode is time-series (e.g., rate), we should replace round_to with
+     * QueryAndTags when possible, as we currently lack a method to partition the data for increased parallelism.
+     */
+    PhysicalPlan planForTimeSeriesIndices(RoundTo roundTo, EvalExec evalExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+        if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
+            return evalExec; // don't enable filter-by-filter for non-rate queries
+        }
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+        Expression field = roundTo.field();
+        if (pushdownPredicates.isPushableFieldAttribute(field) == false) {
+            return evalExec;
+        }
+        long totalDocs = ctx.searchStats().count();
+        if (totalDocs == -1) {
+            return evalExec;
+        }
+        List<Object> roundingPoints = resolveRoundingPoints(roundTo.points(), roundTo.dataType());
+        if (roundingPoints.size() <= 1) {
+            return evalExec;
+        }
+        Object minTimestamp = ctx.searchStats().min(new FieldAttribute.FieldName((MetadataAttribute.TIMESTAMP_FIELD)));
+        Object maxTimestamp = ctx.searchStats().max(new FieldAttribute.FieldName((MetadataAttribute.TIMESTAMP_FIELD)));
+        if (minTimestamp instanceof Long minTs && maxTimestamp instanceof Long maxTs) {
+            long maxBufferedDocs = ctx.plannerSettings().getRateBufferSize().getBytes() / 16; // 2 longs for timestamp and value
+            long taskConcurrency = ctx.configuration().pragmas().taskConcurrency();
+            long maxDocsPerSlice = Math.max(1, maxBufferedDocs / taskConcurrency);
+            // aim for at least a half of tasks to fill all CPUs
+            final int estimateCost = estimateQueryClauses(ctx.searchStats(), queryExec.query());
+            final int maxQueryCost = roundingPointsThreshold(ctx) * 2;
+            long minSlice = Math.max(
+                Math.ceilDiv(totalDocs, maxDocsPerSlice),
+                Math.min(taskConcurrency / 2, Math.max(1, maxQueryCost / estimateCost))
+            );
+            long maxSlice = Math.max(
+                Math.ceilDiv(totalDocs, maxDocsPerSlice),
+                Math.min(taskConcurrency, Math.max(1, maxQueryCost / estimateCost))
+            );
+            long queryInterval = maxTs - minTs;
+            long selectedInterval = -1;
+            for (int i = TIME_SERIES_BUCKETS.length - 1; i >= 0; i--) {
+                long numSlices = Math.ceilDiv(queryInterval, TIME_SERIES_BUCKETS[i]);
+                if (numSlices <= maxSlice && numSlices >= minSlice) {
+                    selectedInterval = TIME_SERIES_BUCKETS[i];
+                    break;
+                }
+            }
+            if (selectedInterval == -1) {
+                return planRoundTo(roundTo, evalExec, queryExec, ctx);
+            }
+            List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(roundingPoints.size());
+            DataType dataType = roundTo.dataType();
+            Source source = roundTo.source();
+            long lower = (Long) roundingPoints.get(0);
+            long upper = (Long) roundingPoints.get(roundingPoints.size() - 1);
+            Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
+            ZoneId zoneId = ctx.configuration().zoneId();
+            queries.add(
+                buildCombinedQueryAndTags(
+                    queryExec,
+                    pushdownPredicates,
+                    createRangeExpression(source, field, dataType, null, lower, zoneId),
+                    clause,
+                    List.of()
+                )
+            );
+            while (lower < upper) {
+                long next = lower + selectedInterval;
+                queries.add(
+                    buildCombinedQueryAndTags(
+                        queryExec,
+                        pushdownPredicates,
+                        createRangeExpression(source, field, dataType, lower, next, zoneId),
+                        clause,
+                        List.of()
+                    )
+                );
+                lower = next;
+            }
+            queries.add(
+                buildCombinedQueryAndTags(
+                    queryExec,
+                    pushdownPredicates,
+                    createRangeExpression(source, field, dataType, lower, null, zoneId),
+                    clause,
+                    List.of()
+                )
+            );
+            return evalExec.transformDown(
+                EsQueryExec.class,
+                esQuery -> new EsQueryExec(
+                    queryExec.source(),
+                    queryExec.indexPattern(),
+                    queryExec.indexMode(),
+                    queryExec.attrs(),
+                    queryExec.limit(),
+                    queryExec.sorts(),
+                    queryExec.estimatedRowSize(),
+                    queries
+                )
+            );
+        } else {
+            return evalExec;
+        }
+    }
+
+    static final long[] TIME_SERIES_BUCKETS = new long[] {
+        TimeValue.timeValueSeconds(1).millis(),
+        TimeValue.timeValueSeconds(5).millis(),
+        TimeValue.timeValueSeconds(10).millis(),
+        TimeValue.timeValueSeconds(20).millis(),
+        TimeValue.timeValueSeconds(30).millis(),
+
+        TimeValue.timeValueMinutes(1).millis(),
+        TimeValue.timeValueMinutes(2).millis(),
+        TimeValue.timeValueMinutes(5).millis(),
+        TimeValue.timeValueMinutes(10).millis(),
+        TimeValue.timeValueMinutes(15).millis(),
+        TimeValue.timeValueMinutes(20).millis(),
+        TimeValue.timeValueMinutes(30).millis(),
+
+        TimeValue.timeValueHours(1).millis(),
+        TimeValue.timeValueHours(2).millis(),
+        TimeValue.timeValueHours(5).millis(),
+        TimeValue.timeValueHours(12).millis(),
+
+        TimeValue.timeValueDays(1).millis(),
+        TimeValue.timeValueDays(7).millis() };
 }

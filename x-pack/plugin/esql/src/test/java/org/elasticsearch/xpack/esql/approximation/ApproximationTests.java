@@ -523,6 +523,7 @@ public class ApproximationTests extends ESTestCase {
     private Approximation createApproximation(String query, TestRunner runner) throws Exception {
         return new Approximation(
             getLogicalPlan(query),
+            ApproximationSettings.DEFAULT,
             new LogicalPlanOptimizer(
                 new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EsqlTestUtils.randomMinimumVersion())
             ),

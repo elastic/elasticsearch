@@ -33,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -54,7 +53,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
 
-                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", new TreeSet<>());
+                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
                         var countField = new NumericDocValuesField("field.counts", 1);
 
@@ -100,7 +99,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
                 Document document = new Document();
 
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", new TreeSet<>());
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
                 var countField = new NumericDocValuesField("field.counts", 1);
                 document.add(field);
@@ -126,7 +125,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("baseline_field", new BytesRef(randomValue)));
 
-                    var binaryDVField = new MultiValuedBinaryDocValuesField.SeparateCount("contender_field", new TreeSet<>());
+                    var binaryDVField = new MultiValuedBinaryDocValuesField.SeparateCount("contender_field", false);
                     binaryDVField.add(new BytesRef(randomValue.getBytes(StandardCharsets.UTF_8)));
                     var countField = new NumericDocValuesField("contender_field.counts", 1);
                     document.add(binaryDVField);

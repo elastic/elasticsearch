@@ -76,6 +76,7 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140430")
     public void testGoldenImageSerialization() throws IOException {
         // ClusterFormationState is basically unique in that it is only sent over the wire in a cluster that cannot form. Today we have no
         // BwC tests of this case, which puts us at risk of making a wire protocol change to this object and never noticing. It would be

@@ -173,12 +173,14 @@ setup:
           {"index":{}}
           {"textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
 
+  - do:
+      indices.refresh: { }
+
 ---
 teardown:
   - do:
       indices.delete:
         index: [ test-result-diversification-index, test-result-diversification-index-other, test-result-byte-diversification-index, any-shards-test-result-diversification-index ]
-        ignore: 404
 
   - do:
       indices.refresh: { }
@@ -389,8 +391,8 @@ teardown:
   - match: { hits.total.value: 7 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "first text" }
-  - match: { hits.hits.1._source.textbody: "fourth text" }
-  - match: { hits.hits.2._source.textbody: "fifth text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "fourth text" }
 
 ---
 "Test MMR diversification with arbitrary shards":
@@ -693,7 +695,7 @@ teardown:
 "Test MMR result diversification required field type":
 
   - do:
-      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] field?/
+      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] or \[semantic_text\] field?/
       search:
         index: test-result-diversification-index
         body:
@@ -716,7 +718,7 @@ teardown:
   - match: { error.suppressed.0.type: status_exception }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] field?/
+      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] or \[semantic_text\] field?/
       search:
         index: test-result-diversification-index
         body:
@@ -739,7 +741,7 @@ teardown:
   - match: { error.suppressed.0.type: status_exception }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] field?/
+      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] or \[semantic_text\] field?/
       search:
         index: test-result-diversification-index
         body:
@@ -759,4 +761,4 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed" }
-  - match: { error.suppressed.0.type: illegal_argument_exception }
+  - match: { error.suppressed.0.type: status_exception }

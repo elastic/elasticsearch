@@ -22,7 +22,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ES91OSQVectorsScorer {
 
-    public static final int BULK_SIZE = 32;
+    public static final int BULK_SIZE = 16;
 
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 

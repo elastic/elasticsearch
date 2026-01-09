@@ -23,7 +23,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
  * */
 public class ES92Int7VectorsScorer {
 
-    public static final int BULK_SIZE = ES91OSQVectorsScorer.BULK_SIZE;
+    public static final int BULK_SIZE = ESNextOSQVectorsScorer.BULK_SIZE;
     protected static final float SEVEN_BIT_SCALE = 1f / ((1 << 7) - 1);
 
     /** The wrapper {@link IndexInput}. */

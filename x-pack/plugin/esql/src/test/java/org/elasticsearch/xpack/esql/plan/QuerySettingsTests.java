@@ -175,12 +175,28 @@ public class QuerySettingsTests extends ESTestCase {
                 Source.EMPTY,
                 List.of(
                     Literal.keyword(Source.EMPTY, "rows"),
-                    Literal.integer(Source.EMPTY, 10),
+                    Literal.integer(Source.EMPTY, 10000),
                     Literal.keyword(Source.EMPTY, "confidence_level"),
                     Literal.fromDouble(Source.EMPTY, 0.9)
                 )
             ),
-            equalTo(new ApproximationSettings(10, 0.9))
+            equalTo(new ApproximationSettings(10000, 0.9))
+        );
+
+        assertInvalid(
+            def.name(),
+            new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "rows"), Literal.integer(Source.EMPTY, 9999))),
+            "line -1:-1: Error validating setting [approximation]: Approximation configuration [rows] must be at least 10000"
+        );
+
+        assertInvalid(
+            def.name(),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(Literal.keyword(Source.EMPTY, "confidence_level"), Literal.fromDouble(Source.EMPTY, 0.999))
+            ),
+            "line -1:-1: Error validating setting [approximation]: "
+                + "Approximation configuration [confidence_level] must be between 0.5 and 0.95"
         );
 
         assertInvalid(

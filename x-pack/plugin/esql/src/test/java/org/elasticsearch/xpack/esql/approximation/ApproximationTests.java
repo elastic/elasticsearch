@@ -170,8 +170,14 @@ public class ApproximationTests extends ESTestCase {
         );
         assertThat(verify("FROM test | LIMIT 3 | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(true, false)));
         assertThat(verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(true, false)));
-        assertThat(verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(false, true)));
-        assertThat(verify("FROM test | MV_EXPAND gender | LIMIT 42 | STATS COUNT()"), equalTo(new Approximation.QueryProperties(true, true)));
+        assertThat(
+            verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"),
+            equalTo(new Approximation.QueryProperties(false, true))
+        );
+        assertThat(
+            verify("FROM test | MV_EXPAND gender | LIMIT 42 | STATS COUNT()"),
+            equalTo(new Approximation.QueryProperties(true, true))
+        );
     }
 
     public void testVerify_exactlyOneStats() {

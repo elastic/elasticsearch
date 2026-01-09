@@ -31,7 +31,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 exact stats on small data
 required_capability: approximation
 
-SET approximation=true\;
+SET approximation={"rows":100000}\;
 FROM many_numbers
     | MV_EXPAND value
     | WHERE value <= 25
@@ -61,7 +61,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 with stats where
 required_capability: approximation
 
-SET approximation=true\;
+SET approximation={"confidence_level":0.85}\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT()  WHERE value >= 1000,
@@ -77,7 +77,7 @@ count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(cou
 with sample
 required_capability: approximation
 
-SET approximation=true\;
+SET approximation={"rows":100000,"confidence_level":0.85}\;
 FROM many_numbers
     | MV_EXPAND value
     | SAMPLE 0.8
@@ -92,7 +92,7 @@ count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(coun
 with commands before stats
 required_capability: approximation
 
-SET approximation=true\;
+SET approximation={}\;
 FROM many_numbers
     | MV_EXPAND value
     | EVAL value2 = 2 * value

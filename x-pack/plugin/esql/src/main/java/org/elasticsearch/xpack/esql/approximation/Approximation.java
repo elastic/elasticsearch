@@ -498,7 +498,13 @@ public class Approximation {
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(approximationPlan(sampleProbability)), configuration, foldContext, planTimeProfile, listener);
+                runner.run(
+                    toPhysicalPlan.apply(approximationPlan(sampleProbability)),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    listener
+                );
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.

@@ -81,15 +81,25 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            serviceSettings,
             elasticInferenceServiceComponents
         );
+    }
 
+    public ElasticInferenceServiceCompletionModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            elasticInferenceServiceComponents
+        );
         this.uri = createUri();
-
     }
 
     @Override

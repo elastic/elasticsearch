@@ -46,7 +46,8 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         );
     }
 
-    public GoogleAiStudioCompletionModel(
+    // Should be used directly only for testing
+    GoogleAiStudioCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -54,11 +55,11 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleAiStudioCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleAiStudioCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     public URI uri(boolean streaming) {

@@ -496,35 +496,30 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
-    public Model buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         var serviceSettings = config.getServiceSettings();
         var taskSettings = config.getTaskSettings();
         var chunkingSettings = config.getChunkingSettings();
 
-        String modelId = serviceSettings.modelId();
+        var modelId = serviceSettings.modelId();
         if (modelId == null) {
             throw new IllegalArgumentException(
-                Strings.format("Error parsing request config, model id is missing for inference id: %s", inferenceEntityId)
+                Strings.format("Error parsing request config, model id is missing for inference id: %s", config.getInferenceEntityId())
             );
         }
 
         if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
             return new MultilingualE5SmallModel(
-                inferenceEntityId,
-                taskType,
+                config.getInferenceEntityId(),
+                config.getTaskType(),
                 NAME,
                 (MultilingualE5SmallInternalServiceSettings) serviceSettings,
                 chunkingSettings
             );
         } else if (ElserModels.isValidModel(modelId)) {
             return new ElserInternalModel(
-                inferenceEntityId,
-                taskType,
+                config.getInferenceEntityId(),
+                config.getTaskType(),
                 NAME,
                 (ElserInternalServiceSettings) serviceSettings,
                 ElserMlNodeTaskSettings.DEFAULT,
@@ -532,14 +527,20 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             );
         } else if (modelId.equals(RERANKER_ID)) {
             return new ElasticRerankerModel(
-                inferenceEntityId,
-                taskType,
+                config.getInferenceEntityId(),
+                config.getTaskType(),
                 NAME,
                 (ElasticRerankerServiceSettings) serviceSettings,
                 (RerankTaskSettings) taskSettings
             );
         } else {
-            return createCustomElandModel(inferenceEntityId, taskType, serviceSettings, taskSettings, chunkingSettings);
+            return createCustomElandModel(
+                config.getInferenceEntityId(),
+                config.getTaskType(),
+                serviceSettings,
+                taskSettings,
+                chunkingSettings
+            );
         }
     }
 

@@ -126,7 +126,7 @@ public class DeepSeekChatCompletionModel extends Model {
         return new DeepSeekChatCompletionModel(serviceSettings, secretSettings, modelConfigurations, new ModelSecrets(secretSettings));
     }
 
-    public DeepSeekChatCompletionModel(
+    private DeepSeekChatCompletionModel(
         DeepSeekServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings,
         ModelConfigurations configurations,
@@ -135,6 +135,15 @@ public class DeepSeekChatCompletionModel extends Model {
         super(configurations, secrets);
         this.serviceSettings = serviceSettings;
         this.secretSettings = secretSettings;
+    }
+
+    public DeepSeekChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        this(
+            (DeepSeekServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            modelConfigurations,
+            modelSecrets
+        );
     }
 
     public Optional<SecureString> apiKey() {

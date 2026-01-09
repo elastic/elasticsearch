@@ -42,18 +42,11 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionCreator;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettings;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -260,53 +253,18 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
     }
 
     @Override
-    public AlibabaCloudSearchModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var chunkingSettings = config.getChunkingSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new AlibabaCloudSearchEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
+    public AlibabaCloudSearchModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case TEXT_EMBEDDING -> new AlibabaCloudSearchEmbeddingsModel(config, secrets);
+            case SPARSE_EMBEDDING -> new AlibabaCloudSearchSparseModel(config, secrets);
+            case RERANK -> new AlibabaCloudSearchRerankModel(config, secrets);
+            case COMPLETION -> new AlibabaCloudSearchCompletionModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
                 NAME,
-                (AlibabaCloudSearchEmbeddingsServiceSettings) serviceSettings,
-                (AlibabaCloudSearchEmbeddingsTaskSettings) taskSettings,
-                chunkingSettings,
-                (DefaultSecretSettings) secretSettings
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
             );
-            case SPARSE_EMBEDDING -> new AlibabaCloudSearchSparseModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (AlibabaCloudSearchSparseServiceSettings) serviceSettings,
-                (AlibabaCloudSearchSparseTaskSettings) taskSettings,
-                chunkingSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            case RERANK -> new AlibabaCloudSearchRerankModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (AlibabaCloudSearchRerankServiceSettings) serviceSettings,
-                (AlibabaCloudSearchRerankTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            case COMPLETION -> new AlibabaCloudSearchCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (AlibabaCloudSearchCompletionServiceSettings) serviceSettings,
-                (AlibabaCloudSearchCompletionTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };
     }
 

@@ -168,22 +168,15 @@ public class DeepSeekService extends SenderService {
     }
 
     @Override
-    public Model buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var secretSettings = secrets.getSecretSettings();
-        return switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION -> new DeepSeekChatCompletionModel(
-                (DeepSeekChatCompletionModel.DeepSeekServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings,
-                config,
-                new ModelSecrets(secretSettings)
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case CHAT_COMPLETION, COMPLETION -> new DeepSeekChatCompletionModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
             );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };
     }
 

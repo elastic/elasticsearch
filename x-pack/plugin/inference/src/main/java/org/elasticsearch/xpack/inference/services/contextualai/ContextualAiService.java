@@ -38,8 +38,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionCreator;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
-import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -151,26 +149,17 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     }
 
     @Override
-    public ContextualAiModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        if (taskType != TaskType.RERANK) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+    public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        if (config.getTaskType() != TaskType.RERANK) {
+            throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
         }
 
-        return new ContextualAiRerankModel(
-            inferenceEntityId,
-            (ContextualAiRerankServiceSettings) serviceSettings,
-            (ContextualAiRerankTaskSettings) taskSettings,
-            (DefaultSecretSettings) secretSettings
-        );
+        return new ContextualAiRerankModel(config, secrets);
     }
 
     @Override

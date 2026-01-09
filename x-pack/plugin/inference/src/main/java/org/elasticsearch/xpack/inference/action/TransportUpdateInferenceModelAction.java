@@ -120,7 +120,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
         var inferenceEntityId = request.getInferenceEntityId();
 
-        SubscribableListener.<UnparsedModel>newForked(listener -> { checkEndpointExists(inferenceEntityId, listener); })
+        SubscribableListener.<UnparsedModel>newForked(listener -> checkEndpointExists(inferenceEntityId, listener))
             .<UnparsedModel>andThen((listener, unparsedModel) -> {
 
                 Optional<InferenceService> optionalService = serviceRegistry.getService(unparsedModel.service());
@@ -147,7 +147,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 Model existingParsedModel = service.get()
                     .parsePersistedConfigWithSecrets(
-                        request.getInferenceEntityId(),
+                        existingUnparsedModel.inferenceEntityId(),
                         existingUnparsedModel.taskType(),
                         new HashMap<>(existingUnparsedModel.settings()),
                         new HashMap<>(existingUnparsedModel.secrets())
@@ -166,13 +166,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     request.getContentAsSettings().serviceSettings()
                 );
 
-                Model newParsedModel = service.get()
-                    .buildModelFromConfigAndSecrets(
-                        request.getInferenceEntityId(),
-                        existingUnparsedModel.taskType(),
-                        newModelConfigurations,
-                        newModelSecrets
-                    );
+                Model newParsedModel = service.get().buildModelFromConfigAndSecrets(newModelConfigurations, newModelSecrets);
 
                 if (isInClusterService(service.get().name())) {
                     updateInClusterEndpoint(request, newParsedModel, existingParsedModel, listener);
@@ -197,11 +191,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                         } else {
                             listener.onResponse(
                                 service.get()
-                                    .parsePersistedConfig(
-                                        request.getInferenceEntityId(),
-                                        resolvedTaskType,
-                                        new HashMap<>(unparsedModel.settings())
-                                    )
+                                    .parsePersistedConfig(inferenceEntityId, resolvedTaskType, new HashMap<>(unparsedModel.settings()))
                                     .getConfigurations()
                             );
                         }
@@ -330,7 +320,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             logger.info(
                 "Updating trained model deployment [{}] for inference entity [{}] with [{}] num_allocations and adaptive allocations [{}]",
                 deploymentId,
-                request.getInferenceEntityId(),
+                inferenceEntityId,
                 elasticServiceSettings.getNumAllocations(),
                 elasticServiceSettings.getAdaptiveAllocationsSettings()
             );

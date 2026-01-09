@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
-import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -199,36 +198,16 @@ public class GoogleAiStudioService extends SenderService {
     }
 
     @Override
-    public GoogleAiStudioModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var chunkingSettings = config.getChunkingSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case COMPLETION -> new GoogleAiStudioCompletionModel(
-                inferenceEntityId,
-                taskType,
+    public GoogleAiStudioModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case COMPLETION -> new GoogleAiStudioCompletionModel(config, secrets);
+            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
                 NAME,
-                (GoogleAiStudioCompletionServiceSettings) serviceSettings,
-                taskSettings,
-                (DefaultSecretSettings) secretSettings
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
             );
-            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (GoogleAiStudioEmbeddingsServiceSettings) serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
+import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -33,16 +34,20 @@ public class CohereCompletionModel extends CohereModel {
         this(modelId, CohereCompletionServiceSettings.fromMap(serviceSettings, context), DefaultSecretSettings.fromMap(secrets));
     }
 
-    public CohereCompletionModel(
-        String modelId,
-        CohereCompletionServiceSettings serviceSettings,
-        @Nullable DefaultSecretSettings secretSettings
-    ) {
-        super(
+    // should be used directly only for testing
+    CohereCompletionModel(String modelId, CohereCompletionServiceSettings serviceSettings, @Nullable DefaultSecretSettings secretSettings) {
+        this(
             new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public CohereCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            (CohereRateLimitServiceSettings) modelConfigurations.getServiceSettings()
         );
     }
 

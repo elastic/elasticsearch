@@ -34,8 +34,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionCreator;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -160,26 +158,15 @@ public class AnthropicService extends SenderService {
     }
 
     @Override
-    public AnthropicModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case COMPLETION -> new AnthropicChatCompletionModel(
-                inferenceEntityId,
-                taskType,
+    public AnthropicModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case COMPLETION -> new AnthropicChatCompletionModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
                 NAME,
-                (AnthropicChatCompletionServiceSettings) serviceSettings,
-                (AnthropicChatCompletionTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
             );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };
     }
 

@@ -132,10 +132,9 @@ final class Spawner implements Closeable {
          * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
          * limitation is in force. As such, we use the short name to avoid any such problems.
          */
-        final String command = NativeAccess.onWindows(
-            windowsNativeAccess -> windowsNativeAccess.getShortPathName(spawnPath.toString()),
-            spawnPath.toString()
-        );
+        String originalPath = spawnPath.toString();
+        final String command = NativeAccess.onWindowsReturn(
+            windowsNativeAccess -> windowsNativeAccess.getShortPathName(originalPath)).orElse(originalPath);
 
         final ProcessBuilder pb = new ProcessBuilder(command);
 

@@ -1367,11 +1367,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                       "task_types": ["embed/text/sparse"]
                     },
                     {
-                      "model_name": "jina-embeddings-v3",
+                      "model_name": "multilingual-embed-v1",
                       "task_types": ["embed/text/dense"]
                     },
                     {
-                      "model_name": "elastic-rerank-v1",
+                      "model_name": "rerank-v1",
                       "task_types": ["rerank/text/text-similarity"]
                     }
                 ]

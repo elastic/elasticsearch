@@ -12,10 +12,14 @@ package org.elasticsearch.datastreams;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageTestUtils;
 import org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageStats;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -32,9 +36,13 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -42,6 +50,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -52,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -293,17 +303,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Search by synthetic _id
         var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));
-        for (var docId : otherDocs) {
-            assertCheckedResponse(
-                client().prepareSearch(docs.get(docId))
-                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
-                searchResponse -> {
-                    assertHitCount(searchResponse, 1L);
-                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
-                    assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
-                }
-            );
-        }
+        assertSearchById(otherDocs, docs);
 
         flush(dataStreamName);
 
@@ -495,6 +495,151 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+    }
+
+    /**
+     * Assert that we can still search by synthetic _id after restoring index from snapshot
+     */
+    public void testCreateSnapshot() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        logger.info("--> create index");
+        final var dataStreamName = randomIdentifier();
+        int shards = randomIntBetween(1, 5);
+        putDataStreamTemplate(dataStreamName, shards);
+
+        final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
+        final var timestamp = Instant.now();
+        logger.info("timestamp is " + timestamp);
+
+        var bulkItemResponses = createDocuments(
+            dataStreamName,
+            // t + 0s
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp, "vm-dev02", "cpu-load", 1),
+            // t + 1s
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            // t + 0s out-of-order doc
+            document(timestamp, "vm-dev03", "cpu-load", 4),
+            // t + 2s
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            // t - 1s out-of-order doc
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            // t + 3s
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+        );
+
+        // Verify that documents are created
+        var docIdToIndex = new HashMap<String, String>();
+        for (var bulkItemResponse : bulkItemResponses) {
+            assertThat(bulkItemResponse.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(bulkItemResponse.getVersion(), equalTo(1L));
+            docIdToIndex.put(bulkItemResponse.getId(), bulkItemResponse.getIndex());
+        }
+
+        client().admin().indices().prepareRefresh().get();
+        Set<Map<String, Object>> expectedContent = allDocumentSourcesAsMaps(dataStreamName);
+
+        logger.info("--> create snapshot");
+        String testRepoName = "test-repo";
+        createRepository(testRepoName);
+        final String snapshotName = "test-snap-" + System.currentTimeMillis();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            testRepoName,
+            snapshotName
+        ).setWaitForCompletion(true).setIndices(dataStreamName).setIncludeGlobalState(true).get();
+        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.OK));
+
+        logger.info("--> get snapshot");
+        assertThat(
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, testRepoName)
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots()
+                .getFirst()
+                .state(),
+            equalTo(SnapshotState.SUCCESS)
+        );
+
+        logger.info("--> rollover data stream");
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(dataStreamName)
+            .get();
+        var indexName = getIndexResponse.indices()[0];
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(dataStreamName).get();
+        assertTrue(rolloverResponse.isAcknowledged());
+        assertTrue(rolloverResponse.isRolledOver());
+        assertThat(
+            client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices().length,
+            equalTo(2)
+        );
+
+        logger.info("--> delete first backing index");
+        assertThat(client().admin().indices().prepareDelete(indexName).get().isAcknowledged(), equalTo(true));
+        assertThat(
+            client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices().length,
+            equalTo(1)
+        );
+        Set<Map<String, Object>> actualContentBeforeRestore = allDocumentSourcesAsMaps(dataStreamName);
+        assertThat(actualContentBeforeRestore.size(), equalTo(0));
+
+        logger.info("--> restore from snapshot");
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            testRepoName,
+            snapshotName
+        ).setWaitForCompletion(true).setRestoreGlobalState(true).get();
+        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.OK));
+
+        // Should be able to get by (synthetic) _id
+        assertSearchById(docIdToIndex.keySet(), docIdToIndex);
+
+        // All documents should be there
+        Set<Map<String, Object>> actualContentAfterRestore = allDocumentSourcesAsMaps(dataStreamName);
+        assertThat(actualContentAfterRestore, equalTo(expectedContent));
+    }
+
+    private static Set<Map<String, Object>> allDocumentSourcesAsMaps(String dataStreamName) {
+        var resp = client().prepareSearch(dataStreamName).setFetchSource(true).setQuery(QueryBuilders.matchAllQuery()).get();
+        try {
+            var result = new HashSet<Map<String, Object>>();
+            for (SearchHit hit : resp.getHits().getHits()) {
+                result.add(hit.getSourceAsMap());
+            }
+            return result;
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    private void createRepository(String repoName) {
+        Path location = randomRepoPath();
+        logger.info("--> creating repository [{}] [{}]", repoName, "fs");
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", location))
+        );
+    }
+
+    private static void assertSearchById(Collection<String> searchIds, HashMap<String, String> docs) throws IOException {
+        for (var docId : searchIds) {
+            assertCheckedResponse(
+                client().prepareSearch(docs.get(docId))
+                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                searchResponse -> {
+                    assertHitCount(searchResponse, 1L);
+                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                    assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                }
+            );
+        }
     }
 
     private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)

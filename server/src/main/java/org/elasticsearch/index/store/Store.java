@@ -184,7 +184,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         boolean hasIndexSort
     ) {
-        this(shardId, indexSettings, directory, shardLock, onClose, hasIndexSort, new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new));
+        this(
+            shardId,
+            indexSettings,
+            directory,
+            shardLock,
+            onClose,
+            hasIndexSort,
+            new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new)
+        );
     }
 
     public Store(

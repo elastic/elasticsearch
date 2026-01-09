@@ -61,9 +61,9 @@ public class DecodeNearConstantBenchmark {
         decode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration(
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        decode.setupTrial(
             NearConstantWithOutliersSupplier.builder(SEED, BLOCK_SIZE).withOutlierProbability(outlierProbability).build()
         );
     }

@@ -61,9 +61,9 @@ public class DecodeCounterWithResetsBenchmark {
         decode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration(CounterWithResetsSupplier.builder(SEED, BLOCK_SIZE).withResetProbability(resetProbability).build());
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        decode.setupTrial(CounterWithResetsSupplier.builder(SEED, BLOCK_SIZE).withResetProbability(resetProbability).build());
     }
 
     @Benchmark

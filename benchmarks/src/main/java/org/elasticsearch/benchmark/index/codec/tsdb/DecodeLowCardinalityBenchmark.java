@@ -64,9 +64,9 @@ public class DecodeLowCardinalityBenchmark {
         decode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration(LowCardinalitySupplier.builder(SEED, BLOCK_SIZE).withDistinctValues(distinctValues).withSkew(skew).build());
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        decode.setupTrial(LowCardinalitySupplier.builder(SEED, BLOCK_SIZE).withDistinctValues(distinctValues).withSkew(skew).build());
     }
 
     @Benchmark

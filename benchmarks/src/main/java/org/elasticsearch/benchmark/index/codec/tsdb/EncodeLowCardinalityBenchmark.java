@@ -66,10 +66,10 @@ public class EncodeLowCardinalityBenchmark {
         encode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
         supplier = LowCardinalitySupplier.builder(SEED, BLOCK_SIZE).withDistinctValues(distinctValues).withSkew(skew).build();
-        encode.setupIteration(supplier);
+        encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
     }
@@ -80,7 +80,16 @@ public class EncodeLowCardinalityBenchmark {
         metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
     }
 
+    /**
+     * Measures compression efficiency metrics (compression ratio, encoded bits/bytes per value).
+     *
+     * <p>Uses zero warmup and single iteration because compression metrics are deterministic:
+     * the same input data always produces the same encoded size. Unlike throughput measurements
+     * which vary due to JIT compilation and CPU state, compression ratios are constant across runs.
+     */
     @Benchmark
+    @Warmup(iterations = 0)
+    @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
         metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), supplier.getNominalBitsPerValue());

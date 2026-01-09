@@ -18,6 +18,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -78,7 +79,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
             return new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary);
         }
-        return new ConstantNullsReader();
+        return ConstantNull.READER;
     }
 
     @Override

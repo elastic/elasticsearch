@@ -76,6 +76,14 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     }
 
     @Override
+    public void tearDown() throws Exception {
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
+        super.tearDown();
+    }
+
+    @Override
     protected Codec getCodec() {
         return TestUtil.alwaysKnnVectorsFormat(format);
     }

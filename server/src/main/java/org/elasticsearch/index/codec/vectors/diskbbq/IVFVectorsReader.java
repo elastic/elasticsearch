@@ -399,24 +399,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IOUtils.close(closeables);
     }
 
-    protected static class OffsetLength {
-        private final long offset;
-        private final long length;
-
-        protected OffsetLength(long offset, long length) {
-            this.offset = offset;
-            this.length = length;
-        }
-
-        public long offset() {
-            return offset;
-        }
-
-        public long length() {
-            return length;
-        }
-    }
-
     protected static class FieldEntry implements GenericFlatVectorReaders.Field {
         protected final String rawVectorFormatName;
         protected final boolean useDirectIOReads;
@@ -427,7 +409,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final long centroidLength;
         protected final long postingListOffset;
         protected final long postingListLength;
-        // protected Map<BlockDimension, OffsetLength> blockDimensionToOffset = new HashMap<>();
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
 
@@ -441,7 +422,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long centroidLength,
             long postingListOffset,
             long postingListLength,
-            // Map<BlockDimension, OffsetLength> blockDimensionToOffset,
             float[] globalCentroid,
             float globalCentroidDp
         ) {
@@ -454,7 +434,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.centroidLength = centroidLength;
             this.postingListOffset = postingListOffset;
             this.postingListLength = postingListLength;
-            // this.blockDimensionToOffset = blockDimensionToOffset;
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
         }
@@ -491,11 +470,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
-        }
-
-        public IndexInput preconditioningSlice(IndexInput preconditioningFile) throws IOException {
-            return null;
-            // return preconditioningFile.slice("preconditioning", dimensions, blockDimensions);
         }
     }
 

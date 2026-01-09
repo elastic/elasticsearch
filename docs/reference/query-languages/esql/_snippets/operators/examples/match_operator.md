@@ -17,7 +17,7 @@ FROM books
 | 2883 | William Faulkner |
 | 3293 | Danny Faulkner |
 
-The match operator can be also be used with `keyword` columns to filter multi-values.
+The match operator can also be used with `keyword` columns to filter multi-values.
 
 ```esql
 FROM employees

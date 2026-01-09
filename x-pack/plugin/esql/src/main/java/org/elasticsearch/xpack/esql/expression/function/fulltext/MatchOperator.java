@@ -54,7 +54,7 @@ public class MatchOperator extends Match {
             @Example(
                 file = "match-operator",
                 tag = "match-with-keyword-field",
-                description = " The match operator can be also be used with `keyword` columns to filter multi-values."
+                description = " The match operator can also be used with `keyword` columns to filter multi-values."
             ),
             @Example(
                 file = "match-operator",

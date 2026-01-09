@@ -114,6 +114,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
         this.includeExecutionMetadata = includeExecutionMetadata;
         this.queryProfile = new EsqlQueryProfile();
+        this.queryProfile.query().start();
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {

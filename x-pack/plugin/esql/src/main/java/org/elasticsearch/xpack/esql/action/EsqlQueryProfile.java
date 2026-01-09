@@ -64,7 +64,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan dependencyResolution,
         TimeSpan analysis
     ) {
-        queryMarker = new TimeSpanMarker(QUERY, false, query);
+        queryMarker = new TimeSpanMarker(QUERY, true, query);
         planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);

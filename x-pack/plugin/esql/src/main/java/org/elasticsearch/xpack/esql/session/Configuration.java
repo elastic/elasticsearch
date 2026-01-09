@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -340,7 +341,7 @@ public class Configuration implements Writeable {
 
     /**
      * Whether to throw an exception when a non-ES stats query is attempted to be executed.
-     * This is used by query approximation, see {@link org.elasticsearch.xpack.esql.approximate.Approximate}.
+     * This is used by query approximation, see {@link Approximation}.
      */
     public boolean throwOnNonEsStatsQuery() {
         return throwOnNonEsStatsQuery;

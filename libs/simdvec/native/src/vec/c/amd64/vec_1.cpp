@@ -71,12 +71,20 @@ static inline int64_t xgetbv(int ctr) {
 }
 
 // Utility function to horizontally add 8 32-bit integers
-static inline int hsum_i32_8(const __m256i a) {
+static inline int32_t hsum_i32_8(const __m256i a) {
     const __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
     const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);
     const __m128i sum64 = _mm_add_epi32(hi64, sum128);
     const __m128i hi32  = _mm_shuffle_epi32(sum64, _MM_SHUFFLE(2, 3, 0, 1));
     return _mm_cvtsi128_si32(_mm_add_epi32(sum64, hi32));
+}
+
+// Utility function to horizontally add 4 64-bit integers
+static inline int64_t hsum_i64_4(const __m256i a) {
+    const __m128i sum128 = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
+    const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);
+    const __m128i sum64 = _mm_add_epi64(hi64, sum128);
+    return _mm_cvtsi128_si64(sum64);
 }
 
 EXPORT int vec_caps() {
@@ -499,10 +507,10 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
         acc3 = _mm256_add_epi64(acc3, _mm256_sad_epu8(local, _mm256_setzero_si256()));
     }
 
-    int64_t subRet0 = hsum_i32_8(acc0);
-    int64_t subRet1 = hsum_i32_8(acc1);
-    int64_t subRet2 = hsum_i32_8(acc2);
-    int64_t subRet3 = hsum_i32_8(acc3);
+    int64_t subRet0 = hsum_i64_4(acc0);
+    int64_t subRet1 = hsum_i64_4(acc1);
+    int64_t subRet2 = hsum_i64_4(acc2);
+    int64_t subRet3 = hsum_i64_4(acc3);
 
     upperBound = length & -sizeof(int32_t);
     for (; r < upperBound; r += sizeof(int32_t)) {

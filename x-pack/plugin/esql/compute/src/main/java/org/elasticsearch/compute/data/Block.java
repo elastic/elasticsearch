@@ -157,12 +157,52 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     /**
      * {@return the index of the first value for the given position}
      * See class javadoc for the usual way to iterate these positions.
+     * <p>
+     *     For densely packed data this will return its parameter unchanged.
+     *     For fields with {@code null} values or multivalued fields, this
+     *     will shift. Here's an example:
+     * </p>
+     * <pre>
+     *     0   <---+
+     *     1       | Values at first position
+     *     2       |
+     *     3   <---+
+     *     5   <---- Value at second position
+     *     6   <---+ Values at third position
+     *     7   <---+
+     * </pre>
+     * <p>
+     *     This represents three rows. The first has the value {@code [0, 1, 2, 3]}.
+     *     The second has the value {@code 5}. The third has the value {@code [6, 7]}.
+     *     This method will return {@code 0} for the first position, {@code 4} for
+     *     the second, and {@code 5} for the third.
+     * </p>
      */
     int getFirstValueIndex(int position);
 
     /**
-     * {@return the number of values for the given position, possibly 0}
+     * {@return the number of values for the given position}
      * See class javadoc for the usual way to iterate these positions.
+     * <p>
+     *     For densely packed data this will return {@code 1}. For {@code null}s
+     *     this will return {@code 0}. For multivalued fields, this will return
+     *     the number of values. Here's an example:
+     * </p>
+     * <pre>
+     *     0   <---+
+     *     1       | Values at first position
+     *     2       |
+     *     3   <---+
+     *     5   <---- Value at second position
+     *     6   <---+ Values at third position
+     *     7   <---+
+     * </pre>
+     * <p>
+     *     This represents three rows. The first has the value {@code [0, 1, 2, 3]}.
+     *     The second has the value {@code 5}. The third has the value {@code [6, 7]}.
+     *     This method will return {@code 4} for the first position, {@code 1} for
+     *     the second, and {@code 2} for the third.
+     * </p>
      */
     int getValueCount(int position);
 

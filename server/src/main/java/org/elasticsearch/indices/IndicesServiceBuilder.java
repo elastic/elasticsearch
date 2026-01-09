@@ -23,8 +23,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.LoggingFields;
+import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -83,7 +83,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    SlowLogFieldProvider slowLogFieldProvider = (context) -> new SlowLogFields(context) {
+    LoggingFieldsProvider loggingFieldsProvider = (context) -> new LoggingFields(context) {
     };
 
     public IndicesServiceBuilder settings(Settings settings) {
@@ -202,8 +202,8 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder slowLogFieldProvider(SlowLogFieldProvider slowLogFieldProvider) {
-        this.slowLogFieldProvider = slowLogFieldProvider;
+    public IndicesServiceBuilder slowLogFieldProvider(LoggingFieldsProvider loggingFieldsProvider) {
+        this.loggingFieldsProvider = loggingFieldsProvider;
         return this;
     }
 
@@ -233,7 +233,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(mapperMetrics);
         Objects.requireNonNull(mergeMetrics);
         Objects.requireNonNull(searchOperationListener);
-        Objects.requireNonNull(slowLogFieldProvider);
+        Objects.requireNonNull(loggingFieldsProvider);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

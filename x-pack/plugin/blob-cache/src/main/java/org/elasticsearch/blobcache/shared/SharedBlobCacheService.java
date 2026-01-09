@@ -1264,7 +1264,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final int startRegion = getRegion(offset);
             final long end = offset + length;
             final int endRegion = getEndingRegion(end);
-            final var rangeToRead = ByteRange.of(offset, offset+length);
+            final var rangeToRead = ByteRange.of(offset, offset + length);
             for (int region = startRegion; region <= endRegion; region++) {
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
                 if (subRangeToRead.isEmpty()) {

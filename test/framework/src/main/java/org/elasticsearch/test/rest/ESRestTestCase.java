@@ -81,6 +81,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1415,7 +1416,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected void deleteRepository(String repoName) throws IOException {
         logger.debug("wiping snapshot repository [{}]", repoName);
-        cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        final var response = cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        assertOK(response);
     }
 
     /**
@@ -2305,12 +2307,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
-        createSnapshot(client(), repository, snapshot, waitForCompletion);
+    protected static XContentTestUtils.JsonMapView getRepository(String repoName) throws IOException {
+        final var response = client().performRequest(new Request("GET", "/_snapshot/" + repoName));
+        assertOK(response);
+        return new XContentTestUtils.JsonMapView(entityAsMap(response));
     }
 
-    protected static void createSnapshot(RestClient restClient, String repository, String snapshot, boolean waitForCompletion)
+    protected static void assertRepositoryNotFound(String repoName) throws IOException {
+        final var e = assertThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/_snapshot/" + repoName)));
+        final var statusLine = e.getResponse().getStatusLine();
+        assertEquals("expected 404, got " + statusLine, 404, statusLine.getStatusCode());
+    }
+
+    protected static XContentTestUtils.JsonMapView createSnapshot(String repository, String snapshot, boolean waitForCompletion)
         throws IOException {
+        return createSnapshot(client(), repository, snapshot, waitForCompletion);
+    }
+
+    protected static XContentTestUtils.JsonMapView createSnapshot(
+        RestClient restClient,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
@@ -2320,6 +2339,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+        return new XContentTestUtils.JsonMapView(entityAsMap(response));
     }
 
     protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
@@ -2332,6 +2352,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected XContentTestUtils.JsonMapView listAllSnapshots(String repository) throws IOException {
+        return new XContentTestUtils.JsonMapView(getAsMap("_snapshot/" + repository + "/" + randomFrom("*", "_all")));
+    }
+
+    protected XContentTestUtils.JsonMapView getIndexRecovery(String indexName) throws IOException {
+        return new XContentTestUtils.JsonMapView(getAsMap(indexName + "/_recovery"));
     }
 
     protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {

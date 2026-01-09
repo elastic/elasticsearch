@@ -1106,16 +1106,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 // This listener is invoked when the fetch build has completed (hits built or failed), responsible for
                                 // - recording fetch-phase success/failure stats
                                 // - closing the SearchContext and releasing shard resources
-                                final ActionListener<Void> buildListener = ActionListener.wrap(
-                                    ignored -> {
-                                        opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
-                                        closeOnce.run();
-                                    },
-                                    e -> {
-                                        opsListener.onFailedFetchPhase(searchContext);
-                                        closeOnce.run();
-                                    }
-                                );
+                                final ActionListener<Void> buildListener = ActionListener.wrap(ignored -> {
+                                    opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
+                                    closeOnce.run();
+                                }, e -> {
+                                    opsListener.onFailedFetchPhase(searchContext);
+                                    closeOnce.run();
+                                });
 
                                 // Completion happens via ActionListener:
                                 // Non-streaming: callback fires immediately after hits are built
@@ -1127,22 +1124,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                     null,
                                     writer,
                                     buildListener,
-                                    ActionListener.wrap(
-                                        ignored -> {
-                                            try {
-                                                listener.onResponse(fetchResult);
-                                            } finally {
-                                                fetchResult.decRef();
-                                            }
-                                        },
-                                        e -> {
-                                            try {
-                                                listener.onFailure(e);
-                                            } finally {
-                                                fetchResult.decRef();
-                                            }
+                                    ActionListener.wrap(ignored -> {
+                                        try {
+                                            listener.onResponse(fetchResult);
+                                        } finally {
+                                            fetchResult.decRef();
                                         }
-                                    )
+                                    }, e -> {
+                                        try {
+                                            listener.onFailure(e);
+                                        } finally {
+                                            fetchResult.decRef();
+                                        }
+                                    })
                                 );
                             } catch (Exception e) {
                                 try {

@@ -14,9 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -28,7 +26,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -495,18 +492,17 @@ abstract class FetchPhaseDocsIterator {
             );
 
             writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                    // Success: coordinator received the chunk
-                    transmitPermits.release();
-                    finalChunkHits.decRef();
-                    chunkListener.onResponse(null);
-                },ex -> {
-                    // Failure: transmission failed, we still own the hits
-                    transmitPermits.release();
-                    finalChunkHits.decRef();
-                    sendFailure.compareAndSet(null, ex);
-                    chunkListener.onFailure(ex);
-                }
-            ));
+                // Success: coordinator received the chunk
+                transmitPermits.release();
+                finalChunkHits.decRef();
+                chunkListener.onResponse(null);
+            }, ex -> {
+                // Failure: transmission failed, we still own the hits
+                transmitPermits.release();
+                finalChunkHits.decRef();
+                sendFailure.compareAndSet(null, ex);
+                chunkListener.onFailure(ex);
+            }));
         } catch (Exception e) {
             transmitPermits.release();
             sendFailure.compareAndSet(null, e);

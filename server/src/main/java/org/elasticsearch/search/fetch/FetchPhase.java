@@ -170,7 +170,6 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
 
-
         final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
 
         // buildSearchHits produces SearchHits for non-streaming mode, or dispatches chunks for streaming mode.
@@ -185,24 +184,21 @@ public final class FetchPhase {
             writer,
             sendFailure,
             buildListener,
-            ActionListener.wrap(
-                searchHits -> {
-                    // Transfer SearchHits ownership to shardResult
-                    SearchHits hitsToRelease = searchHits;
-                    try {
-                        ProfileResult profileResult = profiler.finish();
-                        context.fetchResult().shardResult(searchHits, profileResult);
-                        hitsToRelease = null; // Ownership transferred
-                        listener.onResponse(null);
-                    } finally {
-                        // Release if shardResult() threw an exception before taking ownership.
-                        if (hitsToRelease != null) {
-                            hitsToRelease.decRef();
-                        }
+            ActionListener.wrap(searchHits -> {
+                // Transfer SearchHits ownership to shardResult
+                SearchHits hitsToRelease = searchHits;
+                try {
+                    ProfileResult profileResult = profiler.finish();
+                    context.fetchResult().shardResult(searchHits, profileResult);
+                    hitsToRelease = null; // Ownership transferred
+                    listener.onResponse(null);
+                } finally {
+                    // Release if shardResult() threw an exception before taking ownership.
+                    if (hitsToRelease != null) {
+                        hitsToRelease.decRef();
                     }
-                },
-                listener::onFailure
-            )
+                }
+            }, listener::onFailure)
         );
     }
 
@@ -373,34 +369,33 @@ public final class FetchPhase {
         // returning the final SearchHits (last chunk) to the caller
         final RefCountingListener chunkCompletionRefs = writer != null
             ? new RefCountingListener(listener.delegateFailureAndWrap((l, ignored) -> {
-            SearchHits lastChunk = lastChunkRef.getAndSet(null);
-            try {
-                // Store sequence info in context
-                long seqStart = lastChunkSequenceStartRef.get();
-                if (seqStart >= 0) {
-                    context.fetchResult().setLastChunkSequenceStart(seqStart);
-                }
+                SearchHits lastChunk = lastChunkRef.getAndSet(null);
+                try {
+                    // Store sequence info in context
+                    long seqStart = lastChunkSequenceStartRef.get();
+                    if (seqStart >= 0) {
+                        context.fetchResult().setLastChunkSequenceStart(seqStart);
+                    }
 
-                // Return last chunk - transfer our reference to listener
-                if (lastChunk != null) {
-                    l.onResponse(lastChunk);
-                    lastChunk = null;  // Ownership transferred
-                } else {
-                    l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                    // Return last chunk - transfer our reference to listener
+                    if (lastChunk != null) {
+                        l.onResponse(lastChunk);
+                        lastChunk = null;  // Ownership transferred
+                    } else {
+                        l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                    }
+                } finally {
+                    // Release if onResponse() threw an exception
+                    if (lastChunk != null) {
+                        lastChunk.decRef();
+                    }
                 }
-            } finally {
-                // Release if onResponse() threw an exception
-                if (lastChunk != null) {
-                    lastChunk.decRef();
-                }
-            }
-        })) : null;
+            }))
+            : null;
 
         // Acquire a listener for the main iteration. This prevents RefCountingListener from
         // completing until we explicitly signal success/failure after iteration finishes.
-        final ActionListener<Void> mainBuildListener = chunkCompletionRefs != null
-            ? chunkCompletionRefs.acquire()
-            : null;
+        final ActionListener<Void> mainBuildListener = chunkCompletionRefs != null ? chunkCompletionRefs.acquire() : null;
 
         SearchHits resultToReturn = null;
         Exception caughtException = null;
@@ -431,7 +426,8 @@ public final class FetchPhase {
                 throw new TaskCancelledException("cancelled");
             }
 
-            TotalHits totalHits = context.getTotalHits();;
+            TotalHits totalHits = context.getTotalHits();
+            ;
 
             if (writer == null) {
                 // Non-streaming mode: return all hits

@@ -279,9 +279,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
   method: testILMWaitsForTimeSeriesEndTimeToLapse
   issue: https://github.com/elastic/elasticsearch/issues/138843
-- class: org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitorTests
-  method: testRerouteIsNotCalledWhenNoNodesAreHotSpotting
-  issue: https://github.com/elastic/elasticsearch/issues/138924
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
@@ -327,6 +324,15 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
+- class: org.elasticsearch.index.mapper.blockloader.TextFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=NONE]}
+  issue: https://github.com/elastic/elasticsearch/issues/140411
+- class: org.elasticsearch.index.mapper.blockloader.TextFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=STORED]}
+  issue: https://github.com/elastic/elasticsearch/issues/140412
+- class: org.elasticsearch.index.mapper.blockloader.TextFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/140413
 
 # Examples:
 #

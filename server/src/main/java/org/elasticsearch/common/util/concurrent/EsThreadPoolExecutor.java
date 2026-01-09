@@ -193,6 +193,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 final var lastLoggingTime = lastLoggingTimeMillisForHotThreads.get();
                 if (now - lastLoggingTime >= hotThreadsOnLargeQueueConfig.intervalInMillis()
                     && lastLoggingTimeMillisForHotThreads.compareAndSet(lastLoggingTime, now)) {
+                    logger.info("start logging hot-threads for large queue size [{}] on [{}] executor", queueSize, name);
                     HotThreads.logLocalHotThreads(
                         logger,
                         Level.INFO,

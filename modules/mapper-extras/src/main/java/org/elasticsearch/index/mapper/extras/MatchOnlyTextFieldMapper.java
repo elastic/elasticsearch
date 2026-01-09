@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -606,9 +607,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // otherwise, delegate block loading to the synthetic source delegate if possible
                 if (textFieldType.canUseSyntheticSourceDelegateForLoading()) {
-                    return new BlockLoader.Delegating(textFieldType.syntheticSourceDelegate().get().blockLoader(blContext)) {
+                    return new DelegatingBlockLoader(textFieldType.syntheticSourceDelegate().get().blockLoader(blContext)) {
                         @Override
-                        protected String delegatingTo() {
+                        public String delegatingTo() {
                             return textFieldType.syntheticSourceDelegate().get().name();
                         }
                     };
@@ -627,9 +628,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
-                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                        return new DelegatingBlockLoader(kwd.blockLoader(blContext)) {
                             @Override
-                            protected String delegatingTo() {
+                            public String delegatingTo() {
                                 return kwd.name();
                             }
                         };

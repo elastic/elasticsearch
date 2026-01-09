@@ -114,7 +114,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && timestamp.resolved();
+        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && (timestamp == null || timestamp.resolved());
     }
 
     @Nullable

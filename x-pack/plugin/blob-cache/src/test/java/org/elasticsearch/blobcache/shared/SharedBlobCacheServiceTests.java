@@ -203,7 +203,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             Path tempFile = createTempFile("test", "other");
             String resourceDescription = tempFile.toAbsolutePath().toString();
             final var cacheKey = generateCacheKey();
-            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, 1L);
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, 1L, SharedBlobCacheService.CacheMissHandler.NOOP);
 
             ByteBuffer writeBuffer = ByteBuffer.allocate(1);
 
@@ -228,7 +228,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             Path tempFile2 = createTempFile("test", "cfs");
             resourceDescription = tempFile2.toAbsolutePath().toString();
-            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L);
+            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L, SharedBlobCacheService.CacheMissHandler.NOOP);
 
             ByteBuffer writeBuffer2 = ByteBuffer.allocate(1);
 

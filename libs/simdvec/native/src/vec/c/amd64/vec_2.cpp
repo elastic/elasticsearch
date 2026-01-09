@@ -140,10 +140,10 @@ static inline void dot7u_inner_bulk(
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
-    const int8_t* a2 = safe_mapper_offset<2, mapper>(a, pitch, offsets, count);
-    const int8_t* a3 = safe_mapper_offset<3, mapper>(a, pitch, offsets, count);
+    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+    const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
+    const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
 
     // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.

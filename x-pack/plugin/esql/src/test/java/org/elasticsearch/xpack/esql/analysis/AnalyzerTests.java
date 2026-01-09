@@ -2643,8 +2643,8 @@ public class AnalyzerTests extends ESTestCase {
 
     private void validateConditionalFunctions(LogicalPlan plan) {
         var limit = as(plan, Limit.class);
-        var esqlProject = as(limit.child(), Project.class);
-        List<?> projections = esqlProject.projections();
+        var project = as(limit.child(), Project.class);
+        List<?> projections = project.projections();
         var projection = as(projections.get(0), ReferenceAttribute.class);
         assertEquals(projection.name(), "x");
         assertEquals(projection.dataType(), DataType.DOUBLE);
@@ -5474,24 +5474,24 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(3, unionAll.children().size());
 
         limit = as(unionAll.children().get(0), Limit.class);
-        Project esqlProject = as(limit.child(), Project.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        Project project = as(limit.child(), Project.class);
+        Eval eval = as(project.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
         limit = as(unionAll.children().get(1), Limit.class);
-        esqlProject = as(limit.child(), Project.class);
-        eval = as(esqlProject.child(), Eval.class);
+        project = as(limit.child(), Project.class);
+        eval = as(project.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         relation = as(subquery.child(), EsRelation.class);
         assertEquals("sample_data", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
         limit = as(unionAll.children().get(2), Limit.class);
-        esqlProject = as(limit.child(), Project.class);
-        eval = as(esqlProject.child(), Eval.class);
+        project = as(limit.child(), Project.class);
+        eval = as(project.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5516,15 +5516,15 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(3, unionAll.children().size());
 
         limit = as(unionAll.children().get(0), Limit.class);
-        Project esqlProject = as(limit.child(), Project.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        Project project = as(limit.child(), Project.class);
+        Eval eval = as(project.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("sample_data", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
         limit = as(unionAll.children().get(1), Limit.class);
-        esqlProject = as(limit.child(), Project.class);
-        eval = as(esqlProject.child(), Eval.class);
+        project = as(limit.child(), Project.class);
+        eval = as(project.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         InlineStats inlineStats = as(subquery.child(), InlineStats.class);
@@ -5535,8 +5535,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
         limit = as(unionAll.children().get(2), Limit.class);
-        esqlProject = as(limit.child(), Project.class);
-        eval = as(esqlProject.child(), Eval.class);
+        project = as(limit.child(), Project.class);
+        eval = as(project.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5561,16 +5561,16 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(3, unionAll.children().size());
 
         limit = as(unionAll.children().get(0), Limit.class);
-        Project esqlProject = as(limit.child(), Project.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        Project project = as(limit.child(), Project.class);
+        Eval eval = as(project.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
         limit = as(unionAll.children().get(1), Limit.class);
-        esqlProject = as(limit.child(), Project.class);
-        eval = as(esqlProject.child(), Eval.class);
+        project = as(limit.child(), Project.class);
+        eval = as(project.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         InlineStats inlineStats = as(subquery.child(), InlineStats.class);
@@ -5581,8 +5581,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
         limit = as(unionAll.children().get(2), Limit.class);
-        esqlProject = as(limit.child(), Project.class);
-        eval = as(esqlProject.child(), Eval.class);
+        project = as(limit.child(), Project.class);
+        eval = as(project.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);

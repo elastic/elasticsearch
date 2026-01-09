@@ -2592,10 +2592,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
             // Fork/UnionAll adds an Project on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if (aliases.isEmpty() == false && child instanceof Project esqlProject) {
-                LogicalPlan childOfProject = esqlProject.child();
+            if (aliases.isEmpty() == false && child instanceof Project project) {
+                LogicalPlan childOfProject = project.child();
                 Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new Project(esqlProject.source(), eval, output);
+                return new Project(project.source(), eval, output);
             }
             return child;
         }

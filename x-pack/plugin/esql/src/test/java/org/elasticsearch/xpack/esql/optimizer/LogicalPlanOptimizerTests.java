@@ -4762,8 +4762,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """, new TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
-        var esqlProject = as(limit.child(), Project.class);
-        var project = as(esqlProject.child(), Project.class);
+        var topProject = as(limit.child(), Project.class);
+        var project = as(topProject.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
@@ -4834,8 +4834,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """, new TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
-        var esqlProject = as(limit.child(), Project.class);
-        var project = as(esqlProject.child(), Project.class);
+        var topProject = as(limit.child(), Project.class);
+        var project = as(topProject.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
@@ -4941,8 +4941,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var plan = plan(query, new TestSubstitutionOnlyOptimizer());
 
             var limit = as(plan, Limit.class);
-            var esqlProject = as(limit.child(), Project.class);
-            var project = as(esqlProject.child(), Project.class);
+            var topProject = as(limit.child(), Project.class);
+            var project = as(topProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
             var singleRowRelation = as(eval.child(), LocalRelation.class);
             var singleRow = singleRowRelation.supplier().get();
@@ -4989,8 +4989,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var plan = plan(query, new TestSubstitutionOnlyOptimizer());
 
             var limit = as(plan, Limit.class);
-            var esqlProject = as(limit.child(), Project.class);
-            var project = as(esqlProject.child(), Project.class);
+            var topProject = as(limit.child(), Project.class);
+            var project = as(topProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
             var agg = as(eval.child(), Aggregate.class);
             assertThat(agg.child(), instanceOf(EsRelation.class));
@@ -6204,15 +6204,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var esqlProject = as(plan, Project.class);
-        assertThat(Expressions.names(esqlProject.projections()), is(List.of("avg", "emp_no", "first_name")));
-        var upperLimit = asLimit(esqlProject.child(), 10, false);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no", "first_name")));
+        var upperLimit = asLimit(project.child(), 10, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
         assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
-        var project = as(inlineJoin.right(), Project.class);
+        project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), contains("avg", "emp_no"));
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
@@ -6239,9 +6239,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var esqlProject = as(plan, Project.class);
-        assertThat(Expressions.names(esqlProject.projections()), is(List.of("emp_no")));
-        var limit = asLimit(esqlProject.child(), 1000, false);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
+        var limit = asLimit(project.child(), 1000, false);
         var localRelation = as(limit.child(), LocalRelation.class);
         assertThat(
             localRelation.output(),

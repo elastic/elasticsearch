@@ -73,9 +73,9 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         }
         var plan = optimizedPlan(query);
 
-        var esqlProject = as(plan, Project.class);
+        var project = as(plan, Project.class);
 
-        var topN = as(esqlProject.child(), TopN.class);
+        var topN = as(project.child(), TopN.class);
         assertThat(topN.order().size(), is(1));
         var order = as(topN.order().get(0), Order.class);
         assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
@@ -89,7 +89,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var relation = as(inlineJoin.left(), EsRelation.class);
         assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
         // Right
-        var project = as(inlineJoin.right(), Project.class);
+        project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "languages")));
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
@@ -198,8 +198,8 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
 
         // Left side of the join
-        var esqlProject = as(inlineJoin.left(), Project.class);
-        var eval = as(esqlProject.child(), Eval.class);
+        var project = as(inlineJoin.left(), Project.class);
+        var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("salaryK")));
         var dissect = as(eval.child(), Dissect.class);
         assertThat(dissect.parser().pattern(), is("%{msg}"));
@@ -214,7 +214,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(esRelation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
-        var project = as(inlineJoin.right(), Project.class);
+        project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no")));
         var rightEval = as(project.child(), Eval.class);
         assertThat(Expressions.names(rightEval.fields()), is(List.of("avg")));

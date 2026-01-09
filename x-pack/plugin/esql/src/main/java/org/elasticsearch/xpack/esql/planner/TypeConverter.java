@@ -32,21 +32,7 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
         this.factory = convertFunction.toEvaluator(new EvaluatorMapper.ToEvaluator() {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
-                return driverContext -> new ExpressionEvaluator() {
-                    @Override
-                    public org.elasticsearch.compute.data.Block eval(Page page) {
-                        // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
-                        return page.getBlock(0);
-                    }
-
-                    @Override
-                    public long baseRamBytesUsed() {
-                        throw new UnsupportedOperationException("not used");
-                    }
-
-                    @Override
-                    public void close() {}
-                };
+                return LOAD_BLOCK_FOR_CONVERSION_FACTORY;
             }
 
             @Override
@@ -54,6 +40,7 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
                 throw new IllegalStateException("not folding");
             }
         });
+        // TODO detect a noop conversion
     }
 
     @Override
@@ -77,6 +64,11 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
         public void close() {
             evaluator.close();
         }
+
+        @Override
+        public String toString() {
+            return evaluator.toString();
+        }
     }
 
     @Override
@@ -99,5 +91,41 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
     @Override
     public int hashCode() {
         return Objects.hashCode(convertFunction);
+    }
+
+    private static final LoadBlockForConversion LOAD_BLOCK_FOR_CONVERSION = new LoadBlockForConversion();
+    private static final LoadBlockForConversionFactory LOAD_BLOCK_FOR_CONVERSION_FACTORY = new LoadBlockForConversionFactory();
+
+    private static class LoadBlockForConversion implements ExpressionEvaluator {
+        @Override
+        public org.elasticsearch.compute.data.Block eval(Page page) {
+            // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
+            return page.getBlock(0);
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            throw new UnsupportedOperationException("not used");
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public String toString() {
+            return "load block for conversion";
+        }
+    }
+
+    private static class LoadBlockForConversionFactory implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return LOAD_BLOCK_FOR_CONVERSION;
+        }
+
+        @Override
+        public String toString() {
+            return "load block for conversion";
+        }
     }
 }

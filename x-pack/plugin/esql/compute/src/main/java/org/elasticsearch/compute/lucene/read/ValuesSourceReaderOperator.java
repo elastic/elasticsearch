@@ -27,6 +27,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -334,6 +335,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         long rowsReceived,
         long rowsEmitted
     ) {
+        LogManager.getLogger(ValuesSourceReaderOperator.class)
+            .error("ASD NOCOMMIT {}", converterEvaluators.built.values().stream().map(Object::toString).toList());
         return new ValuesSourceReaderOperatorStatus(
             new TreeMap<>(readersBuilt),
             processNanos,

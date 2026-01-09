@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -138,6 +139,7 @@ public class EsqlSession {
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
+    private final ViewService viewService;
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
@@ -164,6 +166,7 @@ public class EsqlSession {
         AnalyzerSettings analyzerSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
+        ViewService viewService,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
@@ -177,6 +180,7 @@ public class EsqlSession {
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
+        this.viewService = viewService;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
@@ -239,7 +243,16 @@ public class EsqlSession {
         );
         FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = statement.plan();
+        LogicalPlan plan = viewService.replaceViews(
+            statement.plan(),
+            (query) -> EsqlParser.INSTANCE.parse(
+                query,
+                request.params(),
+                SettingsValidationContext.from(remoteClusterService),
+                planTelemetry,
+                inferenceService.inferenceSettings()
+            ).plan()
+        );
         if (plan instanceof Explain explain) {
             explainMode = true;
             plan = explain.query();

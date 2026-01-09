@@ -1,0 +1,5 @@
+FROM airports
+| WHERE country IS NOT NULL
+| STATS count=COUNT() BY country
+| SORT count DESC
+| WHERE count > 10

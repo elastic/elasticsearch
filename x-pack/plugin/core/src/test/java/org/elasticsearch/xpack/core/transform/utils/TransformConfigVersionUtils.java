@@ -23,16 +23,6 @@ import static org.apache.lucene.tests.util.LuceneTestCase.random;
 public class TransformConfigVersionUtils {
     private static final List<TransformConfigVersion> ALL_VERSIONS = KnownTransformConfigVersions.ALL_VERSIONS;
 
-    /** Returns all released versions */
-    public static List<TransformConfigVersion> allReleasedVersions() {
-        return ALL_VERSIONS;
-    }
-
-    /** Returns the oldest known {@link TransformConfigVersion} */
-    public static TransformConfigVersion getFirstVersion() {
-        return ALL_VERSIONS.get(0);
-    }
-
     /** Returns a random {@link TransformConfigVersion} from all available versions. */
     public static TransformConfigVersion randomVersion() {
         return ESTestCase.randomFrom(ALL_VERSIONS);
@@ -104,29 +94,8 @@ public class TransformConfigVersionUtils {
         return ALL_VERSIONS.get(place - 1);
     }
 
-    public static TransformConfigVersion getNextVersion(TransformConfigVersion version) {
-        int place = Collections.binarySearch(ALL_VERSIONS, version);
-        if (place < 0) {
-            // version does not exist - need the item at the index this version should be inserted
-            place = -(place + 1);
-        } else {
-            // need the *next* version
-            place++;
-        }
-
-        if (place < 0 || place >= ALL_VERSIONS.size()) {
-            throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
-        }
-        return ALL_VERSIONS.get(place);
-    }
-
     /** Returns a random {@code TransformConfigVersion} that is compatible with {@link TransformConfigVersion#CURRENT} */
     public static TransformConfigVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransformConfigVersion.FIRST_TRANSFORM_VERSION, TransformConfigVersion.CURRENT);
-    }
-
-    /** Returns a random {@code TransformConfigVersion} that is compatible with the previous version to {@code version} */
-    public static TransformConfigVersion randomPreviousCompatibleVersion(Random random, TransformConfigVersion version) {
-        return randomVersionBetween(random, TransformConfigVersion.FIRST_TRANSFORM_VERSION, getPreviousVersion(version));
     }
 }

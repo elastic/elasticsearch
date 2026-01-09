@@ -173,3 +173,15 @@ ROW x = null
 PRESENT(x):boolean
 false
 ;
+
+fixPresentOnChildLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| STATS PRESENT(null)
+;
+
+PRESENT(null):boolean
+false
+;
+

@@ -150,3 +150,14 @@ ROW x = null
 ABSENT(x):boolean
 true
 ;
+
+fixAbsentOnChildLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| STATS ABSENT(null)
+;
+
+ABSENT(null):boolean
+true
+;

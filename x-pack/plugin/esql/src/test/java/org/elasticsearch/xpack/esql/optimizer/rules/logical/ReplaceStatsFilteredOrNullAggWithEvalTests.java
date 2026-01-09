@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -36,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -881,5 +884,74 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         var limit = as(eval.child(), Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
         var source = as(aggregate.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[a{r}#6, b{r}#8]]
+     * \_Eval[[0[LONG] AS a#6]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[b{r}#8],Page{blocks=[BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
+     * }</pre>
+     */
+    public void testReplaceStatsOnNullLiteralWithEvalSpecialFunctions() {
+        // COUNT(null) surrogates to COUNT(*) * MV_COUNT(null), and ABSENT(x) surrogates to NOT(PRESENT(x)), so they're not included
+        var plan = plan("""
+            row x = 3
+            | stats a = COUNT_DISTINCT(null), b = PRESENT(null)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("a", "b"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("a"));
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(FoldContext.small()), is(0L));
+        assertThat(alias.child().dataType(), is(LONG));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("b"));
+
+        var page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getPositionCount(), is(1));
+        assertThat(page.getBlock(0), instanceOf(BooleanBlock.class));
+        assertThat(((BooleanBlock) page.getBlock(0)).getBoolean(0), is(false));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#7, b{r}#10, c{r}#13],Page{blocks=[
+     *     LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *     LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *     BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]
+     *   ]}]
+     * }</pre>
+     */
+    public void testReplaceStatsOnPropagatedNullLiteralWithEvalSpecialFunctions() {
+        // ABSENT(x) surrogates to NOT(PRESENT(x)), so it's not included
+        var plan = plan("""
+            row x = null
+            | stats a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("a", "b", "c"));
+
+        var page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(3));
+        assertThat(page.getPositionCount(), is(1));
+        assertThat(page.getBlock(0), instanceOf(LongBlock.class));
+        assertThat(((LongBlock) page.getBlock(0)).getLong(0), is(0L));
+        assertThat(page.getBlock(1), instanceOf(LongBlock.class));
+        assertThat(((LongBlock) page.getBlock(1)).getLong(0), is(0L));
+        assertThat(page.getBlock(2), instanceOf(BooleanBlock.class));
+        assertThat(((BooleanBlock) page.getBlock(2)).getBoolean(0), is(false));
     }
 }

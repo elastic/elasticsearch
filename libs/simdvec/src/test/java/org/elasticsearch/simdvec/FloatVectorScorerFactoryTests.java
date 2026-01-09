@@ -80,6 +80,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
+                    // not COSINE, as we normalize vectors to always use dot product
                     for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                         var values = vectorValues(dims, size, in, sim.function());
                         float expected = luceneScore(sim, vectors[idx0], vectors[idx1]);
@@ -120,6 +121,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = size - 1;
+                    // not COSINE, as we normalize vectors to always use dot product
                     for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                         var values = vectorValues(dims, size, in, sim.function());
                         float expected = luceneScore(sim, vector(idx0, dims), vector(idx1, dims));

@@ -133,7 +133,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
     abstract float scoreFromSegments(MemorySegment a, MemorySegment b);
 
     // TODO: make this abstract when we have bulk implementations for all subclasses
-    protected void bulkScoreFromSegment(
+    abstract void bulkScoreFromSegment(
         MemorySegment vectors,
         int vectorLength,
         int vectorPitch,
@@ -141,19 +141,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         MemorySegment ordinals,
         MemorySegment scores,
         int numNodes
-    ) {
-        long firstByteOffset = (long) firstOrd * vectorPitch;
-        MemorySegment a = vectors.asSlice(firstByteOffset, vectorLength);
-        for (int i = 0; i < numNodes; ++i) {
-            int secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
-            long secondByteOffset = (long) secondOrd * vectorPitch;
-            MemorySegment b = vectors.asSlice(secondByteOffset, vectorLength);
-
-            float score = scoreFromSegments(a, b);
-
-            scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, score);
-        }
-    }
+    );
 
     private float fallbackScore(int firstOrd, int secondOrd) throws IOException {
         float[] a = values.vectorValue(firstOrd).clone();
@@ -197,6 +185,26 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
+        protected void bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.squareDistanceF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, 1 / (1f + squareDistance));
+            }
+        }
+
+        @Override
         public EuclideanSupplier copy() {
             return new EuclideanSupplier(input.clone(), values);
         }
@@ -214,6 +222,28 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
+        protected void bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.dotProductF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                int secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
+                long secondByteOffset = (long) secondOrd * vectorPitch;
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, Math.max((1 + dotProduct) / 2, 0f));
+            }
+        }
+
+        @Override
         public DotProductSupplier copy() {
             return new DotProductSupplier(input.clone(), values);
         }
@@ -228,6 +258,29 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
             return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductF32(a, b, dims));
+        }
+
+        @Override
+        protected void bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.dotProductF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                int secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
+                long secondByteOffset = (long) secondOrd * vectorPitch;
+                float adjustedDistance = dotProduct < 0 ? 1 / (1 + -1 * dotProduct) : dotProduct + 1;
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);
+            }
         }
 
         @Override

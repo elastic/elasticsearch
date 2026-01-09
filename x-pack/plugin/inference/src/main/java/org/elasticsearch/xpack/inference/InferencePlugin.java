@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
@@ -208,8 +206,6 @@ public class InferencePlugin extends Plugin
         InternalSearchPlugin,
         ClusterPlugin,
         PersistentTaskPlugin {
-
-    private static final Logger logger = LogManager.getLogger(InferencePlugin.class);
 
     /**
      * When this setting is true the verification check that

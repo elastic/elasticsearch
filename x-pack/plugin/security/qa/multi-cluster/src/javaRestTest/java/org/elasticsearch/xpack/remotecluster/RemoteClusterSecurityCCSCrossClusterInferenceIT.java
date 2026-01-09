@@ -13,11 +13,15 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.After;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -74,10 +78,62 @@ public class RemoteClusterSecurityCCSCrossClusterInferenceIT extends AbstractRem
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
+    private final Set<String> indices = new HashSet<>();
+    private final Set<String> inferenceIds = new HashSet<>();
+
+    @After
+    public void cleanUpIndicesAndInferenceEndpoints() throws Exception {
+        for (String index : indices) {
+            deleteIndexOnFulfillingCluster(index);
+        }
+
+        for (String inferenceId : inferenceIds) {
+            deleteInferenceEndpointOnFulfillingCluster(inferenceId, true);
+        }
+    }
+
     public void testCrossClusterInference() throws Exception {
         configureRemoteCluster();
 
         // Create an inference endpoint on the remote cluster
+        final String inferenceId = createTextEmbeddingInferenceEndpointOnFulfillingCluster();
+
+        // Create an index on the remote cluster with a semantic_text field that uses the inference endpoint
+        createSemanticTextIndexOnFulfillingCluster("test-index", inferenceId);
+        indexDocOnFulfillingCluster("test-index", "1", "test document for cross cluster search");
+
+        // Execute a basic match query with ccs_minimize_roundtrips=false.
+        // This will be intercepted by the inference plugin and rewritten to a semantic query on the content field, which will trigger
+        // a cross-cluster inference action.
+        Response response = performSearchRequest(List.of("my_remote_cluster:test-index"), "test");
+        ObjectPath objectPath = assertOKAndCreateObjectPath(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
+        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
+    }
+
+    public void testQueryUnauthorizedIndex() throws Exception {
+        configureRemoteCluster();
+
+        // Create an inference endpoint on the remote cluster
+        final String inferenceId1 = createTextEmbeddingInferenceEndpointOnFulfillingCluster();
+        final String inferenceId2 = createTextEmbeddingInferenceEndpointOnFulfillingCluster();
+
+        // Create two indices on the remote cluster with a semantic_text field that uses the inference endpoint.
+        // The user is only authorized to query one of these indices.
+        createSemanticTextIndexOnFulfillingCluster("test-index", inferenceId1);
+        createSemanticTextIndexOnFulfillingCluster("unauthorized-index", inferenceId2);
+
+        indexDocOnFulfillingCluster("test-index", "1", "test document for cross cluster search");
+        indexDocOnFulfillingCluster("unauthorized-index", "2", "another test document for cross cluster");
+
+        // Execute a query and verify that results are returned only for the authorized index
+        Response response = performSearchRequest(List.of("my_remote_cluster:*-index"), "test");
+        ObjectPath objectPath = assertOKAndCreateObjectPath(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
+        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
+    }
+
+    private String createTextEmbeddingInferenceEndpointOnFulfillingCluster() throws Exception {
         final String inferenceId = randomIdentifier();
         Request createInferenceEndpointRequest = new Request("PUT", "/_inference/text_embedding/" + inferenceId);
         createInferenceEndpointRequest.setJsonEntity("""
@@ -93,8 +149,12 @@ public class RemoteClusterSecurityCCSCrossClusterInferenceIT extends AbstractRem
             """);
         performRequestAgainstFulfillingCluster(createInferenceEndpointRequest);
 
-        // Create an index on the remote cluster with a semantic_text field that uses the inference endpoint
-        Request createIndexRequest = new Request("PUT", "/test-index");
+        inferenceIds.add(inferenceId);
+        return inferenceId;
+    }
+
+    private void createSemanticTextIndexOnFulfillingCluster(String indexName, String inferenceId) throws Exception {
+        Request createIndexRequest = new Request("PUT", "/" + indexName);
         createIndexRequest.setJsonEntity(Strings.format("""
             {
               "mappings": {
@@ -108,36 +168,45 @@ public class RemoteClusterSecurityCCSCrossClusterInferenceIT extends AbstractRem
             }
             """, inferenceId));
         performRequestAgainstFulfillingCluster(createIndexRequest);
+        indices.add(indexName);
+    }
 
-        Request indexDocRequest = new Request("POST", "/test-index/_doc/1?refresh=true");
-        indexDocRequest.setJsonEntity("""
+    private static void indexDocOnFulfillingCluster(String indexName, String id, String content) throws Exception {
+        Request indexDocRequest = new Request("POST", Strings.format("/%s/_doc/%s?refresh=true", indexName, id));
+        indexDocRequest.setJsonEntity(Strings.format("""
             {
-              "content": "test document for cross cluster search"
+              "content": "%s"
             }
-            """);
+            """, content));
         performRequestAgainstFulfillingCluster(indexDocRequest);
+    }
 
-        // Execute a basic match query with ccs_minimize_roundtrips=false.
-        // This will be intercepted by the inference plugin and rewritten to a semantic query on the content field, which will trigger
-        // a cross-cluster inference action.
-        Request searchRequest = new Request("GET", "/my_remote_cluster:test-index/_search");
+    private static Response performSearchRequest(List<String> indexNames, String query) throws Exception {
+        Request searchRequest = new Request("GET", Strings.format("/%s/_search", String.join(",", indexNames)));
         searchRequest.addParameter("ccs_minimize_roundtrips", "false");
-        searchRequest.setJsonEntity("""
+        searchRequest.setJsonEntity(Strings.format("""
             {
               "query": {
                 "match": {
-                  "content": "test"
+                  "content": "%s"
                 }
               }
             }
-            """);
+            """, query));
         searchRequest.setOptions(
             searchRequest.getOptions().toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
         );
 
-        Response response = client().performRequest(searchRequest);
-        ObjectPath objectPath = assertOKAndCreateObjectPath(response);
-        assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
-        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
+        return client().performRequest(searchRequest);
+    }
+
+    private static void deleteIndexOnFulfillingCluster(String indexName) throws Exception {
+        Request deleteIndexRequest = new Request("DELETE", "/" + indexName);
+        performRequestAgainstFulfillingCluster(deleteIndexRequest);
+    }
+
+    private static void deleteInferenceEndpointOnFulfillingCluster(String inferenceId, boolean force) throws Exception {
+        Request deleteInferenceEndpointRequest = new Request("DELETE", "/_inference/" + inferenceId + "?force=" + force);
+        performRequestAgainstFulfillingCluster(deleteInferenceEndpointRequest);
     }
 }

@@ -5,7 +5,7 @@ remote_search_cross_cluster_inference:
     - names: ['*']
       privileges: ['read', 'view_index_metadata']
   remote_indices:
-    - names: ['*']
+    - names: ['test-*']
       privileges: ['read', 'read_cross_cluster', 'view_index_metadata']
       clusters: ['*']
 

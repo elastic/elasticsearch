@@ -766,7 +766,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     public TsidExtractingIdFieldMapperTests(@Named("testCase") TestCase testCase) {
         this.testCase = testCase;
         this.blockLoaderTestRunner = new BlockLoaderTestRunner(
-            new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values())),
+            new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values()), false),
             false
         );
     }

@@ -133,8 +133,8 @@ final class Spawner implements Closeable {
          * limitation is in force. As such, we use the short name to avoid any such problems.
          */
         String originalPath = spawnPath.toString();
-        final String command = NativeAccess.onWindowsReturn(
-            windowsNativeAccess -> windowsNativeAccess.getShortPathName(originalPath)).orElse(originalPath);
+        final String command = NativeAccess.onWindowsReturn(windowsNativeAccess -> windowsNativeAccess.getShortPathName(originalPath))
+            .orElse(originalPath);
 
         final ProcessBuilder pb = new ProcessBuilder(command);
 

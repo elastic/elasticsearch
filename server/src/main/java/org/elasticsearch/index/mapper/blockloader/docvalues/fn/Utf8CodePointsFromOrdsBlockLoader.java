@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
@@ -36,7 +37,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private static final FeatureFlag FAST_CODE_POINT_COUNT_FEATURE_FLAG = new FeatureFlag("fast_code_point_count");
 
-    private static final CodePointCountProvider codePointCountProvider = FAST_CODE_POINT_COUNT_FEATURE_FLAG.isEnabled()
+    private static final ToIntFunction<BytesRef> codePointCountProvider = FAST_CODE_POINT_COUNT_FEATURE_FLAG.isEnabled()
         ? BytesRefs::fastCodePointCount
         : UnicodeUtil::codePointCount;
 
@@ -245,7 +246,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = codePointCountProvider.count(v);
+            int count = codePointCountProvider.applyAsInt(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -380,7 +381,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = codePointCountProvider.count(v);
+            int count = codePointCountProvider.applyAsInt(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -530,7 +531,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
          * The {@code ord} must be {@code >= 0} or this will fail.
          */
         private int codePointsAtOrd(long ord) throws IOException {
-            return codePointCountProvider.count(ordinals.lookupOrd(ord));
+            return codePointCountProvider.applyAsInt(ordinals.lookupOrd(ord));
         }
     }
 
@@ -586,7 +587,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     assert advanced;
 
                     BytesRef bytes = values.binaryValue();
-                    int length = codePointCountProvider.count(bytes);
+                    int length = codePointCountProvider.applyAsInt(bytes);
                     builder.appendInt(length);
                 } else {
                     registerSingleValueWarning(warnings);
@@ -605,7 +606,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     assert advanced;
 
                     BytesRef bytes = values.binaryValue();
-                    int length = codePointCountProvider.count(bytes);
+                    int length = codePointCountProvider.applyAsInt(bytes);
                     return factory.constantInt(length, 1);
                 } else {
                     registerSingleValueWarning(warnings);
@@ -670,9 +671,5 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private static long sizeOfArray(int count) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * (long) count);
-    }
-
-    interface CodePointCountProvider {
-        int count(BytesRef bytes);
     }
 }

@@ -100,7 +100,8 @@ public class BytesRefs {
      * the number of continuation bytes from the number of bytes to get the number of code points.
      *
      * Lucene's UnicodeUtil.codePointCount throws an error on some invalid Unicode strings. This method
-     * never throws and thus assume that all input strings care valid Unicode.
+     * never throws and thus assumes that all input strings are valid Unicode.
+     *
      * @param bytes a value unicode string encoded in utf-8
      * @return the number of Unicode code points in the string
      */

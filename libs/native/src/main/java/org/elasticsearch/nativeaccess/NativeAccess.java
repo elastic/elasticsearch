@@ -40,14 +40,13 @@ public interface NativeAccess {
     /**
      * Run the given callback if the current platform is POSIX and return a value.
      * @param callback A callback consuming a Posix-specific native access instance and returning a value
-     * @param defaultValue The value to return if the current platform is not POSIX
-     * @return The result of the callback or the default value if the platform is not POSIX
+     * @return An optional containing the result of the callback if the platform is POSIX, or empty otherwise
      */
-    static <T> T onPosix(Function<PosixNativeAccess, T> callback, T defaultValue) {
+    static <T> Optional<T> onPosix(Function<PosixNativeAccess, T> callback) {
         if (NativeAccessHolder.INSTANCE instanceof PosixNativeAccess) {
-            return callback.apply((PosixNativeAccess) NativeAccessHolder.INSTANCE);
+            return Optional.of(callback.apply((PosixNativeAccess) NativeAccessHolder.INSTANCE));
         } else {
-            return defaultValue;
+            return Optional.empty();
         }
     }
 
@@ -64,14 +63,13 @@ public interface NativeAccess {
     /**
      * Run the given callback if the current platform is Windows and return a value.
      * @param callback A callback consuming a Windows-specific native access instance and returning a value
-     * @param defaultValue The value to return if the current platform is not Windows
-     * @return The result of the callback or the default value if the platform is not Windows
+     * @return An optional containing the result of the callback if the platform is Windows, or empty otherwise
      */
-    static <T> T onWindows(Function<WindowsNativeAccess, T> callback, T defaultValue) {
+    static <T> Optional<T> onWindows(Function<WindowsNativeAccess, T> callback) {
         if (NativeAccessHolder.INSTANCE instanceof WindowsNativeAccess) {
-            return callback.apply((WindowsNativeAccess) NativeAccessHolder.INSTANCE);
+            return Optional.of(callback.apply((WindowsNativeAccess) NativeAccessHolder.INSTANCE));
         } else {
-            return defaultValue;
+            return Optional.empty();
         }
     }
 
@@ -88,14 +86,13 @@ public interface NativeAccess {
     /**
      * Run the given callback if the current platform is Mac and return a value.
      * @param callback A callback consuming a Mac-specific native access instance and returning a value
-     * @param defaultValue The value to return if the current platform is not Mac
-     * @return The result of the callback or the default value if the platform is not Mac
+     * @return An optional containing the result of the callback if the platform is Mac, or empty otherwise
      */
-    static <T> T onMac(Function<MacNativeAccess, T> callback, T defaultValue) {
+    static <T> Optional<T> onMac(Function<MacNativeAccess, T> callback) {
         if (NativeAccessHolder.INSTANCE instanceof MacNativeAccess) {
-            return callback.apply((MacNativeAccess) NativeAccessHolder.INSTANCE);
+            return Optional.of(callback.apply((MacNativeAccess) NativeAccessHolder.INSTANCE));
         } else {
-            return defaultValue;
+            return Optional.empty();
         }
     }
 
@@ -112,14 +109,13 @@ public interface NativeAccess {
     /**
      * Run the given callback if the current platform is Linux and return a value.
      * @param callback A callback consuming a Linux-specific native access instance and returning a value
-     * @param defaultValue The value to return if the current platform is not Linux
-     * @return The result of the callback or the default value if the platform is not Linux
+     * @return An optional containing the result of the callback if the platform is Linux, or empty otherwise
      */
-    static <T> T onLinux(Function<LinuxNativeAccess, T> callback, T defaultValue) {
+    static <T> Optional<T> onLinux(Function<LinuxNativeAccess, T> callback) {
         if (NativeAccessHolder.INSTANCE instanceof LinuxNativeAccess) {
-            return callback.apply((LinuxNativeAccess) NativeAccessHolder.INSTANCE);
+            return Optional.of(callback.apply((LinuxNativeAccess) NativeAccessHolder.INSTANCE));
         } else {
-            return defaultValue;
+            return Optional.empty();
         }
     }
 

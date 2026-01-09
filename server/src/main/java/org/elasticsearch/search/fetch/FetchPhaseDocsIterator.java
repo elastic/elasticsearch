@@ -15,6 +15,8 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -106,7 +108,12 @@ abstract class FetchPhaseDocsIterator {
      * @param querySearchResult   the query result
      * @param chunkWriter         if non-null, enables streaming mode and sends hits in chunks
      * @param chunkSize           number of hits per chunk (only used if chunkWriter is non-null)
-     * @param pendingChunks       list to track pending chunk acknowledgments
+     * @param chunkCompletionRefs RefCountingListener for tracking chunk ACKs.
+     *                            Each chunk acquires a listener; when ACK is received, it signals completion.
+     * @param maxInFlightChunks   maximum number of chunks to send before backpressure
+     * @param sendFailure         reference to capture first chunk send failure
+     * @param totalHits           total hits for building SearchHits objects
+     * @param maxScore            max score for building SearchHits objects
      * @return IterateResult containing hits array and optional last chunk with sequence info
      */
     public final IterateResult iterate(
@@ -117,7 +124,7 @@ abstract class FetchPhaseDocsIterator {
         QuerySearchResult querySearchResult,
         FetchPhaseResponseChunk.Writer chunkWriter,
         int chunkSize,
-        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
+        RefCountingListener chunkCompletionRefs,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
         TotalHits totalHits,
@@ -154,7 +161,7 @@ abstract class FetchPhaseDocsIterator {
                     chunkSize,
                     chunkBuffer,
                     shardId,
-                    pendingChunks,
+                    chunkCompletionRefs,
                     maxInFlightChunks,
                     sendFailure,
                     docIds.length,
@@ -255,7 +262,7 @@ abstract class FetchPhaseDocsIterator {
         int chunkSize,
         List<SearchHit> chunkBuffer,
         ShardId shardId,
-        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
+        RefCountingListener chunkCompletionRefs,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
         int totalDocs,
@@ -375,19 +382,18 @@ abstract class FetchPhaseDocsIterator {
                         sentIndices.add(idx);
                     }
 
-                    pendingChunks.addLast(
-                        sendChunk(
-                            chunkWriter,
-                            chunkBuffer,
-                            shardId,
-                            currentChunkSequenceStart,
-                            processedCount - chunkBuffer.size(),
-                            totalDocs,
-                            totalHits,
-                            maxScore,
-                            sendFailure,
-                            transmitPermits
-                        )
+                    sendChunk(
+                        chunkWriter,
+                        chunkBuffer,
+                        shardId,
+                        currentChunkSequenceStart,
+                        processedCount - chunkBuffer.size(),
+                        totalDocs,
+                        totalHits,
+                        maxScore,
+                        sendFailure,
+                        transmitPermits,
+                        chunkCompletionRefs.acquire()
                     );
                     chunkBuffer.clear();
                 }
@@ -443,7 +449,7 @@ abstract class FetchPhaseDocsIterator {
      * Releases a transmit permit when complete (success or failure). On successful transmission,
      * adds the sent hit indices to sentIndices to prevent double-cleanup if a later circuit breaker trip occurs.
      */
-    private static PlainActionFuture<Void> sendChunk(
+    private static void sendChunk(
         FetchPhaseResponseChunk.Writer writer,
         List<SearchHit> buffer,
         ShardId shardId,
@@ -453,15 +459,15 @@ abstract class FetchPhaseDocsIterator {
         TotalHits totalHits,
         float maxScore,
         AtomicReference<Throwable> sendFailure,
-        Semaphore transmitPermits
+        Semaphore transmitPermits,
+        ActionListener<Void> chunkListener
     ) {
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
 
         // Release if nothing to send
         if (buffer.isEmpty()) {
             transmitPermits.release();
-            future.onResponse(null);
-            return future;
+            chunkListener.onResponse(null); // Signal completion to RefCountingListener
+            return;
         }
 
         SearchHit[] hitsArray = buffer.toArray(new SearchHit[0]);
@@ -489,29 +495,30 @@ abstract class FetchPhaseDocsIterator {
             );
 
             writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                // Coordinator now owns the hits
-                transmitPermits.release();
-                finalChunkHits.decRef();
-                future.onResponse(null);
-            }, ex -> {
-                // Failed to send - we still own the hits, must clean up
-                transmitPermits.release();
-                finalChunkHits.decRef();
-                sendFailure.compareAndSet(null, ex);
-                future.onFailure(ex);
-            }));
+                    // Success: coordinator received the chunk
+                    transmitPermits.release();
+                    finalChunkHits.decRef();
+                    chunkListener.onResponse(null);
+                },ex -> {
+                    // Failure: transmission failed, we still own the hits
+                    transmitPermits.release();
+                    finalChunkHits.decRef();
+                    sendFailure.compareAndSet(null, ex);
+                    chunkListener.onFailure(ex);
+                }
+            ));
         } catch (Exception e) {
             transmitPermits.release();
             sendFailure.compareAndSet(null, e);
-            future.onFailure(e);
 
             // If chunk creation failed after SearchHits was created, clean up
             if (chunkHits != null) {
                 chunkHits.decRef();
             }
-        }
 
-        return future;
+            // Signal failure to RefCountingListener
+            chunkListener.onFailure(e);
+        }
     }
 
     private static void purgeSearchHits(SearchHit[] searchHits) {

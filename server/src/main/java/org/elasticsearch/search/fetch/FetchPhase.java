@@ -13,8 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -46,11 +49,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -81,11 +84,20 @@ public final class FetchPhase {
      * @param rankDocs ranking information
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
-        execute(context, docIdsToLoad, rankDocs, null, null);
+        // Synchronous wrapper for backward compatibility,
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        execute(context, docIdsToLoad, rankDocs, null, null, null, future);
+        try {
+            future.actionGet();
+        } catch (UncategorizedExecutionException e) {
+            // PlainActionFuture wraps non-ElasticsearchException failures in UncategorizedExecutionException.
+            // Translate to FetchPhaseExecutionException to preserve the expected exception type and cause.
+            throw new FetchPhaseExecutionException(context.shardTarget(), "Fetch phase failed", e.getCause());
+        }
     }
 
     /**
-     * Executes the fetch phase with optional memory checking.
+     * Executes the fetch phase with optional memory checking and no streaming
      *
      * @param context the search context
      * @param docIdsToLoad document IDs to fetch
@@ -93,30 +105,46 @@ public final class FetchPhase {
      * @param memoryChecker optional callback for memory tracking, may be null
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
-        execute(context, docIdsToLoad, rankDocs, memoryChecker, null);
+        // Synchronous wrapper for backward compatibility,
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, future);
+        try {
+            future.actionGet();
+        } catch (UncategorizedExecutionException e) {
+            // PlainActionFuture wraps non-ElasticsearchException failures in UncategorizedExecutionException.
+            // Translate to FetchPhaseExecutionException to preserve the expected exception type and cause.
+            throw new FetchPhaseExecutionException(context.shardTarget(), "Fetch phase failed", e.getCause());
+        }
     }
 
     /**
-     * Executes the fetch phase with optional memory checking and streaming support.
+     * Executes the fetch phase with optional memory checking and optional streaming.
      *
-     * When {@code writer} is null, all results are accumulated and returned at once.
-     * When {@code writer} is provided, results are sent in chunks to reduce memory usage.
+     * <p>When {@code writer} is {@code null} (non-streaming), all hits are accumulated in memory and returned at once.
+     * When {@code writer} is provided (streaming), hits are emitted in chunks to reduce peak memory usage. In streaming mode,
+     * the final completion may be delayed by transport-level acknowledgements, but the fetch build completion is signaled as
+     * soon as the fetch work has finished.
      *
      * @param context the search context
      * @param docIdsToLoad document IDs to fetch
      * @param rankDocs ranking information
-     * @param memoryChecker optional callback for memory tracking, may be null
-     * @param writer optional chunk writer for streaming mode, may be null
+     * @param memoryChecker optional callback for memory tracking, may be {@code null}
+     * @param writer optional chunk writer for streaming mode, may be {@code null}
+     * @param buildListener optional listener invoked when the fetch build completes (success/failure). In streaming mode this
+     *                      fires when hits are built and chunks are dispatched, without waiting for chunk ACKs.
+     * @param listener final completion listener. In streaming mode this is invoked only after all chunks are ACKed; in
+     *                 non-streaming mode it is invoked immediately after hits are built.
      *
      * @throws TaskCancelledException if the task is cancelled
-     * @throws RuntimeException if streaming fails
      */
     public void execute(
         SearchContext context,
         int[] docIdsToLoad,
         RankDocShardInfo rankDocs,
         @Nullable IntConsumer memoryChecker,
-        @Nullable FetchPhaseResponseChunk.Writer writer
+        @Nullable FetchPhaseResponseChunk.Writer writer,
+        @Nullable ActionListener<Void> buildListener,
+        ActionListener<Void> listener
     ) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
@@ -130,6 +158,10 @@ public final class FetchPhase {
             // no individual hits to process, so we shortcut
             context.fetchResult()
                 .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
+            if (buildListener != null) {
+                buildListener.onResponse(null);
+            }
+            listener.onResponse(null);
             return;
         }
 
@@ -138,51 +170,40 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
 
-        SearchHits hits = null;
-        try {
-            // Collect all pending chunk futures
-            final int maxInFlightChunks = 3; // TODO make configurable
-            final ArrayDeque<PlainActionFuture<Void>> pendingChunks = new ArrayDeque<>();
-            final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
-            hits = buildSearchHits(
-                context,
-                docIdsToLoad,
-                profiler,
-                rankDocs,
-                memoryChecker,
-                writer,
-                pendingChunks,
-                maxInFlightChunks,
-                sendFailure
-            );
 
-            // Wait for all chunks to be ACKed before setting final result
-            if (writer != null && pendingChunks.isEmpty() == false) {
-                try {
-                    // Wait for all pending chunks sequentially
-                    for (PlainActionFuture<Void> future : pendingChunks) {
-                        if (context.isCancelled()) {
-                            throw new TaskCancelledException("cancelled");
+        final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+
+        // buildSearchHits produces SearchHits for non-streaming mode, or dispatches chunks for streaming mode.
+        // - buildListener (if present) is notified when the fetch build completes (success/failure).
+        // - listener is notified on final completion (after chunk ACKs in streaming mode)
+        buildSearchHits(
+            context,
+            docIdsToLoad,
+            profiler,
+            rankDocs,
+            memoryChecker,
+            writer,
+            sendFailure,
+            buildListener,
+            ActionListener.wrap(
+                searchHits -> {
+                    // Transfer SearchHits ownership to shardResult
+                    SearchHits hitsToRelease = searchHits;
+                    try {
+                        ProfileResult profileResult = profiler.finish();
+                        context.fetchResult().shardResult(searchHits, profileResult);
+                        hitsToRelease = null; // Ownership transferred
+                        listener.onResponse(null);
+                    } finally {
+                        // Release if shardResult() threw an exception before taking ownership.
+                        if (hitsToRelease != null) {
+                            hitsToRelease.decRef();
                         }
-                        future.actionGet();
                     }
-                } catch (Exception e) {
-                    if (hits != null) {
-                        hits.decRef();
-                        hits = null;
-                    }
-                    throw new RuntimeException("Failed to send fetch chunks", e);
-                }
-            }
-
-            ProfileResult profileResult = profiler.finish();
-            context.fetchResult().shardResult(hits, profileResult);
-            hits = null;
-        } finally {
-            if (hits != null) {
-                hits.decRef();
-            }
-        }
+                },
+                listener::onFailure
+            )
+        );
     }
 
     private static class PreloadedSourceProvider implements SourceProvider {
@@ -195,17 +216,17 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(
+    // Returning SearchHits async via ActionListener.
+    private void buildSearchHits(
         SearchContext context,
         int[] docIdsToLoad,
         Profiler profiler,
         RankDocShardInfo rankDocs,
         IntConsumer memoryChecker,
         FetchPhaseResponseChunk.Writer writer,
-        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
-        int maxInFlightChunks,
-        AtomicReference<Throwable> sendFailure
-
+        AtomicReference<Throwable> sendFailure,
+        @Nullable ActionListener<Void> buildListener,
+        ActionListener<SearchHits> listener
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -342,7 +363,47 @@ public final class FetchPhase {
             }
         };
 
+        // For streaming mode: preserve last chunk to return after all ACKs complete
+        final AtomicReference<SearchHits> lastChunkRef = new AtomicReference<>();
+        final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
+
+        // RefCountingListener tracks chunk ACKs in streaming mode.
+        // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives
+        // When all acquired listeners complete, the completion callback below runs
+        // returning the final SearchHits (last chunk) to the caller
+        final RefCountingListener chunkCompletionRefs = writer != null
+            ? new RefCountingListener(listener.delegateFailureAndWrap((l, ignored) -> {
+            SearchHits lastChunk = lastChunkRef.getAndSet(null);
+            try {
+                // Store sequence info in context
+                long seqStart = lastChunkSequenceStartRef.get();
+                if (seqStart >= 0) {
+                    context.fetchResult().setLastChunkSequenceStart(seqStart);
+                }
+
+                // Return last chunk - transfer our reference to listener
+                if (lastChunk != null) {
+                    l.onResponse(lastChunk);
+                    lastChunk = null;  // Ownership transferred
+                } else {
+                    l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                }
+            } finally {
+                // Release if onResponse() threw an exception
+                if (lastChunk != null) {
+                    lastChunk.decRef();
+                }
+            }
+        })) : null;
+
+        // Acquire a listener for the main iteration. This prevents RefCountingListener from
+        // completing until we explicitly signal success/failure after iteration finishes.
+        final ActionListener<Void> mainBuildListener = chunkCompletionRefs != null
+            ? chunkCompletionRefs.acquire()
+            : null;
+
         SearchHits resultToReturn = null;
+        Exception caughtException = null;
         try (
             FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
                 context.shardTarget(),
@@ -351,9 +412,9 @@ public final class FetchPhase {
                 context.request().allowPartialSearchResults(),
                 context.queryResult(),
                 writer,
-                5, // TODO set a proper number
-                pendingChunks,
-                maxInFlightChunks,
+                5, // TODO make it configurable
+                chunkCompletionRefs,
+                3,  // TODO make it configurable
                 sendFailure,
                 context.getTotalHits(),
                 context.getMaxScore()
@@ -370,41 +431,73 @@ public final class FetchPhase {
                 throw new TaskCancelledException("cancelled");
             }
 
-            TotalHits totalHits = context.getTotalHits();
+            TotalHits totalHits = context.getTotalHits();;
 
             if (writer == null) {
                 // Non-streaming mode: return all hits
                 resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
+                try {
+                    listener.onResponse(resultToReturn);
+                } finally {
+                    resultToReturn = null; // Ownership transferred
+                }
             } else {
-                // Streaming mode: return last chunk (may be empty)
-                // Clean up the hits array
+                // Streaming mode: hits already sent via chunks, release the array
                 for (SearchHit hit : result.hits) {
                     if (hit != null) {
                         hit.decRef();
                     }
                 }
 
-                // Store sequence info in the context result for coordinator
-                if (result.lastChunk != null && result.lastChunkSequenceStart >= 0) {
-                    context.fetchResult().setLastChunkSequenceStart(result.lastChunkSequenceStart);
-                }
-
-                // Return last chunk or empty
+                // Take ownership of lastChunk for the completion callback.
                 if (result.lastChunk != null) {
                     result.lastChunk.incRef();
-                    resultToReturn = result.lastChunk;
-                } else {
-                    resultToReturn = SearchHits.empty(totalHits, context.getMaxScore());
+                    lastChunkRef.set(result.lastChunk);
+                    lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
                 }
             }
-            return resultToReturn;
         } catch (Exception e) {
+            caughtException = e;
+
             if (resultToReturn != null) {
                 resultToReturn.decRef();
-                resultToReturn = null;
             }
-            throw e;
+
+            // Release our lastChunk reference if we took one
+            SearchHits lastChunk = lastChunkRef.getAndSet(null);
+            if (lastChunk != null) {
+                lastChunk.decRef();
+            }
         } finally {
+            // Signal completion of the fetch build phase (success or failure). This is distinct from the final
+            // fetch completion in streaming mode, which may only occur after all response chunks are ACKed.
+            if (buildListener != null) {
+                if (caughtException != null) {
+                    buildListener.onFailure(caughtException);
+                } else {
+                    buildListener.onResponse(null);
+                }
+            }
+
+            // Handle completion to ensure it always runs.
+            // For streaming mode: signal success/failure to RefCountingListener
+            // For non-streaming mode: propagate any caught exception
+            if (mainBuildListener != null) {
+                if (caughtException != null) {
+                    mainBuildListener.onFailure(caughtException);
+                } else {
+                    mainBuildListener.onResponse(null);
+                }
+            } else if (caughtException != null) {
+                listener.onFailure(caughtException);
+            }
+
+            // Close to release initial reference. Without this, RefCountingListener never completes and hangs.
+            if (chunkCompletionRefs != null) {
+                chunkCompletionRefs.close();
+            }
+
+            // Release breaker bytes for non-streaming mode
             long bytes = docsIterator.getRequestBreakerBytes();
             if (writer == null && bytes > 0L) {
                 context.circuitBreaker().addWithoutBreaking(-bytes);

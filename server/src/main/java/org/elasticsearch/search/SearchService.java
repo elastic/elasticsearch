@@ -1019,6 +1019,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
     }
 
+    /*
+     * Fetch phase lifecycle overview:
+     *
+     * 1. Fetch build phase:
+     *    - Executes fetch sub-phases and builds hits
+     *    - Signals success/failure via buildListener
+     *    - Records stats and releases shard search context
+     *
+     * 2. Final completion phase:
+     *    - For streaming responses, waits for all chunk ACKs
+     *    - Completes the request listener
+     */
     public void executeFetchPhase(
         ShardFetchRequest request,
         CancellableTask task,
@@ -1029,41 +1041,142 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
 
-        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
-            runAsync(getExecutor(readerContext.indexShard()), () -> {
-                try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
-                    if (request.lastEmittedDoc() != null) {
-                        searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
-                    }
-                    searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
-                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+        // Changed from runAsync to AbstractRunnable with ActionListener callback.
+        // This allows FetchPhase.execute() to complete asynchronously:
+        // - Non-streaming: callback fires immediately after hits are built
+        // - Streaming: callback fires after all chunk ACKs are received
+        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(ShardSearchRequest rewritten) {
+                try {
+                    getExecutor(readerContext.indexShard()).execute(new AbstractRunnable() {
+                        private final AtomicBoolean closed = new AtomicBoolean();
+                        private volatile SearchContext searchContext;
 
-                    final long startTime = System.nanoTime();
-                    var opsListener = searchContext.indexShard().getSearchOperationListener();
-                    opsListener.onPreFetchPhase(searchContext);
-                    try {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), /* memoryChecker */ null, writer);
-                        if (readerContext.singleSession()) {
-                            freeReaderContext(request.contextId());
-                        }
-                        opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
-                        opsListener = null;
-                    } finally {
-                        if (opsListener != null) {
-                            opsListener.onFailedFetchPhase(searchContext);
-                        }
-                    }
+                        // Guard to ensure SearchContext and reader resources are released exactly once.
+                        // Completion paths may race (build failure, synchronous exception, or normal completion),
+                        // so cleanup must be idempotent.
+                        private final Runnable closeOnce = () -> {
+                            if (closed.compareAndSet(false, true)) {
+                                try {
+                                    if (readerContext.singleSession()) {
+                                        freeReaderContext(request.contextId());
+                                    }
+                                } finally {
+                                    try {
+                                        if (searchContext != null) {
+                                            searchContext.close();
+                                        }
+                                    } finally {
+                                        Releasables.close(markAsUsed);
+                                    }
+                                }
+                            }
+                        };
 
-                    var fetchResult = searchContext.fetchResult();
-                    fetchResult.incRef();
-                    return fetchResult;
+                        @Override
+                        protected void doRun() throws Exception {
+                            final long startTime;
+                            final SearchOperationListener opsListener;
+
+                            try {
+                                this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
+
+                                startTime = System.nanoTime();
+                                opsListener = searchContext.indexShard().getSearchOperationListener();
+                                opsListener.onPreFetchPhase(searchContext);
+                            } catch (Exception e) {
+                                Releasables.close(markAsUsed);
+                                throw e;
+                            }
+
+                            // Retain the fetch result so it can outlive the SearchContext close below.
+                            // The SearchContext is closed on fetch build completion, but the FetchSearchResult
+                            // may still be needed until streaming ACKs complete.
+                            final FetchSearchResult fetchResult = searchContext.fetchResult();
+                            fetchResult.incRef();
+
+                            try {
+                                if (request.lastEmittedDoc() != null) {
+                                    searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
+                                }
+                                searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
+                                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+
+                                // This listener is invoked when the fetch build has completed (hits built or failed), responsible for
+                                // - recording fetch-phase success/failure stats
+                                // - closing the SearchContext and releasing shard resources
+                                final ActionListener<Void> buildListener = ActionListener.wrap(
+                                    ignored -> {
+                                        opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
+                                        closeOnce.run();
+                                    },
+                                    e -> {
+                                        opsListener.onFailedFetchPhase(searchContext);
+                                        closeOnce.run();
+                                    }
+                                );
+
+                                // Completion happens via ActionListener:
+                                // Non-streaming: callback fires immediately after hits are built
+                                // Streaming: invoked only after all response chunks have been ACKed
+                                fetchPhase.execute(
+                                    searchContext,
+                                    request.docIds(),
+                                    request.getRankDocks(),
+                                    null,
+                                    writer,
+                                    buildListener,
+                                    ActionListener.wrap(
+                                        ignored -> {
+                                            try {
+                                                listener.onResponse(fetchResult);
+                                            } finally {
+                                                fetchResult.decRef();
+                                            }
+                                        },
+                                        e -> {
+                                            try {
+                                                listener.onFailure(e);
+                                            } finally {
+                                                fetchResult.decRef();
+                                            }
+                                        }
+                                    )
+                                );
+                            } catch (Exception e) {
+                                try {
+                                    opsListener.onFailedFetchPhase(searchContext);
+                                } finally {
+                                    try {
+                                        closeOnce.run();
+                                    } finally {
+                                        fetchResult.decRef();
+                                    }
+                                }
+                                throw e;
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                            Releasables.close(markAsUsed);
+                            listener.onFailure(e);
+                        }
+                    });
                 } catch (Exception e) {
-                    assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                    // we handle the failure in the failure listener below
-                    throw e;
+                    Releasables.close(markAsUsed);
+                    listener.onFailure(e);
                 }
-            }, wrapFailureListener(listener, readerContext, markAsUsed));
-        }));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Releasables.close(markAsUsed);
+                listener.onFailure(e);
+            }
+        });
     }
 
     public void executeQueryPhase(

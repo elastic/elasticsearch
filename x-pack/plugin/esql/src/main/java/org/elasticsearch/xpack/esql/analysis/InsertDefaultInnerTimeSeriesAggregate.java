@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
@@ -46,17 +47,21 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
+        Holder<Boolean> changed = new Holder<>(false);
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> {
             if (agg instanceof Alias alias) {
-                return alias.replaceChild(addDefaultInnerAggs(alias.child(), aggregate.timestamp()));
+                return alias.replaceChild(addDefaultInnerAggs(alias.child(), aggregate.timestamp(), changed));
             } else {
                 return agg;
             }
         }).toList();
+        if (changed.get() == false) {
+            return aggregate;
+        }
         return aggregate.with(aggregate.groupings(), newAggregates);
     }
 
-    private static Expression addDefaultInnerAggs(Expression expression, Expression timestamp) {
+    private static Expression addDefaultInnerAggs(Expression expression, Expression timestamp, Holder<Boolean> changed) {
         return expression.transformDownSkipBranch((expr, skipBranch) -> {
             // the default is to end the traversal here as we're either done or a recursive call will handle it
             skipBranch.set(true);
@@ -64,13 +69,13 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 // this is already a time series aggregation, no need to go deeper
                 case TimeSeriesAggregateFunction ts -> ts;
                 // only transform field, not all children (such as inline filter or window)
-                case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp));
+                case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
                 // avoid modifying filter conditions, just the delegate
-                case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp));
+                case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
                 // if we reach a TypedAttribute, it hasn't been wrapped in a TimeSeriesAggregateFunction yet
                 // (otherwise the traversal would have stopped earlier)
                 // so we wrap it with a default one
-                case TypedAttribute ta -> wrapWithDefaultInnerAggregation(ta, timestamp);
+                case TypedAttribute ta -> insertDefaultInnerAggregation(ta, timestamp, changed);
                 default -> {
                     // for other expressions, continue the traversal
                     skipBranch.set(false);
@@ -80,7 +85,12 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
         });
     }
 
-    private static TimeSeriesAggregateFunction wrapWithDefaultInnerAggregation(TypedAttribute attr, Expression timestamp) {
+    private static TimeSeriesAggregateFunction insertDefaultInnerAggregation(
+        TypedAttribute attr,
+        Expression timestamp,
+        Holder<Boolean> changed
+    ) {
+        changed.set(true);
         if (attr.dataType() == DataType.EXPONENTIAL_HISTOGRAM || attr.dataType() == DataType.TDIGEST) {
             return new HistogramMergeOverTime(attr.source(), attr, Literal.TRUE, AggregateFunction.NO_WINDOW);
         } else {

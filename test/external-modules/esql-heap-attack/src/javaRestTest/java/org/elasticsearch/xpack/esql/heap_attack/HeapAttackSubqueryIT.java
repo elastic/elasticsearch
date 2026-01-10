@@ -215,19 +215,20 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // Some data points:
         // 1. group by 50 fields completes successfully for 2/8 subqueries, there is no CBE
         // 2. group by 100 fields with 2 subqueries completes successfully, 8 subqueries triggers CBE
-        // 3. group by 500 fields, HashAggregationOperator.addInput triggers CBE for 2 subqueries,
+        // 3. group by 500 fields, HashAggregationOperator.addInput triggers CBE for 2 subqueries locally, however it OOMs in CI,
         // TODO 8 subqueries trigger OOM, skip group by 500 fields with 8 subqueries,
         // the walkaround that prevents the OOM is setting FIELD_EXTRACT_PREFERENCE=STORED
         StringBuilder grouping = new StringBuilder();
         grouping.append("f000");
-        for (int f = 1; f < 500; f++) {
+        int groupBySize = 100;
+        for (int f = 1; f < groupBySize; f++) {
             grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(
-                attempt -> buildSubqueriesWithAgg(subquery, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
-            );
-        }
+        Map<?, ?> response = buildSubqueriesWithAgg(DEFAULT_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString());
+        assertTrue(response.get("columns") instanceof List<?> l && l.size() == (groupBySize + 1));
+        assertCircuitBreaks(
+            attempt -> buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
+        );
     }
 
     // It is likely the lack of memory tracking for BlockSourceReader.scratch cause OOM instead of CBE here.

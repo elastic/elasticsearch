@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
+import java.util.List;
+
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -184,6 +187,42 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
         );
     }
 
+    public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            "different_model",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = AmazonBedrockChatCompletionModel.of(model, request);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
+    }
+
+    public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            null, // not overriding model
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = AmazonBedrockChatCompletionModel.of(model, request);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("model"));
+    }
+
     public static AmazonBedrockChatCompletionModel createModel(
         String id,
         String region,
@@ -213,9 +252,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             TaskType.COMPLETION,
             "amazonbedrock",
             new AmazonBedrockChatCompletionServiceSettings(region, model, provider, rateLimitSettings),
-            new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens),
+            new AmazonBedrockCompletionTaskSettings(temperature, topP, topK, maxNewTokens),
             new AwsSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
-
 }

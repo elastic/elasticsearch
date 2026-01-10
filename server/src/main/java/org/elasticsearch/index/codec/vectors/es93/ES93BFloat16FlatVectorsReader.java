@@ -179,7 +179,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
+        scoreAndCollectAll(knnCollector, acceptDocs, getFloatVectorValues(field), getRandomVectorScorer(field, target));
     }
 
     private FieldEntry getFieldEntryOrThrow(String field) {

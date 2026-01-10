@@ -244,7 +244,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
+        scoreAndCollectAll(knnCollector, acceptDocs, getByteVectorValues(field), getRandomVectorScorer(field, target));
     }
 
     @Override

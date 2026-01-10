@@ -9,12 +9,15 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Utility methods for vector scoring and collection.
@@ -30,44 +33,86 @@ public final class VectorScoringUtils {
      *
      * @param knnCollector the collector to collect scored vectors
      * @param acceptDocs   the accept docs to filter vectors
+     * @param vectorValues the vector values for iteration
      * @param scorer       the vector scorer
      * @throws IOException if an I/O error occurs
      */
-    public static void scoreAndCollectAll(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer) throws IOException {
-        // TODO we need to switch from scorer to VectorScorer and values so the filter can be lazily applied
-        // building the bitset eagerly is silly for scoring everything
-        if (knnCollector.k() == 0 || scorer == null) {
+    public static void scoreAndCollectAll(
+        KnnCollector knnCollector,
+        AcceptDocs acceptDocs,
+        KnnVectorValues vectorValues,
+        RandomVectorScorer scorer
+    ) throws IOException {
+        if (knnCollector.k() == 0 || scorer == null || vectorValues == null) {
             return;
         }
-        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
+
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+
+        if (acceptDocsIterator == null) {
+            bulkScoreAllOrdinals(knnCollector, scorer);
+        } else {
+            bulkScoreWithFilter(knnCollector, acceptDocsIterator, vectorValues, scorer);
+        }
+    }
+
+    /**
+     * Bulk score all vector ordinals without doc filtering.
+     * Assumes all ordinals map to live docs.
+     */
+    private static void bulkScoreAllOrdinals(KnnCollector knnCollector, RandomVectorScorer scorer) throws IOException {
         int[] ords = new int[BULK_SCORE_BLOCKS];
         float[] scores = new float[BULK_SCORE_BLOCKS];
-        int numOrds = 0;
-        int numVectors = scorer.maxOrd();
-        for (int i = 0; i < numVectors; i++) {
-            if (acceptedOrds == null || acceptedOrds.get(i)) {
-                if (knnCollector.earlyTerminated()) {
-                    break;
+        int count = 0;
+        int maxOrd = scorer.maxOrd();
+
+        for (int i = 0; i < maxOrd; i++) {
+            if (knnCollector.earlyTerminated()) {
+                break;
+            }
+
+            ords[count] = i;
+            count++;
+
+            if (count == BULK_SCORE_BLOCKS) {
+                scorer.bulkScore(ords, scores, count);
+                for (int j = 0; j < count; j++) {
+                    knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
                 }
-                ords[numOrds++] = i;
-                if (numOrds == ords.length) {
-                    knnCollector.incVisitedCount(numOrds);
-                    scorer.bulkScore(ords, scores, numOrds);
-                    for (int j = 0; j < numOrds; j++) {
-                        knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
-                    }
-                    numOrds = 0;
-                }
+                knnCollector.incVisitedCount(count);
+                count = 0;
             }
         }
 
-        if (numOrds > 0) {
-            knnCollector.incVisitedCount(numOrds);
-            scorer.bulkScore(ords, scores, numOrds);
-            for (int j = 0; j < numOrds; j++) {
+        if (count > 0) {
+            scorer.bulkScore(ords, scores, count);
+            for (int j = 0; j < count; j++) {
                 knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
             }
+            knnCollector.incVisitedCount(count);
         }
-        assert knnCollector.earlyTerminated() == false;
+    }
+
+    private static void bulkScoreWithFilter(
+        KnnCollector knnCollector,
+        DocIdSetIterator acceptDocsIterator,
+        KnnVectorValues vectorValues,
+        RandomVectorScorer scorer
+    ) throws IOException {
+
+        DocIdSetIterator vectorIterator = vectorValues.iterator();
+
+        DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
+
+        int doc;
+        while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (knnCollector.earlyTerminated()) {
+                break;
+            }
+
+            float score = scorer.score(doc);
+            knnCollector.collect(doc, score);
+            knnCollector.incVisitedCount(1);
+        }
     }
 }

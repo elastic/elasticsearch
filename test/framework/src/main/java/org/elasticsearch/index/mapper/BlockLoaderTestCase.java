@@ -65,7 +65,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         this.fieldType = fieldType;
         this.params = params;
         this.customDataSourceHandlers = customDataSourceHandlers;
-        this.runner = new BlockLoaderTestRunner(params);
+        this.runner = new BlockLoaderTestRunner(params, randomBoolean());
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
     }

@@ -24,8 +24,11 @@ import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -39,7 +42,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -159,6 +164,129 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
         hitSource.startNextScroll(timeValueSeconds(100));
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
+    }
+
+    public void testGenerateSourceWithFields() {
+        // Test case: source exists and fields should be merged
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(new BytesArray("{\"existing_field\":\"existing_value\"}"));
+
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("single_value_field", new DocumentField("single_value_field", List.of("single_value")));
+        fields.put("multi_value_field", new DocumentField("multi_value_field", List.of("value1", "value2")));
+        fields.put("existing_field", new DocumentField("existing_field", List.of("new_value")));
+        hit.addDocumentFields(fields, new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        // Verify source contains all expected fields
+        assertEquals("existing_value", resultSource.get("existing_field")); // existing field should not be overwritten
+        assertEquals("single_value", resultSource.get("single_value_field"));
+        assertEquals(List.of("value1", "value2"), resultSource.get("multi_value_field"));
+    }
+
+    public void testGenerateSourceWithEmptyFields() {
+        // Test case: fields is empty
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(new BytesArray("{\"field1\":\"value1\",\"field2\":\"value2\"}"));
+        hit.addDocumentFields(new HashMap<>(), new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        // Source should remain unchanged
+        assertEquals("value1", resultSource.get("field1"));
+        assertEquals("value2", resultSource.get("field2"));
+    }
+
+    public void testGenerateSourceWithEmptySource() {
+        // Test case: source is empty, fields exist
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(new BytesArray("{}"));
+
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("field1", new DocumentField("field1", List.of("value1")));
+        fields.put("field2", new DocumentField("field2", List.of("value2", "value3")));
+        hit.addDocumentFields(fields, new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        assertEquals("value1", resultSource.get("field1"));
+        assertEquals(List.of("value2", "value3"), resultSource.get("field2"));
+    }
+
+    public void testGenerateSourceWithBothEmpty() {
+        // Test case: both source and fields are empty
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(new BytesArray("{}"));
+        hit.addDocumentFields(new HashMap<>(), new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        assertTrue(resultSource.isEmpty());
+    }
+
+    public void testGenerateSourceWithComplexSource() {
+        // Test case: complex source with nested objects
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(new BytesArray("{\"nested\":{\"field1\":\"value1\"}}"));
+
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("new_field", new DocumentField("new_field", List.of("value2")));
+        hit.addDocumentFields(fields, new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nested = (Map<String, Object>) resultSource.get("nested");
+        assertEquals("value1", nested.get("field1"));
+        assertEquals("value2", resultSource.get("new_field"));
+    }
+
+    public void testGenerateSourceWithNoSource() {
+        // Test case: no source, only fields
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(null);
+
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("field1", new DocumentField("field1", List.of("value1")));
+        hit.addDocumentFields(fields, new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        // Source value should be preserved
+        assertEquals("value1", resultSource.get("field1"));
+    }
+
+    public void testGenerateSourceWithNoSourceAndNoFields() {
+        // Test case: no source and no fields
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(null);
+        hit.addDocumentFields(new HashMap<>(), new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        assertNull(result);
+    }
+
+    public void testGenerateSourceWithExistingFieldInSource() {
+        // Test case: field already exists in source
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(new BytesArray("{\"field1\":\"source_value\"}"));
+
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("field1", new DocumentField("field1", List.of("field_value")));
+        hit.addDocumentFields(fields, new HashMap<>());
+
+        BytesReference result = ClientScrollableHitSource.generateSource(hit);
+        Map<String, Object> resultSource = XContentHelper.convertToMap(result, false, XContentHelper.xContentType(result)).v2();
+
+        // Source value should be preserved
+        assertEquals("source_value", resultSource.get("field1"));
     }
 
     private SearchResponse createSearchResponse() {

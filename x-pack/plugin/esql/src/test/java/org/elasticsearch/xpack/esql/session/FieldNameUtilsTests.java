@@ -2368,7 +2368,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
             | FUSE
             | STATS count_fork=COUNT(*) BY _fork
-            | SORT _fork""", ALL_FIELDS);
+            | SORT _fork""", Set.of("_index", "title", "author", "title.*", "author.*"));
     }
 
     public void testFuseWithMultipleForkBranches() {
@@ -2657,16 +2657,19 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeStats() {
-        assertFieldNames("""
-            FROM employees
-            | WHERE emp_no == 10048 OR emp_no == 10081
-            | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
-            | DISSECT a "%{x} %{y} %{z}"
-            | EVAL y = y::keyword )
-            ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
-            ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
-            ( EVAL x = "abc" | EVAL y = "aaa" )
-            | STATS c = count(*), m = max(_fork)""", ALL_FIELDS);
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                | DISSECT a "%{x} %{y} %{z}"
+                | EVAL y = y::keyword )
+                ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+                ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+                ( EVAL x = "abc" | EVAL y = "aaa" )
+                | STATS c = count(*), m = max(_fork)""",
+            Set.of("_index", "first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*")
+        );
     }
 
     public void testForkBeforeStatsWithWhere() {
@@ -2680,7 +2683,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
             ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS a = count(*) WHERE _fork == "fork1",
-            b = max(_fork)""", ALL_FIELDS);
+            b = max(_fork)""", Set.of("_index", "first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkBeforeStatsByWithWhere() {
@@ -2695,7 +2698,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS a = count(*)  WHERE emp_no > 10000,
             b = max(x) WHERE _fork == "fork1" BY _fork
-            | SORT _fork""", ALL_FIELDS);
+            | SORT _fork""", Set.of("_index", "emp_no", "x", "first_name", "last_name", "last_name.*", "x.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkAfterDrop() {
@@ -2737,7 +2740,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithKeep2() {
-        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3)", IndexResolver.ALL_FIELDS);
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3)", ALL_FIELDS);
     }
 
     public void testForkBranchWithKeep3() {

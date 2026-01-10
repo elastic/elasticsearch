@@ -113,8 +113,17 @@ public class FieldNameUtils {
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
         Holder<LogicalPlan> lastSeenFork = new Holder<>(null);
+        // Track if there are plans after FORK that reduce columns to a known set (e.g., Project, Aggregate)
+        Holder<Boolean> reduceColumnsAfterFork = new Holder<>(false);
         forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
+            // Check if we see a column-reducing plan before encountering a Fork
+            if (lastSeenFork.get() == null && shouldCollectReferencedFields(p, inlinestatsAggs)) {
+                reduceColumnsAfterFork.set(true);
+            }
+
             if (p instanceof Fork fork) {
+                lastSeenFork.set(fork);
+
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var forkRefsResult = AttributeSet.builder();
                 forkRefsResult.addAll(referencesBuilder.get());
@@ -142,7 +151,7 @@ public class FieldNameUtils {
                     // Determine if this fork branch requires all fields from the index (projectAll = true).
                     // This happens when a branch has no explicit field selection and no KEEP constraints.
                     //
-                    // We trigger projectAll when ALL of the following conditions are met:
+                    // We trigger projectAll when ALL the following conditions are met:
                     // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
                     // 2. AND either:
                     //    a) No field references were collected (referencesBuilder is empty), OR
@@ -152,14 +161,16 @@ public class FieldNameUtils {
                     // Examples:
                     // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)
                     // - "fork (eval x = 1 | keep x) (where true)" → needs all fields (second branch has no KEEP)
+                    // UNLESS there's a column-reducing command after FORK (e.g., stats)
                     // - "fork (eval x = 1 | keep x) (eval y = 2 | keep y)" → specific fields only (both branches have KEEP)
+                    // - "fork (eval x = 1 | keep x) (where true) | stats c = count(*)" → specific fields (stats reduces columns)
                     if (currentBranchKeepRefs.get().isEmpty()
                         && (referencesBuilder.get().isEmpty()
-                            || false == forkBranch.anyMatch(forkPlan -> shouldCollectReferencedFields(forkPlan, inlinestatsAggs)))) {
+                            || false == forkBranch.anyMatch(forkPlan -> shouldCollectReferencedFields(forkPlan, inlinestatsAggs)))
+                        && false == reduceColumnsAfterFork.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
                         breakEarly.set(true);
-                        lastSeenFork.set(fork);
                         return;
                     }
                     forkRefsResult.addAll(referencesBuilder.get());
@@ -170,7 +181,6 @@ public class FieldNameUtils {
 
                 // Return early, we've already explored all fork branches.
                 breakEarly.set(true);
-                lastSeenFork.set(fork);
                 return;
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect

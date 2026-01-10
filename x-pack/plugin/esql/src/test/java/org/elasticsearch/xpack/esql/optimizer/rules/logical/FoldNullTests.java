@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -93,7 +95,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testBasicNullFolding() {
-        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
         assertNullLiteral(foldNull(new Pow(EMPTY, NULL, NULL)));
         assertNullLiteral(foldNull(new DateFormat(EMPTY, NULL, NULL, TEST_CFG)));
@@ -147,7 +149,7 @@ public class FoldNullTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // arithmetic
-        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL, TEST_CFG)));
         // comparison
         assertNullLiteral(foldNull(greaterThanOf(getFieldAttribute("a"), NULL)));
         // regex
@@ -230,10 +232,10 @@ public class FoldNullTests extends ESTestCase {
         DataType numericType = randomFrom(INTEGER, LONG, DOUBLE);
         DataType genericType = randomFrom(INTEGER, LONG, DOUBLE, UNSIGNED_LONG, KEYWORD, TEXT, GEO_POINT, GEO_SHAPE, VERSION, IP);
         List<Expression> items = List.of(
-            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
-            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
-            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
-            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), TEST_CFG),
+            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), TEST_CFG),
+            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), TEST_CFG),
+            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), TEST_CFG),
             new Mul(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
             new Mul(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
             new Div(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
@@ -271,6 +273,15 @@ public class FoldNullTests extends ESTestCase {
     public void testNullCategorizeGroupingNotFolded() {
         Categorize categorize = new Categorize(EMPTY, NULL, NULL);
         assertEquals(categorize, foldNull(categorize));
+    }
+
+    public void testNestedCoalesce() {
+        MvAppend append = new MvAppend(
+            EMPTY,
+            Literal.keyword(EMPTY, "foo"),
+            new Coalesce(EMPTY, NULL, List.of(Literal.keyword(EMPTY, "bar")))
+        );
+        assertEquals(append, foldNull(append));
     }
 
     private void assertNullLiteral(Expression expression) {

@@ -47,6 +47,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         this.tasks = taskQueue;
     }
 
+    public String getTaskRunnerName() {
+        return taskRunnerName;
+    }
+
     /**
      * Submits a task for execution. If there are fewer than {@code maxRunningTasks} tasks currently running then this task is immediately
      * submitted to the executor. Otherwise this task is enqueued and will be submitted to the executor in turn on completion of some other

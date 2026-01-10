@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -388,7 +390,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -466,7 +471,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService incompatibleSeedTransport = startTransport(
                 "seed_node",
@@ -587,6 +595,21 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testConnectFailsIfNoConnectionsOpened() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        final boolean incompatibleDiscoverableNode = randomBoolean();
+        final VersionInformation discoverableNodeVersion;
+        final TransportVersion discoverableNodeTransportVersion;
+        if (incompatibleDiscoverableNode) {
+            discoverableNodeVersion = new VersionInformation(
+                Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            );
+            discoverableNodeTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
+        } else {
+            discoverableNodeVersion = VersionInformation.CURRENT;
+            discoverableNodeTransportVersion = TransportVersion.current();
+        }
+
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -597,14 +620,16 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             MockTransportService closedTransport = startTransport(
                 "discoverable_node",
                 knownNodes,
-                VersionInformation.CURRENT,
-                TransportVersion.current()
+                discoverableNodeVersion,
+                discoverableNodeTransportVersion
             )
         ) {
             DiscoveryNode seedNode = getLocalNode(seedTransport);
             DiscoveryNode discoverableNode = getLocalNode(closedTransport);
             knownNodes.add(discoverableNode);
-            closedTransport.close();
+            if (incompatibleDiscoverableNode == false) {
+                closedTransport.close();
+            }
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
@@ -635,11 +660,21 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         remoteConnectionManager
                     )
                 ) {
-                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
-                    strategy.connect(connectFuture);
-                    final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
-                    assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
-                    assertTrue(strategy.assertNoRunningConnections());
+                    MockLog.assertThatLogger(() -> {
+                        PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
+                        strategy.connect(connectFuture);
+                        final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
+                        assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
+                        assertTrue(strategy.assertNoRunningConnections());
+                    },
+                        SniffConnectionStrategy.class,
+                        new MockLog.SeenEventExpectation(
+                            "warning",
+                            SniffConnectionStrategy.class.getCanonicalName(),
+                            Level.WARN,
+                            "[" + clusterAlias + "] failed to open managed connection to node [{discoverable_node}*"
+                        )
+                    );
                 }
             }
         }

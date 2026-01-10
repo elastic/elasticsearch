@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.core.Nullable;
+
 import java.io.IOException;
 
 /**
@@ -79,6 +81,25 @@ public class CountingStreamOutput extends StreamOutput {
     public void writeDoubleArray(double[] values) throws IOException {
         writeVInt(values.length);
         size += (long) values.length * Double.BYTES;
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        size += 1;
+        if (str != null) {
+            writeString(str);
+        }
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        size += 1;
+        writeString(value);
     }
 
     @Override

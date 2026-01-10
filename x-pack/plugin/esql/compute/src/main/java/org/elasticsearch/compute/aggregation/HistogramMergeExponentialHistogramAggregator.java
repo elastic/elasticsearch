@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
-@Aggregator({ @IntermediateState(name = "value", type = "EXPONENTIAL_HISTOGRAM"), })
+@Aggregator({ @IntermediateState(name = "value", type = "EXPONENTIAL_HISTOGRAM"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
 public class HistogramMergeExponentialHistogramAggregator {
 
@@ -28,8 +28,10 @@ public class HistogramMergeExponentialHistogramAggregator {
         state.add(value, true);
     }
 
-    public static void combineIntermediate(ExponentialHistogramStates.SingleState state, ExponentialHistogram value) {
-        state.add(value, false);
+    public static void combineIntermediate(ExponentialHistogramStates.SingleState state, ExponentialHistogram value, boolean seen) {
+        if (seen) {
+            state.add(value, false);
+        }
     }
 
     public static Block evaluateFinal(ExponentialHistogramStates.SingleState state, DriverContext driverContext) {
@@ -44,8 +46,15 @@ public class HistogramMergeExponentialHistogramAggregator {
         current.add(groupId, value, true);
     }
 
-    public static void combineIntermediate(ExponentialHistogramStates.GroupingState state, int groupId, ExponentialHistogram value) {
-        state.add(groupId, value, false);
+    public static void combineIntermediate(
+        ExponentialHistogramStates.GroupingState state,
+        int groupId,
+        ExponentialHistogram value,
+        boolean seen
+    ) {
+        if (seen) {
+            state.add(groupId, value, false);
+        }
     }
 
     public static Block evaluateFinal(

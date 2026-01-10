@@ -57,6 +57,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BFLOAT16, indexType });
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
@@ -264,7 +265,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
-                    case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case FLOAT, BFLOAT16 -> vector.add(randomFloatBetween(0F, 1F, true));
                     case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
                     default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }

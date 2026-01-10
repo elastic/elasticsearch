@@ -82,7 +82,8 @@ public class EvalMapperTests extends ESTestCase {
         System.nanoTime(),
         false,
         10000000,
-        100000
+        100000,
+        null
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -93,8 +94,8 @@ public class EvalMapperTests extends ESTestCase {
 
         List<Object[]> params = new ArrayList<>();
         for (Expression e : new Expression[] {
-            new Add(Source.EMPTY, DOUBLE1, DOUBLE2),
-            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Add(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CONFIG),
+            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CONFIG),
             new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mod(Source.EMPTY, DOUBLE1, DOUBLE2),

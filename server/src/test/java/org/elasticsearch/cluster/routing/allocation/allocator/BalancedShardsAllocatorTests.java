@@ -100,8 +100,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
-    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-    };
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
     public void testExplainShardAllocation() {
@@ -249,7 +247,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
@@ -643,7 +642,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 )
             ),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
@@ -775,7 +775,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             () -> ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         final var nodeNames = List.of("large-1", "large-2", "small-1");
@@ -1094,7 +1095,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // Assign all shards to node
         final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
         for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
-            allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), NOOP);
+            allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), RoutingChangesObserver.NOOP);
         }
 
         final var comparator = new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), allocatedRoutingNodes.node(nodeId));
@@ -1277,7 +1278,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            float calculateNodeWeightWithIndex(
+            public float calculateNodeWeightWithIndex(
                 BalancedShardsAllocator.Balancer balancer,
                 BalancedShardsAllocator.ModelNode node,
                 BalancedShardsAllocator.ProjectIndex index

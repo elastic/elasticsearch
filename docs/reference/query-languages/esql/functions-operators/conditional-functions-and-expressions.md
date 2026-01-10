@@ -28,3 +28,9 @@ Conditional functions return one of their arguments by evaluating in an if-else 
 :::{include} ../_snippets/functions/layout/least.md
 :::
 
+:::{include} ../_snippets/functions/layout/clamp.md
+:::
+:::{include} ../_snippets/functions/layout/clamp_min.md
+:::
+:::{include} ../_snippets/functions/layout/clamp_max.md
+:::

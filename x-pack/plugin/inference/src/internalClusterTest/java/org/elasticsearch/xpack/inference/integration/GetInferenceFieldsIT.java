@@ -372,7 +372,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, query),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
-            query == null || query.isBlank() ? Map.of() : ALL_EXPECTED_INFERENCE_RESULTS
+            query == null ? Map.of() : ALL_EXPECTED_INFERENCE_RESULTS
         );
 
         Map<String, Class<? extends InferenceResults>> expectedInferenceResultsSparseOnly = filterExpectedInferenceResults(
@@ -393,7 +393,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 INDEX_2,
                 filterExpectedInferenceFieldSet(INDEX_2_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))
             ),
-            query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
+            query == null ? Map.of() : expectedInferenceResultsSparseOnly
         );
 
         assertSuccessfulRequest(
@@ -405,7 +405,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 query
             ),
             Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))),
-            query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
+            query == null ? Map.of() : expectedInferenceResultsSparseOnly
         );
 
         assertSuccessfulRequest(

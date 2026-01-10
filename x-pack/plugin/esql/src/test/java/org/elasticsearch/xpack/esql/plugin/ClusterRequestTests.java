@@ -187,7 +187,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             ),
             TEST_VERIFIER
         );
-        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query))), minimumVersion);
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query))), minimumVersion);
     }
 
     @Override

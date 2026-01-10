@@ -11,19 +11,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
-import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -34,12 +44,21 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, TimestampAware {
 
+    /**
+     * The name of the column containing the step value (aka time bucket) in range queries.
+     */
+    private static final String STEP_COLUMN_NAME = "step";
+
     private final LogicalPlan promqlPlan;
     private final Literal start;
     private final Literal end;
     private final Literal step;
     // TODO: this should be made available through the planner
     private final Expression timestamp;
+    private final String valueColumnName;
+    private final NameId valueId;
+    private final NameId stepId;
+    private List<Attribute> output;
 
     // Range query constructor
     public PromqlCommand(
@@ -49,6 +68,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal start,
         Literal end,
         Literal step,
+        String valueColumnName,
+        Expression timestamp
+    ) {
+        this(source, child, promqlPlan, start, end, step, valueColumnName, new NameId(), new NameId(), timestamp);
+    }
+
+    // Range query constructor
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        String valueColumnName,
+        NameId valueId,
+        NameId stepId,
         Expression timestamp
     ) {
         super(source, child);
@@ -56,21 +92,58 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         this.start = start;
         this.end = end;
         this.step = step;
+        this.valueColumnName = valueColumnName;
+        this.valueId = valueId;
+        this.stepId = stepId;
         this.timestamp = timestamp;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), start(), end(), step(), timestamp());
+        return NodeInfo.create(
+            this,
+            PromqlCommand::new,
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override
     public PromqlCommand replaceChild(LogicalPlan newChild) {
-        return new PromqlCommand(source(), newChild, promqlPlan(), start(), end(), step(), timestamp());
+        return new PromqlCommand(
+            source(),
+            newChild,
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
-        return new PromqlCommand(source(), child(), newPromqlPlan, start(), end(), step(), timestamp());
+        return new PromqlCommand(
+            source(),
+            child(),
+            newPromqlPlan,
+            start(),
+            end(),
+            step(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override
@@ -117,9 +190,38 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return step.value() != null;
     }
 
+    public String valueColumnName() {
+        return valueColumnName;
+    }
+
+    public NameId valueId() {
+        return valueId;
+    }
+
+    public NameId stepId() {
+        return stepId;
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (output == null) {
+            List<Attribute> additionalOutput = promqlPlan.output();
+            output = new ArrayList<>(additionalOutput.size() + 2);
+            output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
+            output.add(new ReferenceAttribute(source(), null, STEP_COLUMN_NAME, DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.addAll(additionalOutput);
+        }
+        return output;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, timestamp);
+        return Objects.hash(child(), promqlPlan, start, end, step, valueColumnName, valueId, stepId, timestamp);
     }
 
     @Override
@@ -132,6 +234,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 && Objects.equals(start, other.start)
                 && Objects.equals(end, other.end)
                 && Objects.equals(step, other.step)
+                && Objects.equals(valueColumnName, other.valueColumnName)
+                && Objects.equals(valueId, other.valueId)
+                && Objects.equals(stepId, other.stepId)
                 && Objects.equals(timestamp, other.timestamp);
         }
 
@@ -145,6 +250,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
         sb.append("] step=[").append(step);
+        sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");
@@ -152,46 +258,100 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
+    protected AttributeSet computeReferences() {
+        // Ensures field resolution is aware of all attributes used in the PromQL plan.
+        AttributeSet.Builder references = AttributeSet.builder();
+        promqlPlan().forEachDown(lp -> references.addAll(lp.references()));
+        return references.build();
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
-        if (p instanceof AcrossSeriesAggregate == false) {
-            failures.add(fail(p, "only aggregations across timeseries are supported at this time (found [{}])", p.sourceText()));
+        // TODO(sidosera): Remove once instant query support is added.
+        if (isInstantQuery()) {
+            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
+            return;
         }
-        p.forEachDown(lp -> {
-            if (lp instanceof Selector s) {
-                if (s.labelMatchers().nameLabel().matcher().isRegex()) {
-                    failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
-                }
-                if (s.evaluation() != null) {
-                    if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
-                        failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
-                    }
-                    if (s.evaluation().at().value() != null) {
-                        failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
-                    }
-                }
-            }
-            if (lp instanceof Subquery) {
-                failures.add(fail(lp, "subqueries are not supported at this time [{}]", lp.sourceText()));
-            }
-            if (step().value() != null && lp instanceof RangeSelector rs) {
-                Duration rangeDuration = (Duration) rs.range().fold(null);
-                if (rangeDuration.equals(step().value()) == false) {
+
+        // Validate top-level expression
+        switch (p) {
+            case VectorBinaryOperator vectorBinaryOperator -> failures.add(
+                // TODO add support for top-level binary operators in TranslateTimeSeriesAggregate
+                // The limitation is in TS|STATS aggregation translation, not in PromQL support.
+                // We do support VectorBinaryArithmetic operators as nested expressions, but not at the top-level of a query.
+                fail(p, "top-level binary operators are not supported at this time [{}]", p.sourceText())
+            );
+            case RangeSelector rangeSelector -> {
+                if (isRangeQuery()) {
                     failures.add(
                         fail(
-                            rs.range(),
-                            "the duration for range vector selector [{}] "
-                                + "must be equal to the query's step for range queries at this time",
-                            rs.range().sourceText()
+                            p,
+                            "invalid expression type \"range vector\" for range query, must be scalar or instant vector",
+                            p.sourceText()
                         )
                     );
                 }
             }
-        });
-    }
+            default -> {
+                // ok
+            }
+        }
 
-    @Override
-    public Expression timestamp() {
-        return timestamp;
+        // Validate entire plan
+        Holder<List<String>> groupingAttributes = new Holder<>();
+        p.forEachDown(lp -> {
+            switch (lp) {
+                case Selector s -> {
+                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
+                        failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+                    }
+                    if (s.evaluation() != null) {
+                        if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
+                            failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
+                        }
+                        if (s.evaluation().at().value() != null) {
+                            failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
+                        }
+                    }
+                }
+                case PromqlFunctionCall functionCall -> {
+                    if (functionCall instanceof AcrossSeriesAggregate asa) {
+                        var groupings = asa.groupings().stream().map(NamedExpression::name).toList();
+                        if (groupingAttributes.get() == null) {
+                            groupingAttributes.set(groupings);
+                        } else if (groupingAttributes.get().equals(groupings) == false) {
+                            failures.add(
+                                fail(
+                                    asa,
+                                    "all across-series aggregations must have the same grouping attributes at this time [{}]",
+                                    asa.sourceText()
+                                )
+                            );
+                        }
+                    }
+                }
+                case VectorBinaryOperator binaryOperator -> {
+                    binaryOperator.children().forEach(child -> {
+                        if (child instanceof RangeSelector) {
+                            failures.add(
+                                fail(child, "binary expression must contain only scalar and instant vector types", child.sourceText())
+                            );
+                        }
+                    });
+                    if ((binaryOperator instanceof VectorBinaryArithmetic) == false) {
+                        failures.add(
+                            fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())
+                        );
+                    }
+                }
+                case PlaceholderRelation placeholderRelation -> {
+                    // ok
+                }
+                default -> failures.add(
+                    fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())
+                );
+            }
+        });
     }
 }

@@ -356,6 +356,9 @@ An expert-only feature is the ability to prune the contents of the `_source` fie
 Removing fields from the `_source` has similar downsides to disabling `_source`, especially the fact that you cannot reindex documents from one Elasticsearch index to another. Consider using [source filtering](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering) instead.
 ::::
 
+::::{note}
+Source pruning is not available in {{serverless-short}}
+::::
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used as follows:
 

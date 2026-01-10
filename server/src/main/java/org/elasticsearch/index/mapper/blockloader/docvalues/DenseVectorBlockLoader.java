@@ -15,6 +15,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
             }
         }
 
-        return new ConstantNullsReader();
+        return ConstantNull.READER;
     }
 
     /**

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -111,7 +110,7 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -148,9 +147,8 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
                 configurationMap.put(
                     API_KEY,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "You must provide either an API key or an Entra ID."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
+                        .setDescription("You must provide either an API key or an Entra ID.")
                         .setLabel("API Key")
                         .setRequired(false)
                         .setSensitive(true)
@@ -160,9 +158,8 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
                 );
                 configurationMap.put(
                     ENTRA_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "You must provide either an API key or an Entra ID."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
+                        .setDescription("You must provide either an API key or an Entra ID.")
                         .setLabel("Entra ID")
                         .setRequired(false)
                         .setSensitive(true)

@@ -356,7 +356,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
-        this.codecService = new CodecService(mapperService, bigArrays);
+        this.codecService = new CodecService(
+            mapperService,
+            bigArrays,
+            // Using this as a proxy on if the merge execution executor service exists
+            threadPoolMergeExecutorService == null ? null : threadPool
+        );
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
@@ -1085,6 +1090,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_templates parameter can only be associated with primary operations";
+        assert source.dynamicTemplateParams().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
+            : "dynamic_template_params parameter can only be associated with primary operations";
         DocumentMapper documentMapper = mapperService.documentMapper();
         Mapping mapping = null;
         if (documentMapper == null) {
@@ -3776,9 +3783,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return useRetentionLeasesInPeerRecovery;
     }
 
+    /**
+     * @return SafeCommitInfo of the current engine. But if engine is null or engine is locked for reset then returns SafeCommitInfo.EMPTY.
+     */
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
-        return engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo();
+        return tryWithEngineOrNull(engine -> engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo());
+
     }
 
     class ShardEventListener implements Engine.EventListener {

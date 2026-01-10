@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -301,6 +302,21 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                         count,
                         roundingPointsUpperLimit
                     );
+                    return evalExec;
+                }
+                // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
+                // leading to reading many small chunks of data. It is more efficient to query sequentially
+                // and apply round_to on the timestamp field.
+                //
+                // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
+                // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
+                // of many doc-value blocks.
+                //
+                // However, if the EsQueryExec index mode is time-series (e.g., rate), we should replace round_to with
+                // QueryAndTags when possible, as we currently lack a method to partition the data for increased parallelism.
+                if (queryExec.indexMode() != IndexMode.TIME_SERIES
+                    && ((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
                     return evalExec;
                 }
                 plan = planRoundTo(roundTo, evalExec, queryExec, ctx);

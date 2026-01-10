@@ -1,0 +1,6 @@
+pr: 138260
+summary: "[HealthAPI] Deterministic shard availability key order"
+area: Health
+type: enhancement
+issues:
+ - 138043

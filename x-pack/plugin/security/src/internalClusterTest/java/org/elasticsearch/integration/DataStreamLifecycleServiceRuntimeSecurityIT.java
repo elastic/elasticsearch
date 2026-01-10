@@ -223,7 +223,9 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         var dataLifecycle = retention == null
             ? DataStreamLifecycle.Template.DATA_DEFAULT
             : DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(retention).buildTemplate();
-        var failuresLifecycle = retention == null ? null : DataStreamLifecycle.createFailuresLifecycleTemplate(true, retention);
+        var failuresLifecycle = retention == null
+            ? null
+            : DataStreamLifecycle.failuresLifecycleBuilder().enabled(true).dataRetention(retention).buildTemplate();
         putComposableIndexTemplate("id1", """
             {
                 "properties": {

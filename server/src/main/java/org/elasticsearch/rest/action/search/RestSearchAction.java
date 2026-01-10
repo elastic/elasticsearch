@@ -108,9 +108,6 @@ public class RestSearchAction extends BaseRestHandler {
         request.param("min_compatible_shard_node");
 
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            searchRequest.setProjectRouting(request.param("project_routing"));
-        }
 
         /*
          * We have to pull out the call to `source().size(size)` because
@@ -262,7 +259,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
-        if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject() && searchRequest.pointInTimeBuilder() == null) {
+        if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();

@@ -19,12 +19,12 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -108,7 +108,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testGeoField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.GEOPOINT, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.GEOPOINT, iw -> {
             for (int i = 0; i < 10; i++) {
                 Document document = new Document();
                 document.add(new LatLonDocValuesField("field", 10, 10));
@@ -118,7 +118,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDoubleField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.DOUBLE, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.DOUBLE, iw -> {
             for (int i = 0; i < 15; i++) {
                 Document document = new Document();
                 document.add(new DoubleDocValuesField(FIELD_NAME, 23D));
@@ -128,7 +128,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testKeyWordField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.STRING, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.STRING, iw -> {
             for (int i = 0; i < 20; i++) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("stringValue")));
@@ -140,7 +140,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     public void testNoDocs() throws IOException {
         for (ValueType valueType : ValueType.values()) {
-            testAggregation(new MatchAllDocsQuery(), valueType, iw -> {
+            testAggregation(Queries.ALL_DOCS_INSTANCE, valueType, iw -> {
                 // Intentionally not writing any docs
             }, count -> {
                 assertEquals(0L, count.getValue());
@@ -150,7 +150,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.LONG, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.LONG, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, count -> {
@@ -206,7 +206,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingString() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -219,7 +219,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingNumber() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number").missing(1234);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -233,7 +233,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number")
             .missing(new GeoPoint(42.39561, -71.13051));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -250,7 +250,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
         final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name").field(fieldName);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
@@ -267,7 +267,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 8)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 9)));
@@ -284,7 +284,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             Document doc = new Document();
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
@@ -313,7 +313,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("2"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("3"))));
@@ -330,7 +330,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             Document doc = new Document();
             // Note: unlike numerics, lucene de-dupes strings so we increment here
             doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("1")));

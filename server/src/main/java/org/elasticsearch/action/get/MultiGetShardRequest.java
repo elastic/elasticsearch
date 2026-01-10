@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -84,11 +83,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
     }
 
     @Override
@@ -104,13 +99,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
     }
 
     @Override

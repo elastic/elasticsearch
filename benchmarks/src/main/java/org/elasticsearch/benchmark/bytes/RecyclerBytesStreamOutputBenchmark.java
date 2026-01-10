@@ -37,7 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @Fork(value = 1)
 public class RecyclerBytesStreamOutputBenchmark {
 
-    private final AtomicReference<BytesRef> bytesRef = new AtomicReference<>(new BytesRef(16384));
+    private final AtomicReference<BytesRef> bytesRef = new AtomicReference<>(new BytesRef(new byte[16384], 0, 16384));
+
     private RecyclerBytesStreamOutput streamOutput;
     private String shortString;
     private String longString;
@@ -156,7 +157,7 @@ public class RecyclerBytesStreamOutputBenchmark {
                 localBytesRef = recycledBytesRef;
             } else {
                 recycled = false;
-                localBytesRef = new BytesRef(16384);
+                localBytesRef = new BytesRef(new byte[16384], 0, 16384);
             }
             return new V<>() {
                 @Override

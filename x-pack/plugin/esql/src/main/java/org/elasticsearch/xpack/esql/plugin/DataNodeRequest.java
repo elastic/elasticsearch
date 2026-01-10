@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -113,12 +112,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.plan = pin.readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.runNodeLevelReduction = in.readBoolean();
-        } else {
-            this.runNodeLevelReduction = false;
-        }
-        if (in.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+        this.runNodeLevelReduction = in.readBoolean();
+        if (in.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             this.reductionLateMaterialization = in.readBoolean();
         } else {
             this.reductionLateMaterialization = false;
@@ -140,10 +135,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(runNodeLevelReduction);
-        }
-        if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+        out.writeBoolean(runNodeLevelReduction);
+        if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
         }
     }

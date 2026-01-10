@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -143,7 +144,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -215,6 +215,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Initialize",
             Limiter.ONCE,
+            new ResolveConfigurationAware(),
             new ResolveTable(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -557,18 +558,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
         }
 
-        private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
             List<Expression> groupings = aggregate.groupings();
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
+            Function<UnresolvedAttribute, Expression> resolve = ua -> maybeResolveAttribute(ua, childrenOutput);
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
                 List<Expression> newGroupings = new ArrayList<>(groupings.size());
                 for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, resolve);
                     if (resolved != g) {
                         changed.set(true);
                     }
@@ -620,8 +622,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // TODO: remove this when Stats interface is removed
                 aggregate = changed.get() ? aggregate.with(aggregate.child(), groupings, newAggregates) : aggregate;
             }
-
-            return aggregate;
+            if (aggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
+                return ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput));
+            } else {
+                return aggregate;
+            }
         }
 
         private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
@@ -926,7 +931,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit EsqlProject to align the outputs.
+                // We need to add an explicit Project to align the outputs.
                 if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
@@ -1377,7 +1382,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedProjections = new ArrayList<>(priorities.keySet());
             }
 
-            return new EsqlProject(p.source(), p.child(), resolvedProjections);
+            return new Project(p.source(), p.child(), resolvedProjections);
         }
 
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
@@ -1407,13 +1412,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             }
 
-            return new EsqlProject(drop.source(), drop.child(), resolvedProjections);
+            return new Project(drop.source(), drop.child(), resolvedProjections);
         }
 
         private LogicalPlan resolveRename(Rename rename, List<Attribute> childrenOutput) {
             List<NamedExpression> projections = projectionsForRename(rename, childrenOutput, log);
 
-            return new EsqlProject(rename.source(), rename.child(), projections);
+            return new Project(rename.source(), rename.child(), projections);
         }
 
         /**
@@ -1568,6 +1573,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named) {
         return named.withLocation(u.source());
+    }
+
+    private static class ResolveConfigurationAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformExpressionsUp(
+                Expression.class,
+                expression -> resolveConfigurationAware(expression, context.configuration())
+            );
+        }
+
+        private static Expression resolveConfigurationAware(Expression expression, Configuration configuration) {
+            if (expression instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
+                return ca.withConfiguration(configuration);
+            }
+            return expression;
+        }
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
@@ -2681,12 +2709,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
          */
         private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
-            // Fork/UnionAll adds an EsqlProject on top of each child plan during resolveFork, check this pattern before pushing down
+            // Fork/UnionAll adds an Project on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if (aliases.isEmpty() == false && child instanceof EsqlProject esqlProject) {
-                LogicalPlan childOfProject = esqlProject.child();
+            if (aliases.isEmpty() == false && child instanceof Project project) {
+                LogicalPlan childOfProject = project.child();
                 Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new EsqlProject(esqlProject.source(), eval, output);
+                return new Project(project.source(), eval, output);
             }
             return child;
         }
@@ -2826,7 +2854,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         outputChanged = true;
                     }
                 }
-                // create a new eval for the casting expressions, and push it down under the EsqlProject
+                // create a new eval for the casting expressions, and push it down under the Project
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
             }
 

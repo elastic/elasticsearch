@@ -20,6 +20,7 @@ import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSource;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
@@ -196,18 +197,29 @@ public class FlattenedFieldBinaryVsSortedSetDocValuesSyntheticSourceIT extends E
         for (int i = 0; i < data.size(); i++) {
             FlattenedData flattenedData = data.get(i);
             var xcontentMappings = XContentFactory.jsonBuilder().map(flattenedData.mapping().raw());
+
+            @SuppressWarnings("unchecked")
+            var expectedDoc = (Map<String, Object>) sortedSetDocs.get(i).get(FLATTENED_FIELD_NAME);
+            @SuppressWarnings("unchecked")
+            var actualDoc = (Map<String, Object>) binaryDocs.get(i).get(FLATTENED_FIELD_NAME);
+
+            if (expectedDoc == null) {
+                assertNull(actualDoc);
+                continue;
+            }
+
             final MatchResult matchResult = Matcher.matchSource()
                 .mappings(flattenedData.mapping().lookup(), xcontentMappings, xcontentMappings)
                 .settings(settings, settings)
-                .expected(sortedSetDocs.subList(i, i + 1))
+                .expected(List.of(expectedDoc))
                 .ignoringSort(true)
-                .isEqualTo(binaryDocs.subList(i, i + 1));
+                .isEqualTo(List.of(actualDoc));
             assertTrue(matchResult.getMessage(), matchResult.isMatch());
         }
     }
 
     public void testSyntheticSource() throws IOException {
-        DataSource dataSource = new DataSource(List.of(FLATTENED_DATA_GENERATOR));
+        DataSource dataSource = new DataSource(List.of(new ASCIIStringsHandler(), FLATTENED_DATA_GENERATOR));
         DataGeneratorSpecification spec = new DataGeneratorSpecification(dataSource, 8, 4, 0, false, Collections.emptyList());
 
         createIndices();

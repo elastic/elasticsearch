@@ -40,48 +40,36 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
     }
 
     public void testResolveRemoteUnknownIndex() {
-        // Today we do not allow empty index resolution.
-        // This index is mixed into the resultset to test error handling of the missing concrete remote, not the empty result.
-        indexRandom(LOCAL_CLUSTER, true, "data", 1);
-
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake"))
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake").allowPartialResults(true))
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake"))
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
-        try (var response = run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true))) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true))) {
             assertPartial(response);
-            assertResultConcreteIndices(response, "data");
-            assertExecutionInfo(
-                response,
-                new EsqlResponseExecutionInfo(LOCAL_CLUSTER, "data", Status.SUCCESSFUL),
-                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "fake", Status.SKIPPED)
-            );
+            assertResultConcreteIndices(response);
+            assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "fake", Status.SKIPPED));
         }
 
         setSkipUnavailable(REMOTE_CLUSTER_1, null);
-        try (var response = run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true))) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true))) {
             assertPartial(response);
-            assertResultConcreteIndices(response, "data");
-            assertExecutionInfo(
-                response,
-                new EsqlResponseExecutionInfo(LOCAL_CLUSTER, "data", Status.SUCCESSFUL),
-                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "fake", Status.SKIPPED)
-            );
+            assertResultConcreteIndices(response);
+            assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "fake", Status.SKIPPED));
         }
     }
 

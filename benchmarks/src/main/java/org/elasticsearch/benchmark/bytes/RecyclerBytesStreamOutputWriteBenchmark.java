@@ -25,7 +25,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-// throughput is more representable metric, it amortizes pages recycling code path and reduce benchmark error
+// throughput is more representable metric, it amortizes pages recycling code path and reduces benchmark error
 @BenchmarkMode(Mode.Throughput)
 @Warmup(time = 1)
 @Measurement(time = 5)

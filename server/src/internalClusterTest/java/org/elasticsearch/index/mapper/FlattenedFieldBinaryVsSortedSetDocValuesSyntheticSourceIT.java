@@ -20,7 +20,6 @@ import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
-import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSource;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
@@ -219,7 +218,7 @@ public class FlattenedFieldBinaryVsSortedSetDocValuesSyntheticSourceIT extends E
     }
 
     public void testSyntheticSource() throws IOException {
-        DataSource dataSource = new DataSource(List.of(new ASCIIStringsHandler(), FLATTENED_DATA_GENERATOR));
+        DataSource dataSource = new DataSource(List.of(FLATTENED_DATA_GENERATOR));
         DataGeneratorSpecification spec = new DataGeneratorSpecification(dataSource, 8, 4, 0, false, Collections.emptyList());
 
         createIndices();

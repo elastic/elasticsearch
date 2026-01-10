@@ -421,7 +421,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
         recordingMeterRegistry.getRecorder().collect();
         incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
-        assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L, 0L), Map.of(removeId, List.of(duration / 1000.0)), hotspotFlagCounts);
+        assertMetricsCollected(
+            recordingMeterRegistry,
+            List.of(2L, 1L, 0L),
+            Map.of(removeId, List.of(duration / 1000.0)),
+            hotspotFlagCounts
+        );
     }
 
     public void testHotspotDurationsAreRecorded() {
@@ -478,7 +483,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
         recordingMeterRegistry.getRecorder().collect();
         incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
-        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, Map.of(removeHotspotId, List.of((millisAddedFirst + millisAddedSecond) / 1000.0)), hotspotFlagCounts);
+        assertMetricsCollected(
+            recordingMeterRegistry,
+            hotspotSizes,
+            Map.of(removeHotspotId, List.of((millisAddedFirst + millisAddedSecond) / 1000.0)),
+            hotspotFlagCounts
+        );
 
         // remove all the nodes from the first series, and see all but one durations issued
         long millisAddedThird = randomLongBetween(500, 1_000);
@@ -508,7 +518,10 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         hotspotSizes.add(0L);
 
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
-        hotspotDurations.put((String) lastHotspotIds.toArray()[0], List.of((millisAddedSecond + millisAddedThird + millisAddedFourth) / 1000.0));
+        hotspotDurations.put(
+            (String) lastHotspotIds.toArray()[0],
+            List.of((millisAddedSecond + millisAddedThird + millisAddedFourth) / 1000.0)
+        );
         recordingMeterRegistry.getRecorder().collect();
         incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, hotspotDurations, hotspotFlagCounts);

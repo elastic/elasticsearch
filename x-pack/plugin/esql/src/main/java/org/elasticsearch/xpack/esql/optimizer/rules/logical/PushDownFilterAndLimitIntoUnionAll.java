@@ -48,11 +48,11 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  *
  * If the patterns of the {@code UnionAll} branches do not match the following expected patterns, the rule is not applied.
  *
- *   EsqlProject
+ *   Project
  *     Eval (optional) - added when the output of each UnionAll branch are not exactly the same
  *         EsRelation
  * or
- *   EsqlProject
+ *   Project
  *     Eval (optional)
  *         Subquery
  * or

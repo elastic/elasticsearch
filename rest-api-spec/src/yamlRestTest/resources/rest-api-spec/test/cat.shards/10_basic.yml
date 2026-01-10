@@ -88,6 +88,8 @@
              bulk.avg_size_in_bytes           .+   \n
              dense_vector.value_count         .+   \n
              sparse_vector.value_count        .+   \n
+             tier_preference                  .+   \n
+             node.role                        .+   \n
         $/
 ---
 "Test cat shards output":
@@ -115,7 +117,7 @@
 
   - match:
       $body: |
-        /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+)  \n?){10}$/
+        /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+ \s+ \S* \s+ \S*)  \n?){10}$/
 
   - do:
       indices.create:
@@ -130,14 +132,14 @@
         index: i*
   - match:
       $body: |
-        /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
+        /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+ \s+ \S* \s+ \S*) \n?){15}$/
 
   - do:
       cat.shards:
         index: index2
   - match:
       $body: |
-        /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
+        /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+ \s+ \S* \s+ \S*) \n?){5}$/
 
 ---
 "Test cat shards using wildcards":

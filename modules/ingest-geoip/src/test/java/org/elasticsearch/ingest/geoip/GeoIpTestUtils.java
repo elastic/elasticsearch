@@ -42,7 +42,7 @@ public final class GeoIpTestUtils {
         return path.toFile().isDirectory();
     }
 
-    public static void copyDatabase(final String databaseName, final Path destination) {
+    static void copyDatabase(final String databaseName, final Path destination) {
         try (InputStream is = GeoIpTestUtils.class.getResourceAsStream("/" + databaseName)) {
             if (is == null) {
                 throw new FileNotFoundException("Resource [" + databaseName + "] not found in classpath");
@@ -54,40 +54,46 @@ public final class GeoIpTestUtils {
         }
     }
 
-    public static void copyDefaultDatabases(final Path directory) {
+    static void copyDefaultDatabases(final Path directory) {
         for (final String database : DEFAULT_DATABASES) {
             copyDatabase(database, directory);
         }
     }
 
-    public static void copyDefaultDatabases(final Path directory, ConfigDatabases configDatabases) {
+    static void copyDefaultDatabases(final Path directory, ConfigDatabases configDatabases) {
         for (final String database : DEFAULT_DATABASES) {
             copyDatabase(database, directory);
             configDatabases.updateDatabase(directory.resolve(database), true);
         }
     }
 
+    public record SimpleCity(String cityName) implements IpDatabase.Response {}
+
     /**
      * A static city-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
-     * Like this: {@code CityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
+     * Like this: {@code SimpleCity city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
-    public static CityResponse getCity(Reader reader, String ip) throws IOException {
+    public static SimpleCity getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
-        return data == null ? null : new CityResponse(data, ip, record.getNetwork(), List.of("en"));
+        return data == null ? null : new SimpleCity(new CityResponse(data, ip, record.getNetwork(), List.of("en")).getCity().getName());
     }
+
+    public record SimpleCountry(String countryName) implements IpDatabase.Response {}
 
     /**
      * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
-     * Like this: {@code CountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
+     * Like this: {@code SimpleCountry country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
-    public static CountryResponse getCountry(Reader reader, String ip) throws IOException {
+    public static SimpleCountry getCountry(Reader reader, String ip) throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
         CountryResponse data = record.getData();
-        return data == null ? null : new CountryResponse(data, ip, record.getNetwork(), List.of("en"));
+        return data == null
+            ? null
+            : new SimpleCountry(new CountryResponse(data, ip, record.getNetwork(), List.of("en")).getCountry().getName());
     }
 }

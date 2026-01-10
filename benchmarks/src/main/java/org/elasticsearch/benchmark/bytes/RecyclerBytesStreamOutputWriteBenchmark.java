@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 
 // throughput is more representable metric, it amortizes pages recycling code path and reduce benchmark error
 @BenchmarkMode(Mode.Throughput)
-// each operation is nanoseconds range, measuring within 1 second provides enough samples
 @Warmup(time = 1)
 @Measurement(time = 5)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -47,6 +46,7 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
     // Ideally, we should not write own loop and let JMH do it right.
     // But there is a problem, output stream can hold only 2GB of data and needs occasional reset.
     // There is a lifecycle hook @TearDown(Level.Invocation) but it comes with own set of problems.
+    // https://github.com/openjdk/jmh/blob/master/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_11_Loops.java
     private int writeVInt(int n) throws IOException {
         // write multiple pages
         for (int i = 0; i <= PAGE_SIZE; i++) {

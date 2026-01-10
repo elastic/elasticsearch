@@ -96,6 +96,9 @@ class Elasticsearch {
         assert bootstrap != null;
 
         try {
+            if (true) {
+                throw new IllegalStateException("Elasticsearch is not supported in this environment");
+            }
             initPhase2(bootstrap);
             initPhase3(bootstrap);
         } catch (NodeValidationException e) {

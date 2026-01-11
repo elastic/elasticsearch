@@ -31,6 +31,9 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.store.DirectoryMetricHolder;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -45,10 +48,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -85,6 +90,8 @@ public class IndicesServiceBuilder {
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     SlowLogFieldProvider slowLogFieldProvider = (context) -> new SlowLogFields(context) {
     };
+    Map<String, DirectoryMetricHolder<?>> directoryMetricHolderMap;
+    ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -240,6 +247,17 @@ public class IndicesServiceBuilder {
             .<Function<IndexSettings, Optional<EngineFactory>>>map(plugin -> plugin::getEngineFactory)
             .toList();
 
+        directoryMetricHolderMap = new HashMap<>();
+        var directoryMetricsRegistrator = new BiConsumer<String, DirectoryMetricHolder<?>>() {
+            @Override
+            public void accept(String s, DirectoryMetricHolder<?> metricHolder) {
+                directoryMetricHolderMap.put(s, metricHolder);
+            }
+        };
+        storeMetricsHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        directoryMetricHolderMap.put("store", storeMetricsHolder);
+
+        pluginsService.filterPlugins(EnginePlugin.class).forEach(plugin -> plugin.registerDirectoryMetrics(directoryMetricsRegistrator));
         directoryFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
             .map(IndexStorePlugin::getDirectoryFactories)
             .flatMap(m -> m.entrySet().stream())

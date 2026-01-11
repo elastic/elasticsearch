@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -215,7 +216,9 @@ public class ClusterPrivilegeResolver {
         // cluster stats for remote clusters
         "cluster:monitor/stats/remote",
         "cluster:monitor/stats",
-        "cluster:monitor/stats[n]"
+        "cluster:monitor/stats[n]",
+        // inference fields for semantic search cross-cluster query rewrite
+        GetInferenceFieldsAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,

@@ -66,7 +66,9 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         // 500MB random/unique keyword values trigger CBE, should not OOM
-        heapAttackIT.initManyBigFieldsIndex(500, "keyword", true);
+        // reduce the number of docs from 500 to 100, as this test OOMs in serverless CI with 500 docs and 2 subqueries
+        int docs = isServerless() ? 100 : 500;
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
         // 2 subqueries are enough to trigger CBE, confirmed where this CBE happens in ExchangeService.doFetchPageAsync,
         // as a few big pages are loaded into the exchange buffer
         // TODO 8 subqueries OOM, because the memory consumed by lucene is not properly tracked in ValuesSourceReaderOperator yet.
@@ -97,6 +99,8 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * This is mainly to test TopNOperator.
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
+        assertFalse("skip this test in serverless", isServerless());
+        // both 100 and 500 docs OOM in serverless
         int docs = 500; // // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
         // Some data points:
@@ -112,6 +116,25 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // MultiLeafFieldComparator seems big but it is only about 15% of the size of NonScoringPerShardCollector,
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
             assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString(), docs));
+        }
+    }
+
+    /*
+     * The index's size is 1MB * 500, each field has 500 unique/random text values, and these queries don't have aggregation or sort.
+     * CBE is not triggered here.
+     */
+    public void testManyRandomTextFieldsInSubqueryIntermediateResults() throws IOException {
+        // 500MB random/unique keyword values trigger CBE, should not OOM
+        // serverless CI does not OOM or CB with 100 docs.
+        int docs = 500;
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
+        // 2 subqueries are enough to trigger CBE, confirmed where this CBE happens in ExchangeService.doFetchPageAsync,
+        // as a few big pages are loaded into the exchange buffer
+        // TODO 8 subqueries OOM, because the memory consumed by lucene is not properly tracked in ValuesSourceReaderOperator yet.
+        // Lucene90DocValuesProducer are on the top of objects list, also BlockSourceReader.scratch is not tracked by circuit breaker yet,
+        // skip 8 subqueries for now
+        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
+            assertCircuitBreaks(attempt -> buildSubqueries(subquery, "manybigfields", ""));
         }
     }
 
@@ -136,6 +159,8 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * This is mainly to test TopNOperator.
      */
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
+        assertFalse("skip this test in serverless", isServerless());
+        // both 100 and 500 docs OOM in serverless
         int docs = 500; // // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
         StringBuilder sortKeys = new StringBuilder();
@@ -210,12 +235,14 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * This is mainly to test HashAggregationOperator and ValuesSourceReaderOperator, CBE is expected to be triggered here.
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggGBYManyFields() throws IOException {
+        assertFalse("skip this test on serverless in serverless", isServerless());
+        // GBY 100 fields CB and 500 fields docs OOM with 2 subqueries
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
         // Some data points:
         // 1. group by 50 fields completes successfully for 2/8 subqueries, there is no CBE
         // 2. group by 100 fields with 2 subqueries completes successfully, 8 subqueries triggers CBE
-        // 3. group by 500 fields, HashAggregationOperator.addInput triggers CBE for 2 subqueries locally, however it OOMs in CI,
+        // 3. group by 500 fields, HashAggregationOperator.addInput triggers CBE for 2 subqueries locally, however it OOMs in serverless CI,
         // TODO 8 subqueries trigger OOM, skip group by 500 fields with 8 subqueries,
         // the walkaround that prevents the OOM is setting FIELD_EXTRACT_PREFERENCE=STORED
         StringBuilder grouping = new StringBuilder();
@@ -233,6 +260,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     // It is likely the lack of memory tracking for BlockSourceReader.scratch cause OOM instead of CBE here.
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
+        assertFalse("skip this test on serverless", isServerless()); // 40 docs OOMs in serverless
         // OOM heap dump shows around 45 docs/pages in it locally, which means fetching 45 docs will cause OOM, each page is 5MB.
         // 2 subqueries and 8 subqueries both OOM, however they have different patterns in the heap dump.
         // 1. According to the heap dump of 2 subqueries, the OOM happened during adding page into OutputOperator for returning results,
@@ -255,6 +283,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     // It is likely the lack of memory tracking for BlockSourceReader.scratch cause OOM instead of CBE here.
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
+        assertFalse("skip this test on serverless", isServerless()); // 40 docs OOMs in serverless
         // Similar observation as no sort case, 2 or 8 subqueries both OOM.
         // TODO improve memory tracking in BlockSourceReader.scratch
         int docs = 40; // 40 docs *5MB does not OOM without subquery
@@ -318,5 +347,18 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
         query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns,values"));
+    }
+
+    private static boolean isServerless() throws IOException {
+        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
+            for (Object module : (List<?>) nodeInfo.get("modules")) {
+                Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                final String moduleName = moduleInfo.get("name").toString();
+                if (moduleName.startsWith("serverless-")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

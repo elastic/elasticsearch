@@ -1018,9 +1018,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
-                EXPONENTIAL_HISTOGRAM, TDIGEST,
-                // https://github.com/elastic/elasticsearch/issues/137699
-                DENSE_VECTOR -> false;
+                EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
             default -> true;
         };
     }

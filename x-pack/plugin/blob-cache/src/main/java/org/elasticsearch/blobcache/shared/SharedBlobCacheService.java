@@ -1429,7 +1429,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             if (readsComplete.isDone() == false) {
-                long bytes = regions.stream().mapToLong(fileRegion -> fileRegion.tracker.getAbsentBytesWithin(mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region()))).sum();
+                long bytes = regions.stream()
+                    .mapToLong(
+                        fileRegion -> fileRegion.tracker.getAbsentBytesWithin(
+                            mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region())
+                        )
+                    )
+                    .sum();
                 if (bytes > 0) {
                     try (var dummy = cacheMissMetricHandler.record(bytes)) {
                         readsComplete.get();

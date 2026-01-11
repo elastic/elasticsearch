@@ -44,7 +44,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String NAME = "ES93ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
-    static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
+    public static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
         new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
     );
 
@@ -102,6 +102,10 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;
+    }
+
+    public FlatVectorsFormat getRawVectorFormat() {
+        return rawVectorFormat;
     }
 
     @Override

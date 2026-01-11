@@ -47,39 +47,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
         throws IOException {
-        return new CentroidIterator() {
-            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
-                ? centroidIterator.nextPostingListOffsetAndLength()
-                : null;
-
-            {
-                // prefetch the first one
-                if (nextOffsetAndLength != null) {
-                    prefetch(nextOffsetAndLength);
-                }
-            }
-
-            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
-                postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
-            }
-
-            @Override
-            public boolean hasNext() {
-                return nextOffsetAndLength != null;
-            }
-
-            @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
-                if (centroidIterator.hasNext()) {
-                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
-                    prefetch(nextOffsetAndLength);
-                } else {
-                    nextOffsetAndLength = null;  // indicate we reached the end
-                }
-                return offsetAndLength;
-            }
-        };
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
     }
 
     @Override

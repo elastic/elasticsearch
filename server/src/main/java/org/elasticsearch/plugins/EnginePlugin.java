@@ -28,5 +28,4 @@ public interface EnginePlugin {
      * @return an optional engine factory
      */
     Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings);
-
 }

@@ -76,7 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
+import static org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
@@ -468,9 +468,8 @@ class Elasticsearch {
 
         // listener for windows close event
         if (ctrlHandler) {
-            var windowsFunctions = nativeAccess.getWindowsFunctions();
-            if (windowsFunctions != null) {
-                windowsFunctions.addConsoleCtrlHandler(code -> {
+            NativeAccess.onWindows(windowsNativeAccess -> {
+                windowsNativeAccess.addConsoleCtrlHandler(code -> {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
                         shutdown();
@@ -478,7 +477,7 @@ class Elasticsearch {
                     }
                     return false;
                 });
-            }
+            });
         }
 
         if (IOUtils.LINUX) {

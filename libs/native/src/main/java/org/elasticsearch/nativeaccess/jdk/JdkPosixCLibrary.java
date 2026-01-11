@@ -23,6 +23,7 @@ import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.lang.ref.Reference;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -36,6 +37,8 @@ import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWith
 class JdkPosixCLibrary implements PosixCLibrary {
 
     private static final Logger logger = LogManager.getLogger(JdkPosixCLibrary.class);
+
+    private static final int PAGE_SIZE;
 
     // errno can change between system calls, so we capture it
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
@@ -53,6 +56,10 @@ class JdkPosixCLibrary implements PosixCLibrary {
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS)
     );
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+    private static final MethodHandle madvise$mh = downcallHandleWithErrno(
+        "madvise",
+        FunctionDescriptor.of(JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_INT)
+    );
     private static final MethodHandle fcntl$mh = downcallHandle(
         "fcntl",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS),
@@ -92,6 +99,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
             );
         }
         fstat$mh = fstat;
+
+        try {
+            PAGE_SIZE = (int) downcallHandle("getpagesize", FunctionDescriptor.of(JAVA_INT)).invokeExact();
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
     private static final MethodHandle socket$mh = downcallHandleWithErrno(
         "socket",
@@ -180,6 +193,28 @@ class JdkPosixCLibrary implements PosixCLibrary {
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
+    }
+
+    @Override
+    public int madvise(MemorySegment segment, long offset, long length, int advice) {
+        if (segment.isNative() == false) {
+            throw new IllegalArgumentException("unexpected non-native segment: " + segment);
+        }
+        long base = segment.address() + offset;
+        try {
+            return (int) madvise$mh.invokeExact(errnoState, base, length, advice);
+        } catch (IllegalArgumentException exc) {
+            throw exc;
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        } finally {
+            Reference.reachabilityFence(segment);
+        }
+    }
+
+    @Override
+    public int getPageSize() {
+        return PAGE_SIZE;
     }
 
     @Override

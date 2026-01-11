@@ -108,9 +108,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/127689
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/350_point_in_time/point-in-time with index filter}
-  issue: https://github.com/elastic/elasticsearch/issues/127741
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
@@ -288,9 +285,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139527
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
@@ -300,12 +294,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
-  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/139826
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139848
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/139974

@@ -19,6 +19,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
 
 public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalPlanOptimizerTests {
 
+    private final InsertDefaultInnerTimeSeriesAggregate rule = new InsertDefaultInnerTimeSeriesAggregate();
+
     public void testSimpleImplicitOverTime() {
         assertStatsEqual("network.bytes_in", "last_over_time(network.bytes_in)");
         assertStatsEqual("sum(network.bytes_in)", "sum(last_over_time(network.bytes_in))");

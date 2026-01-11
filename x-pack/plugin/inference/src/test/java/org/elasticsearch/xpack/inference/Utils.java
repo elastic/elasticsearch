@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.Model;
@@ -155,12 +156,19 @@ public final class Utils {
     public static PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> chunkingSettings,
-        Map<String, Object> secretSettings
+        @Nullable Map<String, Object> chunkingSettings,
+        @Nullable Map<String, Object> secretSettings
     ) {
+        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
 
-        var persistedConfigMap = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
-        persistedConfigMap.config.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+        var persistedConfigMap = new PersistedConfig(
+            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
+            secrets
+        );
+
+        if (chunkingSettings != null) {
+            persistedConfigMap.config.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+        }
 
         return persistedConfigMap;
     }
@@ -168,25 +176,17 @@ public final class Utils {
     public static PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
+        @Nullable Map<String, Object> secretSettings
     ) {
-        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
+        return getPersistedConfigMap(serviceSettings, taskSettings, null, secretSettings);
+    }
 
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            secrets
-        );
+    public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
+        return Utils.getPersistedConfigMap(serviceSettings, taskSettings, null);
     }
 
     public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
         return Utils.getPersistedConfigMap(serviceSettings, new HashMap<>(), null);
-    }
-
-    public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            null
-        );
     }
 
     public static Map<String, Object> getRequestConfigMap(

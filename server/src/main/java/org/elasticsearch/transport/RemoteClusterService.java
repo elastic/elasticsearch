@@ -33,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -80,7 +81,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
-    private final boolean crossProjectEnabled;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
@@ -97,11 +98,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
-        /*
-         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
-         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
-         */
-        this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         // Since this counter may never be incremented we need to force an initial observed value of zero via add(0) so the metric will be
         // in the mappings of the indices of the APM data stream, otherwise we will encounter 'not found' errors in dashboards and alerts.
         // See observability-dev issue #3042.
@@ -232,7 +229,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * it returns an empty value where we default/fall back to true.
      */
     public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
-        if (crossProjectEnabled) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
             return Optional.empty();
         } else {
             return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
@@ -240,7 +237,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     public boolean crossProjectEnabled() {
-        return crossProjectEnabled;
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     /**
@@ -368,6 +365,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener
     ) {
+        final var crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         final var projectId = config.originProjectId();
         final var clusterAlias = config.linkedProjectAlias();
         final var connectionMap = getConnectionsMapForProject(projectId);

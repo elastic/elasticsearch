@@ -1,0 +1,6 @@
+pr: 140217
+summary: "ESQL: Support intra-row field references in ROW command"
+area: ES|QL
+type: feature
+issues:
+  - 140119

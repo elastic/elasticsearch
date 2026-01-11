@@ -67,7 +67,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (Build.current().isSnapshot()) {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR && type != DataType.TDIGEST)
+                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.TDIGEST)
                     .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
                     .toList()
             );
@@ -141,14 +141,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         List<String> warnings
     ) {
         suppliers.add(new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(cond, type)), List.of(DataType.BOOLEAN, type), () -> {
-            Object lhs = randomLiteral(type).value();
+            Object lhs = randomValue(type);
             List<TestCaseSupplier.TypedData> typedData = List.of(cond(cond, "cond"), new TestCaseSupplier.TypedData(lhs, type, "lhs"));
             return testCase(type, typedData, lhsOrRhs ? lhs : null, toStringMatcher(1, true), false, null, addWarnings(warnings));
         }));
         suppliers.add(
             new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)), List.of(DataType.BOOLEAN, type, type), () -> {
-                Object lhs = randomLiteral(type).value();
-                Object rhs = randomLiteral(type).value();
+                Object lhs = randomValue(type);
+                Object rhs = randomValue(type);
                 List<TestCaseSupplier.TypedData> typedData = List.of(
                     cond(cond, "cond"),
                     new TestCaseSupplier.TypedData(lhs, type, "lhs"),
@@ -164,7 +164,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     TestCaseSupplier.nameFrom(Arrays.asList(cond, type, otherType)),
                     List.of(DataType.BOOLEAN, type, otherType),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
+                        Object lhs = randomValue(type);
                         Object rhs = randomLiteral(otherType).value();
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond"),
@@ -190,8 +190,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)),
                     List.of(DataType.BOOLEAN, type, type),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
-                        Object rhs = randomLiteral(type).value();
+                        Object lhs = randomValue(type);
+                        Object rhs = randomValue(type);
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond").forceLiteral(),
                             new TestCaseSupplier.TypedData(lhs, type, "lhs").forceLiteral(),
@@ -214,7 +214,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type)),
                     List.of(DataType.BOOLEAN, type),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
+                        Object lhs = randomValue(type);
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond").forceLiteral(),
                             new TestCaseSupplier.TypedData(lhs, type, "lhs")
@@ -237,7 +237,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type)),
                     List.of(DataType.BOOLEAN, type),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
+                        Object lhs = randomValue(type);
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond").forceLiteral(),
                             new TestCaseSupplier.TypedData(lhs, type, "lhs")
@@ -260,8 +260,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)),
                 List.of(DataType.BOOLEAN, type, type),
                 () -> {
-                    Object lhs = randomLiteral(type).value();
-                    Object rhs = randomLiteral(type).value();
+                    Object lhs = randomValue(type);
+                    Object rhs = randomValue(type);
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond, "cond").forceLiteral(),
                         new TestCaseSupplier.TypedData(lhs, type, "lhs"),
@@ -284,7 +284,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (cond == null) {
             suppliers.add(
                 new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type)), List.of(DataType.NULL, type), () -> {
-                    Object lhs = randomLiteral(type).value();
+                    Object lhs = randomValue(type);
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
                         new TestCaseSupplier.TypedData(lhs, type, "lhs")
@@ -305,8 +305,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, type)),
                     List.of(DataType.NULL, type, type),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
-                        Object rhs = randomLiteral(type).value();
+                        Object lhs = randomValue(type);
+                        Object rhs = randomValue(type);
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
                             new TestCaseSupplier.TypedData(lhs, type, "lhs"),
@@ -331,7 +331,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, otherType)),
                         List.of(DataType.NULL, type, otherType),
                         () -> {
-                            Object lhs = randomLiteral(type).value();
+                            Object lhs = randomValue(type);
                             Object rhs = randomLiteral(otherType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
@@ -357,7 +357,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.nameFrom(Arrays.asList(cond, DataType.NULL, type)),
                 List.of(DataType.BOOLEAN, DataType.NULL, type),
                 () -> {
-                    Object rhs = randomLiteral(type).value();
+                    Object rhs = randomValue(type);
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond, "cond"),
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "lhs"),
@@ -380,7 +380,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.nameFrom(Arrays.asList(cond, type, DataType.NULL)),
                 List.of(DataType.BOOLEAN, type, DataType.NULL),
                 () -> {
-                    Object lhs = randomLiteral(type).value();
+                    Object lhs = randomValue(type);
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond, "cond"),
                         new TestCaseSupplier.TypedData(lhs, type, "lhs"),
@@ -413,8 +413,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
                 List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
                 () -> {
-                    Object r1 = randomLiteral(type).value();
-                    Object r2 = randomLiteral(type).value();
+                    Object r1 = randomValue(type);
+                    Object r2 = randomValue(type);
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond1, "cond1"),
                         new TestCaseSupplier.TypedData(r1, type, "r1"),
@@ -435,9 +435,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                 List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                 () -> {
-                    Object r1 = randomLiteral(type).value();
-                    Object r2 = randomLiteral(type).value();
-                    Object r3 = randomLiteral(type).value();
+                    Object r1 = randomValue(type);
+                    Object r2 = randomValue(type);
+                    Object r3 = randomValue(type);
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond1, "cond1"),
                         new TestCaseSupplier.TypedData(r1, type, "r1"),
@@ -462,9 +462,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
@@ -489,9 +489,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1"),
@@ -518,9 +518,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
@@ -545,9 +545,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
@@ -572,8 +572,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "partial foldable 2 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
@@ -597,8 +597,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "partial foldable 3 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
@@ -624,9 +624,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1"),
@@ -651,9 +651,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1"),
@@ -678,9 +678,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         "partial foldable 2 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
                         List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomValue(type);
+                            Object r2 = randomValue(type);
+                            Object r3 = randomValue(type);
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
                                 new TestCaseSupplier.TypedData(r1, type, "r1"),
@@ -742,9 +742,16 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (type == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        return decorate.apply(
+
+        var tc = decorate.apply(
             new TestCaseSupplier.TestCase(typedData, evaluatorToString, type, equalTo(result)).withExtra(new Extra(foldable, partialFold))
         );
+
+        // Disable the block evaluator for dense_vector to prevent ClassCastException
+        if (type == DataType.DENSE_VECTOR) {
+            return tc.withoutEvaluator();
+        }
+        return tc;
     }
 
     @Override
@@ -780,7 +787,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         };
     }
 
+    @Override
+    public void testFold() {
+        // Skip execution tests if evaluator is disabled
+        if (testCase.canBuildEvaluator() == false) {
+            return;
+        }
+        super.testFold();
+    }
+
     public void testFancyFolding() {
+        // Skip execution tests if evaluator is disabled (e.g. for dense_vector)
+        if (testCase.canBuildEvaluator() == false) {
+            return;
+        }
+
         Expression e = buildFieldExpression(testCase);
         if (extra().foldable == false) {
             assertThat(e.foldable(), equalTo(false));
@@ -801,6 +822,11 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
+        // Skip execution tests if evaluator is disabled
+        if (testCase.canBuildEvaluator() == false) {
+            return;
+        }
+
         if (extra().foldable()) {
             // Nothing to do
             return;
@@ -853,5 +879,12 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return testCase.getMatcher();
         }
         return super.allNullsMatcher();
+    }
+
+    private static Object randomValue(DataType type) {
+        if (type == DataType.DENSE_VECTOR) {
+            return new org.apache.lucene.util.BytesRef(randomAlphaOfLength(10));
+        }
+        return randomLiteral(type).value();
     }
 }

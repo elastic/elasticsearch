@@ -7912,7 +7912,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
+        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7923,7 +7924,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
-        var sumExtraction = as(crossSeriesSum.field(), ExtractHistogramComponent.class);
+        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertFalse(mergePerSeries.hasFilter());
@@ -7942,7 +7943,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
+        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7953,7 +7955,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
-        var sumExtraction = as(Alias.unwrap(crossSeriesSum.field()), ExtractHistogramComponent.class);
+        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertTrue(mergePerSeries.hasFilter());
@@ -8038,7 +8040,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
+        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -8049,7 +8052,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
-        var sumExtraction = as(crossSeriesSum.field(), ExtractHistogramComponent.class);
+        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertFalse(mergePerSeries.hasFilter());

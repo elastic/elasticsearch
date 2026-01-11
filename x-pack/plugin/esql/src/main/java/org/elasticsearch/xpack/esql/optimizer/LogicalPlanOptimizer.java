@@ -156,6 +156,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
+            // re-executing this rule is a relic of when time series aggregates were translated after surrogate substitution
+            // removing this would fail in ccs scenarios where the remote cluster is on an older version
+            new ReplaceAggregateNestedExpressionWithEval(),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
             new PropagateInlineEvals(),

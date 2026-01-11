@@ -4,6 +4,7 @@
       <verify-metadata>false</verify-metadata>
       <verify-signatures>false</verify-signatures>
       <trusted-artifacts>
+         <trust group="main" name="branches"/>
          <trust group="beats" name="filebeat"/>
          <trust group="beats" name="filebeat-fips"/>
          <trust group="beats" name="metricbeat"/>

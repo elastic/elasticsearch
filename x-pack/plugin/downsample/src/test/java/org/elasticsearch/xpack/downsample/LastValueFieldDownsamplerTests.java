@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -20,14 +25,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LastValueFieldProducerTests extends AggregatorTestCase {
+public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
 
     public void testLastValueKeyword() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
+        LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "bbb", "ccc" });
@@ -38,7 +44,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueDouble() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
+        LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 17.30D, 12.60D });
@@ -49,7 +55,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueInteger() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
+        LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 17, 12 });
@@ -60,7 +66,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueLong() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
+        LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Long[] { 10L, 17L, 12L });
@@ -71,7 +77,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueBoolean() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
+        LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Boolean[] { true, false, false });
@@ -105,7 +111,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         };
 
         values.iterator = Arrays.stream(multiValue).iterator();
-        LastValueFieldProducer multiLastValueProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
+        LastValueFieldDownsampler multiLastValueProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(multiLastValueProducer.lastValue(), nullValue());
         multiLastValueProducer.collect(values, docIdBuffer);
         assertThat(multiLastValueProducer.lastValue(), equalTo(multiValue));
@@ -115,10 +121,10 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(multiLastValueProducer.lastValue(), nullValue());
     }
 
-    public void testFlattenedLastValueFieldProducer() throws IOException {
-        var producer = LastValueFieldProducer.create("dummy", "flattened");
-        assertTrue(producer.isEmpty());
-        assertEquals("dummy", producer.name());
+    public void testFlattenedLastValueFieldDownsampler() throws IOException {
+        var downsampler = LastValueFieldDownsampler.create("dummy", createDummyFlattenedFieldType(), null);
+        assertTrue(downsampler.isEmpty());
+        assertEquals("dummy", downsampler.name());
 
         var bytes = List.of("a\0value_a", "b\0value_b", "c\0value_c", "d\0value_d");
         var docValues = new FormattedDocValues() {
@@ -141,23 +147,23 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
             }
         };
 
-        producer.collect(docValues, IntArrayList.from(1));
-        assertFalse(producer.isEmpty());
-        assertEquals("a\0value_a", (((Object[]) producer.lastValue())[0]).toString());
-        assertEquals("b\0value_b", (((Object[]) producer.lastValue())[1]).toString());
-        assertEquals("c\0value_c", (((Object[]) producer.lastValue())[2]).toString());
-        assertEquals("d\0value_d", (((Object[]) producer.lastValue())[3]).toString());
+        downsampler.collect(docValues, IntArrayList.from(1));
+        assertFalse(downsampler.isEmpty());
+        assertEquals("a\0value_a", (((Object[]) downsampler.lastValue())[0]).toString());
+        assertEquals("b\0value_b", (((Object[]) downsampler.lastValue())[1]).toString());
+        assertEquals("c\0value_c", (((Object[]) downsampler.lastValue())[2]).toString());
+        assertEquals("d\0value_d", (((Object[]) downsampler.lastValue())[3]).toString());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();
-        producer.write(builder);
+        downsampler.write(builder);
         builder.endObject();
         var content = Strings.toString(builder);
         assertThat(content, equalTo("{\"dummy\":{\"a\":\"value_a\",\"b\":\"value_b\",\"c\":\"value_c\",\"d\":\"value_d\"}}"));
 
-        producer.reset();
-        assertTrue(producer.isEmpty());
-        assertNull(producer.lastValue());
+        downsampler.reset();
+        assertTrue(downsampler.isEmpty());
+        assertNull(downsampler.lastValue());
     }
 
     static <T> FormattedDocValues createValuesInstance(IntArrayList docIdBuffer, T[] values) {
@@ -181,6 +187,25 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
             @Override
             public int docValueCount() {
                 return 1;
+            }
+        };
+    }
+
+    private static MappedFieldType createDummyFlattenedFieldType() {
+        return new MappedFieldType("dummy", IndexType.NONE, false, Map.of()) {
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                return null;
+            }
+
+            @Override
+            public String typeName() {
+                return "flattened";
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                return null;
             }
         };
     }

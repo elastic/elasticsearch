@@ -17,10 +17,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
-public class NumericMetricFieldProducerTests extends AggregatorTestCase {
+public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
 
     public void testMinCountMetric() throws IOException {
-        var aggregateMetricFieldProducer = new NumericMetricFieldProducer.AggregateGauge(randomAlphaOfLength(10));
+        var aggregateMetricFieldProducer = new NumericMetricFieldDownsampler.AggregateGauge(randomAlphaOfLength(10), null, null);
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 5.5, 12.2, 55);
@@ -29,7 +29,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         aggregateMetricFieldProducer.reset();
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
 
-        var lastValueProducer = new NumericMetricFieldProducer.LastValue(randomAlphaOfLength(10));
+        var lastValueProducer = new NumericMetricFieldDownsampler.LastValue(randomAlphaOfLength(10), null, null);
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var values = createNumericValuesInstance(docIdBuffer, 40D, 5.5, 12.2, 55D);
@@ -41,7 +41,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testMaxCountMetric() throws IOException {
-        var aggregateMetricFieldProducer = new NumericMetricFieldProducer.AggregateGauge(randomAlphaOfLength(10));
+        var aggregateMetricFieldProducer = new NumericMetricFieldDownsampler.AggregateGauge(randomAlphaOfLength(10), null, null);
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
@@ -50,7 +50,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         aggregateMetricFieldProducer.reset();
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
 
-        var lastValueProducer = new NumericMetricFieldProducer.LastValue(randomAlphaOfLength(10));
+        var lastValueProducer = new NumericMetricFieldDownsampler.LastValue(randomAlphaOfLength(10), null, null);
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55D);
@@ -62,7 +62,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testSumCountMetric() throws IOException {
-        var aggregateMetricFieldProducer = new NumericMetricFieldProducer.AggregateGauge(randomAlphaOfLength(10));
+        var aggregateMetricFieldProducer = new NumericMetricFieldDownsampler.AggregateGauge(randomAlphaOfLength(10), null, null);
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
@@ -71,7 +71,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         aggregateMetricFieldProducer.reset();
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
 
-        var lastValueProducer = new NumericMetricFieldProducer.LastValue(randomAlphaOfLength(10));
+        var lastValueProducer = new NumericMetricFieldDownsampler.LastValue(randomAlphaOfLength(10), null, null);
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55D);
@@ -87,7 +87,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
      * Tests stolen from SumAggregatorTests#testSummationAccuracy
      */
     public void testSummationAccuracy() throws IOException {
-        var instance = new NumericMetricFieldProducer.AggregateGauge(randomAlphaOfLength(10));
+        var instance = new NumericMetricFieldDownsampler.AggregateGauge(randomAlphaOfLength(10), null, null);
         assertEquals(0, instance.sum.value(), 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
         // Summing up a normal array and expect an accurate value
@@ -159,7 +159,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testValueCountMetric() throws IOException {
-        var aggregateMetricFieldProducer = new NumericMetricFieldProducer.AggregateGauge(randomAlphaOfLength(10));
+        var aggregateMetricFieldProducer = new NumericMetricFieldDownsampler.AggregateGauge(randomAlphaOfLength(10), null, null);
         assertEquals(0, aggregateMetricFieldProducer.count);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 30, 20);
@@ -168,7 +168,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         aggregateMetricFieldProducer.reset();
         assertEquals(0, aggregateMetricFieldProducer.count);
 
-        var lastValueProducer = new NumericMetricFieldProducer.LastValue(randomAlphaOfLength(10));
+        var lastValueProducer = new NumericMetricFieldDownsampler.LastValue(randomAlphaOfLength(10), null, null);
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 40, 30, 20);
         lastValueProducer.collect(values, docIdBuffer);
@@ -180,7 +180,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
 
     public void testCounterMetricFieldProducer() throws IOException {
         final String field = "field";
-        var producer = new NumericMetricFieldProducer.LastValue(field);
+        var producer = new NumericMetricFieldDownsampler.LastValue(field, null, null);
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
@@ -200,7 +200,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
 
     public void testGaugeMetricFieldProducer() throws IOException {
         final String field = "field";
-        NumericMetricFieldProducer producer = new NumericMetricFieldProducer.AggregateGauge(field);
+        NumericMetricFieldDownsampler producer = new NumericMetricFieldDownsampler.AggregateGauge(field, null, null);
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);

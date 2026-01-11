@@ -29,6 +29,10 @@ public class DirectoryMetrics implements ToXContentFragment {
         Supplier<T> delta();
 
         T snapshot();
+
+        default <R> R cast(Class<R> clazz) {
+            return clazz.cast(this);
+        }
     }
 
     private final Map<String, PluggableMetrics<?>> data;

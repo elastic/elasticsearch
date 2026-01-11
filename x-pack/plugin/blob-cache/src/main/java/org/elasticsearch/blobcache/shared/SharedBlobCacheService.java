@@ -1399,6 +1399,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
             final AtomicInteger bytesRead = new AtomicInteger();
+            List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {
                     final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
@@ -1409,6 +1410,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     ActionListener<Integer> listener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
                     try {
                         final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
+                        regions.add(fileRegion);
                         final long regionStart = getRegionStart(region);
                         fileRegion.populateAndRead(
                             mapSubRangeToRegion(rangeToWrite, region),
@@ -1425,6 +1427,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         listener.onFailure(e);
                     }
                 }
+            }
+            if (readsComplete.isDone() == false) {
+                long bytes = regions.stream().mapToLong(fileRegion -> fileRegion.tracker.getAbsentBytesWithin(mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region()))).sum();
+                if (bytes > 0) {
+                    try (var dummy = cacheMissMetricHandler.record(bytes)) {
+                        readsComplete.get();
+                    }
+                }
+
             }
             readsComplete.get();
             return bytesRead.get();

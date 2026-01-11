@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,24 +17,19 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
-class TypeConverter {
-    private final String evaluatorName;
-    private final ExpressionEvaluator convertEvaluator;
+import java.util.Objects;
 
-    private TypeConverter(String evaluatorName, ExpressionEvaluator convertEvaluator) {
-        this.evaluatorName = evaluatorName;
-        this.convertEvaluator = convertEvaluator;
-    }
+/**
+ * Adapts {@link EsqlScalarFunction} taking a single input into
+ * a {@link ValuesSourceReaderOperator.ConverterFactory}.
+ */
+class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
+    private final EsqlScalarFunction convertFunction;
+    private final ExpressionEvaluator.Factory factory;
 
-    public static TypeConverter fromScalarFunction(EsqlScalarFunction convertFunction) {
-        DriverContext driverContext1 = new DriverContext(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new org.elasticsearch.compute.data.BlockFactory(
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                BigArrays.NON_RECYCLING_INSTANCE
-            )
-        );
-        return new TypeConverter(convertFunction.functionName(), convertFunction.toEvaluator(new EvaluatorMapper.ToEvaluator() {
+    TypeConverter(EsqlScalarFunction convertFunction) {
+        this.convertFunction = convertFunction;
+        this.factory = convertFunction.toEvaluator(new EvaluatorMapper.ToEvaluator() {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
                 return driverContext -> new ExpressionEvaluator() {
@@ -60,15 +53,51 @@ class TypeConverter {
             public FoldContext foldCtx() {
                 throw new IllegalStateException("not folding");
             }
-        }).get(driverContext1));
+        });
     }
 
-    public Block convert(Block block) {
-        return convertEvaluator.eval(new Page(block));
+    @Override
+    public ValuesSourceReaderOperator.ConverterEvaluator build(DriverContext context) {
+        return new Evaluator(factory.get(context));
+    }
+
+    private static class Evaluator implements ValuesSourceReaderOperator.ConverterEvaluator {
+        private final ExpressionEvaluator evaluator;
+
+        private Evaluator(ExpressionEvaluator evaluator) {
+            this.evaluator = evaluator;
+        }
+
+        @Override
+        public Block convert(Block block) {
+            return evaluator.eval(new Page(block));
+        }
+
+        @Override
+        public void close() {
+            evaluator.close();
+        }
     }
 
     @Override
     public String toString() {
-        return evaluatorName;
+        return convertFunction.functionName();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        TypeConverter that = (TypeConverter) o;
+        return Objects.equals(convertFunction, that.convertFunction);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(convertFunction);
     }
 }

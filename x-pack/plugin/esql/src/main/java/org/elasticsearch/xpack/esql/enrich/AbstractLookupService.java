@@ -444,13 +444,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }
-                        return loader;
+                        return ValuesSourceReaderOperator.load(loader);
                     }
                 )
             );
         }
         return new ValuesSourceReaderOperator(
-            driverContext.blockFactory(),
+            driverContext,
             Long.MAX_VALUE,
             fields,
             new IndexedByShardIdFromSingleton<>(

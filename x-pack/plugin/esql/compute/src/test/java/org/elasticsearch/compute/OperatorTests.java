@@ -179,7 +179,14 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, false, f -> new LongsBlockLoader("v"))),
+                List.of(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        "v",
+                        ElementType.LONG,
+                        false,
+                        f -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
+                    )
+                ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),

@@ -192,22 +192,20 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher);
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {
                 operators.add(new ShuffleDocsOperator(blockFactory));
             }
             operators.add(
                 new ValuesSourceReaderOperator(
-                    blockFactory,
+                    driverContext,
                     ByteSizeValue.ofGb(1).getBytes(),
                     List.of(
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
                             ElementType.BYTES_REF,
                             false,
-                            unused -> new BytesRefsFromOrdsBlockLoader(FIELD)
+                            unused -> ValuesSourceReaderOperator.load(new BytesRefsFromOrdsBlockLoader(FIELD))
                         )
                     ),
                     new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {

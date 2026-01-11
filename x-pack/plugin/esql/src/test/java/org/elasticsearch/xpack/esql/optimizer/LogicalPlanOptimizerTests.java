@@ -21,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -9859,26 +9858,59 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMetricsAfterRenamingTimestamp() {
         assertThat(
             expectThrows(
-                EsqlIllegalArgumentException.class,
+                VerificationException.class,
                 () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
                     TS k8s |
                     EVAL @timestamp = region |
                     STATS max(network.cost), count(network.eth0.rx)
                     """)))
             ).getMessage(),
-            containsString("for the the TS STATS command, the @timestamp field must be a date type but was [keyword]")
+            containsString(
+                "second argument of [implicit time-series aggregation function (LastOverTime) for network.cost] "
+                    + "must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
+            )
         );
 
         assertThat(
             expectThrows(
-                EsqlIllegalArgumentException.class,
+                VerificationException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(last_over_time(network.cost)), count(last_over_time(network.eth0.rx))
+                    """)))
+            ).getMessage(),
+            containsString(
+                "second argument of [last_over_time(network.cost)] must be [date_nanos or datetime], "
+                    + "found value [@timestamp] type [keyword]"
+            )
+        );
+
+        assertThat(
+            expectThrows(
+                VerificationException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(max_over_time(network.cost)), count(count_over_time(network.eth0.rx))
+                    """)))
+            ).getMessage(),
+            containsString("the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [keyword]")
+        );
+
+        assertThat(
+            expectThrows(
+                VerificationException.class,
                 () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
                     TS k8s |
                     DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
                     STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
                     """)))
             ).getMessage(),
-            containsString("for the the TS STATS command, the @timestamp field must be a date type but was [keyword]")
+            containsString(
+                "second argument of [implicit time-series aggregation function (LastOverTime) for "
+                    + "network.eth0.currently_connected_clients] must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
+            )
         );
 
         var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""

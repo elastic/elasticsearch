@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 
 import java.util.Locale;
@@ -58,10 +59,12 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             | LIMIT 10
             """;
         var plan1 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats1)));
+        var plan2 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats2)));
         Function<Alias, Expression> ignoreAliasName = (Alias a) -> new Alias(a.source(), "dummy", a.child(), a.id());
         plan1 = plan1.transformExpressionsDown(Alias.class, ignoreAliasName);
-        var plan2 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats2)));
         plan2 = plan2.transformExpressionsDown(Alias.class, ignoreAliasName);
+        plan1 = plan1.transformExpressionsDown(DefaultTimeSeriesAggregateFunction.class, DefaultTimeSeriesAggregateFunction::surrogate);
+        plan2 = plan2.transformExpressionsDown(DefaultTimeSeriesAggregateFunction.class, DefaultTimeSeriesAggregateFunction::surrogate);
         assertThat(ignoreIds(plan1), equalToIgnoringIds(plan2));
     }
 

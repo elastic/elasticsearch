@@ -600,16 +600,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 aggregate = changed.get() ? aggregate.with(aggregate.child(), groupings, newAggregates) : aggregate;
             }
             if (aggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
-                Attribute newTimestamp = maybeResolveAttribute(unresolvedTimestamp, childrenOutput);
-                if (newTimestamp.dataType().isDate() == false) {
-                    // validate type early for a better error message
-                    throw new EsqlIllegalArgumentException(
-                        "for the the TS STATS command, the @timestamp field must be a date type but was ["
-                            + newTimestamp.dataType().typeName()
-                            + "]"
-                    );
-                }
-                return ts.withTimestamp(newTimestamp);
+                return ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput));
             } else {
                 return aggregate;
             }

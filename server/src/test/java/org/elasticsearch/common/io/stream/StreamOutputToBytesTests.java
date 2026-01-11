@@ -26,14 +26,13 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
-import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BufferedStreamOutputTests extends ESTestCase {
+public class StreamOutputToBytesTests extends ESTestCase {
 
     public void testRandomWrites() throws IOException {
         final var bufferPool = randomByteArrayOfLength(between(KB.toIntBytes(1), KB.toIntBytes(4)));
@@ -50,8 +49,11 @@ public class BufferedStreamOutputTests extends ESTestCase {
         final var targetSize = between(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2);
 
         try (
-            var expectedStream = new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE);
-            var actualStream = new ByteArrayOutputStream(targetSize) {
+            var countingStream = new CountingStreamOutput();
+            var mockRecycler = new MockBytesRefRecycler();
+            var recyclerBytesStream = new RecyclerBytesStreamOutput(mockRecycler);
+            var plainBytesStream = new BytesStreamOutput();
+            var toBeBufferedStream = new ByteArrayOutputStream(targetSize) {
                 @Override
                 public void write(int b) {
                     fail("buffered stream should not write single bytes");
@@ -63,8 +65,12 @@ public class BufferedStreamOutputTests extends ESTestCase {
                     super.write(b, off, len);
                 }
             };
-            var bufferedStream = new BufferedStreamOutput(actualStream, buffer)
+            var bufferedStream = new BufferedStreamOutput(toBeBufferedStream, buffer);
+            var toBeWrappedStream = new ByteArrayOutputStream(targetSize);
+            var wrappedStream = new OutputStreamStreamOutput(toBeWrappedStream)
         ) {
+            final var streams = List.of(countingStream, recyclerBytesStream, plainBytesStream, bufferedStream, wrappedStream);
+
             final var writers = List.<Supplier<CheckedConsumer<StreamOutput, IOException>>>of(() -> {
                 final var b = randomByte();
                 return s -> s.writeByte(b);
@@ -117,17 +123,25 @@ public class BufferedStreamOutputTests extends ESTestCase {
                 return s -> s.writeGenericString(value);
             });
 
-            while (expectedStream.position() < targetSize) {
+            while (countingStream.size() < targetSize) {
                 var writerIndex = between(0, writers.size() - 1);
                 var writer = writers.get(writerIndex).get();
-                writer.accept(bufferedStream);
-                writer.accept(expectedStream);
-                assertEquals("after " + writerIndex, expectedStream.position(), bufferedStream.position());
+                for (var stream : streams) {
+                    writer.accept(stream);
+                }
+                assertEquals("recyclerBytesStream after " + writerIndex, countingStream.size(), recyclerBytesStream.position());
+                assertEquals("plainBytesStream after " + writerIndex, countingStream.size(), plainBytesStream.position());
+                assertEquals("bufferedStream after " + writerIndex, countingStream.size(), bufferedStream.position());
             }
 
             isExpectedWriteSize.set(allOf(lessThanOrEqualTo(bufferLen), greaterThan(0))); // last write may be undersized
-            bufferedStream.flush();
-            assertThat(new BytesArray(actualStream.toByteArray()), equalBytes(expectedStream.bytes()));
+            for (var stream : streams) {
+                stream.flush();
+            }
+            final var isExpectedBytes = equalBytes(new BytesArray(toBeWrappedStream.toByteArray()));
+            assertThat(new BytesArray(toBeBufferedStream.toByteArray()), isExpectedBytes);
+            assertThat(recyclerBytesStream.bytes(), isExpectedBytes);
+            assertThat(plainBytesStream.bytes(), isExpectedBytes);
         }
 
         if (Assertions.ENABLED == false) {

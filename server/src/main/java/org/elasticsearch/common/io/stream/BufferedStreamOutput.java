@@ -28,6 +28,31 @@ import static org.elasticsearch.common.io.stream.StreamOutputHelper.putVInt;
  * be acquired or allocated up-front. Apart from the costs of the buffer creation &amp; release a {@link BufferedStreamOutput} is likely
  * more performant than an {@link OutputStreamStreamOutput} because it writes all fields directly to its local buffer and only copies data
  * to the underlying stream when the buffer fills up.
+ *
+ * <hr>
+ *
+ * <h2>Wrapping a {@linkplain java.io.ByteArrayOutputStream}</h2>
+ *
+ * A {@link java.io.ByteArrayOutputStream} collects data in an underlying {@code byte[]} collector which typically doubles in size each time
+ * it receives a write which exhausts the remaining space in the existing collector. This works well if wrapped with a
+ * {@link BufferedStreamOutput} especially if the object is expected to be small enough to fit entirely into the buffer, because then
+ * there's only one slightly-oversized {@code byte[]} allocation to create the collector, plus another right-sized {@code byte[]} allocation
+ * to extract the result, assuming the buffer is not allocated afresh each time. However, subsequent flushes may need to allocate a larger
+ * collector, copying over the existing data to the new collector, so this can perform badly for larger objects. For large enough objects
+ * this will start to perform humongous allocations which can be stressful for the garbage collector.
+ * <p>
+ * This approach is also good if the in-memory serialized representation will have a long lifetime, because the resulting {@code byte[]} is
+ * exactly the correct size. When using other approaches such as a {@linkplain BytesStreamOutput}, {@linkplain ReleasableBytesStreamOutput}
+ * or {@linkplain RecyclerBytesStreamOutput} there will be some amount of unused overhead bytes which may be particularly undesirable for
+ * long-lived objects.
+ * <p>
+ * An {@link OutputStreamStreamOutput} wrapper is almost certainly worse than a {@link BufferedStreamOutput}, because it will make the
+ * {@link java.io.ByteArrayOutputStream} perform significantly more allocations and copies until the collecting buffer gets large enough.
+ * Most writes to a {@link OutputStreamStreamOutput} use a thread-local intermediate buffer (itself somewhat expensive) and then copy that
+ * intermediate buffer directly to the output.
+ * <p>
+ * Any memory allocated in this way is untracked by the {@link org.elasticsearch.common.breaker} subsystem unless the caller takes steps to
+ * add this tracking themselves.
  */
 public class BufferedStreamOutput extends StreamOutput {
 

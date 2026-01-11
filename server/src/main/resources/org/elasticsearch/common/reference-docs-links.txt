@@ -49,3 +49,4 @@ CLUSTER_SHARD_LIMIT                                             reference/elasti
 DEPLOY_CLOUD_DIFF_FROM_STATEFUL                                 deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings
 DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block
 ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings
+MACHINE_LEARNING_SETTINGS                                       reference/elasticsearch/configuration-reference/machine-learning-settings

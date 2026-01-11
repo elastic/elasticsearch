@@ -63,6 +63,12 @@ public interface Operator extends Releasable {
     boolean isFinished();
 
     /**
+     * Returns true if the operator can produce more output pages without requiring additional input pages.
+     * This is useful for operators that buffer data or have internal state that can produce multiple output pages.
+     */
+    boolean canProduceMoreDataWithoutExtraInput();
+
+    /**
      * returns non-null if output page available. Only called when isFinished() == false
      * @throws UnsupportedOperationException  if the operator is a {@link SinkOperator}
      */

@@ -31,6 +31,11 @@ public abstract class SourceOperator implements Operator {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return isFinished() == false;
+    }
+
     /**
      * A factory for creating source operators.
      */

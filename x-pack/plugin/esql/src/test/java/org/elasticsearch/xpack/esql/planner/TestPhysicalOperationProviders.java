@@ -236,6 +236,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
+        public boolean canProduceMoreDataWithoutExtraInput() {
+            return lastPage != null;
+        }
+
+        @Override
         public void close() {
 
         }

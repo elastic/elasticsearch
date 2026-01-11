@@ -1,0 +1,5 @@
+pr: 139058
+summary: Remove implicit `limit` appended for each subquery branch
+area: ES|QL
+type: enhancement
+issues: []

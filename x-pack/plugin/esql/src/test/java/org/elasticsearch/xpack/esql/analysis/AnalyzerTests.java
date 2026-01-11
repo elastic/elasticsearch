@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -2584,7 +2585,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLimitForPromQL() {
-        assumeTrue("Requires promql support", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V12.isEnabled());
+        assumeTrue("Requires promql support", PromqlFeatures.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         assertDefaultLimitForQuery(analyzer, """
             PROMQL index=test

@@ -780,6 +780,13 @@ public enum DataType implements Writeable {
     }
 
     /**
+     * {@code true} if the type represents any kind of histogram, {@code false} otherwise.
+     */
+    public boolean isHistogram() {
+        return this == HISTOGRAM || this == EXPONENTIAL_HISTOGRAM || this == TDIGEST;
+    }
+
+    /**
      * An estimate of the size of values of this type in a Block. All types must have an
      * estimate, and generally follow the following rules:
      * <ol>

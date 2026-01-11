@@ -3,7 +3,7 @@
 // This makes it easy to verify that PromQL and TS produce the same results for the same functionality where applicable
 // and helps to ensure we have the same test coverage for PromQL vs TS|STATS.
 promql_start_end_step
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
   sum(avg_over_time(network.cost[5m]))
 );
@@ -13,7 +13,7 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 ;
 
 no_parentheses
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" sum(avg_over_time(network.cost[5m]));
 
 sum(avg_over_time(network.cost[5m])):double | step:date
@@ -21,7 +21,7 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 ;
 
 not_equals_filter
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | SORT cluster;
 
@@ -31,7 +31,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 equals_filter
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster;
 
@@ -40,7 +40,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 not_regex_filter
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
 | SORT cluster;
 
@@ -50,7 +50,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 regex_filter
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
 | SORT cluster;
 
@@ -59,7 +59,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 range_selector_different_from_step
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v13
 required_capability: time_series_window_v1
 PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" sum by (pod) (avg_over_time(events_received[10m]))
 | SORT pod

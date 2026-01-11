@@ -65,7 +65,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
-    public static final String CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.error.total";
 
     private final boolean isRemoteClusterClient;
     private final boolean isSearchNode;
@@ -102,13 +101,6 @@ public final class RemoteClusterService extends RemoteClusterAware
          *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
          */
         this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
-        // Since this counter may never be incremented we need to force an initial observed value of zero via add(0) so the metric will be
-        // in the mappings of the indices of the APM data stream, otherwise we will encounter 'not found' errors in dashboards and alerts.
-        // See observability-dev issue #3042.
-        transportService.getTelemetryProvider()
-            .getMeterRegistry()
-            .registerLongUpDownCounter(CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME, "linked project connection attempt failure count", "count")
-            .add(0);
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {

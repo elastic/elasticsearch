@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +66,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportPreviewDatafeedAction(
@@ -94,6 +96,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -154,9 +157,14 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
+            // Apply cross-project search mode to IndicesOptions before creating the factory
+            DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+                previewDatafeedConfig,
+                crossProjectModeDecider
+            );
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
-                previewDatafeedConfig,
+                effectiveDatafeedConfig,
                 extraFilters,
                 job,
                 xContentRegistry,

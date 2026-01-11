@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -22,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -31,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValue
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -309,6 +308,27 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static String documentId(String datafeedId) {
         return TYPE + "-" + datafeedId;
+    }
+
+    /**
+     * Returns a DatafeedConfig with cross-project search (CPS) mode enabled in its IndicesOptions
+     * if CPS is enabled at the cluster level.
+     *
+     * @param datafeed The original datafeed configuration
+     * @param crossProjectModeDecider The decider that determines if CPS is enabled
+     * @return A new DatafeedConfig with CPS-enabled IndicesOptions if CPS is enabled, otherwise the original config
+     */
+    public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            IndicesOptions baseOptions = datafeed.getIndicesOptions();
+            if (baseOptions.resolveCrossProjectIndexExpression() == false) {
+                IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
+            }
+        }
+        return datafeed;
     }
 
     public String getId() {
@@ -1051,9 +1071,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             setDefaultQueryDelay();
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
-            }
-            if (indicesOptions.resolveCrossProjectIndexExpression()) {
-                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
             return new DatafeedConfig(

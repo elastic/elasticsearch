@@ -18,13 +18,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,14 +58,18 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * or
  *     Subquery - CombineProjections may remove the EsqlProject on top of the subquery
  */
-public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, LogicalPlan> {
+public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
 
     private static final String UNIONALL = "unionall";
 
     private static final String prefix = Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + UNIONALL + SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
 
+    public PushDownFilterAndLimitIntoUnionAll() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
+
     @Override
-    public LogicalPlan apply(LogicalPlan logicalPlan) {
+    protected LogicalPlan rule(LogicalPlan logicalPlan, LogicalOptimizerContext context) {
         // push down filter below UnionAll if possible
         LogicalPlan planWithFilterPushedDownPastUnionAll = logicalPlan.transformDown(
             Filter.class,
@@ -78,10 +82,10 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             PushDownFilterAndLimitIntoUnionAll::pushFilterPastSubquery
         );
 
-        // Append a limit to a subquery if there is knn in the subquery with implicitK, but there is no limit after knn
+        // Append limit to a subquery if there is knn in the subquery with implicitK, but there is no limit after knn
         return planWithFilterPushedDownPastSubquery.transformDown(
             UnionAll.class,
-            PushDownFilterAndLimitIntoUnionAll::maybeAppendLimitForKnnInSubquery
+            unionAll -> maybeAppendLimitForKnnInSubquery(unionAll, context)
         );
     }
 
@@ -281,11 +285,11 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
      * The input to this method is an {@code UnionAll} branch, check if there is {@code Knn} in the plan, if so collect its implicitK,
      * and append a {@code Limit} to the subquery if there isn't one already.
      */
-    private static LogicalPlan maybeAppendLimitForKnnInSubquery(UnionAll unionAll) {
+    private static LogicalPlan maybeAppendLimitForKnnInSubquery(UnionAll unionAll, LogicalOptimizerContext context) {
         List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
         for (LogicalPlan child : unionAll.children()) {
-            LogicalPlan newChild = appendLimitIfNeededForKnn(child);
+            LogicalPlan newChild = appendLimitIfNeededForKnn(child, context);
             if (newChild != child) {
                 changed = true;
             }
@@ -294,31 +298,39 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         return changed ? unionAll.replaceChildren(newChildren) : unionAll;
     }
 
-    private static LogicalPlan appendLimitIfNeededForKnn(LogicalPlan subquery) {
-        Holder<Integer> maxImplicitK = new Holder<>();
-        Holder<Limit> limitAfterKnn = new Holder<>();
+    private static LogicalPlan appendLimitIfNeededForKnn(LogicalPlan subquery, LogicalOptimizerContext context) {
+        Holder<Integer> maxImplicitK = new Holder<>(null);
+        Holder<Boolean> hasLimitAlready = new Holder<>(false);
 
         subquery.forEachDown(plan -> {
-            if (plan instanceof Limit limit && maxImplicitK.get() == null) { // found a limit before finding knn
-                limitAfterKnn.set(limit);
+            if (hasLimitAlready.get()) {
+                return;
             }
-            if (limitAfterKnn.get() == null) {  // haven't found limit yet, look for knn in the plan
-                plan.forEachExpression(exp -> {
-                    if (exp instanceof Knn knn) {
-                        Integer k = knn.implicitK();
-                        if (k != null) {
-                            Integer currentMax = maxImplicitK.get();
-                            maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
-                        }
+
+            if (plan instanceof Limit && maxImplicitK.get() == null) { // found a limit before finding knn
+                hasLimitAlready.set(true);
+                return;
+            }
+
+            // haven't found limit yet, look for knn in the plan
+            plan.forEachExpression(exp -> {
+                if (exp instanceof Knn knn) {
+                    Integer k = knn.implicitK();
+                    if (k != null) {
+                        Integer currentMax = maxImplicitK.get();
+                        maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
                     }
-                });
-            }
+                }
+            });
         });
+
         // there is knn with implicitK and there is no limit after knn, append a limit
         Integer k = maxImplicitK.get();
-        if (k != null && limitAfterKnn.get() == null) {
+        if (k != null && hasLimitAlready.get() == false) {
             Source source = subquery.source();
-            return new Limit(source, new Literal(source, k, DataType.INTEGER), subquery);
+            // check the implicit K against default and maximum implicit limit
+            int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
+            return new Limit(source, new Literal(source, Math.max(k, maxImplicitLimit), DataType.INTEGER), subquery);
         }
         return subquery;
     }

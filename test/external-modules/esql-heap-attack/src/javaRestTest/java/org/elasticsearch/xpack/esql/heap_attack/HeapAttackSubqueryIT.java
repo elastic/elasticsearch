@@ -235,7 +235,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * This is mainly to test HashAggregationOperator and ValuesSourceReaderOperator, CBE is expected to be triggered here.
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggGBYManyFields() throws IOException {
-        assertFalse("skip this test on serverless in serverless", isServerless());
+        assertFalse("skip this test in serverless", isServerless());
         // GBY 100 fields CB and 500 fields docs OOM with 2 subqueries
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);

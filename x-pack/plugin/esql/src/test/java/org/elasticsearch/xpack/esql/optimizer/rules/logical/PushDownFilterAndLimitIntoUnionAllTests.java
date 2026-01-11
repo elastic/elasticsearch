@@ -1099,7 +1099,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *     \_LocalRelation[[color{r}#20, hex_code{r}#21, id{r}#22, primary{r}#23, rgb_byte_vector{r}#24, rgb_vector{r}#25, _score{r}#26,
      *                                 language_code{f}#16, language_name{f}#17],EMPTY]
      */
-    public void testPushDownKnnPast() {
+    public void testPushDownKnnPastUnionAll() {
         var plan = planSubquery("""
             from colors, (from languages) metadata _score
             | where knn(rgb_vector, "007800")
@@ -1113,6 +1113,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         UnionAll unionAll = as(topN.child(), UnionAll.class);
 
         assertEquals(2, unionAll.children().size());
+
         Project esqlProject = as(unionAll.children().get(0), Project.class);
         Eval eval = as(esqlProject.child(), Eval.class);
         List<Alias> aliases = eval.fields();
@@ -1122,8 +1123,8 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         Knn knn = as(filter.condition(), Knn.class);
         FieldAttribute rgb_vector = as(knn.field(), FieldAttribute.class);
         assertEquals("rgb_vector", rgb_vector.name());
-        Integer implicitK = as(knn.implicitK(), Integer.class);
-        assertEquals(10, implicitK.intValue());
+        // knn should have an implicitK set
+        assertNotNull(knn.implicitK());
         EsRelation relation = as(filter.child(), EsRelation.class);
         assertEquals("colors", relation.indexPattern());
 

@@ -40,6 +40,7 @@ public class ConsumeProcessor implements Processor {
             "org.elasticsearch.core.Nullable",
             "org.elasticsearch.injection.guice.Inject",
             "org.elasticsearch.core.SuppressForbidden",
+            "org.elasticsearch.xpack.esql.expression.function.Example",
             "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",
             "org.elasticsearch.xpack.esql.expression.function.Param",
             "org.elasticsearch.xpack.esql.expression.function.MapParam",

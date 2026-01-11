@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  * An example of using a function that is rendered in the docs.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.CONSTRUCTOR)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD })
 public @interface Example {
 
     /**

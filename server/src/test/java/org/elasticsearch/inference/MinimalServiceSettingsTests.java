@@ -14,6 +14,9 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MinimalServiceSettingsTests extends AbstractXContentTestCase<MinimalServiceSettings> {
     public static MinimalServiceSettings randomInstance() {
@@ -38,6 +41,14 @@ public class MinimalServiceSettingsTests extends AbstractXContentTestCase<Minima
     @Override
     protected MinimalServiceSettings doParseInstance(XContentParser parser) throws IOException {
         return MinimalServiceSettings.parse(parser);
+    }
+
+    public void testUpdateServiceSettings_SameInstance() {
+        MinimalServiceSettings minimalServiceSettings = randomInstance();
+        assertThat(
+            minimalServiceSettings.updateServiceSettings(Map.of("some_key", "some_value"), TaskType.TEXT_EMBEDDING),
+            sameInstance(minimalServiceSettings)
+        );
     }
 
     @Override

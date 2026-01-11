@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioRateLimitServiceSettings;
@@ -77,6 +78,11 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public GoogleAiStudioCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

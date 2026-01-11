@@ -316,6 +316,11 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     }
 
     @Override
+    public CustomServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT, taskType);
+    }
+
+    @Override
     public SimilarityMeasure similarity() {
         return textEmbeddingSettings.similarityMeasure;
     }

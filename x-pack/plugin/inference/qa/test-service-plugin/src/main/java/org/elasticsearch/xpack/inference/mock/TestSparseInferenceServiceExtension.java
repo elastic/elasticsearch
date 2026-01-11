@@ -346,6 +346,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         @Override
+        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            return fromMap(serviceSettings);
+        }
+
+        @Override
         public ToXContentObject getFilteredXContentObject() {
             return (builder, params) -> {
                 builder.startObject();

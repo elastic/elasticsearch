@@ -11,6 +11,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
@@ -110,5 +111,10 @@ public class NvidiaRerankServiceSettings extends NvidiaServiceSettings {
     @Override
     public int hashCode() {
         return Objects.hash(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    public NvidiaRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 }

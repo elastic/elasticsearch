@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -180,6 +181,12 @@ public record MinimalServiceSettings(
     @Override
     public String modelId() {
         return null;
+    }
+
+    @Override
+    public MinimalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        // Update operation is not expected to be called on MinimalServiceSettings
+        return this;
     }
 
     public static Diff<MinimalServiceSettings> readDiffFrom(StreamInput in) throws IOException {

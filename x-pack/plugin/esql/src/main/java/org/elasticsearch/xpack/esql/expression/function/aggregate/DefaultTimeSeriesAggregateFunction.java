@@ -96,9 +96,7 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
                     + ") for "
                     + message.substring(pos);
             }
-            return new TypeResolution(
-                message + "; to aggregate non-numeric fields, use the FROM command instead of the TS command"
-            );
+            return new TypeResolution(message + "; to aggregate non-numeric fields, use the FROM command instead of the TS command");
         }
         return typeResolution;
     }

@@ -65,7 +65,7 @@ public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
         );
     }
 
-    HuggingFaceChatCompletionModel(
+    public HuggingFaceChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

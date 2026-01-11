@@ -210,6 +210,21 @@ public class CohereService extends SenderService implements RerankingInferenceSe
     }
 
     @Override
+    public CohereModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(config, secrets);
+            case RERANK -> new CohereRerankModel(config, secrets);
+            case COMPLETION -> new CohereCompletionModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        };
+    }
+
+    @Override
     public CohereModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);

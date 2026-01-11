@@ -77,7 +77,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         );
     }
 
-    OpenAiChatCompletionModel(
+    public OpenAiChatCompletionModel(
         String modelId,
         TaskType taskType,
         String service,

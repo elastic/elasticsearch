@@ -197,6 +197,20 @@ public class GoogleAiStudioService extends SenderService {
         );
     }
 
+    @Override
+    public GoogleAiStudioModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case COMPLETION -> new GoogleAiStudioCompletionModel(config, secrets);
+            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        };
+    }
+
     private static GoogleAiStudioModel createModelFromPersistent(
         String inferenceEntityId,
         TaskType taskType,

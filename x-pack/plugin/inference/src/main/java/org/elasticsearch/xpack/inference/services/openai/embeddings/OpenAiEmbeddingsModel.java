@@ -58,7 +58,6 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         );
     }
 
-    // Should only be used directly for testing
     public OpenAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,

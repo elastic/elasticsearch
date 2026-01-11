@@ -88,6 +88,22 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         );
     }
 
+    public VoyageAIRerankModel(
+        String inferenceId,
+        String service,
+        VoyageAIRerankServiceSettings serviceSettings,
+        VoyageAIRerankTaskSettings taskSettings,
+        @Nullable DefaultSecretSettings secretSettings
+    ) {
+        super(
+            new ModelConfigurations(inferenceId, TaskType.RERANK, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings),
+            secretSettings,
+            serviceSettings.getCommonSettings(),
+            buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
+        );
+    }
+
     private VoyageAIRerankModel(VoyageAIRerankModel model, VoyageAIRerankTaskSettings taskSettings) {
         super(model, taskSettings);
     }

@@ -149,6 +149,20 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     }
 
     @Override
+    public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        if (config.getTaskType() != TaskType.RERANK) {
+            throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        }
+
+        return new ContextualAiRerankModel(config, secrets);
+    }
+
+    @Override
     public ContextualAiRerankModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);

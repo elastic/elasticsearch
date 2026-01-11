@@ -88,8 +88,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         );
     }
 
-    // should only be used for testing
-    IbmWatsonxChatCompletionModel(
+    public IbmWatsonxChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

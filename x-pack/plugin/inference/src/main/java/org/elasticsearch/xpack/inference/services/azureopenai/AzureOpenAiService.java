@@ -222,6 +222,24 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
+    public AzureOpenAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        switch (config.getTaskType()) {
+            case TEXT_EMBEDDING -> {
+                return new AzureOpenAiEmbeddingsModel(config, secrets);
+            }
+            case COMPLETION, CHAT_COMPLETION -> {
+                return new AzureOpenAiCompletionModel(config, secrets);
+            }
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        }
+    }
+
+    @Override
     public AzureOpenAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);

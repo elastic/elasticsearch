@@ -176,6 +176,21 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
     }
 
     @Override
+    public GoogleVertexAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case TEXT_EMBEDDING -> new GoogleVertexAiEmbeddingsModel(config, secrets);
+            case RERANK -> new GoogleVertexAiRerankModel(config, secrets);
+            case CHAT_COMPLETION, COMPLETION -> new GoogleVertexAiChatCompletionModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        };
+    }
+
+    @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);

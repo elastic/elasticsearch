@@ -1,0 +1,5 @@
+pr: 140003
+summary: Add provider validation call to Update Inference Endpoint operation
+area: Machine Learning
+type: enhancement
+issues: []

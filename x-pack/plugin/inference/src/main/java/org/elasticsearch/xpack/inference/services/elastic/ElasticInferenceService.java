@@ -444,6 +444,26 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
+    public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case SPARSE_EMBEDDING -> new ElasticInferenceServiceSparseEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
+            case CHAT_COMPLETION, COMPLETION -> new ElasticInferenceServiceCompletionModel(
+                config,
+                secrets,
+                elasticInferenceServiceComponents
+            );
+            case RERANK -> new ElasticInferenceServiceRerankModel(config, secrets, elasticInferenceServiceComponents);
+            case TEXT_EMBEDDING -> new ElasticInferenceServiceDenseTextEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        };
+    }
+
+    @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);

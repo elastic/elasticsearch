@@ -59,8 +59,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
-    IbmWatsonxEmbeddingsModel(
+    public IbmWatsonxEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

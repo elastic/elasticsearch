@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreator;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
@@ -146,6 +148,30 @@ public class GroqService extends SenderService {
             taskSettingsMap,
             secretSettingsMap,
             ConfigurationParseContext.PERSISTENT
+        );
+    }
+
+    @Override
+    public GroqChatCompletionModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        if (SUPPORTED_TASK_TYPES.contains(taskType) == false) {
+            throw ServiceUtils.createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        }
+        return new GroqChatCompletionModel(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            (GroqChatCompletionServiceSettings) serviceSettings,
+            (GroqChatCompletionTaskSettings) taskSettings,
+            (DefaultSecretSettings) secretSettings
         );
     }
 

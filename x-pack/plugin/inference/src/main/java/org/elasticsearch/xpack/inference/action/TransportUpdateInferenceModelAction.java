@@ -53,10 +53,12 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -118,7 +120,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
         var inferenceEntityId = request.getInferenceEntityId();
 
-        SubscribableListener.<UnparsedModel>newForked(listener -> { checkEndpointExists(inferenceEntityId, listener); })
+        SubscribableListener.<UnparsedModel>newForked(listener -> checkEndpointExists(inferenceEntityId, listener))
             .<UnparsedModel>andThen((listener, unparsedModel) -> {
 
                 Optional<InferenceService> optionalService = serviceRegistry.getService(unparsedModel.service());
@@ -145,23 +147,35 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 Model existingParsedModel = service.get()
                     .parsePersistedConfigWithSecrets(
-                        request.getInferenceEntityId(),
+                        existingUnparsedModel.inferenceEntityId(),
                         existingUnparsedModel.taskType(),
                         new HashMap<>(existingUnparsedModel.settings()),
                         new HashMap<>(existingUnparsedModel.secrets())
                     );
 
-                Model newModel = combineExistingModelWithNewSettings(
+                validateResolvedTaskType(existingParsedModel, resolvedTaskType);
+
+                ModelConfigurations newModelConfigurations = combineExistingModelConfigurationsWithNewSettings(
                     existingParsedModel,
                     request.getContentAsSettings(),
-                    service.get().name(),
-                    resolvedTaskType
+                    service.get().name()
                 );
 
+                ModelSecrets newModelSecrets = combineExistingSecretsWithNewSecrets(
+                    existingParsedModel,
+                    request.getContentAsSettings().serviceSettings()
+                );
+
+                Model newParsedModel = service.get().buildModelFromConfigAndSecrets(newModelConfigurations, newModelSecrets);
+
                 if (isInClusterService(service.get().name())) {
-                    updateInClusterEndpoint(request, newModel, existingParsedModel, listener);
+                    updateInClusterEndpoint(request, newParsedModel, existingParsedModel, listener);
                 } else {
-                    modelRegistry.updateModelTransaction(newModel, existingParsedModel, listener);
+                    ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
+                        (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
+                    );
+                    ModelValidatorBuilder.buildModelValidator(newParsedModel.getTaskType(), service.get())
+                        .validate(service.get(), newParsedModel, request.masterNodeTimeout(), updateModelListener);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
@@ -177,11 +191,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                         } else {
                             listener.onResponse(
                                 service.get()
-                                    .parsePersistedConfig(
-                                        request.getInferenceEntityId(),
-                                        resolvedTaskType,
-                                        new HashMap<>(unparsedModel.settings())
-                                    )
+                                    .parsePersistedConfig(inferenceEntityId, resolvedTaskType, new HashMap<>(unparsedModel.settings()))
                                     .getConfigurations()
                             );
                         }
@@ -196,52 +206,63 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             .addListener(masterListener);
     }
 
-    /**
-     * Combines the existing model with the new settings to create a new model using the
-     * SecretSettings and TaskSettings implementations for each service, as well as specifically handling NUM_ALLOCATIONS.
-     *
-     * @param existingParsedModel the Model representing a third-party service endpoint
-     * @param settingsToUpdate    new settings
-     * @param serviceName
-     * @return a new object representing the updated model
-     */
-    private Model combineExistingModelWithNewSettings(
-        Model existingParsedModel,
-        UpdateInferenceModelAction.Settings settingsToUpdate,
-        String serviceName,
-        TaskType resolvedTaskType
-    ) {
-        ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
-        TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
-        SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
-
-        SecretSettings newSecretSettings = existingSecretSettings;
-        TaskSettings newTaskSettings = existingTaskSettings;
-        ServiceSettings newServiceSettings = existingConfigs.getServiceSettings();
-
-        if (settingsToUpdate.serviceSettings() != null && existingSecretSettings != null) {
-            newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
-        }
-        if (settingsToUpdate.serviceSettings() != null) {
-            newServiceSettings = newServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
-        }
-        if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {
-            newTaskSettings = existingTaskSettings.updatedTaskSettings(settingsToUpdate.taskSettings());
-        }
-
+    private static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {
         if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
             throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
         }
+    }
 
-        ModelConfigurations newModelConfigs = new ModelConfigurations(
+    /**
+     * Combines the existing model configurations with the new settings to create a new model configuration
+     * @param existingParsedModel the Model representing a third-party service endpoint
+     * @param newSettings  new settings to update
+     * @param serviceName the name of the service
+     * @return a new object representing the updated model configurations
+     */
+    private ModelConfigurations combineExistingModelConfigurationsWithNewSettings(
+        Model existingParsedModel,
+        UpdateInferenceModelAction.Settings newSettings,
+        String serviceName
+    ) {
+        ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
+        TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
+        ServiceSettings existingServiceSettings = existingConfigs.getServiceSettings();
+
+        TaskSettings newTaskSettings = existingTaskSettings;
+        ServiceSettings newServiceSettings = existingServiceSettings;
+
+        if (newSettings.serviceSettings() != null) {
+            newServiceSettings = newServiceSettings.updateServiceSettings(newSettings.serviceSettings());
+        }
+        if (newSettings.taskSettings() != null && existingTaskSettings != null) {
+            newTaskSettings = newTaskSettings.updatedTaskSettings(newSettings.taskSettings());
+        }
+
+        return new ModelConfigurations(
             existingParsedModel.getInferenceEntityId(),
             existingParsedModel.getTaskType(),
             serviceName,
             newServiceSettings,
-            newTaskSettings
+            newTaskSettings,
+            existingConfigs.getChunkingSettings()
         );
+    }
 
-        return new Model(newModelConfigs, new ModelSecrets(newSecretSettings));
+    /**
+     * Combines the existing model secrets with the new secrets to create a new model secrets
+     * @param existingParsedModel the Model representing a third-party service endpoint
+     * @param newSettingsMap new secrets to update
+     * @return a new object representing the updated model secrets
+     */
+    private ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
+        SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
+        SecretSettings newSecretSettings = existingSecretSettings;
+
+        if (newSettingsMap != null && existingSecretSettings != null) {
+            newSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
+        }
+
+        return new ModelSecrets(newSecretSettings);
     }
 
     private void updateInClusterEndpoint(
@@ -299,7 +320,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             logger.info(
                 "Updating trained model deployment [{}] for inference entity [{}] with [{}] num_allocations and adaptive allocations [{}]",
                 deploymentId,
-                request.getInferenceEntityId(),
+                inferenceEntityId,
                 elasticServiceSettings.getNumAllocations(),
                 elasticServiceSettings.getAdaptiveAllocationsSettings()
             );

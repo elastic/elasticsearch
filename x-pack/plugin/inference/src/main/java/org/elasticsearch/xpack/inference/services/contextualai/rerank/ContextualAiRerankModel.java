@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiModel;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -48,11 +49,18 @@ public class ContextualAiRerankModel extends ContextualAiModel {
         ContextualAiRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(modelId, TaskType.RERANK, ContextualAiService.NAME, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public ContextualAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            (ContextualAiRateLimitServiceSettings) modelConfigurations.getServiceSettings()
         );
     }
 

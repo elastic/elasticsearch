@@ -253,6 +253,22 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
     }
 
     @Override
+    public AlibabaCloudSearchModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return switch (config.getTaskType()) {
+            case TEXT_EMBEDDING -> new AlibabaCloudSearchEmbeddingsModel(config, secrets);
+            case SPARSE_EMBEDDING -> new AlibabaCloudSearchSparseModel(config, secrets);
+            case RERANK -> new AlibabaCloudSearchRerankModel(config, secrets);
+            case COMPLETION -> new AlibabaCloudSearchCompletionModel(config, secrets);
+            default -> throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
+                NAME,
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
+            );
+        };
+    }
+
+    @Override
     public AlibabaCloudSearchModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);

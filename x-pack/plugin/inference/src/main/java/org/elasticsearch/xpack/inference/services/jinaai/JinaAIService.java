@@ -46,6 +46,8 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -205,6 +207,38 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public JinaAIModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new JinaAIEmbeddingsModel(
+                inferenceEntityId,
+                (JinaAIEmbeddingsServiceSettings) serviceSettings,
+                (JinaAIEmbeddingsTaskSettings) taskSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings,
+                null
+            );
+            case RERANK -> new JinaAIRerankModel(
+                inferenceEntityId,
+                (JinaAIRerankServiceSettings) serviceSettings,
+                (JinaAIRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings,
+                null
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

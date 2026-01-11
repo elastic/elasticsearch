@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -36,9 +37,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
@@ -87,6 +88,7 @@ abstract class DataNodeRequestSender {
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final TransportService transportService;
+    private final NodeClient client;
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
 
@@ -109,6 +111,7 @@ abstract class DataNodeRequestSender {
         ClusterService clusterService,
         ProjectResolver projectResolver,
         TransportService transportService,
+        NodeClient client,
         Executor esqlExecutor,
         CancellableTask rootTask,
         OriginalIndices originalIndices,
@@ -121,6 +124,7 @@ abstract class DataNodeRequestSender {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.transportService = transportService;
+        this.client = client;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
         this.originalIndices = originalIndices;
@@ -534,13 +538,11 @@ abstract class DataNodeRequestSender {
             true, // unavailable_shards will be handled by the sender
             clusterAlias
         );
-        transportService.sendChildRequest(
-            transportService.getLocalNode(),
-            EsqlSearchShardsAction.TYPE.name(),
+        searchShardsRequest.setParentTask(new TaskId(transportService.getLocalNode().getId(), rootTask.getId()));
+        client.executeLocally(
+            EsqlSearchShardsAction.TYPE,
             searchShardsRequest,
-            rootTask,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, esqlExecutor)
+            new ThreadedActionListener<>(esqlExecutor, searchShardsListener)
         );
     }
 

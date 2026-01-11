@@ -87,6 +87,9 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * This is mainly to test TopNOperator, addInput triggers CBE.
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
+        if (isServerless()) { // 500 docs OOM in serverless
+            return;
+        }
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
         // TODO skip 8 subqueries, it OOMs in CI, the same reason as sort many fields
@@ -147,6 +150,9 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * This is mainly to test TopNOperator, addInput triggers CBE.
      */
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
+        if (isServerless()) {
+            return;
+        }
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
         // the sort of text field is not pushed to lucene, different from keyword, this test should CB

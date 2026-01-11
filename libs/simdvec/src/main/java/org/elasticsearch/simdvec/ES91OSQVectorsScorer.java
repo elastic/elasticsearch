@@ -32,16 +32,22 @@ public class ES91OSQVectorsScorer {
     protected final int length;
     protected final int dimensions;
 
-    protected final float[] lowerIntervals = new float[BULK_SIZE];
-    protected final float[] upperIntervals = new float[BULK_SIZE];
-    protected final int[] targetComponentSums = new int[BULK_SIZE];
-    protected final float[] additionalCorrections = new float[BULK_SIZE];
+    protected final float[] lowerIntervals;
+    protected final float[] upperIntervals;
+    protected final int[] targetComponentSums;
+    protected final float[] additionalCorrections;
+    protected final int bulkSize;
 
     /** Sole constructor, called by sub-classes. */
-    public ES91OSQVectorsScorer(IndexInput in, int dimensions) {
+    public ES91OSQVectorsScorer(IndexInput in, int bulkSize, int dimensions) {
         this.in = in;
         this.dimensions = dimensions;
         this.length = OptimizedScalarQuantizer.discretize(dimensions, 64) / 8;
+        this.lowerIntervals = new float[bulkSize];
+        this.upperIntervals = new float[bulkSize];
+        this.targetComponentSums = new int[bulkSize];
+        this.additionalCorrections = new float[bulkSize];
+        this.bulkSize = bulkSize;
     }
 
     /**
@@ -151,15 +157,15 @@ public class ES91OSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScoreBulk(q, BULK_SIZE, scores);
-        in.readFloats(lowerIntervals, 0, BULK_SIZE);
-        in.readFloats(upperIntervals, 0, BULK_SIZE);
-        for (int i = 0; i < BULK_SIZE; i++) {
+        quantizeScoreBulk(q, this.bulkSize, scores);
+        in.readFloats(lowerIntervals, 0, this.bulkSize);
+        in.readFloats(upperIntervals, 0, this.bulkSize);
+        for (int i = 0; i < this.bulkSize; i++) {
             targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
         }
-        in.readFloats(additionalCorrections, 0, BULK_SIZE);
+        in.readFloats(additionalCorrections, 0, this.bulkSize);
         float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < BULK_SIZE; i++) {
+        for (int i = 0; i < this.bulkSize; i++) {
             scores[i] = score(
                 queryLowerInterval,
                 queryUpperInterval,

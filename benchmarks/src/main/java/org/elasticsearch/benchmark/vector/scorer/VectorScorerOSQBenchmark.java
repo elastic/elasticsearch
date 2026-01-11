@@ -77,7 +77,7 @@ public class VectorScorerOSQBenchmark {
     @Param
     public DirectoryType directoryType;
 
-    public int numVectors = ES91OSQVectorsScorer.BULK_SIZE * 10;
+    public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
     int numQueries = 10;
 
     int length;
@@ -171,7 +171,7 @@ public class VectorScorerOSQBenchmark {
             case VECTORIZED -> ESVectorizationProvider.getInstance()
                 .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
         };
-        scratchScores = new float[16];
+        scratchScores = new float[ESNextOSQVectorsScorer.BULK_SIZE];
         corrections = new float[3];
     }
 

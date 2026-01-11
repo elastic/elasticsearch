@@ -33,6 +33,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -293,6 +294,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
             ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
+        ivfMeta.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
         doWriteMeta(ivfMeta, field, numCentroids);
     }
 

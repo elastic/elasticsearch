@@ -33,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -187,6 +188,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
+        // when reading old formats, bulk size was not persisted; fallback to old default (16).
+        int bulkSize;
+        try {
+            bulkSize = input.readInt();
+        } catch (IOException e) {
+            bulkSize = ES91OSQVectorsScorer.BULK_SIZE;
+        }
         return doReadField(
             input,
             rawVectorFormat,
@@ -199,7 +207,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             postingListOffset,
             postingListLength,
             globalCentroid,
-            globalCentroidDp
+            globalCentroidDp,
+            bulkSize
         );
     }
 
@@ -215,7 +224,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        int bulkSize
     ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
@@ -396,6 +406,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final long postingListLength;
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
+        protected final int bulkSize;
 
         protected FieldEntry(
             String rawVectorFormatName,
@@ -408,7 +419,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long postingListOffset,
             long postingListLength,
             float[] globalCentroid,
-            float globalCentroidDp
+            float globalCentroidDp,
+            int bulkSize
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
             this.useDirectIOReads = useDirectIOReads;
@@ -421,6 +433,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.postingListLength = postingListLength;
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
+            this.bulkSize = bulkSize;
         }
 
         @Override
@@ -455,6 +468,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
+        }
+
+        public int getBulkSize() {
+            return bulkSize;
         }
     }
 

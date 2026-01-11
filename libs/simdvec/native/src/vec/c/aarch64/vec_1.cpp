@@ -435,3 +435,83 @@ EXPORT void vec_sqrf32_bulk_offsets(
     f32_t *results) {
     sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
+
+EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int32_t length) {
+    int64_t subRet0 = 0;
+    int64_t subRet1 = 0;
+    int64_t subRet2 = 0;
+    int64_t subRet3 = 0;
+    int r = 0;
+    int upperBound = length & -sizeof(int64_t);
+    for (; r < upperBound; r += sizeof(int64_t)) {
+        int64_t value = *((int64_t*)(a + r));
+        int64_t q0 = *((int64_t*)(query + r));
+        subRet0 += __builtin_popcountll(q0 & value);
+        int64_t q1 = *((int64_t*)(query + r + length));
+        subRet1 += __builtin_popcountll(q1 & value);
+        int64_t q2 = *((int64_t*)(query + r + 2 * length));
+        subRet2 += __builtin_popcountll(q2 & value);
+        int64_t q3 = *((int64_t*)(query + r + 3 * length));
+        subRet3 += __builtin_popcountll(q3 & value);
+    }
+    upperBound = length & -sizeof(int32_t);
+    for (; r < upperBound; r += sizeof(int32_t)) {
+        int32_t value = *((int32_t*)(a + r));
+        int32_t q0 = *((int32_t*)(query + r));
+        subRet0 += __builtin_popcount(q0 & value);
+        int32_t q1 = *((int32_t*)(query + r + length));
+        subRet1 += __builtin_popcount(q1 & value);
+        int32_t q2 = *((int32_t*)(query + r + 2 * length));
+        subRet2 += __builtin_popcount(q2 & value);
+        int32_t q3 = *((int32_t*)(query + r + 3 * length));
+        subRet3 += __builtin_popcount(q3 & value);
+    }
+    for (; r < length; r++) {
+        int8_t value = *(a + r);
+        int8_t q0 = *(query + r);
+        subRet0 += __builtin_popcount(q0 & value & 0xFF);
+        int8_t q1 = *(query + r + length);
+        subRet1 += __builtin_popcount(q1 & value & 0xFF);
+        int8_t q2 = *(query + r + 2 * length);
+        subRet2 += __builtin_popcount(q2 & value & 0xFF);
+        int8_t q3 = *(query + r + 3 * length);
+        subRet3 += __builtin_popcount(q3 & value & 0xFF);
+    }
+    return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_int1_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (size_t c = 0; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot_int1_int4(a0, query, length);
+    }
+}
+
+EXPORT void vec_dot_int1_int4_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dot_int1_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dot_int1_int4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+}

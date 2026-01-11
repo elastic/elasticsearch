@@ -71,12 +71,20 @@ static inline int64_t xgetbv(int ctr) {
 }
 
 // Utility function to horizontally add 8 32-bit integers
-static inline int hsum_i32_8(const __m256i a) {
+static inline int32_t hsum_i32_8(const __m256i a) {
     const __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
     const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);
     const __m128i sum64 = _mm_add_epi32(hi64, sum128);
     const __m128i hi32  = _mm_shuffle_epi32(sum64, _MM_SHUFFLE(2, 3, 0, 1));
     return _mm_cvtsi128_si32(_mm_add_epi32(sum64, hi32));
+}
+
+// Utility function to horizontally add 4 64-bit integers
+static inline int64_t hsum_i64_4(const __m256i a) {
+    const __m128i sum128 = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
+    const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);
+    const __m128i sum64 = _mm_add_epi64(hi64, sum128);
+    return _mm_cvtsi128_si64(sum64);
 }
 
 EXPORT int vec_caps() {
@@ -444,4 +452,152 @@ EXPORT void vec_sqrf32_bulk_offsets(
     const int32_t count,
     f32_t *results) {
     sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
+// Fast AVX2 popcount, based on "Faster Population Counts Using AVX2 Instructions"
+// See https://arxiv.org/abs/1611.07612 and https://github.com/WojciechMula/sse-popcount
+static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {
+    const __m256i lookup = _mm256_setr_epi8(
+        /* 0 */ 0, /* 1 */ 1, /* 2 */ 1, /* 3 */ 2,
+        /* 4 */ 1, /* 5 */ 2, /* 6 */ 2, /* 7 */ 3,
+        /* 8 */ 1, /* 9 */ 2, /* a */ 2, /* b */ 3,
+        /* c */ 2, /* d */ 3, /* e */ 3, /* f */ 4,
+
+        /* 0 */ 0, /* 1 */ 1, /* 2 */ 1, /* 3 */ 2,
+        /* 4 */ 1, /* 5 */ 2, /* 6 */ 2, /* 7 */ 3,
+        /* 8 */ 1, /* 9 */ 2, /* a */ 2, /* b */ 3,
+        /* c */ 2, /* d */ 3, /* e */ 3, /* f */ 4
+    );
+
+    const __m256i low_mask = _mm256_set1_epi8(0x0f);
+
+    __m256i local = _mm256_setzero_si256();
+    __m256i q0 = _mm256_loadu_si256((const __m256i_u *)b);
+    __m256i vec = _mm256_and_si256(q0, a);
+
+   const __m256i lo  = _mm256_and_si256(vec, low_mask);
+   const __m256i hi  = _mm256_and_si256(_mm256_srli_epi16(vec, 4), low_mask);
+   const __m256i popcnt1 = _mm256_shuffle_epi8(lookup, lo);
+   const __m256i popcnt2 = _mm256_shuffle_epi8(lookup, hi);
+   local = _mm256_add_epi8(local, popcnt1);
+   local = _mm256_add_epi8(local, popcnt2);
+   return local;
+}
+
+EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int32_t length) {
+    int r = 0;
+    int upperBound = length & -sizeof(__m256i);
+    __m256i acc0 = _mm256_setzero_si256();
+    __m256i acc1 = _mm256_setzero_si256();
+    __m256i acc2 = _mm256_setzero_si256();
+    __m256i acc3 = _mm256_setzero_si256();
+    for (; r < upperBound; r += sizeof(__m256i)) {
+        __m256i value = _mm256_loadu_si256((const __m256i_u *)(a + r));
+
+        __m256i local = dot_bit_256(value, query + r);
+        acc0 = _mm256_add_epi64(acc0, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+
+        local = dot_bit_256(value, query + r + length);
+        acc1 = _mm256_add_epi64(acc1, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+
+        local = dot_bit_256(value, query + r + 2 * length);
+        acc2 = _mm256_add_epi64(acc2, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+
+        local = dot_bit_256(value, query + r + 3 * length);
+        acc3 = _mm256_add_epi64(acc3, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+    }
+
+    int64_t subRet0 = hsum_i64_4(acc0);
+    int64_t subRet1 = hsum_i64_4(acc1);
+    int64_t subRet2 = hsum_i64_4(acc2);
+    int64_t subRet3 = hsum_i64_4(acc3);
+
+    upperBound = length & -sizeof(int32_t);
+    for (; r < upperBound; r += sizeof(int32_t)) {
+        int32_t value = *((int32_t*)(a + r));
+        int32_t q0 = *((int32_t*)(query + r));
+        subRet0 += __builtin_popcount(q0 & value);
+        int32_t q1 = *((int32_t*)(query + r + length));
+        subRet1 += __builtin_popcount(q1 & value);
+        int32_t q2 = *((int32_t*)(query + r + 2 * length));
+        subRet2 += __builtin_popcount(q2 & value);
+        int32_t q3 = *((int32_t*)(query + r + 3 * length));
+        subRet3 += __builtin_popcount(q3 & value);
+    }
+    for (; r < length; r++) {
+        int8_t value = *(a + r);
+        int8_t q0 = *(query + r);
+        subRet0 += __builtin_popcount(q0 & value & 0xFF);
+        int8_t q1 = *(query + r + length);
+        subRet1 += __builtin_popcount(q1 & value & 0xFF);
+        int8_t q2 = *(query + r + 2 * length);
+        subRet2 += __builtin_popcount(q2 & value & 0xFF);
+        int8_t q3 = *(query + r + 3 * length);
+        subRet3 += __builtin_popcount(q3 & value & 0xFF);
+    }
+    return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_int1_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int blk = length & ~(STRIDE_BYTES_LEN - 1);
+    const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy. For this "older" generation of x64 processors
+    // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
+    // is ideal -- more, and it starts to hurt performances due to bandwidth
+    for (; c + 3 < count; c += 2) {
+        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+
+        results[c + 0] = (f32_t)vec_dot_int1_int4(a0, query, length);
+        results[c + 1] = (f32_t)vec_dot_int1_int4(a1, query, length);
+
+        a0 = next_a0;
+        a1 = next_a1;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot_int1_int4(a0, query, length);
+    }
+}
+
+EXPORT void vec_dot_int1_int4_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dot_int1_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dot_int1_int4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }

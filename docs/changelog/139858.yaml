@@ -1,0 +1,7 @@
+pr:
+  - 139042
+summary: Introduce AcceptDocsQuery to expose per-segment AcceptDocs
+area: Search
+type: enhancement
+issues:
+  - 137042

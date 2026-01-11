@@ -575,6 +575,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertThat("leader should be last to ack", ackCollector.getSuccessfulAckIndex(leader), equalTo(1));
 
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
+            leader.submitValue(randomLong()); // follower0 acks next value allowing cluster to stabilise
         }
     }
 
@@ -592,11 +593,16 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing value");
             assertTrue(leader.coordinator.getMode() != Coordinator.Mode.LEADER || leader.coordinator.getCurrentTerm() > startingTerm);
-            leader.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
-            cluster.stabilise();
+
             assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
             assertTrue("expected ack from " + follower0, ackCollector.hasAckedSuccessfully(follower0));
             assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+
+            leader.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing new leader election");
+            cluster.getAnyLeader().submitValue(randomLong()); // old leader acks this value allowing cluster to stabilise
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
             assertTrue(leader.coordinator.getMode() != Coordinator.Mode.LEADER || leader.coordinator.getCurrentTerm() > startingTerm);
         }
     }
@@ -1801,7 +1807,18 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             + "org.elasticsearch.cluster.coordination.Coordinator.CoordinatorPublication:INFO"
     )
     public void testLogsMessagesIfPublicationDelayed() {
-        try (Cluster cluster = new Cluster(between(3, 5))) {
+        try (
+            Cluster cluster = new Cluster(
+                between(3, 5),
+                true,
+                Settings.builder()
+                    .put(
+                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
+                        TimeValue.timeValueMillis(defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING))
+                    )
+                    .build()
+            )
+        ) {
             cluster.runRandomly();
             cluster.stabilise();
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
@@ -1876,12 +1893,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 cluster.getAnyLeader().submitValue(randomLong());
                 cluster.runFor(
-                    defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY + defaultMillis(
-                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
-                    ) + DEFAULT_DELAY_VARIABILITY + 2 * DEFAULT_DELAY_VARIABILITY,
+                    DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY + 2
+                            * DEFAULT_DELAY_VARIABILITY,
                     "waiting for messages to be emitted"
                 );
-
                 mockLog.assertAllExpectationsMatched();
             }
         }

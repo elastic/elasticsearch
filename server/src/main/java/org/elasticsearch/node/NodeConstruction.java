@@ -1335,6 +1335,7 @@ class NodeConstruction {
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
+            b.bind(SlowLogFieldProvider.class).toInstance(slowLogFieldProvider);
         });
 
         if (ReadinessService.enabled(environment)) {

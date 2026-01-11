@@ -60,6 +60,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.action.ActionLogger;
+import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -71,6 +73,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -161,6 +164,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    public static final String SEARCH_ACTIONLOG_NAME = "search.actionlog";
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -182,6 +187,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final ActionLogger<SearchLogContext> actionLogger;
 
     @Inject
     public TransportSearchAction(
@@ -200,7 +206,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ExecutorSelector executorSelector,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
-        UsageService usageService
+        UsageService usageService,
+        SlowLogFieldProvider fieldProvider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -232,6 +239,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.actionLogger = new ActionLogger<>(
+            "search",
+            clusterService.getClusterSettings(),
+            new SearchLogProducer(),
+            new Log4jActionWriter(SEARCH_ACTIONLOG_NAME),
+            fieldProvider
+        );
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -347,7 +361,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new, true);
+        executeRequest(
+            (SearchTask) task,
+            searchRequest,
+            actionLogger.wrap(listener, new SearchLogContextBuilder(task, searchRequest)),
+            AsyncSearchActionProvider::new,
+            true
+        );
     }
 
     void executeOpenPit(

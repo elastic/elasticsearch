@@ -18,13 +18,13 @@ import org.elasticsearch.common.Randomness;
 import java.util.List;
 import java.util.Random;
 
-class DefaultReindexRelocationNodePicker implements ReindexRelocationNodePicker {
+class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker {
 
-    private static final Logger logger = LogManager.getLogger(DefaultReindexRelocationNodePicker.class);
+    private static final Logger logger = LogManager.getLogger(StatefulReindexRelocationNodePicker.class);
 
     private final Random random;
 
-    DefaultReindexRelocationNodePicker() {
+    StatefulReindexRelocationNodePicker() {
         this.random = Randomness.get();
     }
 

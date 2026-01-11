@@ -21,9 +21,9 @@ import java.util.Set;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class DefaultReindexRelocationNodePickerTests extends ESTestCase {
+public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
 
-    private final DefaultReindexRelocationNodePicker picker = new DefaultReindexRelocationNodePicker();
+    private final StatefulReindexRelocationNodePicker picker = new StatefulReindexRelocationNodePicker();
 
     public void testPickNode_prefersDedicatedCoordinatingNode() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()

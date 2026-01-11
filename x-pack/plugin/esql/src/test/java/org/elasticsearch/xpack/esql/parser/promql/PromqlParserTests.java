@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
@@ -260,6 +261,88 @@ public class PromqlParserTests extends ESTestCase {
         Explain explain = plan.collect(Explain.class).getFirst();
         PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();
         assertThat(promqlCommand.promqlPlan(), instanceOf(promqlCommandClass));
+    }
+
+    public void testNamedParameterInDuration() {
+        PromqlCommand promql = as(
+            parser.parseQuery(
+                "PROMQL index=test step=10m rate(http_requests_total[?_duration])",
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("_duration", "10m")
+                    )
+                )
+            ),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(10)));
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(10)));
+    }
+
+    public void testPositionalParameterInDuration() {
+        PromqlCommand promql = as(
+            parser.parseQuery(
+                "PROMQL index=test step=15m rate(http_requests_total[?1])",
+                new QueryParams(
+                    List.of(
+                        paramAsConstant(null, "15m")
+                    )
+                )
+            ),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(15)));
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(15)));
+    }
+
+    public void testSameParameterUsedMultipleTimes() {
+        PromqlCommand promql = as(
+            parser.parseQuery(
+                "PROMQL index=test step=?_step rate(foo[?_step]) + rate(bar[?_step])",
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("_step", "5m")
+                    )
+                )
+            ),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(2));
+        for (RangeSelector rs : rangeSelectors) {
+            assertThat(rs.range().fold(null), equalTo(Duration.ofMinutes(5)));
+        }
+    }
+
+    public void testUnknownParameterInDurationError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> parser.parseQuery(
+                "PROMQL index=test step=5m rate(foo[?_unknown])",
+                new QueryParams(List.of())
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown query parameter"));
+    }
+
+    public void testParameterWithInvalidDurationValue() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> parser.parseQuery(
+                "PROMQL index=test step=5m rate(foo[?_bad])",
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("_bad", "not_a_duration")
+                    )
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("Invalid time duration"));
     }
 
     private static PromqlCommand parse(String query) {

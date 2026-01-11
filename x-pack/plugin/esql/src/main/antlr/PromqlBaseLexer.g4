@@ -126,6 +126,16 @@ IDENTIFIER
     : [a-zA-Z_:][a-zA-Z0-9_:.]*
     ;
 
+NAMED_OR_POSITIONAL_PARAM
+    : PARAM_MARKER (PARAM_LETTER | PARAM_UNDERSCORE) PARAM_ID_BODY*
+    | PARAM_MARKER DIGIT+
+    ;
+
+fragment PARAM_MARKER: '?';
+fragment PARAM_LETTER: [a-zA-Z];
+fragment PARAM_UNDERSCORE: '_';
+fragment PARAM_ID_BODY: PARAM_LETTER | DIGIT | PARAM_UNDERSCORE;
+
 COMMENT
     : '#' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
     ;

@@ -940,7 +940,7 @@ public class SecurityTests extends ESTestCase {
         Loggers.setLevel(amLogger, Level.DEBUG);
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        SettingsModule settingsModule = new SettingsModule(settings);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
         try (var mockLog = MockLog.capture(ActionModule.class)) {
@@ -959,7 +959,7 @@ public class SecurityTests extends ESTestCase {
             );
 
             ActionModule actionModule = new ActionModule(
-                settingsModule.getSettings(),
+                TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settingsModule.getIndexScopedSettings(),

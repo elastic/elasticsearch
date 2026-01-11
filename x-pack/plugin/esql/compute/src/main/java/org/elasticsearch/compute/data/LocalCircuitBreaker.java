@@ -11,6 +11,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -172,5 +176,52 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     public boolean assertEndRunLoop() {
         activeThread = null;
         return true;
+    }
+
+    /**
+     * A {@link CircuitBreakerService} that only supports a single {@link LocalCircuitBreaker}.
+     * Mainly intended to be used with {@link org.elasticsearch.common.util.BigArrays#withBreakerService(CircuitBreakerService)}
+     */
+    public static class SingletonService extends CircuitBreakerService implements Releasable {
+
+        private final CircuitBreakerService delegateService;
+        private final long overReservedBytes;
+        private final long maxOverReservedBytes;
+        private LocalCircuitBreaker localCircuitBreaker;
+
+        public SingletonService(CircuitBreakerService delegateService, long overReservedBytes, long maxOverReservedBytes) {
+            this.delegateService = delegateService;
+            this.overReservedBytes = overReservedBytes;
+            this.maxOverReservedBytes = maxOverReservedBytes;
+        }
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            if (localCircuitBreaker == null) {
+                this.localCircuitBreaker = new LocalCircuitBreaker(
+                    delegateService.getBreaker(name),
+                    overReservedBytes,
+                    maxOverReservedBytes
+                );
+            } else {
+                assert localCircuitBreaker.getName().equals(name) : "this service only supports a single breaker";
+            }
+            return localCircuitBreaker;
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(localCircuitBreaker);
+        }
     }
 }

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -25,10 +28,11 @@ import java.util.List;
  * Class that collects all raw values for an exponential histogram metric field and computes its aggregate (downsampled)
  * values.
  */
-abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
+abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer {
 
     static final String TYPE = "histogram";
     public static final int COMPRESSION = 100;
+    private static final Logger log = LogManager.getLogger(TDigestHistogramFieldProducer.class);
 
     TDigestHistogramFieldProducer(String name) {
         super(name);
@@ -42,6 +46,11 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
             case AGGREGATE -> new Aggregate(name);
             case LAST_VALUE -> new LastValue(name);
         };
+    }
+
+    @Override
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        log.warn("collecting histogram values is not supported for this test");
     }
 
     private static class Aggregate extends TDigestHistogramFieldProducer {

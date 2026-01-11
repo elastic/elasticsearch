@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
@@ -21,8 +24,9 @@ import java.io.IOException;
 /**
  * A producer that can be used for downsampling ONLY an exponential histogram field whether it's a metric or a label.
  */
-abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
+abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleFieldProducer {
     static final String TYPE = "exponential_histogram";
+    private static final Logger log = LogManager.getLogger(ExponentialHistogramFieldProducer.class);
 
     ExponentialHistogramFieldProducer(String name) {
         super(name);
@@ -31,11 +35,16 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
     /**
      * @return the requested producer based on the sampling method for an exponential histogram field
      */
-    static AbstractDownsampleFieldProducer<?> create(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    static AbstractDownsampleFieldProducer create(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
             case AGGREGATE -> new ExponentialHistogramFieldProducer.MergeProducer(name);
             case LAST_VALUE -> new ExponentialHistogramFieldProducer.LastValueProducer(name);
         };
+    }
+
+    @Override
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        log.warn("collecting exponential histogram values is not supported for this test");
     }
 
     protected abstract ExponentialHistogram downsampledValue();
@@ -74,7 +83,6 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
             return exponentialHistogram;
         }
 
-        @Override
         public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
@@ -108,7 +116,6 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
             lastValue = null;
         }
 
-        @Override
         public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
             if (isEmpty() == false) {
                 return;

@@ -37,7 +37,7 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
         this.timestamp = timestamp;
         // the delegate is not propagated as a parameter, making the delegate a child expression
         // otherwise our resolveType would not be called as child expressions are resolved first
-        if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
+        if (field.typeResolved().resolved() && field.dataType().isHistogram()) {
             this.delegate = new HistogramMergeOverTime(source, field, filter, window);
         } else {
             this.delegate = new LastOverTime(source, field, filter, window, timestamp);

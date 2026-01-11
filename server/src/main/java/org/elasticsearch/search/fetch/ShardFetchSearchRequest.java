@@ -13,6 +13,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.RescoreDocIds;
@@ -23,6 +24,8 @@ import org.elasticsearch.search.rank.RankDocShardInfo;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 /**
  * Shard level fetch request used with search. Holds indices taken from the original search request
@@ -35,6 +38,8 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
     private final RankDocShardInfo rankDocs;
+    private DiscoveryNode coordinatingNode;
+    private long coordinatingTaskId;
 
     public ShardFetchSearchRequest(
         OriginalIndices originalIndices,
@@ -61,6 +66,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         rescoreDocIds = new RescoreDocIds(in);
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
         this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
+
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+            coordinatingTaskId = in.readLong();
+        }
     }
 
     @Override
@@ -71,6 +81,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         rescoreDocIds.writeTo(out);
         out.writeOptionalWriteable(aggregatedDfs);
         out.writeOptionalWriteable(rankDocs);
+
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+            out.writeLong(coordinatingTaskId);
+        }
     }
 
     @Override
@@ -107,5 +122,21 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     @Override
     public RankDocShardInfo getRankDocks() {
         return this.rankDocs;
+    }
+
+    public DiscoveryNode getCoordinatingNode() {
+        return coordinatingNode;
+    }
+
+    public long getCoordinatingTaskId() {
+        return coordinatingTaskId;
+    }
+
+    public void setCoordinatingNode(DiscoveryNode coordinatingNode) {
+        this.coordinatingNode = coordinatingNode;
+    }
+
+    public void setCoordinatingTaskId(long coordinatingTaskId) {
+        this.coordinatingTaskId = coordinatingTaskId;
     }
 }

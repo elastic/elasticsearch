@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastFloatByTimestampAggregatorFunctionSupplier;
@@ -49,7 +50,7 @@ public class AllLast extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long", "integer", "double", "keyword" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean" },
         description = "Calculates the latest value of a field, and can operate on null values.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
         examples = @Example(file = "stats_all_first_all_last", tag = "all_last")
@@ -58,7 +59,7 @@ public class AllLast extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "value",
-            type = { "long", "integer", "double", "keyword", "text" },
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean" },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
@@ -121,6 +122,7 @@ public class AllLast extends AggregateFunction implements ToAggregator {
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
                 || DataType.isString(dt)
+                || dt == DataType.IP
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
             sourceText(),
             FIRST,
@@ -148,7 +150,8 @@ public class AllLast extends AggregateFunction implements ToAggregator {
             case INTEGER -> new AllLastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new AllLastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new AllLastFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT -> new AllLastBytesRefByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT, IP -> new AllLastBytesRefByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new AllLastBooleanByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

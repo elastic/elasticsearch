@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -23,7 +22,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -33,7 +32,7 @@ import java.util.BitSet;
 // end generated imports
 
 /**
- * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
+ * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
  */
 @Aggregator(
@@ -41,29 +40,29 @@ import java.util.BitSet;
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
         @IntermediateState(name = "timestamp", type = "LONG"),
-        @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
+        @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
 )
 @GroupingAggregator(
     {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
+        @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
 )
-public class AllFirstBytesRefByTimestampAggregator {
+public class AllLastBooleanByTimestampAggregator {
     public static String describe() {
-        return "all_first_bytesref_by_timestamp";
+        return "all_last_boolean_by_timestamp";
     }
 
-    public static AllLongBytesRefState initSingle() {
-        return new AllLongBytesRefState();
+    public static AllLongBooleanState initSingle() {
+        return new AllLongBooleanState();
     }
 
     private static void overrideState(
-        AllLongBytesRefState current,
+        AllLongBooleanState current,
         boolean timestampPresent,
         long timestamp,
-        BytesRefBlock values,
+        BooleanBlock values,
         int position
     ) {
         current.observed(true);
@@ -75,11 +74,9 @@ public class AllFirstBytesRefByTimestampAggregator {
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            BytesRefArray a = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
+            ByteArray a = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
             for (int i = 0; i < count; ++i) {
-                BytesRef bytesScratch = new BytesRef();
-                values.getBytesRef(offset + i, bytesScratch);
-                a.append(bytesScratch);
+                a.set(i, (byte) (values.getBoolean(offset + i) ? 1 : 0));
             }
             current.v2(a);
         }
@@ -92,31 +89,31 @@ public class AllFirstBytesRefByTimestampAggregator {
         long result = timestamps.getLong(lo++);
 
         for (int i = lo; i < hi; i++) {
-            result = Math.min(result, timestamps.getLong(i));
+            result = Math.max(result, timestamps.getLong(i));
         }
 
         return result;
     }
 
-    public static void combine(AllLongBytesRefState current, @Position int position, BytesRefBlock values, LongBlock timestamps) {
+    public static void combine(AllLongBooleanState current, @Position int position, BooleanBlock values, LongBlock timestamps) {
         long timestamp = timestamps.isNull(position) ? -1 : dominantTimestampAtPosition(position, timestamps);
         boolean timestampPresent = timestamps.isNull(position) == false;
 
         if (current.observed() == false) {
             // We never saw a timestamp before, regardless of nullability.
             overrideState(current, timestampPresent, timestamp, values, position);
-        } else if (timestampPresent && (current.v1Seen() == false || timestamp < current.v1())) {
+        } else if (timestampPresent && (current.v1Seen() == false || timestamp > current.v1())) {
             // The incoming timestamp wins against the current one because the latter was either null or older/newer.
             overrideState(current, true, timestamp, values, position);
         }
     }
 
     public static void combineIntermediate(
-        AllLongBytesRefState current,
+        AllLongBooleanState current,
         boolean observed,
         boolean timestampPresent,
         long timestamp,
-        BytesRefBlock values
+        BooleanBlock values
     ) {
         if (observed == false) {
             // The incoming state hasn't observed anything. No work is needed.
@@ -129,7 +126,7 @@ public class AllFirstBytesRefByTimestampAggregator {
                 // Both observations have null timestamps. No work is needed.
                 return;
             }
-            if ((current.v1Seen() == false && timestampPresent) || timestamp < current.v1()) {
+            if ((current.v1Seen() == false && timestampPresent) || timestamp > current.v1()) {
                 overrideState(current, timestampPresent, timestamp, values, 0);
             }
         } else {
@@ -138,7 +135,7 @@ public class AllFirstBytesRefByTimestampAggregator {
         }
     }
 
-    public static Block evaluateFinal(AllLongBytesRefState current, DriverContext ctx) {
+    public static Block evaluateFinal(AllLongBooleanState current, DriverContext ctx) {
         return current.intermediateValuesBlockBuilder(ctx);
     }
 
@@ -146,7 +143,7 @@ public class AllFirstBytesRefByTimestampAggregator {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    public static void combine(GroupingState current, int group, @Position int position, BytesRefBlock values, LongBlock timestamps) {
+    public static void combine(GroupingState current, int group, @Position int position, BooleanBlock values, LongBlock timestamps) {
         long timestamp = timestamps.isNull(position) ? 0L : dominantTimestampAtPosition(position, timestamps);
         current.collectValue(group, timestamps.isNull(position) == false, timestamp, position, values);
     }
@@ -157,7 +154,7 @@ public class AllFirstBytesRefByTimestampAggregator {
         BooleanBlock observed,
         BooleanBlock timestampPresent,
         LongBlock timestamps,
-        BytesRefBlock values,
+        BooleanBlock values,
         int otherPosition
     ) {
         if (group < observed.getPositionCount() && observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
@@ -194,7 +191,7 @@ public class AllFirstBytesRefByTimestampAggregator {
         /**
          * The group-indexed values
          */
-        private ObjectArray<BytesRefArray> values;
+        private ObjectArray<ByteArray> values;
 
         private int maxGroupId = -1;
 
@@ -236,12 +233,12 @@ public class AllFirstBytesRefByTimestampAggregator {
             }
         }
 
-        void collectValue(int group, boolean timestampPresent, long timestamp, int position, BytesRefBlock valuesBlock) {
+        void collectValue(int group, boolean timestampPresent, long timestamp, int position, BooleanBlock valuesBlock) {
             boolean updated = false;
             if (withinBounds(group)) {
                 if (hasValue(group) == false
                     || (hasTimestamp.get(group) == 0 && timestampPresent)
-                    || (timestampPresent && timestamp < timestamps.get(group))) {
+                    || (timestampPresent && timestamp > timestamps.get(group))) {
                     // We never saw this group before, even if it's within bounds.
                     // Or, the incoming non-null timestamp wins against the null one in the state.
                     // Or, we found a better timestamp for this group.
@@ -259,27 +256,16 @@ public class AllFirstBytesRefByTimestampAggregator {
                 observed.set(group, (byte) 1);
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
-                boolean success = false;
-                BytesRefArray newBytesRefArray = null;
-                try {
-                    if (valuesBlock.isNull(position) == false) {
-                        int count = valuesBlock.getValueCount(position);
-                        int offset = valuesBlock.getFirstValueIndex(position);
-                        newBytesRefArray = new BytesRefArray(count, bigArrays);
-                        BytesRef scratch = new BytesRef();
-                        for (int i = 0; i < count; ++i) {
-                            newBytesRefArray.append(valuesBlock.getBytesRef(i + offset, scratch));
-                        }
-                    }
-                    success = true;
-                } finally {
-                    if (success) {
-                        Releasables.close(values.get(group));
-                        values.set(group, newBytesRefArray);
-                    } else {
-                        Releasables.close(newBytesRefArray);
+                ByteArray a = null;
+                if (valuesBlock.isNull(position) == false) {
+                    int count = valuesBlock.getValueCount(position);
+                    int offset = valuesBlock.getFirstValueIndex(position);
+                    a = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
+                    for (int i = 0; i < count; ++i) {
+                        a.set(i, (byte) (valuesBlock.getBoolean(i + offset) ? 1 : 0));
                     }
                 }
+                values.set(group, a);
             }
             maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
@@ -287,9 +273,6 @@ public class AllFirstBytesRefByTimestampAggregator {
 
         @Override
         public void close() {
-            for (long i = 0; i < values.size(); i++) {
-                Releasables.close(values.get(i));
-            }
             Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
@@ -332,7 +315,7 @@ public class AllFirstBytesRefByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            try (var valuesBuilder = blockFactory.newBytesRefBlockBuilder(groups.getPositionCount())) {
+            try (var valuesBuilder = blockFactory.newBooleanBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
                     int count = 0;
@@ -341,17 +324,11 @@ public class AllFirstBytesRefByTimestampAggregator {
                     }
                     switch (count) {
                         case 0 -> valuesBuilder.appendNull();
-                        case 1 -> {
-                            BytesRef bytesScratch = new BytesRef();
-                            values.get(group).get(0, bytesScratch);
-                            valuesBuilder.appendBytesRef(bytesScratch);
-                        }
+                        case 1 -> valuesBuilder.appendBoolean(values.get(group).get(0) == 1);
                         default -> {
                             valuesBuilder.beginPositionEntry();
                             for (int i = 0; i < count; ++i) {
-                                BytesRef bytesScratch = new BytesRef();
-                                values.get(group).get(i, bytesScratch);
-                                valuesBuilder.appendBytesRef(bytesScratch);
+                                valuesBuilder.appendBoolean(values.get(group).get(i) == 1);
                             }
                             valuesBuilder.endPositionEntry();
                         }

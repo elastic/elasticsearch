@@ -23,16 +23,24 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongDoubleState implements AggregatorState {
-    // Whether an observation was recorded in this state
+    /**
+     * Whether an observation was recorded in this state
+     */
     private boolean observed;
 
-    // The timestamp
+    /**
+     * The timestamp
+     */
     private long v1;
 
-    // Tells whether the observed timestamp was null
+    /**
+     * Whether the observed timestamp was null
+     */
     private boolean v1Seen;
 
-    // The value can be null, single valued of multivalued.
+    /**
+     * The value can be null, single valued of multivalued.
+     */
     private DoubleArray v2;
 
     boolean observed() {

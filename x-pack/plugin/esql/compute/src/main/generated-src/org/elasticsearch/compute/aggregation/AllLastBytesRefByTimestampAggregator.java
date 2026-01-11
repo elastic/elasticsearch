@@ -64,7 +64,7 @@ public class AllLastBytesRefByTimestampAggregator {
         boolean timestampPresent,
         long timestamp,
         BytesRefBlock values,
-        @Position int position
+        int position
     ) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
@@ -85,7 +85,7 @@ public class AllLastBytesRefByTimestampAggregator {
         }
     }
 
-    private static long dominantTimestampAtPosition(@Position int position, LongBlock timestamps) {
+    private static long dominantTimestampAtPosition(int position, LongBlock timestamps) {
         assert timestamps.isNull(position) == false : "The timestamp is null at this position";
         int lo = timestamps.getFirstValueIndex(position);
         int hi = lo + timestamps.getValueCount(position);
@@ -143,7 +143,7 @@ public class AllLastBytesRefByTimestampAggregator {
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
-        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
+        return new GroupingState(driverContext.bigArrays());
     }
 
     public static void combine(GroupingState current, int group, @Position int position, BytesRefBlock values, LongBlock timestamps) {
@@ -176,27 +176,32 @@ public class AllLastBytesRefByTimestampAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
 
-        // The group-indexed observed flags
+        /**
+         * The group-indexed observed flags
+         */
         private ByteArray observed;
 
-        // The group-indexed timestamps seen flags
+        /**
+         * The group-indexed timestamps seen flags
+         */
         private ByteArray hasTimestamp;
 
-        // The group-indexed timestamps
+        /**
+         * The group-indexed timestamps
+         */
         private LongArray timestamps;
 
-        // The group-indexed values
+        /**
+         * The group-indexed values
+         */
         private ObjectArray<BytesRefArray> values;
-
-        private final CircuitBreaker breaker;
 
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+        GroupingState(BigArrays bigArrays) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
-            this.breaker = breaker;
             ByteArray observed = null;
             ByteArray hasTimestamp = null;
             LongArray timestamps = null;
@@ -327,32 +332,33 @@ public class AllLastBytesRefByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            var valuesBuilder = blockFactory.newBytesRefBlockBuilder(groups.getPositionCount());
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int group = groups.getInt(p);
-                int count = 0;
-                if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                    count = (int) values.get(group).size();
-                }
-                switch (count) {
-                    case 0 -> valuesBuilder.appendNull();
-                    case 1 -> {
-                        BytesRef bytesScratch = new BytesRef();
-                        values.get(group).get(0, bytesScratch);
-                        valuesBuilder.appendBytesRef(bytesScratch);
+            try (var valuesBuilder = blockFactory.newBytesRefBlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
                     }
-                    default -> {
-                        valuesBuilder.beginPositionEntry();
-                        for (int i = 0; i < count; ++i) {
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        case 1 -> {
                             BytesRef bytesScratch = new BytesRef();
-                            values.get(group).get(i, bytesScratch);
+                            values.get(group).get(0, bytesScratch);
                             valuesBuilder.appendBytesRef(bytesScratch);
                         }
-                        valuesBuilder.endPositionEntry();
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                BytesRef bytesScratch = new BytesRef();
+                                values.get(group).get(i, bytesScratch);
+                                valuesBuilder.appendBytesRef(bytesScratch);
+                            }
+                            valuesBuilder.endPositionEntry();
+                        }
                     }
                 }
+                return valuesBuilder.build();
             }
-            return valuesBuilder.build();
         }
     }
 }

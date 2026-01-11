@@ -64,7 +64,7 @@ public class AllFirstDoubleByTimestampAggregator {
         boolean timestampPresent,
         long timestamp,
         DoubleBlock values,
-        @Position int position
+        int position
     ) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
@@ -83,7 +83,7 @@ public class AllFirstDoubleByTimestampAggregator {
         }
     }
 
-    private static long dominantTimestampAtPosition(@Position int position, LongBlock timestamps) {
+    private static long dominantTimestampAtPosition(int position, LongBlock timestamps) {
         assert timestamps.isNull(position) == false : "The timestamp is null at this position";
         int lo = timestamps.getFirstValueIndex(position);
         int hi = lo + timestamps.getValueCount(position);
@@ -174,16 +174,24 @@ public class AllFirstDoubleByTimestampAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
 
-        // The group-indexed observed flags
+        /**
+         * The group-indexed observed flags
+         */
         private ByteArray observed;
 
-        // The group-indexed timestamps seen flags
+        /**
+         * The group-indexed timestamps seen flags
+         */
         private ByteArray hasTimestamp;
 
-        // The group-indexed timestamps
+        /**
+         * The group-indexed timestamps
+         */
         private LongArray timestamps;
 
-        // The group-indexed values
+        /**
+         * The group-indexed values
+         */
         private ObjectArray<DoubleArray> values;
 
         private int maxGroupId = -1;
@@ -308,26 +316,27 @@ public class AllFirstDoubleByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            var valuesBuilder = blockFactory.newDoubleBlockBuilder(groups.getPositionCount());
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int group = groups.getInt(p);
-                int count = 0;
-                if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                    count = (int) values.get(group).size();
-                }
-                switch (count) {
-                    case 0 -> valuesBuilder.appendNull();
-                    case 1 -> valuesBuilder.appendDouble(values.get(group).get(0));
-                    default -> {
-                        valuesBuilder.beginPositionEntry();
-                        for (int i = 0; i < count; ++i) {
-                            valuesBuilder.appendDouble(values.get(group).get(i));
+            try (var valuesBuilder = blockFactory.newDoubleBlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
+                    }
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        case 1 -> valuesBuilder.appendDouble(values.get(group).get(0));
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                valuesBuilder.appendDouble(values.get(group).get(i));
+                            }
+                            valuesBuilder.endPositionEntry();
                         }
-                        valuesBuilder.endPositionEntry();
                     }
                 }
+                return valuesBuilder.build();
             }
-            return valuesBuilder.build();
         }
     }
 }

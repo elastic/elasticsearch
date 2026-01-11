@@ -145,7 +145,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 return new ESNextDiskBBQVectorsFormat(128, 4);
             }
         };
-        String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128)";
+        String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false)";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");

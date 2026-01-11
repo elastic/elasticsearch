@@ -114,7 +114,7 @@ public class CreateIndexPriorityIT extends ESIntegTestCase {
 
     public void testReducePriorities() {
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final var indexName = "index-" + randomIdentifier();
+        final var indexName = randomIndexName();
 
         // starve all tasks at NORMAL or below
         final var createIndexBlockingTask = new RepeatingTask(masterClusterService);

@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public final class InferenceQueryUtils {
     /**
@@ -210,7 +210,7 @@ public final class InferenceQueryUtils {
         String queryName
     ) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false
+        if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false
             && inferenceInfo.inferenceFieldCount() > 0
             && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
             && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
@@ -220,7 +220,7 @@ public final class InferenceQueryUtils {
                     + queryName
                     + " query cross-cluster search when"
                     + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
+                    + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
             );
         }
     }
@@ -311,7 +311,7 @@ public final class InferenceQueryUtils {
             OriginalIndices originalIndices = entry.getValue();
 
             GetInferenceFieldsAction.Request request = new GetInferenceFieldsAction.Request(
-                Set.of(originalIndices.indices()),
+                originalIndices.indices(),
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),
@@ -675,24 +675,22 @@ public final class InferenceQueryUtils {
             ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
         ) {
             final String clusterAlias = getClusterAlias();
-            executeAsyncWithOrigin(threadContext, ML_ORIGIN, request, listener, (req, l1) -> {
-                client.getConnection(req, l1.delegateFailureAndWrap((l2, c) -> {
-                    TransportVersion transportVersion = c.getTransportVersion();
-                    if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
-                        // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
-                        // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
-                        // intercepted. We track the transport version in the response so that more thorough error checking can be
-                        // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
-                        l2.onResponse(
-                            Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
-                        );
-                    } else {
-                        client.execute(GetInferenceFieldsAction.REMOTE_TYPE, req, l2.delegateFailureAndWrap((l3, resp) -> {
-                            l3.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                        }));
-                    }
-                }));
-            });
+            client.getConnection(request, listener.delegateFailureAndWrap((l1, connection) -> {
+                TransportVersion transportVersion = connection.getTransportVersion();
+                if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false) {
+                    // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
+                    // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
+                    // intercepted. We track the transport version in the response so that more thorough error checking can be
+                    // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
+                    l1.onResponse(
+                        Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
+                    );
+                } else {
+                    client.execute(connection, GetInferenceFieldsAction.REMOTE_TYPE, request, l1.delegateFailureAndWrap((l2, resp) -> {
+                        l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                    }));
+                }
+            }));
         }
 
         @Override

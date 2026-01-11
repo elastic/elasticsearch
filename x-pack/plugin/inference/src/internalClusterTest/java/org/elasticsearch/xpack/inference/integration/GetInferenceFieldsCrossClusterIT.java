@@ -87,7 +87,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         };
 
         var concreteIndexRequest = new GetInferenceFieldsAction.Request(
-            Set.of(REMOTE_CLUSTER + ":test-index"),
+            new String[] { REMOTE_CLUSTER + ":test-index" },
             Map.of(),
             false,
             false,
@@ -95,10 +95,16 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         );
         assertFailedRequest.accept(concreteIndexRequest);
 
-        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":*"), Map.of(), false, false, "foo");
+        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(
+            new String[] { REMOTE_CLUSTER + ":*" },
+            Map.of(),
+            false,
+            false,
+            "foo"
+        );
         assertFailedRequest.accept(wildcardIndexRequest);
 
-        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(Set.of("*:*"), Map.of(), false, false, "foo");
+        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(new String[] { "*:*" }, Map.of(), false, false, "foo");
         assertFailedRequest.accept(wildcardClusterAndIndexRequest);
     }
 
@@ -110,7 +116,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         );
 
         var request = new GetInferenceFieldsAction.Request(
-            Set.of(INDEX_NAME),
+            new String[] { INDEX_NAME },
             generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD)),
             false,
             false,

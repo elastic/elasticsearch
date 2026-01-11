@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.cli.command.FetchSeparatorCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.LenientCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
+import org.elasticsearch.xpack.sql.cli.command.ProjectRoutingCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
 import org.elasticsearch.xpack.sql.client.ClientException;
@@ -133,6 +134,7 @@ public class Cli extends Command {
             new FetchSizeCliCommand(),
             new LenientCliCommand(),
             new AllowPartialResultsCliCommand(),
+            new ProjectRoutingCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
             new ServerQueryCliCommand()

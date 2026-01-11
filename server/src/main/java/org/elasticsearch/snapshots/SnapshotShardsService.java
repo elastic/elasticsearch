@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -369,11 +370,34 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     private void startNewShardSnapshots(String localNodeId, SnapshotsInProgress.Entry entry) {
         Map<ShardId, ShardGeneration> shardsToStart = null;
         final Snapshot snapshot = entry.snapshot();
+
+        // This is needed for detection of shards whose snapshot was impacted by a concurrent resharding operation.
+        // TODO write this correctly
+        final var shardIdToLargestShardIdInTheSnapshot = new HashMap<ShardId, ShardId>();
+
         final var runningShardsForSnapshot = shardSnapshots.getOrDefault(snapshot, emptyMap());
         for (var scheduledShard : entry.shards().entrySet()) {
-            // Add all new shards to start processing on
             final var shardId = scheduledShard.getKey();
             final var shardSnapshotStatus = scheduledShard.getValue();
+
+            if (shardId.id() == 0) {
+                // Base case - either there is one shard total or we happened to see shard 0 first.
+                shardIdToLargestShardIdInTheSnapshot.putIfAbsent(shardId, shardId);
+            } else {
+                // This is potentially the largest shardId in the snapshot
+                // we need to check if we need to record this fact.
+                // Since we update all the known shards together, we can check only shard 0.
+                var shardZero = new ShardId(shardId.getIndex(), 0);
+                var shardZeroEntry = shardIdToLargestShardIdInTheSnapshot.get(shardZero);
+                if (shardZeroEntry == null || shardZeroEntry.id() < shardId.id()) {
+                    // Update the "max" for all shards including ourselves.
+                    for (int i = shardId.id(); i >= 0; i--) {
+                        shardIdToLargestShardIdInTheSnapshot.put(new ShardId(shardId.getIndex(), i), shardId);
+                    }
+                }
+            }
+
+            // Add all new shards to start processing on
             if (shardSnapshotStatus.state() == ShardState.INIT && localNodeId.equals(shardSnapshotStatus.nodeId())) {
                 final var runningShard = runningShardsForSnapshot.get(shardId);
                 if (runningShard == null || runningShard.isPaused()) {
@@ -409,7 +433,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 indexId,
                 snapshotStatus,
                 entry.version(),
-                entry.startTime()
+                entry.startTime(),
+                shardIdToLargestShardIdInTheSnapshot.get(shardId)
             );
             snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
             startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
@@ -482,7 +507,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexId indexId,
         final IndexShardSnapshotStatus snapshotStatus,
         final IndexVersion entryVersion,
-        final long entryStartTime
+        final long entryStartTime,
+        final ShardId maximumShardIdInTheSnapshot
     ) {
         Consumer<String> postMasterNotificationAction = (outcomeInfoString) -> {
             snapshotStatus.updateStatusDescription("Data node shard snapshot finished. Remote master update outcome: " + outcomeInfoString);
@@ -547,7 +573,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         });
 
         // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
-        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, decTrackerRunsBeforeResultListener);
+        return () -> snapshot(
+            shardId,
+            snapshot,
+            indexId,
+            snapshotStatus,
+            entryVersion,
+            entryStartTime,
+            maximumShardIdInTheSnapshot,
+            decTrackerRunsBeforeResultListener
+        );
     }
 
     // package private for testing
@@ -577,6 +612,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      *
      * @param snapshot       snapshot
      * @param snapshotStatus snapshot status
+     * @param maximumShardIdForIndexInTheSnapshot maximum shardId of the same index (by {@link ShardId#id()}) existing in this snapshot.
+     *                                            This is needed to detect resharding happening during a snapshot.
+     *                                            See {@link IndexReshardService#isShardSnapshotImpactedByResharding}.
      */
     private void snapshot(
         final ShardId shardId,
@@ -585,6 +623,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexShardSnapshotStatus snapshotStatus,
         IndexVersion version,
         final long entryStartTime,
+        final ShardId maximumShardIdForIndexInTheSnapshot,
         ActionListener<ShardSnapshotResult> resultListener
     ) {
         ActionListener.run(resultListener, listener -> {
@@ -610,6 +649,15 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             try {
                 snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
                 snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
+
+                assert maximumShardIdForIndexInTheSnapshot.getIndex().equals(shardId.getIndex());
+                if (IndexReshardService.isShardSnapshotImpactedByResharding(
+                    indexShard.indexSettings().getIndexMetadata(),
+                    maximumShardIdForIndexInTheSnapshot
+                )) {
+                    throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
+                }
+
                 snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
                 final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
                 snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));

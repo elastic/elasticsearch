@@ -39,6 +39,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+/**
+ * Opens a TCP server {@link #PORT} when Elasticsearch is ready to accept work.
+ * That port can be used as a readiness probe by external components, like a control plane.
+ */
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 

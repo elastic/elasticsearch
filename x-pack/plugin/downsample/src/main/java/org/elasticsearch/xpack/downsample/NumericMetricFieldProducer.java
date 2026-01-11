@@ -131,4 +131,62 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
             }
         }
     }
+
+    static final class AggregateCounter extends NumericMetricFieldProducer {
+        private double firstValue = Double.NaN;
+        private double lastValue = Double.NaN;
+        private double resetOffset = 0;
+
+        AggregateCounter(String name) {
+            super(name);
+        }
+
+        /**
+         * Resets the producer to an empty value.
+         */
+        public void reset() {
+            isEmpty = true;
+            firstValue = Double.NaN;
+            lastValue = Double.NaN;
+            resetOffset = 0;
+        }
+
+        @Override
+        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+            for (int i = 0; i < docIdBuffer.size(); i++) {
+                int docId = docIdBuffer.get(i);
+                if (docValues.advanceExact(docId) == false) {
+                    continue;
+                }
+                int docValuesCount = docValues.docValueCount();
+                assert docValuesCount > 0;
+                isEmpty = false;
+                var currentValue = docValues.nextValue();
+                // If this the first time we encounter a value
+                if (Double.isNaN(lastValue)) {
+                    firstValue = currentValue;
+                    lastValue = currentValue;
+                    continue;
+                }
+
+                // check for reset
+                if (currentValue > firstValue) {
+                    resetOffset += firstValue;
+                }
+                firstValue = currentValue;
+            }
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), lastValue);
+                builder.startObject(name() + "_aggregate");
+                builder.field("first_value", firstValue);
+                builder.field("last_value", firstValue + resetOffset);
+                builder.field("reset_offset", resetOffset);
+                builder.endObject();
+            }
+        }
+    }
 }

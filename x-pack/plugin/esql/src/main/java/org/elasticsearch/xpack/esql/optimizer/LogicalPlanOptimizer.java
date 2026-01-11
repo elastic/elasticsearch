@@ -147,7 +147,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new RemoveStatsOverride(),
             // translate PromQL plans to time-series aggregates before TranslateTimeSeriesAggregate
             new TranslatePromqlToTimeSeriesAggregate(),
-            // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
+            // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),
             // first extract nested expressions inside aggs

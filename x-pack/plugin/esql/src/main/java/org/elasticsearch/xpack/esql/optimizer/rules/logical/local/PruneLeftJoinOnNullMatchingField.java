@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -36,7 +37,12 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
     @Override
     protected LogicalPlan rule(Join join, LogicalOptimizerContext ctx) {
         LogicalPlan plan = join;
-        if (join.config().type() == LEFT) { // other types will have different replacement logic
+        // Other join types will have different replacement logic.
+        // This rule only applies to LOOKUP JOIN (where join.right() is EsRelation). For INLINE STATS, the right
+        // side can be Aggregate or LocalRelation (when optimized), and the join key is always the grouping. Since
+        // STATS supports GROUP BY null, pruning the join when the join key (grouping) is null would incorrectly
+        // change the query results.
+        if (join.config().type() == LEFT && join.right() instanceof EsRelation) {
             AttributeMap<Expression> attributeMap = RuleUtils.foldableReferences(join, ctx);
 
             for (var attr : AttributeSet.of(join.config().leftFields())) {

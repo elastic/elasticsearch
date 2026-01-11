@@ -984,12 +984,14 @@ public class MachineLearning extends Plugin
 
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
+        boolean canUseIlm = DiscoveryNode.isStateless(settings) == false;
+
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             settings,
             clusterService,
             threadPool,
             client,
-            machineLearningExtension.get().useIlm(),
+            canUseIlm,
             xContentRegistry
         );
         registry.initialize();
@@ -1363,7 +1365,7 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
             machineLearningExtension.get().isNlpEnabled(),
-            machineLearningExtension.get().useIlm()
+            canUseIlm
         );
 
         MlMetrics mlMetrics = new MlMetrics(

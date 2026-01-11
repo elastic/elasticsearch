@@ -22,13 +22,13 @@ import java.util.List;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
-public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
+public class VectorScorerFloatBulkBenchmarkTests extends ESTestCase {
 
     private final VectorSimilarityType function;
     private final float delta = 1e-3f;
     private final int dims;
 
-    public VectorScorerInt7uBulkBenchmarkTests(VectorSimilarityType function, int dims) {
+    public VectorScorerFloatBulkBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
     }
@@ -40,10 +40,10 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
 
     public void testSequential() throws Exception {
         for (int i = 0; i < 100; i++) {
-            VectorScorerInt7uBulkBenchmark.VectorData vectorData = new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
+            VectorScorerFloatBulkBenchmark.VectorData vectorData = new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
             float[] expected = null;
             for (var impl : VectorImplementation.values()) {
-                var bench = new VectorScorerInt7uBulkBenchmark();
+                var bench = new VectorScorerFloatBulkBenchmark();
                 bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
@@ -70,10 +70,10 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
 
     public void testRandom() throws Exception {
         for (int i = 0; i < 100; i++) {
-            VectorScorerInt7uBulkBenchmark.VectorData vectorData = new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
+            VectorScorerFloatBulkBenchmark.VectorData vectorData = new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
             float[] expected = null;
             for (var impl : VectorImplementation.values()) {
-                var bench = new VectorScorerInt7uBulkBenchmark();
+                var bench = new VectorScorerFloatBulkBenchmark();
                 bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
@@ -101,10 +101,10 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
     public void testQueryRandom() throws Exception {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
         for (int i = 0; i < 100; i++) {
-            VectorScorerInt7uBulkBenchmark.VectorData vectorData = new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
+            VectorScorerFloatBulkBenchmark.VectorData vectorData = new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
             float[] expected = null;
             for (var impl : List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE)) {
-                var bench = new VectorScorerInt7uBulkBenchmark();
+                var bench = new VectorScorerFloatBulkBenchmark();
                 bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
@@ -132,8 +132,8 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            String[] dims = VectorScorerInt7uBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerInt7uBulkBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
+            String[] dims = VectorScorerFloatBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            String[] functions = VectorScorerFloatBulkBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
                 .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))

@@ -9,13 +9,14 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
@@ -45,21 +46,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.floatVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.quantizedVectorValues;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeFloatVectorData;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
 
 /**
- * Benchmark that compares bulk scoring of various scalar quantized vector similarity function
+ * Benchmark that compares bulk scoring of various float vector similarity function
  * implementations (scalar, lucene's panama-ized, and Elasticsearch's native) against sequential
  * and random access target vectors.
- * Run with ./gradlew -p benchmarks run --args 'VectorScorerInt7uBulkScorerBenchmark'
+ * Run with ./gradlew -p benchmarks run --args 'VectorScorerFloatBulkBenchmark'
  */
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -67,12 +67,12 @@ import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareD
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
-public class VectorScorerInt7uBulkBenchmark {
+public class VectorScorerFloatBulkBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
         if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(VectorScorerInt7uBulkBenchmark.class);
+            final Logger LOG = LogManager.getLogger(VectorScorerFloatBulkBenchmark.class);
             LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
         }
     }
@@ -83,7 +83,7 @@ public class VectorScorerInt7uBulkBenchmark {
     // 128k is typically enough to not fit in L1 (core) cache for most processors;
     // 1.5M is typically enough to not fit in L2 (core) cache;
     // 130M is enough to not fit in L3 cache
-    @Param({ "128", "1500", "130000" })
+    @Param({ "32", "375", "32500" })
     public int numVectors;
     public int numVectorsToScore;
 
@@ -98,24 +98,17 @@ public class VectorScorerInt7uBulkBenchmark {
     private IndexInput in;
 
     private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
-        private final float scoreCorrectionConstant;
+        private final FloatVectorValues values;
 
-        private byte[] queryVector;
-        private float queryVectorCorrectionConstant;
+        private float[] queryVector;
 
-        private ScalarDotProduct(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        private ScalarDotProduct(FloatVectorValues values) {
             this.values = values;
-            this.scoreCorrectionConstant = scoreCorrectionConstant;
         }
 
         @Override
         public float score(int ordinal) throws IOException {
-            var vec2 = values.vectorValue(ordinal);
-            var vec2CorrectionConstant = values.getScoreCorrectionConstant(ordinal);
-            int dotProduct = dotProduct(queryVector, vec2);
-            float adjustedDistance = dotProduct * scoreCorrectionConstant + queryVectorCorrectionConstant + vec2CorrectionConstant;
-            return (1 + adjustedDistance) / 2;
+            return VectorUtil.normalizeToUnitInterval(dotProduct(queryVector, values.vectorValue(ordinal)));
         }
 
         @Override
@@ -126,27 +119,21 @@ public class VectorScorerInt7uBulkBenchmark {
         @Override
         public void setScoringOrdinal(int targetOrd) throws IOException {
             queryVector = values.vectorValue(targetOrd).clone();
-            queryVectorCorrectionConstant = values.getScoreCorrectionConstant(targetOrd);
         }
     }
 
     private static class ScalarSquareDistance implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
-        private final float scoreCorrectionConstant;
+        private final FloatVectorValues values;
 
-        private byte[] queryVector;
+        private float[] queryVector;
 
-        private ScalarSquareDistance(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        private ScalarSquareDistance(FloatVectorValues values) {
             this.values = values;
-            this.scoreCorrectionConstant = scoreCorrectionConstant;
         }
 
         @Override
         public float score(int ordinal) throws IOException {
-            var vec2 = values.vectorValue(ordinal);
-            int squareDistance = squareDistance(queryVector, vec2);
-            float adjustedDistance = squareDistance * scoreCorrectionConstant;
-            return 1 / (1f + adjustedDistance);
+            return VectorUtil.normalizeDistanceToUnitInterval(squareDistance(queryVector, values.vectorValue(ordinal)));
         }
 
         @Override
@@ -169,22 +156,21 @@ public class VectorScorerInt7uBulkBenchmark {
 
     static class VectorData {
         private final int numVectorsToScore;
-        private final byte[][] vectorData;
-        private final float[] offsets;
+        private final float[][] vectorData;
         private final int[] ordinals;
         private final int targetOrd;
         private final float[] queryVector;
 
         VectorData(int dims, int numVectors, int numVectorsToScore) {
             this.numVectorsToScore = numVectorsToScore;
-            vectorData = new byte[numVectors][];
-            offsets = new float[numVectors];
+            vectorData = new float[numVectors][];
 
             ThreadLocalRandom random = ThreadLocalRandom.current();
             for (int v = 0; v < numVectors; v++) {
-                vectorData[v] = new byte[dims];
-                randomInt7BytesBetween(vectorData[v]);
-                offsets[v] = random.nextFloat();
+                vectorData[v] = new float[dims];
+                for (int d = 0; d < dims; d++) {
+                    vectorData[v][d] = random.nextFloat();
+                }
             }
 
             List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
@@ -208,9 +194,9 @@ public class VectorScorerInt7uBulkBenchmark {
     void setup(VectorData vectorData) throws IOException {
         VectorScorerFactory factory = getScorerFactoryOrDie();
 
-        path = Files.createTempDirectory("Int7uBulkScorerBenchmark");
+        path = Files.createTempDirectory("FloatBulkScorerBenchmark");
         dir = new MMapDirectory(path);
-        writeInt7VectorData(dir, vectorData.vectorData, vectorData.offsets);
+        writeFloatVectorData(dir, vectorData.vectorData);
 
         numVectorsToScore = vectorData.numVectorsToScore;
         scores = new float[numVectorsToScore];
@@ -219,14 +205,13 @@ public class VectorScorerInt7uBulkBenchmark {
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
 
-        var values = quantizedVectorValues(dims, numVectors, in, function.function());
-        float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
+        var values = floatVectorValues(dims, numVectors, in, function.function());
 
         switch (implementation) {
             case SCALAR:
                 scorer = switch (function) {
-                    case DOT_PRODUCT -> new ScalarDotProduct(values, scoreCorrectionConstant);
-                    case EUCLIDEAN -> new ScalarSquareDistance(values, scoreCorrectionConstant);
+                    case DOT_PRODUCT -> new ScalarDotProduct(values);
+                    case EUCLIDEAN -> new ScalarSquareDistance(values);
                     default -> throw new IllegalArgumentException(function + " not supported");
                 };
                 break;
@@ -237,9 +222,9 @@ public class VectorScorerInt7uBulkBenchmark {
                 }
                 break;
             case NATIVE:
-                scorer = factory.getInt7SQVectorScorerSupplier(function, in, values, scoreCorrectionConstant).orElseThrow().scorer();
+                scorer = factory.getFloatVectorScorerSupplier(function, in, values).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
+                    queryScorer = factory.getFloatVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
                 }
                 break;
         }

@@ -96,7 +96,9 @@ public interface CuVSResourceManager {
         static class Holder {
             static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
                 MAX_RESOURCES,
-                new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
+                GPUSupport.isPoolingEnabled()
+                    ? new TrackingGPUMemoryService(GPUSupport.getTotalGpuMemoryInBytes())
+                    : new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
             );
         }
 

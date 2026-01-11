@@ -10,6 +10,13 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 
+repositories {
+  mavenLocal()
+  maven {
+    url = uri("https://storage.googleapis.com/elasticsearch-cuvs-snapshots")
+  }
+}
+
 dependencies {
   api project(':libs:core')
   api project(":libs:x-content")

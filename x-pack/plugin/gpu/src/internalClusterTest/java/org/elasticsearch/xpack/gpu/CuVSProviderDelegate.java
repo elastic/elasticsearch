@@ -145,13 +145,13 @@ class CuVSProviderDelegate implements CuVSProvider {
     }
 
     @Override
-    public void enableRMMPooledMemory(int i, int i1) {
-        delegate.enableRMMPooledMemory(i, i1);
+    public void enableRMMPooledMemory(int initialPoolSizePercent, int maxPoolSizePercent) {
+        delegate.enableRMMPooledMemory(initialPoolSizePercent, maxPoolSizePercent);
     }
 
     @Override
-    public void enableRMMManagedPooledMemory(int i, int i1) {
-        delegate.enableRMMManagedPooledMemory(i, i1);
+    public void enableRMMManagedPooledMemory(int initialPoolSizePercent, int maxPoolSizePercent) {
+        delegate.enableRMMManagedPooledMemory(initialPoolSizePercent, maxPoolSizePercent);
     }
 
     @Override
@@ -161,13 +161,13 @@ class CuVSProviderDelegate implements CuVSProvider {
 
     @Override
     public CagraIndexParams cagraIndexParamsFromHnswParams(
-        long l,
-        long l1,
-        int i,
-        int i1,
-        CagraIndexParams.HnswHeuristicType hnswHeuristicType,
-        CagraIndexParams.CuvsDistanceType cuvsDistanceType
+        long rows,
+        long dim,
+        int m,
+        int efConstruction,
+        CagraIndexParams.HnswHeuristicType heuristic,
+        CagraIndexParams.CuvsDistanceType metric
     ) {
-        return delegate.cagraIndexParamsFromHnswParams(l, l1, i, i1, hnswHeuristicType, cuvsDistanceType);
+        return delegate.cagraIndexParamsFromHnswParams(rows, dim, m, efConstruction, heuristic, metric);
     }
 }

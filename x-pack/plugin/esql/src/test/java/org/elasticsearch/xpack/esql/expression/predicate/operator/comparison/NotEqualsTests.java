@@ -233,6 +233,25 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // 1. Generate the vector test cases
+        List<TestCaseSupplier> vectorTests = TestCaseSupplier.forBinaryNotCasting(
+            "NotEqualsDenseVectorsEvaluator",
+            "lhs",
+            "rhs",
+            // Checkstyle compliant: check explicitly with == false
+            (l, r) -> false == l.equals(r),
+            DataType.BOOLEAN,
+            TestCaseSupplier.denseVectorCases(),
+            TestCaseSupplier.denseVectorCases(),
+            List.of(),
+            false
+        );
+
+        // 2. Add them to the main list, disabling the Block Evaluator to avoid the crash
+        suppliers.addAll(
+            TestCaseSupplier.mapTestCases(vectorTests, TestCaseSupplier.TestCase::withoutEvaluator)
+        );
+
         for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
             suppliers.addAll(
                 TestCaseSupplier.forBinaryNotCasting(

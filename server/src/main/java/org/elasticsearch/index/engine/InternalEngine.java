@@ -21,6 +21,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -112,6 +113,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2568,6 +2570,50 @@ public class InternalEngine extends Engine {
         } finally {
             optimizeLock.unlock();
         }
+    }
+
+    @Override
+    public boolean preForceMergeNoOpCheck(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException {
+        if (onlyExpungeDeletes && maxNumSegments >= 0) {
+            throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
+        }
+        final var segmentCommitInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        if (hasUncommittedChanges()) {
+            return false;
+        }
+        final var latestCommit = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        // We check if the latest commit is the same as the one we initially read. If not, something changed while we were checking,
+        // so we return false to be safe.
+        if (latestCommit.getGeneration() != segmentCommitInfos.getGeneration()) {
+            return false;
+        }
+
+        final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
+        for (int i = 0; i < segmentCommitInfos.size(); i++) {
+            final var segmentInfo = segmentCommitInfos.info(i);
+            if (onlyExpungeDeletes && segmentInfo.hasDeletions()) {
+                return false;
+            }
+            segmentsToMerge.put(segmentInfo, Boolean.TRUE);
+        }
+        if (onlyExpungeDeletes) {
+            return true;
+        }
+
+        final MergePolicy.MergeSpecification mergeSpecification;
+        if (maxNumSegments < 0) {
+            mergeSpecification = indexWriter.getConfig()
+                .getMergePolicy()
+                .findMerges(MergeTrigger.EXPLICIT, segmentCommitInfos, indexWriter);
+        } else {
+            mergeSpecification = indexWriter.getConfig()
+                .getMergePolicy()
+                .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
+        }
+        if (mergeSpecification != null && mergeSpecification.merges.isEmpty() == false) {
+            return false;
+        }
+        return true;
     }
 
     private IndexCommitRef acquireIndexCommitRef(final Supplier<IndexCommit> indexCommitSupplier) {

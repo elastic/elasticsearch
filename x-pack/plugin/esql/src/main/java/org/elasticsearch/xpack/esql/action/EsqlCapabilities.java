@@ -1851,6 +1851,11 @@ public class EsqlCapabilities {
          */
         DATE_TIME_EXCEPTIONS_HANDLED,
 
+        /**
+         * Dense_vector aggregation functions
+         */
+        DENSE_VECTOR_AGG_FUNCTIONS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

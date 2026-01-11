@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -691,5 +693,29 @@ public final class MultiRowTestCaseSupplier {
                 )
             );
         }
+    }
+
+    /**
+     * Generate cases for {@link DataType#DENSE_VECTOR}.
+     */
+    public static List<TypedDataSupplier> denseVectorCases(int minRows, int maxRows) {
+        Holder<Integer> dimensions = new Holder<>();
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<dense vector>", DataType.DENSE_VECTOR, () -> {
+            if (dimensions.get() == null) {
+                dimensions.set(randomIntBetween(64, 128));
+            }
+            return randomDenseVector(dimensions.get());
+        });
+
+        return cases;
+    }
+
+    private static List<Float> randomDenseVector(int dimensions) {
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimensions; i++) {
+            vector.add(randomFloat());
+        }
+        return vector;
     }
 }

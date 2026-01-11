@@ -27,6 +27,8 @@ public class Similarities {
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
     static final MethodHandle SQUARE_DISTANCE_7U_BULK = DISTANCE_FUNCS.squareDistanceHandle7uBulk();
     static final MethodHandle SQUARE_DISTANCE_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.squareDistanceHandle7uBulkWithOffsets();
+    static final MethodHandle DOT_PRODUCT_FLOAT32 = DISTANCE_FUNCS.dotProductHandleFloat32();
+    static final MethodHandle SQUARE_DISTANCE_FLOAT32 = DISTANCE_FUNCS.squareDistanceHandleFloat32();
 
     private static RuntimeException rethrow(Throwable t) {
         if (t instanceof Error err) {
@@ -94,6 +96,22 @@ public class Similarities {
     ) {
         try {
             SQUARE_DISTANCE_7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static float dotProductFloat32(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (float) DOT_PRODUCT_FLOAT32.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static float squareDistanceFloat32(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (float) SQUARE_DISTANCE_FLOAT32.invokeExact(a, b, length);
         } catch (Throwable e) {
             throw rethrow(e);
         }

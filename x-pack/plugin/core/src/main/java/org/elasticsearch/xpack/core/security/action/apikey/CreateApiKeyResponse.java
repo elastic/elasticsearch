@@ -85,6 +85,10 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         return key;
     }
 
+    public String getEncodedKey() {
+        return Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+    }
+
     @Nullable
     public Instant getExpiration() {
         return expiration;
@@ -149,7 +153,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }
-        builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
+        builder.field("encoded", getEncodedKey());
         return builder.endObject();
     }
 

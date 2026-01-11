@@ -9,6 +9,9 @@
 
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.hppc.IntArrayList;
+
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -27,6 +30,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
@@ -77,7 +81,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     /**
      * Selects and returns the appropriate {@link RescoreKnnVectorQuery} strategy based on the nature of the {@code innerQuery}.
      *
-     * @param fieldName                 the name of the field containing the vector
+     * @param fieldName                the name of the field containing the vector
      * @param floatTarget              the target vector to compare against
      * @param vectorSimilarityFunction the similarity function to apply
      * @param k                        the number of top documents to return after rescoring
@@ -333,6 +337,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
         }
 
+        private static final int PREFETCH_DISTANCE = 8;
+
         private void rescoreIndividually(
             int docBase,
             FloatVectorValues knnVectorValues,
@@ -340,18 +346,88 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            int doc;
-            KnnVectorValues.DocIndexIterator knnVectorIterator = knnVectorValues.iterator();
-            var conjunction = ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert doc == knnVectorIterator.docID();
-                float[] vector = knnVectorValues.vectorValue(knnVectorIterator.index());
+            // Collect intersected docs and ordinals in order
+            IntArrayList docs = new IntArrayList();
+            IntArrayList ords = new IntArrayList();
+            collectIntersectOrdinals(knnVectorValues, filterIterator, docs, ords);
+
+            final int size = ords.size();
+            if (size == 0) {
+                return;
+            }
+
+            final int vectorByteSize = knnVectorValues.getVectorByteLength();
+            final HasIndexSlice sliceable = (knnVectorValues instanceof HasIndexSlice h) ? h : null;
+            final var input = sliceable != null ? sliceable.getSlice() : null;
+
+            // Initial prefetch window
+            if (input != null) {
+                prefetchWindow(input, ords, vectorByteSize, 0, Math.min(size, PREFETCH_DISTANCE));
+            }
+
+            // Interleave scoring with forward prefetch
+            for (int i = 0; i < size; i++) {
+                // Advance prefetch window
+                int prefetchIndex = i + PREFETCH_DISTANCE;
+                if (input != null && prefetchIndex < size) {
+                    prefetchSingle(input, ords.get(prefetchIndex), vectorByteSize);
+                }
+                int doc = docs.get(i);
+                int ord = ords.get(i);
+                float[] vector = knnVectorValues.vectorValue(ord);
                 float score = function.compare(floatTarget, vector);
                 if (Float.isNaN(score)) {
                     continue;
                 }
                 queue.add(new ScoreDoc(doc + docBase, score));
             }
+        }
+
+        private static void collectIntersectOrdinals(
+            FloatVectorValues values,
+            DocIdSetIterator filterIterator,
+            IntArrayList docs,
+            IntArrayList ords
+        ) throws IOException {
+            KnnVectorValues.DocIndexIterator vectorIter = values.iterator();
+            DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
+            int doc;
+            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assert doc == vectorIter.docID();
+                docs.add(doc);
+                ords.add(vectorIter.index());
+            }
+        }
+
+        static void prefetchSingle(IndexInput input, int ord, int vectorByteSize) throws IOException {
+            long offset = (long) ord * vectorByteSize;
+            input.prefetch(offset, vectorByteSize);
+        }
+
+        static void prefetchWindow(IndexInput input, IntArrayList ords, int vectorByteSize, int from, int to) throws IOException {
+            if (from >= to) {
+                return;
+            }
+
+            int startOrd = ords.get(from);
+            int prevOrd = startOrd;
+            for (int i = from + 1; i < to; i++) {
+                int ord = ords.get(i);
+                if (ord == prevOrd + 1) {
+                    prevOrd = ord;
+                } else {
+                    prefetchRun(input, startOrd, prevOrd, vectorByteSize);
+                    startOrd = prevOrd = ord;
+                }
+            }
+
+            prefetchRun(input, startOrd, prevOrd, vectorByteSize);
+        }
+
+        static void prefetchRun(IndexInput input, int startOrd, int endOrd, int vectorByteSize) throws IOException {
+            long offset = (long) startOrd * vectorByteSize;
+            long length = (long) (endOrd - startOrd + 1) * vectorByteSize;
+            input.prefetch(offset, length);
         }
     }
 }

@@ -545,6 +545,18 @@ tasks.named("validateChangelogs").configure {
   }
 }
 
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs.add("--enable-preview")
+  options.compilerArgs.add("-Xlint:-preview")
+}
+
+subprojects {
+  tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.add("--enable-preview")
+    options.compilerArgs.add("-Xlint:-preview")
+  }
+}
+
 tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')

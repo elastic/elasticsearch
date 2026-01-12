@@ -317,7 +317,7 @@ true                    | one         | 2024-05-10T00:21:00.000Z
 ;
 
 absent_over_time_of_dense_vector
-required_capability: dense_vector_agg_functions
+required_capability: ts_command_v0
 TS k8s 
 | STATS is_present = max(absent_over_time(dense_vector)) BY cluster, time_bucket = tbucket(10minute) 
 | SORT time_bucket, cluster 
@@ -336,7 +336,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 absent_over_time_of_dense_vector_with_filtering
-required_capability: dense_vector_agg_functions
+required_capability: ts_command_v0
 TS k8s 
 | WHERE pod != "one" 
 | STATS is_present = max(absent_over_time(dense_vector)) BY cluster, time_bucket = tbucket(10 minute) 
@@ -356,7 +356,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 eval_on_absent_over_time_dense_vector
-required_capability: dense_vector_agg_functions
+required_capability: ts_command_v0
 TS k8s 
 | STATS is_present = max(absent_over_time(dense_vector)) BY pod, time_bucket = tbucket(10 minute) 
 | EVAL int = to_integer(is_present) 

@@ -48,7 +48,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
-            Map.of()
+            randomNodeIdsWriteLoadHotspottingTable()
         );
     }
 
@@ -101,6 +101,17 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
         }
         return nodeUsageStatsForThreadPools;
+    }
+
+    private static Map<String, Boolean> randomNodeIdsWriteLoadHotspottingTable() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, Boolean> nodeIdsWriteLoadHotspotting = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeId = randomAlphaOfLength(32);
+            boolean isHotspotting = randomBoolean();
+            nodeIdsWriteLoadHotspotting(nodeId, isHotspotting);
+        }
+        return nodeIdsWriteLoadHotspotting;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

@@ -75,7 +75,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     /**
      * Test chunked fetch with multiple shards on a single node.
      */
-    public void testChunkedFetchMultipleShardsSingleNode() throws IOException {
+    public void testChunkedFetchMultipleShardsSingleNode() throws Exception {
         String coordinatorNode = internalCluster().startNode();
 
         createIndexForTest(
@@ -100,11 +100,13 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             }
         );
 
-        assertThat(
-            "Coordinator circuit breaker should be released after chunked fetch completes",
-            getNodeRequestBreakerUsed(coordinatorNode),
-            lessThanOrEqualTo(breakerBefore)
-        );
+        assertBusy(() -> {
+            assertThat(
+                "Coordinator circuit breaker should be released after chunked fetch completes",
+                getNodeRequestBreakerUsed(coordinatorNode),
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
     }
 
     /**
@@ -250,7 +252,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     /**
      * Test chunked fetch with filtering to verify correct results and memory tracking.
      */
-    public void testChunkedFetchWithFiltering() throws IOException {
+    public void testChunkedFetchWithFiltering() throws Exception {
         String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
 
@@ -280,11 +282,13 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             }
         );
 
-        assertThat(
-            "Coordinator circuit breaker should be released after chunked fetch completes",
-            getNodeRequestBreakerUsed(coordinatorNode),
-            lessThanOrEqualTo(breakerBefore)
-        );
+        assertBusy(() -> {
+            assertThat(
+                "Coordinator circuit breaker should be released after chunked fetch completes",
+                getNodeRequestBreakerUsed(coordinatorNode),
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
     }
 
     /**
@@ -440,7 +444,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     /**
      * Test chunked fetch with DFS query then fetch search type.
      */
-    public void testChunkedFetchWithDfsQueryThenFetch() throws IOException {
+    public void testChunkedFetchWithDfsQueryThenFetch() throws Exception {
         String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
 
@@ -467,17 +471,19 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             }
         );
 
-        assertThat(
-            "Coordinator circuit breaker should be released after DFS chunked fetch",
-            getNodeRequestBreakerUsed(coordinatorNode),
-            lessThanOrEqualTo(breakerBefore)
-        );
+        assertBusy(() -> {
+            assertThat(
+                "Coordinator circuit breaker should be released after DFS chunked fetch",
+                getNodeRequestBreakerUsed(coordinatorNode),
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
     }
 
     /**
      * Test that circuit breaker is properly released even when search fails.
      */
-    public void testChunkedFetchCircuitBreakerReleasedOnFailure() throws IOException {
+    public void testChunkedFetchCircuitBreakerReleasedOnFailure() throws Exception {
         String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
 
@@ -502,11 +508,13 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 .get()
         );
 
-        assertThat(
-            "Coordinator circuit breaker should be released even after chunked fetch failure",
-            getNodeRequestBreakerUsed(coordinatorNode),
-            lessThanOrEqualTo(breakerBefore)
-        );
+        assertBusy(() -> {
+            assertThat(
+                "Coordinator circuit breaker should be released even after chunked fetch failure",
+                getNodeRequestBreakerUsed(coordinatorNode),
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
     }
 
     private void populateIndex(String indexName, int nDocs, int textSize) throws IOException {

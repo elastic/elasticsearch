@@ -1,6 +1,7 @@
 ---
 setup:
   - requires:
+      test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
           path: /_data_stream/{target}

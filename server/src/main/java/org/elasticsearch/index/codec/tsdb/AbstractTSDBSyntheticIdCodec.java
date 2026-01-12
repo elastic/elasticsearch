@@ -18,10 +18,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 
 import java.io.IOException;
@@ -54,16 +51,9 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     private final TSDBStoredFieldsFormat storedFieldsFormat;
     private final ValidatingFieldInfosFormat fieldInfosFormat;
 
-    AbstractTSDBSyntheticIdCodec(String name, Codec delegate, BigArrays bigArrays) {
+    AbstractTSDBSyntheticIdCodec(String name, Codec delegate) {
         super(name, delegate);
-        this.storedFieldsFormat = new TSDBStoredFieldsFormat(
-            delegate.storedFieldsFormat(),
-            new ES93BloomFilterStoredFieldsFormat(
-                bigArrays,
-                ES93BloomFilterStoredFieldsFormat.DEFAULT_BLOOM_FILTER_SIZE,
-                IdFieldMapper.NAME
-            )
-        );
+        this.storedFieldsFormat = new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
         this.fieldInfosFormat = new ValidatingFieldInfosFormat(delegate.fieldInfosFormat());
     }
 

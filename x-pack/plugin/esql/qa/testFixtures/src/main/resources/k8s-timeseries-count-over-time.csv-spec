@@ -370,7 +370,7 @@ bytes:long | pod:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_dense_vector
-required_capability: ts_command_v0
+required_capability: dense_vector_agg_functions
 TS k8s 
 | STATS vectors = sum(count_over_time(dense_vector)) BY cluster, time_bucket = bucket(@timestamp,10minute) 
 | SORT time_bucket, cluster 
@@ -389,7 +389,7 @@ vectors:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_dense_vector_with_filtering
-required_capability: ts_command_v0
+required_capability: dense_vector_agg_functions
 TS k8s 
 | WHERE pod != "one" 
 | STATS vectors = sum(count_over_time(dense_vector)) BY cluster, time_bucket = bucket(@timestamp, 10minute) 
@@ -409,7 +409,7 @@ vectors:long | cluster:keyword | time_bucket:datetime
 ;
 
 eval_on_count_over_time_dense_vector
-required_capability: ts_command_v0
+required_capability: dense_vector_agg_functions
 TS k8s 
 | STATS vectors = sum(count_over_time(dense_vector)) BY pod, time_bucket = bucket(@timestamp, 10minute) 
 | EVAL avg_per_pod = to_double(vectors) / 3.0 

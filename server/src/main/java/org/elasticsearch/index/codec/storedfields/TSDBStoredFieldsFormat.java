@@ -233,7 +233,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             StoredFieldsReader bloomFilterStoredFieldsReader
         ) {
             this.storedFieldsReader = storedFieldsReader;
-            assert syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader: syntheticIdStoredFieldsReader;
+            assert syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader : syntheticIdStoredFieldsReader;
             this.syntheticIdStoredFieldsReader = syntheticIdStoredFieldsReader;
             this.bloomFilterStoredFieldsReader = bloomFilterStoredFieldsReader;
             assert bloomFilterStoredFieldsReader instanceof BloomFilter;

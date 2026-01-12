@@ -72,7 +72,8 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
         FieldInfos fieldInfos,
         IOContext context,
         DocValuesProducer docValuesProducer,
-        FieldInfo fieldInfo) {
+        FieldInfo fieldInfo
+    ) {
         this.directory = Objects.requireNonNull(directory);
         this.segmentInfo = Objects.requireNonNull(segmentInfo);
         this.fieldInfos = Objects.requireNonNull(fieldInfos);

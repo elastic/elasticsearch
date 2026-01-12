@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -154,7 +156,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
             new ActionListener<>() {
                 @Override
-                public void onResponse(EsqlSession.ExecutionResult result) {
+                public void onResponse(Versioned<Result> result) {
                     fail("this shouldn't happen");
                 }
 
@@ -185,7 +187,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
             new ActionListener<>() {
                 @Override
-                public void onResponse(EsqlSession.ExecutionResult result) {}
+                public void onResponse(Versioned<Result> result) {}
 
                 @Override
                 public void onFailure(Exception e) {

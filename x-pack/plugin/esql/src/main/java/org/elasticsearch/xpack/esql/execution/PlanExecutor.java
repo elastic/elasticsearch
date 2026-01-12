@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -74,7 +76,7 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
-        ActionListener<EsqlSession.ExecutionResult> listener
+        ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
@@ -95,7 +97,7 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
-        ActionListener<EsqlSession.ExecutionResult> executeListener = wrap(
+        ActionListener<Versioned<Result>> executeListener = wrap(
             x -> onQuerySuccess(request, listener, x, planTelemetry),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
@@ -106,8 +108,8 @@ public class PlanExecutor {
 
     private void onQuerySuccess(
         EsqlQueryRequest request,
-        ActionListener<EsqlSession.ExecutionResult> listener,
-        EsqlSession.ExecutionResult x,
+        ActionListener<Versioned<Result>> listener,
+        Versioned<Result> x,
         PlanTelemetry planTelemetry
     ) {
         planTelemetryManager.publish(planTelemetry, true);
@@ -117,7 +119,7 @@ public class PlanExecutor {
 
     private void onQueryFailure(
         EsqlQueryRequest request,
-        ActionListener<EsqlSession.ExecutionResult> listener,
+        ActionListener<Versioned<Result>> listener,
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,

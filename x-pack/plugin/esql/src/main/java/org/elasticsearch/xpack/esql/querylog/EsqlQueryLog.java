@@ -17,8 +17,8 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.PlanningProfile;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -65,12 +65,12 @@ public final class EsqlQueryLog {
         this.additionalFields = slowLogFieldProvider.create(logContext);
     }
 
-    public void onQueryPhase(EsqlSession.ExecutionResult esqlResult, String query) {
-        if (esqlResult.result().inner() == null) {
+    public void onQueryPhase(Versioned<Result> esqlResult, String query) {
+        if (esqlResult.inner() == null) {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
-        long tookInNanos = esqlResult.result().inner().executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult.result().inner(), query, additionalFields.logFields()), tookInNanos);
+        long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();
+        log(() -> Message.of(esqlResult.inner(), query, additionalFields.logFields()), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {

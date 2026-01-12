@@ -30,7 +30,7 @@ TS k8s
   BY step=TBUCKET(1h)
 | SORT network_in_bits DESC;
 
-network_in_bits:long | _timeseries:keyword                                                  | step:datetime
+network_in_bits:long | _timeseries:keyword                                                   | step:datetime
 86376                | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
 82216                | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
 79752                | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z

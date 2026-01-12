@@ -752,12 +752,12 @@ bytes:double | time_bucket:datetime
 4290.0       | 2024-05-10T00:00:00.000Z
 ;
 
-# Awaits fix: index wildcard selector not yet available for PromQL.
+# Awaits fix: https://github.com/elastic/metrics-program/issues/302
 max_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
 required_capability: promql_pre_tech_preview_v12
 required_capability: aggregate_metric_double_v0
 
-PROMQL index=k8s* step=10m bytes=sum(max_over_time(network.eth0.rx[10m]))
+PROMQL index=k8s* step=10m bytes=(sum(max_over_time(network.eth0.rx[10m])))
 | SORT bytes DESC, step | LIMIT 10;
 
 bytes:double | step:datetime           
@@ -787,12 +787,12 @@ bytes:double | pod:keyword | time_bucket:datetime
 2478.0       | one         | 2024-05-09T23:50:00.000Z
 ;
 
-# Awaits fix: index wildcard selector not yet available for PromQL.
+# Awaits fix: https://github.com/elastic/metrics-program/issues/302
 max_over_time_aggregate_metric_double_implicit_casting_grouping_promql-Ignore
 required_capability: promql_pre_tech_preview_v12
 required_capability: aggregate_metric_double_v0
 
-PROMQL index=k8s* step=10m bytes=sum by (pod) (max_over_time(network.eth0.rx[10m]))
+PROMQL index=k8s* step=10m bytes=(sum by (pod) (max_over_time(network.eth0.rx[10m])))
 | SORT bytes DESC, pod, step | LIMIT 10;
 
 bytes:double | step:datetime            | pod:keyword

@@ -86,10 +86,10 @@ score = ln(score), if score < 0
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
-`chunk_rescorer` {applies_to}`stack: beta 9.2`
+`chunk_rescorer` {applies_to}`stack: beta 9.2-9.3, ga 9.4+` {applies_to}`serverless: ga`
 :   (Optional, `object`)
 
-    Chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit.
+    Chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit. It can also help to control costs by controlling the amount of tokens used for inference.
 
     Parameters for `chunk_rescorer`:
 
@@ -101,9 +101,9 @@ score = ln(score), if score < 0
     `chunking_settings`
     :   (Optional, `object`)
 
-    Settings for chunking text into smaller passages for scoring and reranking. Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md). Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`. 
-    :::{warning} 
-    If you configure chunks larger than the reranker's token limit, the results may be truncated. This can degrade relevance significantly.
+    Settings for chunking text into smaller passages for scoring and reranking. By default, chunking settings are configured to fit within the token window of the model associated with the `inference_id`. Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.
+    :::{warning}
+    Chunk rescoring is an expert feature. When used with models that do not naively truncate, it can slightly degrade relevance. The default chunking settings are recommended, as if you explicitly configure chunks larger than the reranker's token limit the results may be truncated. This can degrade relevance significantly.
     :::
 
 
@@ -326,7 +326,7 @@ Follow these steps to load the model and create a semantic re-ranker.
     }
     ```
     % TEST[skip:uses ELSER]
-    
+
 4. Define a `text_similarity_rerank` retriever.
 
     ```console

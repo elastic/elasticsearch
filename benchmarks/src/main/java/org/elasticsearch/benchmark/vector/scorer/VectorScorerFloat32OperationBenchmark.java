@@ -64,7 +64,7 @@ public class VectorScorerFloat32OperationBenchmark {
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
-    @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
     @FunctionalInterface
@@ -101,13 +101,11 @@ public class VectorScorerFloat32OperationBenchmark {
         MemorySegment.copy(MemorySegment.ofArray(floatsB), LAYOUT_LE_FLOAT, 0L, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
 
         luceneImpl = switch (function) {
-            case COSINE -> VectorUtil::cosine;
             case DOT_PRODUCT -> VectorUtil::dotProduct;
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
         nativeImpl = switch (function) {
-            case COSINE -> VectorScorerFloat32OperationBenchmark::cosineFloat32;
             case DOT_PRODUCT -> VectorScorerFloat32OperationBenchmark::dotProductFloat32;
             case EUCLIDEAN -> VectorScorerFloat32OperationBenchmark::squareDistanceFloat32;
             default -> throw new UnsupportedOperationException("Not used");
@@ -141,19 +139,7 @@ public class VectorScorerFloat32OperationBenchmark {
         return nativeImpl.run(heapSegA, heapSegB, size);
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = vectorSimilarityFunctions();
-
-    static VectorSimilarityFunctions vectorSimilarityFunctions() {
-        return NativeAccess.instance().getVectorSimilarityFunctions().get();
-    }
-
-    static float cosineFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) vectorSimilarityFunctions.cosineHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
+    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 
     static float dotProductFloat32(MemorySegment a, MemorySegment b, int length) {
         try {

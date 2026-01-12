@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +26,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract class VectorBinaryOperator extends BinaryPlan {
+public abstract sealed class VectorBinaryOperator extends BinaryPlan permits VectorBinarySet, VectorBinaryComparison,
+    VectorBinaryArithmetic {
 
     private final VectorMatch match;
     private final boolean dropMetricName;
@@ -43,7 +45,7 @@ public abstract class VectorBinaryOperator extends BinaryPlan {
     }
 
     public interface ScalarFunctionFactory {
-        Function create(Source source, Expression left, Expression right);
+        Function create(Source source, Expression left, Expression right, Configuration configuration);
     }
 
     protected VectorBinaryOperator(

@@ -11,39 +11,58 @@ package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.store.DataOutput;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class DecodeBenchmark extends AbstractDocValuesForUtilBenchmark {
-    protected ByteArrayDataInput dataInput;
-    protected long[] output;
-    protected long[] input;
-    private byte[] outputBuffer;
-    private byte[] inputBuffer;
+/**
+ * Decoding benchmark for TSDB doc values.
+ *
+ * <p>Measures the performance of {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder#decode},
+ * which decompresses a byte buffer back into a block of long values.
+ *
+ * <p>During setup, input data is encoded to create a realistic compressed buffer for decoding.
+ *
+ * @see EncodeBenchmark
+ */
+public final class DecodeBenchmark extends AbstractTSDBCodecBenchmark {
+
+    private ByteArrayDataInput dataInput;
+    private long[] output;
+    private byte[] encodedBuffer;
 
     @Override
-    public void setupIteration(int bitsPerValue, final Supplier<long[]> arraySupplier) throws IOException {
+    public void setupTrial(Supplier<long[]> arraySupplier) throws IOException {
         this.output = new long[blockSize];
-        this.input = arraySupplier.get();
-        this.outputBuffer = new byte[Long.BYTES * blockSize];
-        final DataOutput dataOutput = new ByteArrayDataOutput(outputBuffer);
-        forUtil.encode(this.input, bitsPerValue, dataOutput);
-        this.inputBuffer = new byte[Long.BYTES * blockSize];
-        this.dataInput = new ByteArrayDataInput(this.inputBuffer);
-        System.arraycopy(outputBuffer, 0, inputBuffer, 0, outputBuffer.length);
+        long[] input = arraySupplier.get();
+
+        byte[] tempBuffer = new byte[Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
+        ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(tempBuffer);
+        encoder.encode(input, dataOutput);
+        int encodedLength = dataOutput.getPosition();
+
+        this.encodedBuffer = new byte[encodedLength];
+        System.arraycopy(tempBuffer, 0, encodedBuffer, 0, encodedLength);
+        this.dataInput = new ByteArrayDataInput(this.encodedBuffer);
     }
 
     @Override
-    public void setupInvocation(int bitsPerValue) {
-        this.dataInput.reset(this.inputBuffer);
+    public void setupInvocation() {
+        this.dataInput.reset(this.encodedBuffer);
     }
 
     @Override
-    public void benchmark(int bitsPerValue, Blackhole bh) throws IOException {
-        forUtil.decode(bitsPerValue, this.dataInput, this.output);
-        bh.consume(this.output);
+    public void run() throws IOException {
+        encoder.decode(this.dataInput, this.output);
+    }
+
+    @Override
+    protected Object getOutput() {
+        return this.output;
+    }
+
+    @Override
+    public int getEncodedSize() {
+        return encodedBuffer.length;
     }
 }

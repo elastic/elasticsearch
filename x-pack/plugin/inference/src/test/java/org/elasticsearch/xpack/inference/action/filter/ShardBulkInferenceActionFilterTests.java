@@ -86,8 +86,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -109,8 +109,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -1012,15 +1012,16 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testIndexingPressureTripsOnFailures() throws Exception {
+    public void testDeduplicatedFailures() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            // Set the coordinating bytes limit high enough to handle a few failures without tripping
+            // Set the coordinating bytes limit high enough to handle all the requests
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100kb").build()
         );
         final ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), indexingPressure, useLegacyFormat, inferenceStats);
 
-        final AtomicBoolean indexingPressureTripped = new AtomicBoolean(false);
+        final AtomicReference<Exception> expectedDeduplicatedCause = new AtomicReference<>(null);
+        final AtomicInteger deduplicationCount = new AtomicInteger(0);
         final Consumer<BulkItemRequest> assertBulkItemRequest = (item) -> {
             BulkItemResponse response = item.getPrimaryResponse();
             assertNotNull(response);
@@ -1028,20 +1029,17 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             BulkItemResponse.Failure failure = response.getFailure();
             assertNotNull(failure);
-            if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                assertThat(failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
-                assertThat(
-                    failure.getCause().getMessage(),
-                    matchesRegex("Unable to report failures for document \\[\\d+] due to memory pressure")
-                );
-                indexingPressureTripped.set(true);
-            } else {
-                assertThat(failure.getStatus(), is(RestStatus.NOT_FOUND));
-                assertThat(failure.getCause(), instanceOf(ResourceNotFoundException.class));
-                assertThat(
-                    failure.getCause().getMessage(),
-                    containsString("Inference id [missing_inference_id] not found for field [inference_field]")
-                );
+            assertThat(failure.getStatus(), is(RestStatus.NOT_FOUND));
+            assertThat(failure.getCause(), instanceOf(ResourceNotFoundException.class));
+            assertThat(
+                failure.getCause().getMessage(),
+                containsString("Inference id [missing_inference_id] not found for field [inference_field]")
+            );
+
+            if (expectedDeduplicatedCause.compareAndSet(null, failure.getCause()) == false) {
+                Exception deduplicatedCause = expectedDeduplicatedCause.get();
+                assertThat(deduplicatedCause, sameInstance(failure.getCause()));
+                deduplicationCount.incrementAndGet();
             }
         };
 
@@ -1058,7 +1056,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
                 verify(coordinatingIndexingPressure, times(100)).increment(eq(1), longThat(l -> l > 0));
-                verify(coordinatingIndexingPressure, times(100)).increment(eq(0), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(0)).increment(eq(0), longThat(l -> l > 0));
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();
@@ -1090,7 +1088,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
-        assertTrue(indexingPressureTripped.get());
+        assertThat(expectedDeduplicatedCause.get(), notNullValue());
+        assertThat(deduplicationCount.get(), equalTo(99));
 
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());

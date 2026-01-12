@@ -38,7 +38,6 @@ module org.elasticsearch.serverless.stateless {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.log4j;
-    requires org.elasticsearch.xpack.stateless;
 
     exports co.elastic.elasticsearch.stateless to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.action to org.elasticsearch.server;

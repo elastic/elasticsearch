@@ -207,10 +207,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp,
-        int bulkSize
+        float globalCentroidDp
     ) throws IOException {
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        int bulkSize = input.readInt();
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,

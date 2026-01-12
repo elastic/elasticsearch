@@ -94,12 +94,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
 
         if (match != null) {
             if (match.filter() == VectorMatch.Filter.ON) {
-            outputLabels = new HashSet<>(match.filterLabels());
+                outputLabels = new HashSet<>(match.filterLabels());
             } else if (match.filter() == VectorMatch.Filter.IGNORING) {
-            outputLabels = new HashSet<>(leftLabels);
-            outputLabels.addAll(rightLabels);
-            outputLabels.removeAll(match.filterLabels());
-        } else {
+                outputLabels = new HashSet<>(leftLabels);
+                outputLabels.addAll(rightLabels);
+                outputLabels.removeAll(match.filterLabels());
+            } else {
                 outputLabels = new HashSet<>(leftLabels);
                 outputLabels.retainAll(rightLabels);
             }

@@ -3,6 +3,7 @@
 multiplication_metric_scalar_ts
 required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
+required_capability: metrics_group_by_all
 TS k8s
 | STATS network_in_bits = network.total_bytes_in * 8
   BY step=TBUCKET(1h)
@@ -23,6 +24,7 @@ network_in_bits:long | _timeseries:keyword                                      
 multiplication_within_series_scalar_ts
 required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
+required_capability: metrics_group_by_all
 TS k8s
 | STATS network_in_bits = last_over_time(network.total_bytes_in) * 8
   BY step=TBUCKET(1h)
@@ -129,6 +131,7 @@ addition_metric_metric_ts
 required_capability: ts_command_v0
 required_capability: tbucket
 required_capability: ts_stats_binary_ops
+required_capability: metrics_group_by_all
 TS k8s
 | STATS in_n_out=network.eth0.rx + network.eth0.tx
   BY step=TBUCKET(1h)

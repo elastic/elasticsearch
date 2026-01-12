@@ -1,7 +1,7 @@
 
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.1.0
+serverless: ga
+stack: preview 9.1.0, ga 9.3.0
 ```
 
 The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.

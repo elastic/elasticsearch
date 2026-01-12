@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -175,7 +176,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                         (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
                     );
                     ModelValidatorBuilder.buildModelValidator(newParsedModel.getTaskType(), service.get())
-                        .validate(service.get(), newParsedModel, request.masterNodeTimeout(), updateModelListener);
+                        .validate(service.get(), newParsedModel, TimeValue.THIRTY_SECONDS, updateModelListener);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {

@@ -109,7 +109,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         for (int i = 0; i < numEntries; i++) {
             String nodeId = randomAlphaOfLength(32);
             boolean isHotspotting = randomBoolean();
-            nodeIdsWriteLoadHotspotting(nodeId, isHotspotting);
+            nodeIdsWriteLoadHotspotting.put(nodeId, isHotspotting);
         }
         return nodeIdsWriteLoadHotspotting;
     }

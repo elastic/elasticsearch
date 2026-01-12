@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.security.slowlog;
 
-import org.elasticsearch.index.SlowLogContext;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.LoggingFieldContext;
+import org.elasticsearch.index.LoggingFields;
+import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.xpack.security.Security;
 
 import java.util.Map;
 
-public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
+public class SecurityLoggingFieldsProvider implements LoggingFieldsProvider {
     private final Security plugin;
 
-    private class SecuritySlowLogFields extends SlowLogFields {
-        SecuritySlowLogFields(SlowLogContext context) {
+    private class SecurityLoggingFields extends LoggingFields {
+        SecurityLoggingFields(LoggingFieldContext context) {
             super(context);
         }
 
@@ -32,16 +32,16 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
 
     }
 
-    public SecuritySlowLogFieldProvider() {
+    public SecurityLoggingFieldsProvider() {
         throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
-    public SecuritySlowLogFieldProvider(Security plugin) {
+    public SecurityLoggingFieldsProvider(Security plugin) {
         this.plugin = plugin;
     }
 
     @Override
-    public SlowLogFields create(SlowLogContext context) {
-        return new SecuritySlowLogFields(context);
+    public LoggingFields create(LoggingFieldContext context) {
+        return new SecurityLoggingFields(context);
     }
 }

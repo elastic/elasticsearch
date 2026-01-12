@@ -114,9 +114,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.SlowLogContext;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.LoggingFieldContext;
+import org.elasticsearch.index.LoggingFields;
+import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
@@ -868,16 +868,16 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        List<? extends LoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(LoggingFieldsProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
-        SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-            public SlowLogFields create(SlowLogContext context) {
-                final List<SlowLogFields> fields = new ArrayList<>();
+        LoggingFieldsProvider loggingFieldsProvider = new LoggingFieldsProvider() {
+            public LoggingFields create(LoggingFieldContext context) {
+                final List<LoggingFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
                     fields.add(provider.create(context));
                 }
-                return new SlowLogFields(context) {
+                return new LoggingFields(context) {
                     @Override
                     public Map<String, String> logFields() {
                         return fields.stream()
@@ -910,7 +910,7 @@ class NodeConstruction {
             .mapperMetrics(mapperMetrics)
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
-            .slowLogFieldProvider(slowLogFieldProvider)
+            .slowLogFieldProvider(loggingFieldsProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1002,7 +1002,7 @@ class NodeConstruction {
             documentParsingProvider,
             taskManager,
             projectResolver,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             indexingLimits,
             linkedProjectConfigService,
             projectRoutingResolver

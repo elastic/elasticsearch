@@ -472,7 +472,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
                 }
             });
-            final Map<String, Boolean> nodesWriteLoadHotspotting = ClusterInfo.buildNodesWriteLoadHotspottingTable(
+            final Map<String, Boolean> nodesWriteLoadHotspotting = ClusterInfo.buildNodeIdsWriteLoadHotspottingTable(
                 nodeThreadPoolUsageStatsPerNode,
                 writeLoadConstraintSettings.getQueueLatencyThreshold().millis()
             );

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshot
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -814,11 +813,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         blobNameOperator = blobName -> indexPath + "meta-" + blobName + ".dat";
                     }
 
-                    final var countDownLatch = new CountDownLatch(1);
-                    try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                        repo.threadPool().generic().execute(ActionRunnable.run(refs.acquireListener(), addResult));
-                    }
-                    safeAwait(countDownLatch);
+                    safeAwait(l -> repo.threadPool().generic().execute(ActionRunnable.run(l, addResult)));
 
                     // The entire blob was written to memory, so we expect to see it returned
                     if (blobsToDelete.sizeInBytes() < heapMemory && heapMemory != 0) {

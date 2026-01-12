@@ -66,7 +66,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     for (DocValuesMode docValuesMode : new DocValuesMode[] { DocValuesMode.DEFAULT, DocValuesMode.DOC_VALUES_ONLY }) {
                         params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesMode, allowEmpty, 100) });
                     }
-                    if (fieldType.equals("keyword")  && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                    if (fieldType.equals("keyword") && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                         params.add(
                             new Object[] {
                                 new StandardSetup(

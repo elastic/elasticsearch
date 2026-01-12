@@ -405,6 +405,18 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                                 randomLongBetween(highLatencyThreshold, highLatencyThreshold * 2)
                             )
                         )
+                    ),
+                    otherNode.getId(),
+                    new NodeUsageStatsForThreadPools(
+                        otherNode.getId(),
+                        Map.of(
+                            ThreadPool.Names.WRITE,
+                            new ThreadPoolUsageStats(
+                                numThreads,
+                                randomFloatBetween(0.0f, highUtilizationThreshold - .0001f, false),
+                                randomLongBetween(0, highLatencyThreshold - 1)
+                            )
+                        )
                     )
                 )
             )

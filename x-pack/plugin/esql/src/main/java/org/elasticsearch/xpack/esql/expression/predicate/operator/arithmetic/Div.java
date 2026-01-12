@@ -20,22 +20,22 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.DivDenseVectorsEvaluator;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
 
     private DataType type;
 
-    @FunctionInfo(
-        operator = "/",
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Divide one number by another. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+    @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
+        Divide one value by another. For numeric operands, if either field is <<esql-multivalued-fields,multivalued>>
+        then the result is `null`.
         note = "Division of two integer types will yield an integer result, rounding towards 0. "
-            + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`."
-    )
+        + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
+        For dense_vector operations, both arguments should be dense_vectors. If the dimensions are not same, the result is null
+        """)
     public Div(
         Source source,
         @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
@@ -53,7 +53,8 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            DivDoublesEvaluator.Factory::new
+            DivDoublesEvaluator.Factory::new,
+            DivDenseVectorsEvaluator.Factory::new
         );
         this.type = type;
     }
@@ -65,7 +66,8 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            DivDoublesEvaluator.Factory::new
+            DivDoublesEvaluator.Factory::new,
+            DivDenseVectorsEvaluator.Factory::new
         );
     }
 

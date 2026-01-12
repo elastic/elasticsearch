@@ -20,6 +20,47 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.1.10 [elasticsearch-9.1.10-release-notes]
+```{applies_to}
+stack: ga 9.1.10
+```
+
+### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
+
+Authorization:
+* [Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140046](https://github.com/elastic/elasticsearch/pull/140046)
+
+Infra/Core:
+* Upgrade lz4 dependency to 1.10.1 [#139221](https://github.com/elastic/elasticsearch/pull/139221)
+
+Security:
+* Upgrade Netty to 4.1.130.Final [#139669](https://github.com/elastic/elasticsearch/pull/139669)
+
+
+### Fixes [elasticsearch-9.1.10-fixes]
+
+Data streams:
+* Bug fix: the filter of a data stream alias is not always properly removed [#139679](https://github.com/elastic/elasticsearch/pull/139679)
+* Making sure that failure store document converter does not hang on unexpected exceptions [#139712](https://github.com/elastic/elasticsearch/pull/139712) (issue: [#139707](https://github.com/elastic/elasticsearch/issues/139707))
+
+ES|QL:
+* ESQL: Fix multi-value constant propagation after `STATS` [#139442](https://github.com/elastic/elasticsearch/pull/139442) (issue: [#135926](https://github.com/elastic/elasticsearch/issues/135926))
+
+Inference:
+* [Inference API] Fix auth exception listener not called bug [#139966](https://github.com/elastic/elasticsearch/pull/139966)
+
+Infra/Core:
+* Skip frozen nodes on disk watermark check [#140118](https://github.com/elastic/elasticsearch/pull/140118)
+
+Infra/Node Lifecycle:
+* Ensure initial state discovery does not block indefinitely on startup [#139467](https://github.com/elastic/elasticsearch/pull/139467)
+
+Recovery:
+* Revert "Attempt to clean up index before remote transfer" [#139569](https://github.com/elastic/elasticsearch/pull/139569)
+
+Transform:
+* Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
+
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.3-features-enhancements]

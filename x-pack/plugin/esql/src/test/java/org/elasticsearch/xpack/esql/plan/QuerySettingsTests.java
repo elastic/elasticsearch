@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -91,14 +92,31 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testValidate_UnmappedFields() {
+    public void testValidate_UnmappedFields_techPreview() {
+        var setting = QuerySettings.UNMAPPED_FIELDS;
+        assumeFalse("Snapshot", Build.current().isSnapshot());
+        validateUnmappedFields("FAIL", "NULLIFY");
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("UTC"),
+            "Setting [" + setting.name() + "=LOAD] is only available in snapshot builds"
+        );
+    }
+
+    public void testValidate_UnmappedFields_snapshot() {
+        assumeTrue("Snapshot", Build.current().isSnapshot());
+        validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
+    }
+
+    private void validateUnmappedFields(String... values) {
         var setting = QuerySettings.UNMAPPED_FIELDS;
 
         assertDefault(setting, equalTo(UnmappedResolution.FAIL));
 
-        assertValid(setting, of(randomizeCase("fail")), equalTo(UnmappedResolution.FAIL));
-        assertValid(setting, of(randomizeCase("nullify")), equalTo(UnmappedResolution.NULLIFY));
-        assertValid(setting, of(randomizeCase("load")), equalTo(UnmappedResolution.LOAD));
+        for (String value : values) {
+            assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
+        }
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
         assertInvalid(
@@ -114,16 +132,6 @@ public class QuerySettingsTests extends ESTestCase {
             setting.name(),
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("UTC"),
-            "Setting [" + setting.name() + "] is only available in snapshot builds"
-        );
-    }
-
-    public void testValidate_UnmappedFields_nonSnapshot() {
-        var setting = QuerySettings.UNMAPPED_FIELDS;
-        assertInvalid(
-            setting.name(),
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("LOAD"),
             "Setting [" + setting.name() + "] is only available in snapshot builds"
         );
     }

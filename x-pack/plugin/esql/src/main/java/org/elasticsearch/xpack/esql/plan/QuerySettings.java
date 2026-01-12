@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -74,19 +76,32 @@ public class QuerySettings {
         type = { "keyword" },
         description = "Defines how unmapped fields are treated. Possible values are: "
             + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
-            + "\"NULLIFY\" - treats unmapped fields as null values; "
-            + "\"LOAD\" - attempts to load the fields from the source."
+            + "\"NULLIFY\" - treats unmapped fields as null values. "
+        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,
         false,
         true,
-        true,
+        false,
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
-                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                if (res == UnmappedResolution.LOAD && Build.current().isSnapshot() == false) {
+                    throw new ParsingException(
+                        Strings.format(
+                            "Setting [unmapped_fields] to [%s] is only supported in snapshot builds. Supported values are [%s] and [%s]",
+                            res,
+                            UnmappedResolution.FAIL + " (default)",
+                            UnmappedResolution.NULLIFY
+                        )
+                    );
+                }
+                return res;
+            } catch (ParsingException pe) {
+                throw pe;
             } catch (Exception exc) {
                 throw new IllegalArgumentException(
                     "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())

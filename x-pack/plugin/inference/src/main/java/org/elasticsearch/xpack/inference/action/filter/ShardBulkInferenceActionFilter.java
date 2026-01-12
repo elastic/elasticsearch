@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -71,6 +70,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -78,6 +78,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
@@ -257,6 +258,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
+        private final Map<Integer, Exception> deduplicatedFailures;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
@@ -271,6 +273,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
             this.onCompletion = onCompletion;
             this.coordinatingIndexingPressure = coordinatingIndexingPressure;
+            this.deduplicatedFailures = new HashMap<>();
         }
 
         @Override
@@ -743,25 +746,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
-            long estimatedFailureBytes = 0;
             for (Exception failure : failures) {
-                estimatedFailureBytes += estimateThrowableMemoryUsage(failure);
-            }
+                // Generate a signature for the failure to deduplicate on the most important properties
+                int failureSignature = Objects.hash(failure.getClass(), failure.getMessage(), failure.getCause());
 
-            try {
-                // TODO: Decrement by source size, since we're not making a copy?
-                coordinatingIndexingPressure.increment(0, estimatedFailureBytes);
-            } catch (EsRejectedExecutionException e) {
-                IndexRequest indexRequest = getIndexRequestOrNull(item.request());
-                item.abort(
-                    item.index(),
-                    new InferenceException("Unable to report failures for document [" + indexRequest.id() + "] due to memory pressure", e)
-                );
-                return;
-            }
-
-            for (var failure : failures) {
-                item.abort(item.index(), failure);
+                Exception deduplicatedFailure = deduplicatedFailures.computeIfAbsent(failureSignature, k -> failure);
+                item.abort(item.index(), deduplicatedFailure);
             }
         }
 
@@ -832,24 +822,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         builder.endObject();
-    }
-
-    private static long estimateThrowableMemoryUsage(Throwable throwable) {
-        long estimatedMemoryUsageInBytes = 0;
-        estimatedMemoryUsageInBytes += RamUsageEstimator.sizeOf(throwable.getMessage());
-
-        // We use the string representation each stack trace element as a rough estimate of its size
-        // TODO: Is this a decent estimate?
-        for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-            estimatedMemoryUsageInBytes += RamUsageEstimator.sizeOf(stackTraceElement.toString());
-        }
-
-        Throwable cause = throwable.getCause();
-        if (cause != null && cause != throwable) {
-            estimatedMemoryUsageInBytes += estimateThrowableMemoryUsage(cause);
-        }
-
-        return estimatedMemoryUsageInBytes;
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

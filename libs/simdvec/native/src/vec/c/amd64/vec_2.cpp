@@ -328,80 +328,6 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t vec_cosf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
-    __m512 dot0 = _mm512_setzero_ps();
-    __m512 dot1 = _mm512_setzero_ps();
-    __m512 dot2 = _mm512_setzero_ps();
-    __m512 dot3 = _mm512_setzero_ps();
-
-    __m512 norm_a0 = _mm512_setzero_ps();
-    __m512 norm_a1 = _mm512_setzero_ps();
-    __m512 norm_a2 = _mm512_setzero_ps();
-    __m512 norm_a3 = _mm512_setzero_ps();
-
-    __m512 norm_b0 = _mm512_setzero_ps();
-    __m512 norm_b1 = _mm512_setzero_ps();
-    __m512 norm_b2 = _mm512_setzero_ps();
-    __m512 norm_b3 = _mm512_setzero_ps();
-
-    int32_t i = 0;
-    // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    int32_t unrolled_limit = elementCount & ~63UL;
-    for (; i < unrolled_limit; i += 64) {
-        // Load and compute 4 blocks of 16 elements
-        __m512 a0 = _mm512_loadu_ps(a + i);
-        __m512 b0 = _mm512_loadu_ps(b + i);
-        __m512 a1 = _mm512_loadu_ps(a + i + 16);
-        __m512 b1 = _mm512_loadu_ps(b + i + 16);
-        __m512 a2 = _mm512_loadu_ps(a + i + 32);
-        __m512 b2 = _mm512_loadu_ps(b + i + 32);
-        __m512 a3 = _mm512_loadu_ps(a + i + 48);
-        __m512 b3 = _mm512_loadu_ps(b + i + 48);
-
-        dot0 = _mm512_fmadd_ps(a0, b0, dot0);
-        dot1 = _mm512_fmadd_ps(a1, b1, dot1);
-        dot2 = _mm512_fmadd_ps(a2, b2, dot2);
-        dot3 = _mm512_fmadd_ps(a3, b3, dot3);
-
-        norm_a0 = _mm512_fmadd_ps(a0, a0, norm_a0);
-        norm_a1 = _mm512_fmadd_ps(a1, a1, norm_a1);
-        norm_a2 = _mm512_fmadd_ps(a2, a2, norm_a2);
-        norm_a3 = _mm512_fmadd_ps(a3, a3, norm_a3);
-
-        norm_b0 = _mm512_fmadd_ps(b0, b0, norm_b0);
-        norm_b1 = _mm512_fmadd_ps(b1, b1, norm_b1);
-        norm_b2 = _mm512_fmadd_ps(b2, b2, norm_b2);
-        norm_b3 = _mm512_fmadd_ps(b3, b3, norm_b3);
-    }
-
-    // combine and reduce vector accumulators
-    __m512 dot_total = _mm512_add_ps(_mm512_add_ps(dot0, dot1), _mm512_add_ps(dot2, dot3));
-    __m512 norm_a_total = _mm512_add_ps(_mm512_add_ps(norm_a0, norm_a1), _mm512_add_ps(norm_a2, norm_a3));
-    __m512 norm_b_total = _mm512_add_ps(_mm512_add_ps(norm_b0, norm_b1), _mm512_add_ps(norm_b2, norm_b3));
-
-    f32_t dot_result = _mm512_reduce_add_ps(dot_total);
-    f32_t norm_a_result = _mm512_reduce_add_ps(norm_a_total);
-    f32_t norm_b_result = _mm512_reduce_add_ps(norm_b_total);
-
-    // Handle remaining tail with scalar loop
-    for (; i < elementCount; ++i) {
-        f32_t ai = a[i];
-        f32_t bi = b[i];
-        dot_result += ai * bi;
-        norm_a_result += ai * ai;
-        norm_b_result += bi * bi;
-    }
-
-    f32_t denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
-    if (denom == 0.0f) {
-        return 0.0f;
-    }
-    return dot_result / denom;
-}
-
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
@@ -427,6 +353,38 @@ EXPORT f32_t vec_dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementC
     }
 
     return result;
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void dotf32_inner_bulk(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results
+) {
+    int32_t vec_size = pitch / sizeof(f32_t);
+    for (size_t c = 0; c < count; c++) {
+        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+        results[c] = vec_dotf32_2(a0, b, dims);
+    }
+}
+
+EXPORT void vec_dotf32_bulk_2(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
+    dotf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+}
+
+EXPORT void vec_dotf32_bulk_offsets_2(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results) {
+    dotf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 // const f32_t *a  pointer to the first float vector
@@ -463,6 +421,38 @@ EXPORT f32_t vec_sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementC
     }
 
     return result;
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void sqrf32_inner_bulk(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results
+) {
+    int32_t vec_size = pitch / sizeof(f32_t);
+    for (size_t c = 0; c < count; c++) {
+        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+        results[c] = vec_sqrf32_2(a0, b, dims);
+    }
+}
+
+EXPORT void vec_sqrf32_bulk_2(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
+    sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+}
+
+EXPORT void vec_sqrf32_bulk_offsets_2(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results) {
+    sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

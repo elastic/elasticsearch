@@ -141,12 +141,12 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (atCtx != null) {
             Source source = source(atCtx);
             if (atCtx.AT_START() != null) {
-                if (start == null) {
+                if (start.value() == null) {
                     throw new ParsingException(source, "@ start() can only be used if parameter [start] or [time] is provided");
                 }
                 at = start;
             } else if (atCtx.AT_END() != null) {
-                if (end == null) {
+                if (end.value() == null) {
                     throw new ParsingException(source, "@ end() can only be used if parameter [end] or [time] is provided");
                 }
                 at = end;

@@ -106,8 +106,27 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
+        // Loading from fallback binary doc values, which are sorted by default
+        if (params.syntheticSource()) {
+            return valuesInSortedOrder(value);
+        }
+
         // Loading from stored field, _ignored_source or stored _source
         return valuesInSourceOrder(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object valuesInSortedOrder(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof String s) {
+            return new BytesRef(s);
+        }
+
+        var resultList = ((List<String>) value).stream().filter(Objects::nonNull).map(BytesRef::new).sorted().toList();
+        return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")

@@ -640,7 +640,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (storedInBinaryDocValues()) {
-                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                var indexSortConfig = context.getIndexSettings().getIndexSortConfig();
+                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), indexSortConfig);
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }

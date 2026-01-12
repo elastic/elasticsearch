@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
@@ -55,10 +56,13 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 }
 
                 // search
+                IndexSortConfig indexSortConfig = new IndexSortConfig(defaultIndexSettings());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
-                        long count = searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey())));
+                        long count = searcher.count(
+                            new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey()), indexSortConfig)
+                        );
                         assertEquals(entry.getValue().longValue(), count);
                     }
                 }
@@ -68,6 +72,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
 
     public void testNoField() throws IOException {
         String fieldName = "field";
+        IndexSortConfig indexSortConfig = new IndexSortConfig(defaultIndexSettings());
 
         // no field in index
         try (Directory dir = newDirectory()) {
@@ -75,7 +80,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
+                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"), indexSortConfig);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -97,7 +102,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
+                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"), indexSortConfig);
                     assertEquals(1, searcher.count(query));
                 }
             }

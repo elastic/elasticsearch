@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -27,16 +28,15 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCo
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 abstract class AbstractBinaryDocValuesQuery extends Query {
 
     final String fieldName;
-    final Predicate<BytesRef> matcher;
+    final PredicateWithIterator matcher;
 
-    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher) {
+    AbstractBinaryDocValuesQuery(String fieldName, PredicateWithIterator matcher) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
     }
@@ -50,7 +50,6 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
                 final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-
                 if (values == null) {
                     return null;
                 }
@@ -61,7 +60,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                     @Override
                     public boolean matches() throws IOException {
                         values.advance(counts.docID());
-                        return reader.match(values.binaryValue(), counts.longValue(), matcher);
+                        return reader.match(values.binaryValue(), counts.longValue(), bytesRef -> matcher.test(bytesRef, counts));
                     }
 
                     @Override
@@ -87,5 +86,12 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (visitor.acceptField(fieldName)) {
             visitor.visitLeaf(this);
         }
+    }
+
+    @FunctionalInterface
+    interface PredicateWithIterator {
+
+        boolean test(BytesRef value, DocIdSetIterator iterator);
+
     }
 }

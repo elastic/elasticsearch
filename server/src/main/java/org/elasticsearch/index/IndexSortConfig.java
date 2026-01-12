@@ -357,6 +357,10 @@ public final class IndexSortConfig {
         return sortSpecs.length > 0 && sortSpecs[0].field.equals(field);
     }
 
+    public boolean getPrimarySortOrderDesc() {
+        return  sortSpecs[0].order == SortOrder.DESC;
+    }
+
     /**
      * Builds the {@link Sort} order from the settings for this index
      * or returns null if this index has no sort.

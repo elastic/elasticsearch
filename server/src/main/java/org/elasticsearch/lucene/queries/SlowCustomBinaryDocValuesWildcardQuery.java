@@ -36,7 +36,7 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
     }
 
     private SlowCustomBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, ByteRunAutomaton automaton) {
-        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length));
+        super(fieldName, (value, iterator) -> automaton.run(value.bytes, value.offset, value.length));
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
     }

@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -110,7 +111,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesTermQuery("field", new BytesRef("foo")), ft.termQuery("foo", MOCK_CONTEXT));
+        IndexSortConfig indexSortConfig = new IndexSortConfig(defaultIndexSettings());
+        assertEquals(
+            new SlowCustomBinaryDocValuesTermQuery("field", new BytesRef("foo"), indexSortConfig),
+            ft.termQuery("foo", MOCK_CONTEXT)
+        );
     }
 
     public void testTermQueryWithNormalizer() {

@@ -56,7 +56,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -267,18 +266,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         // Delete by synthetic _id
-        var deletedDocs = randomSubsetOf(randomIntBetween(1, docs.size()), docs.keySet());
-        for (var docId : deletedDocs) {
-            var deletedDocIndex = docs.get(docId);
-            assertThat(deletedDocIndex, notNullValue());
-
-            // Delete
-            var deleteResponse = client().prepareDelete(deletedDocIndex, docId).get();
-            assertThat(deleteResponse.getId(), equalTo(docId));
-            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
-            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
-            assertThat(deleteResponse.getVersion(), equalTo(2L));
-        }
+        var deletedDocs = deleteRandomDocuments(docs);
 
         // Index more random docs
         if (randomBoolean()) {
@@ -805,7 +793,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testCreateSnapshot() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
 
-        logger.info("--> create index");
+        // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);
         putDataStreamTemplate(dataStreamName, shards);
@@ -842,10 +830,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             docIdToIndex.put(bulkItemResponse.getId(), bulkItemResponse.getIndex());
         }
 
-        client().admin().indices().prepareRefresh().get();
-        Set<Map<String, Object>> expectedContent = allDocumentSourcesAsMaps(dataStreamName);
+        deleteRandomDocuments(docIdToIndex);
 
-        logger.info("--> create snapshot");
+        refresh(docIdToIndex.values().toArray(String[]::new));
+        Map<String, Map<String, Object>> allDocumentSourcesBeforeSnapshot = allDocumentSourcesAsMaps(dataStreamName);
+
+        // create snapshot
         String testRepoName = "test-repo";
         createRepository(testRepoName);
         final String snapshotName = "test-snap-" + System.currentTimeMillis();
@@ -853,10 +843,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             TEST_REQUEST_TIMEOUT,
             testRepoName,
             snapshotName
-        ).setWaitForCompletion(true).setIndices(dataStreamName).setIncludeGlobalState(true).get();
-        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.OK));
+        ).setWaitForCompletion(true).setIndices(dataStreamName).setIncludeGlobalState(false).get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
 
-        logger.info("--> get snapshot");
+        // get snapshot
         assertThat(
             clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, testRepoName)
                 .setSnapshots(snapshotName)
@@ -867,7 +857,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             equalTo(SnapshotState.SUCCESS)
         );
 
-        logger.info("--> rollover data stream");
+        // rollover data stream
         GetIndexResponse getIndexResponse = client().admin()
             .indices()
             .prepareGetIndex(TEST_REQUEST_TIMEOUT)
@@ -882,37 +872,53 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             equalTo(2)
         );
 
-        logger.info("--> delete first backing index");
+        // delete first backing index
         assertThat(client().admin().indices().prepareDelete(indexName).get().isAcknowledged(), equalTo(true));
         assertThat(
             client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices().length,
             equalTo(1)
         );
-        Set<Map<String, Object>> actualContentBeforeRestore = allDocumentSourcesAsMaps(dataStreamName);
+        Map<String, Map<String, Object>> actualContentBeforeRestore = allDocumentSourcesAsMaps(dataStreamName);
         assertThat(actualContentBeforeRestore.size(), equalTo(0));
 
-        logger.info("--> restore from snapshot");
+        // restore from snapshot
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
             TEST_REQUEST_TIMEOUT,
             testRepoName,
             snapshotName
-        ).setWaitForCompletion(true).setRestoreGlobalState(true).get();
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.OK));
+        ).setWaitForCompletion(true).setRestoreGlobalState(false).get();
+        assertNotNull(restoreSnapshotResponse.getRestoreInfo());
 
-        // Should be able to get by (synthetic) _id
-        assertSearchById(docIdToIndex.keySet(), docIdToIndex);
+        // Should be able to search by (synthetic) _id
+        assertSearchById(allDocumentSourcesBeforeSnapshot.keySet(), docIdToIndex);
 
         // All documents should be there
-        Set<Map<String, Object>> actualContentAfterRestore = allDocumentSourcesAsMaps(dataStreamName);
-        assertThat(actualContentAfterRestore, equalTo(expectedContent));
+        Map<String, Map<String, Object>> allDocumentSourcesAfterRestore = allDocumentSourcesAsMaps(dataStreamName);
+        assertThat(allDocumentSourcesAfterRestore, equalTo(allDocumentSourcesBeforeSnapshot));
     }
 
-    private static Set<Map<String, Object>> allDocumentSourcesAsMaps(String dataStreamName) {
+    private static List<String> deleteRandomDocuments(Map<String, String> docIdToIndex) {
+        List<String> deletedDocs = randomSubsetOf(randomIntBetween(1, docIdToIndex.size()), docIdToIndex.keySet());
+        for (var docId : deletedDocs) {
+            var deletedDocIndex = docIdToIndex.get(docId);
+            assertThat(deletedDocIndex, notNullValue());
+
+            // Delete
+            var deleteResponse = client().prepareDelete(deletedDocIndex, docId).get();
+            assertThat(deleteResponse.getId(), equalTo(docId));
+            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+            assertThat(deleteResponse.getVersion(), equalTo(2L));
+        }
+        return deletedDocs;
+    }
+
+    private static Map<String, Map<String, Object>> allDocumentSourcesAsMaps(String dataStreamName) {
         var resp = client().prepareSearch(dataStreamName).setFetchSource(true).setQuery(QueryBuilders.matchAllQuery()).get();
         try {
-            var result = new HashSet<Map<String, Object>>();
+            var result = new HashMap<String, Map<String, Object>>();
             for (SearchHit hit : resp.getHits().getHits()) {
-                result.add(hit.getSourceAsMap());
+                result.put(hit.getId(), hit.getSourceAsMap());
             }
             return result;
         } finally {

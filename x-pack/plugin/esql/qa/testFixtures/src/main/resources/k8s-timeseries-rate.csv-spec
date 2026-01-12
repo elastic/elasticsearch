@@ -524,7 +524,7 @@ TS k8s
 | SORT rate DESC
 | LIMIT 2;
 
-rate:double | null_literal:double | null_propagated:double
-13.1737     | null                | null
-10.6492     | null                | null
+null_literal:double | null_propagated:double | rate:double
+null                | null                   | 13.1737
+null                | null                   | 10.6491
 ;

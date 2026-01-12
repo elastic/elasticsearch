@@ -180,21 +180,6 @@ public final class MetadataBuffer implements MetadataWriter, MetadataReader {
      */
     @Override
     public long readVLong() {
-        return readVarLong(false);
-    }
-
-    /**
-     * Reads a signed long that was written using zig-zag encoding.
-     *
-     * @return the signed long value
-     * @throws IllegalStateException if no more bytes are available or encoding is invalid
-     */
-    @Override
-    public long readZLong() {
-        return ByteUtils.zigZagDecode(readVarLong(true));
-    }
-
-    private long readVarLong(boolean allowTenBytes) {
         byte b = readByte();
         if (b >= 0) {
             return b;
@@ -236,23 +221,72 @@ public final class MetadataBuffer implements MetadataWriter, MetadataReader {
             return result;
         }
         b = readByte();
-        if (allowTenBytes) {
-            result |= (b & 0x7FL) << 56;
-            if (b >= 0) {
-                return result;
-            }
-            b = readByte();
-            if ((b & 0xFE) != 0) {
-                throw new IllegalStateException("Invalid ZLong encoding");
-            }
-            result |= (b & 0x01L) << 63;
-        } else {
-            if (b < 0) {
-                throw new IllegalStateException("Invalid VLong encoding");
-            }
-            result |= (b & 0xFFL) << 56;
+        if (b < 0) {
+            throw new IllegalStateException("Invalid VLong encoding");
         }
+        result |= (b & 0xFFL) << 56;
         return result;
+    }
+
+    /**
+     * Reads a signed long that was written using zig-zag encoding.
+     *
+     * @return the signed long value
+     * @throws IllegalStateException if no more bytes are available or encoding is invalid
+     */
+    @Override
+    public long readZLong() {
+        byte b = readByte();
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(b);
+        }
+        long result = b & 0x7FL;
+        b = readByte();
+        result |= (b & 0x7FL) << 7;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 14;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 21;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 28;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 35;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 42;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 49;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        result |= (b & 0x7FL) << 56;
+        if (b >= 0) {
+            return ByteUtils.zigZagDecode(result);
+        }
+        b = readByte();
+        if ((b & 0xFE) != 0) {
+            throw new IllegalStateException("Invalid ZLong encoding");
+        }
+        result |= (b & 0x01L) << 63;
+        return ByteUtils.zigZagDecode(result);
     }
 
     /**

@@ -356,9 +356,52 @@ static inline void dotf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
-    const int vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+    int c = 0;
+    for (; c + 3 < count; c += 4) {
+        const f32_t *a0 = a + mapper(c + 0, offsets) * dims;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * dims;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * dims;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * dims;
+
+        __m256 sum0 = _mm256_setzero_ps();
+        __m256 sum1 = _mm256_setzero_ps();
+        __m256 sum2 = _mm256_setzero_ps();
+        __m256 sum3 = _mm256_setzero_ps();
+
+        int32_t i = 0;
+        int32_t unrolled_limit = dims & ~15UL;
+        // do 4 vectors at a time, iterating through the dimensions in parallel
+        // Each __m256 holds 8 floats
+        for (; i < unrolled_limit; i += 8) {
+            __m256 bi = _mm256_loadu_ps(b + i);
+            sum0 = _mm256_fmadd_ps(_mm256_loadu_ps(a0 + i), bi, sum0);
+            sum1 = _mm256_fmadd_ps(_mm256_loadu_ps(a1 + i), bi, sum1);
+            sum2 = _mm256_fmadd_ps(_mm256_loadu_ps(a2 + i), bi, sum2);
+            sum3 = _mm256_fmadd_ps(_mm256_loadu_ps(a3 + i), bi, sum3);
+        }
+
+        f32_t result0 = hsum_f32_8(sum0);
+        f32_t result1 = hsum_f32_8(sum1);
+        f32_t result2 = hsum_f32_8(sum2);
+        f32_t result3 = hsum_f32_8(sum3);
+
+        // dimensions tail
+        for (; i < dims; i++) {
+            result0 += a0[i] * b[i];
+            result1 += a1[i] * b[i];
+            result2 += a2[i] * b[i];
+            result3 += a3[i] * b[i];
+        }
+
+        results[c + 0] = result0;
+        results[c + 1] = result1;
+        results[c + 2] = result2;
+        results[c + 3] = result3;
+    }
+
+    // vectors tail
+    for (; c < count; c++) {
+        const f32_t *a0 = a + mapper(c, offsets) * dims;
         results[c] = vec_dotf32(a0, b, dims);
     }
 }
@@ -438,7 +481,7 @@ static inline void sqrf32_inner_bulk(
 
         int32_t i = 0;
         int32_t unrolled_limit = dims & ~15UL;
-        // do 4 vectors at a time, iterating through the dimensions
+        // do 4 vectors at a time, iterating through the dimensions in parallel
         // Each __m256 holds 8 floats
         for (; i < unrolled_limit; i += 8) {
             __m256 bi = _mm256_loadu_ps(b + i);

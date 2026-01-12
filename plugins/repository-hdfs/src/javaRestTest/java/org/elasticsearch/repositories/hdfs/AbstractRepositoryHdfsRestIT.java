@@ -32,6 +32,14 @@ abstract class AbstractRepositoryHdfsRestIT extends ESRestTestCase {
 
     abstract HdfsFixture hdfsFixture();
 
+    public void testBadUrl() throws IOException {
+        final var ex = assertThrows(
+            ResponseException.class,
+            () -> registerHdfsRepository("file://does-not-matter", randomRepoName(), randomPath(), randomBoolean(), randomBoolean())
+        );
+        assertEquals("expect bad URL response, got: " + ex.getResponse(),500, ex.getResponse().getStatusLine().getStatusCode());
+    }
+
     public void testCreateGetDeleteRepository() throws IOException {
         final var repoName = randomRepoName();
         final var path = randomPath();

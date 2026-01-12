@@ -371,8 +371,12 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         Map<ShardId, ShardGeneration> shardsToStart = null;
         final Snapshot snapshot = entry.snapshot();
 
-        // This is needed for detection of shards whose snapshot was impacted by a concurrent resharding operation.
-        // TODO write this correctly
+        // This map is needed to calculate `maximumShardIdInTheSnapshot` value that is passed to a snapshot task below.
+        // It is necessary for handling shard snapshots during resharding.
+        // Resharding changes the number of shards in the index and may cause shard snapshots to be inconsistent with each other.
+        // We want to detect if a resharding operation has happened after this snapshot was started
+        // and if that is the case we'll fail the shard snapshot to avoid inconsistency.
+        // `maximumShardIdInTheSnapshot` is needed for the detection logic.
         final var shardIdToLargestShardIdInTheSnapshot = new HashMap<ShardId, ShardId>();
 
         final var runningShardsForSnapshot = shardSnapshots.getOrDefault(snapshot, emptyMap());
@@ -381,17 +385,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             final var shardSnapshotStatus = scheduledShard.getValue();
 
             if (shardId.id() == 0) {
-                // Base case - either there is one shard total or we happened to see shard 0 first.
+                // Base case - either the index has only one shard or we happened to see shard 0 first.
                 shardIdToLargestShardIdInTheSnapshot.putIfAbsent(shardId, shardId);
             } else {
-                // This is potentially the largest shardId in the snapshot
+                // This is potentially the largest shardId for this index in the snapshot,
                 // we need to check if we need to record this fact.
-                // Since we update all the known shards together, we can check only shard 0.
                 var shardZero = new ShardId(shardId.getIndex(), 0);
-                var shardZeroEntry = shardIdToLargestShardIdInTheSnapshot.get(shardZero);
-                if (shardZeroEntry == null || shardZeroEntry.id() < shardId.id()) {
+                var shardZeroValue = shardIdToLargestShardIdInTheSnapshot.get(shardZero);
+                if (shardZeroValue == null || shardZeroValue.id() < shardId.id()) {
                     // Update the "max" for all shards including ourselves.
-                    for (int i = shardId.id(); i >= 0; i--) {
+                    for (int i = 0; i <= shardId.id(); i++) {
                         shardIdToLargestShardIdInTheSnapshot.put(new ShardId(shardId.getIndex(), i), shardId);
                     }
                 }

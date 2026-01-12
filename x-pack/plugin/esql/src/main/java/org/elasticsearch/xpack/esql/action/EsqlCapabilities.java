@@ -1870,6 +1870,11 @@ public class EsqlCapabilities {
         ENRICH_DENSE_VECTOR_BUGFIX,
 
         /**
+         * Dense_vector aggregation functions
+         */
+        DENSE_VECTOR_AGG_FUNCTIONS,
+      
+        /**
          * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
          */
         TS_STATS_BINARY_OPS,

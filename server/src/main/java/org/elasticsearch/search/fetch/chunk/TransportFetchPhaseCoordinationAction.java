@@ -36,11 +36,14 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
 
 public class TransportFetchPhaseCoordinationAction extends HandledTransportAction<
     TransportFetchPhaseCoordinationAction.Request,
@@ -270,16 +273,27 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         });
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        logger.info("CoordinationAction ThreadContext headers: {}", threadContext.getHeaders().keySet());
-
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            threadContext.putHeader(request.getHeaders());
+            for (var e : request.getHeaders().entrySet()) {
+                final String key = e.getKey();
+                final String value = e.getValue();
+                final String existing = threadContext.getHeader(key);
+                if (existing == null) {
+                    threadContext.putHeader(key, value);
+                } else {
+                    assert existing.equals(value) : "header [" + key + "] already present with different value";
+                }
+            }
 
-            transportService.sendChildRequest(
+            final TaskId parent = task.getParentTaskId();
+            if (parent != null && parent.isSet()) {
+                fetchReq.setParentTask(parent);
+            }
+
+            transportService.sendRequest(
                 request.getDataNode(),
-                "indices:data/read/search[phase/fetch/id]",
+                FETCH_ID_ACTION_NAME,
                 fetchReq,
-                task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );

@@ -218,9 +218,12 @@ public class EsqlSession {
         EsqlStatement statement = parse(request);
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
+
         ZoneId timeZone = request.timeZone() == null
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
+        Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+
         Configuration configuration = new Configuration(
             timeZone,
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),

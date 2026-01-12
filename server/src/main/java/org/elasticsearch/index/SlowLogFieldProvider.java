@@ -15,13 +15,7 @@ package org.elasticsearch.index;
  */
 public interface SlowLogFieldProvider {
     /**
-     * Create a field provider with index level settings to be able to listen for updates and set initial values
-     * @param indexSettings settings for the index
+     * Create a field provider
      */
-    SlowLogFields create(IndexSettings indexSettings);
-
-    /**
-     * Create a field provider without index level settings
-     */
-    SlowLogFields create();
+    SlowLogFields create(SlowLogContext context);
 }

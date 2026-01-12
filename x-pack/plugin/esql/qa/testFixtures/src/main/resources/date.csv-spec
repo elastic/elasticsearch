@@ -1346,6 +1346,21 @@ a:datetime
 null
 ;
 
+dateMathWithTimezonesRow
+required_capability: add_sub_operator_timezone_support
+
+set time_zone="America/New_York"\;
+row
+  date_add = "2025-03-09T01:02:03.123-05:00" + 1d,
+  date_sub = "2025-03-10T01:02:03.123-04:00" - 1d,
+  nanos_add = "2025-03-09T01:02:03.123000001-05:00"::date_nanos + 1d,
+  nanos_sub = "2025-03-10T01:02:03.123000001-04:00"::date_nanos - 1d
+;
+
+date_add:datetime        | date_sub:datetime        | nanos_add:date_nanos           | nanos_sub:date_nanos
+2025-03-10T05:02:03.123Z | 2025-03-09T06:02:03.123Z | 2025-03-10T05:02:03.123000001Z | 2025-03-09T06:02:03.123000001Z
+;
+
 ImplicitCastingEqual
 required_capability: rangequery_for_datetime
 from employees

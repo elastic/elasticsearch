@@ -154,9 +154,9 @@ public class FieldNameUtils {
                     // We trigger projectAll when ALL the following conditions are met:
                     // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
                     // 2. AND either:
-                    //    a) No field references were collected (referencesBuilder is empty), OR
-                    //    b) The branch contains no commands that require explicit field collection
-                    //       (e.g., no PROJECT or STATS commands that would limit field selection)
+                    // a) No field references were collected (referencesBuilder is empty), OR
+                    // b) The branch contains no commands that require explicit field collection
+                    // (e.g., no PROJECT or STATS commands that would limit field selection)
                     //
                     // Examples:
                     // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)

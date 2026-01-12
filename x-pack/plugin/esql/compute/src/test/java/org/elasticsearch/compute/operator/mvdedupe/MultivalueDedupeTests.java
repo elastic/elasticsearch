@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator.mvdedupe;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -540,10 +541,11 @@ public class MultivalueDedupeTests extends ESTestCase {
          */
         Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset), TestBlockFactory.getNonBreakingInstance());
         BytesRef[] toDecode = new BytesRef[encoder.valueCount(offset)];
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         for (int i = 0; i < toDecode.length; i++) {
-            BytesRefBuilder dest = new BytesRefBuilder();
+            BreakingBytesRefBuilder dest = new BreakingBytesRefBuilder(breaker, "test");
             encoder.read(valueOffset++, dest);
-            toDecode[i] = dest.toBytesRef();
+            toDecode[i] = dest.bytesRefView();
             if (b.values().get(position) == null) {
                 // Nulls are encoded as 0 length values
                 assertThat(toDecode[i].length, equalTo(0));

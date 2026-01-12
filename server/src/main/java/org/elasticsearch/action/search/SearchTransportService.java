@@ -635,10 +635,20 @@ public class SearchTransportService {
 
             // Check if we can connect to the coordinator (CCS detection)
             boolean canConnectToCoordinator = false;
+            boolean coordinatorSupportsChunkedFetch = false;
             if (hasCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
                 canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
+
+                if (canConnectToCoordinator) {
+                    try {
+                        Transport.Connection coordConnection = transportService.getConnection(coordinatorNode);
+                        coordinatorSupportsChunkedFetch = coordConnection.getTransportVersion().supports(CHUNKED_FETCH_PHASE);
+                    } catch (Exception e) {
+                        coordinatorSupportsChunkedFetch = false;
+                    }
+                }
             }
 
             if (logger.isTraceEnabled()) {
@@ -656,7 +666,7 @@ public class SearchTransportService {
             FetchPhaseResponseChunk.Writer chunkWriter = null;
 
             // Only use chunked fetch if all conditions are met
-            if (fetchPhaseChunkedEnabled && versionSupported && canConnectToCoordinator) {
+            if (fetchPhaseChunkedEnabled && versionSupported && canConnectToCoordinator && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 

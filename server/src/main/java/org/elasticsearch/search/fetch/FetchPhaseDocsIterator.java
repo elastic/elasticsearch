@@ -29,7 +29,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -241,6 +244,17 @@ abstract class FetchPhaseDocsIterator {
             return;
         }
 
+        // Sort docs by doc ID for efficient Lucene access (required for forward-only iteration).
+        // Track original indices to preserve score-based ordering in sequence numbers.
+        DocIdToIndex[] sortedDocs = new DocIdToIndex[docIds.length];
+        for (int i = 0; i < docIds.length; i++) {
+            sortedDocs[i] = new DocIdToIndex(docIds[i], i);
+        }
+        Arrays.sort(sortedDocs);
+
+        // Pre-compute all docs per leaf
+        Map<Integer, int[]> docsInLeafByOrd = precomputeDocsPerLeaf(sortedDocs, indexReader);
+
         // Semaphore controls backpressure, each in-flight chunk holds one permit.
         // When maxInFlightChunks are in flight, we block until an ACK releases a permit.
         Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
@@ -256,9 +270,9 @@ abstract class FetchPhaseDocsIterator {
         LeafReaderContext currentCtx = null;
 
         try {
-            for (int start = 0; start < docIds.length; start += chunkSize) {
-                int end = Math.min(start + chunkSize, docIds.length);
-                boolean isLast = (end == docIds.length);
+            for (int chunkStart = 0; chunkStart < sortedDocs.length; chunkStart += chunkSize) {
+                int chunkEnd = Math.min(chunkStart + chunkSize, sortedDocs.length);
+                boolean isLast = (chunkEnd == sortedDocs.length);
 
                 // Check cancellation at chunk boundaries for responsive task cancellation
                 if (isCancelled.get()) {
@@ -271,23 +285,32 @@ abstract class FetchPhaseDocsIterator {
                     throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
                 }
 
-                List<SearchHit> hits = new ArrayList<>(end - start);
-                for (int i = start; i < end; i++) {
-                    int docId = docIds[i];
+                // Fetch hits in doc ID order (sorted)
+                SearchHit[] chunkHits = new SearchHit[chunkEnd - chunkStart];
+                int[] originalIndices = new int[chunkEnd - chunkStart];
+
+                for (int i = chunkStart; i < chunkEnd; i++) {
+                    int docId = sortedDocs[i].docId;
+                    int originalIndex = sortedDocs[i].index;
 
                     int leafOrd = ReaderUtil.subIndex(docId, indexReader.leaves());
                     if (leafOrd != currentLeafOrd) {
                         currentLeafOrd = leafOrd;
                         currentCtx = indexReader.leaves().get(leafOrd);
-                        int[] docsInLeaf = computeDocsInLeaf(docIds, i, end, currentCtx);
-                        setNextReader(currentCtx, docsInLeaf);
+                        // Use pre-computed array with ALL docs for this leaf
+                        setNextReader(currentCtx, docsInLeafByOrd.get(leafOrd));
                     }
 
                     SearchHit hit = nextDoc(docId);
-                    hits.add(hit);
+                    chunkHits[i - chunkStart] = hit;
+                    originalIndices[i - chunkStart] = originalIndex;
                 }
 
-                SearchHits chunk = createSearchHits(hits, totalHits, maxScore);
+                // Reorder hits back to original (score-based) order within chunk
+                SearchHit[] orderedHits = reorderByOriginalIndex(chunkHits, originalIndices);
+
+                SearchHits chunk = createSearchHits(Arrays.asList(orderedHits), totalHits, maxScore);
+                // Sequence start is based on the minimum original index in this chunk
                 long sequenceStart = hitSequenceCounter.getAndAdd(chunk.getHits().length);
 
                 if (isLast) {
@@ -306,7 +329,7 @@ abstract class FetchPhaseDocsIterator {
                         chunkWriter,
                         shardId,
                         sequenceStart,
-                        start,
+                        chunkStart,
                         totalDocs,
                         sendFailure,
                         chunkCompletionRefs.acquire(),
@@ -440,18 +463,58 @@ abstract class FetchPhaseDocsIterator {
         }
     }
 
-    private int[] computeDocsInLeaf(int[] docIds, int fromIndex, int toIndex, LeafReaderContext ctx) {
-        int docBase = ctx.docBase;
-        int leafEndDoc = docBase + ctx.reader().maxDoc();
-
-        List<Integer> docsInLeaf = new ArrayList<>();
-        for (int i = fromIndex; i < toIndex; i++) {
-            int docId = docIds[i];
-            if (docId >= docBase && docId < leafEndDoc) {
-                docsInLeaf.add(docId - docBase);
-            }
+    /**
+     * Pre-computes all document IDs per leaf reader from sorted docs.
+     *
+     * @param sortedDocs docs sorted by doc ID
+     * @param indexReader the index reader
+     * @return map from leaf ordinal to array of leaf-relative doc IDs
+     */
+    private Map<Integer, int[]> precomputeDocsPerLeaf(DocIdToIndex[] sortedDocs, IndexReader indexReader) {
+        // Group global doc IDs by their leaf segment
+        Map<Integer, List<Integer>> docsPerLeaf = new HashMap<>();
+        for (DocIdToIndex doc : sortedDocs) {
+            int leafOrd = ReaderUtil.subIndex(doc.docId, indexReader.leaves());
+            docsPerLeaf.computeIfAbsent(leafOrd, k -> new ArrayList<>()).add(doc.docId);
         }
-        return docsInLeaf.stream().mapToInt(Integer::intValue).toArray();
+
+        // Convert global doc IDs to leaf-relative doc IDs (subtract docBase)
+        Map<Integer, int[]> result = new HashMap<>();
+        for (var entry : docsPerLeaf.entrySet()) {
+            int leafOrd = entry.getKey();
+            LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+            int docBase = ctx.docBase;
+            int[] docsInLeaf = entry.getValue().stream()
+                .mapToInt(docId -> docId - docBase)
+                .toArray();
+            result.put(leafOrd, docsInLeaf);
+        }
+        return result;
+    }
+
+    /**
+     * Reorders hits based on their original indices to preserve score-based ordering.
+     * Hits are fetched in doc ID order (required by Lucene), but must be returned in
+     * score order (original query result order). This method restores that ordering.
+     *
+     * @param hits the hits in doc ID order
+     * @param originalIndices the original position of each hit in the score-ordered array
+     * @return hits reordered to score-based order
+     */
+    private SearchHit[] reorderByOriginalIndex(SearchHit[] hits, int[] originalIndices) {
+        // Create pairs and sort by original index
+        Integer[] indices = new Integer[hits.length];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = i;
+        }
+        Arrays.sort(indices, Comparator.comparingInt(i -> originalIndices[i]));
+
+        // Reorder hits according to sorted indices
+        SearchHit[] reordered = new SearchHit[hits.length];
+        for (int i = 0; i < hits.length; i++) {
+            reordered[i] = hits[indices[i]];
+        }
+        return reordered;
     }
 
     private SearchHits createSearchHits(List<SearchHit> hits, TotalHits totalHits, float maxScore) {

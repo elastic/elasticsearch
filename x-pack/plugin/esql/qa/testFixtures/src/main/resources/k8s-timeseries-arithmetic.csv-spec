@@ -166,6 +166,7 @@ div:long | step:datetime            | cluster:keyword
 division_metric_metric_grouping_filtering_ts
 required_capability: ts_command_v0
 required_capability: tbucket
+required_capability: ts_stats_binary_ops
 TS k8s
 | WHERE cluster != "prod" AND cluster != "staging"
 | STATS div=max(network.total_bytes_in / network.total_bytes_in) BY step=TBUCKET(1h), cluster
@@ -177,6 +178,7 @@ div:long | step:datetime            | cluster:keyword
 division_within_series_grouping_ts
 required_capability: ts_command_v0
 required_capability: tbucket
+required_capability: ts_stats_binary_ops
 TS k8s
 | STATS div=max(
     rate(network.total_bytes_in) /
@@ -193,6 +195,7 @@ div:double | step:datetime            | cluster:keyword
 tx_ratio_ts
 required_capability: ts_command_v0
 required_capability: tbucket
+required_capability: ts_stats_binary_ops
 TS k8s
 | STATS ratio=max(
     last_over_time(network.eth0.tx::double) /

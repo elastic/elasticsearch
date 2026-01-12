@@ -43,9 +43,6 @@
     "event_location": {
       "type": "point"
     },
-    "dense_vector": {
-      "type": "dense_vector"
-    },
     "network": {
       "properties": {
         "bytes_in": {

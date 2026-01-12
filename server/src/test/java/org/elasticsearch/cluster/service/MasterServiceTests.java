@@ -84,13 +84,15 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
+import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
-import static org.elasticsearch.cluster.service.MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
 import static org.elasticsearch.cluster.service.MasterService.maybeLimitMasterNodeTimeout;
 import static org.elasticsearch.cluster.service.MasterService.priorityNonemptyTimeMetricName;
@@ -1786,11 +1788,7 @@ public class MasterServiceTests extends ESTestCase {
         final long startTimeMillis = relativeTimeInMillis;
         final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
 
-        final var meterRegistry = new RecordingMeterRegistry();
-        try (
-            var masterService = createMasterService(true, null, threadPool, null, meterRegistry);
-            var mockLog = MockLog.capture(MasterService.class)
-        ) {
+        try (MasterService masterService = createMasterService(true); var mockLog = MockLog.capture(MasterService.class)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
             final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
             final Runnable awaitNextTask = () -> {
@@ -1806,7 +1804,11 @@ public class MasterServiceTests extends ESTestCase {
                     safeAwait(cyclicBarrier);
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
-                        masterService.submitUnbatchedStateUpdateTask("starvation-causing task " + (iteration++), this);
+                        masterService.submitUnbatchedStateUpdateTask(
+                            "starvation-causing task " + (iteration >= 295 ? ">=295" : iteration),
+                            this
+                        );
+                        iteration += 1;
                     }
                     safeAwait(cyclicBarrier);
                     return currentState;
@@ -1851,9 +1853,9 @@ public class MasterServiceTests extends ESTestCase {
                 Level.INFO,
                 """
                     recent cluster state updates while pending task queue has been nonempty (max 200, starting with the most recent): \
-                    [HIGH]: unbatched[starvation-causing task 299], \
-                    [HIGH]: unbatched[starvation-causing task 298], \
-                    [HIGH]: unbatched[starvation-causing task 297], \
+                    [HIGH]: unbatched[starvation-causing task >=295] (5 times), \
+                    [HIGH]: unbatched[starvation-causing task 294], \
+                    [HIGH]: unbatched[starvation-causing task 293], \
                     *, ... (200 in total, 29 omitted)"""
             );
             mockLog.addExpectation(infoExpectation1);
@@ -1870,26 +1872,6 @@ public class MasterServiceTests extends ESTestCase {
             // logging happens, so we must wait for another task to run too to ensure that the message was logged
             awaitNextTask.run();
             mockLog.assertAllExpectationsMatched();
-
-            meterRegistry.getRecorder().resetCalls();
-            meterRegistry.getRecorder().collect();
-            final var expectedStarvationDurationMillis =
-                // starved task has been in the queue for the starvation logging threshold (5m) plus one extra task's duration
-                MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis() + taskDurationMillis;
-            assertThat(
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
-                measures(expectedStarvationDurationMillis)
-            );
-            for (var priority : Priority.values()) {
-                assertThat(
-                    priority.toString(),
-                    meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
-                    measures(switch (priority) {
-                        case IMMEDIATE, URGENT -> 0L; // we're running tasks at HIGH priority so higher-priority queues must be empty
-                        case HIGH, NORMAL, LOW, LANGUID -> expectedStarvationDurationMillis;
-                    })
-                );
-            }
 
             // check that another warning is logged after 10m
             final MockLog.EventuallySeenEventExpectation warnExpectation2 = new MockLog.EventuallySeenEventExpectation(
@@ -1917,20 +1899,108 @@ public class MasterServiceTests extends ESTestCase {
             keepRunning.set(false);
             awaitNextTask.run();
             assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
+        }
+    }
 
-            meterRegistry.getRecorder().resetCalls();
-            meterRegistry.getRecorder().collect();
-            assertThat(
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
-                measures(0L)
-            );
-            for (var priority : Priority.values()) {
-                assertThat(
-                    priority.toString(),
-                    meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
-                    measures(0L)
-                );
+    public void testStarvationMetrics() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(0, 10_000));
+        deterministicTaskQueue.scheduleAtAndRunUpTo(randomLongBetween(0, 100_000), () -> {});
+
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        try (
+            var masterService = createMasterService(
+                true,
+                null,
+                threadPool,
+                new StoppableExecutorServiceWrapper(threadPool.generic()),
+                meterRegistry
+            )
+        ) {
+            threadPool.getThreadContext().markAsSystemContext();
+
+            final var starvingPriority = new AtomicReference<>(Priority.IMMEDIATE);
+            final var tasksExecuted = new AtomicInteger();
+            final var lastTaskExecutionTime = new AtomicLong();
+            final var firstTaskExecutionTime = new AtomicLong(Long.MIN_VALUE);
+
+            for (final var priority : Priority.values()) {
+                if (priority == Priority.LANGUID) {
+                    continue;
+                }
+
+                final var taskName = "starvation-causing task at " + priority;
+                final var loopingTask = new ClusterStateUpdateTask(priority) {
+                    int iteration;
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        if (priority.sameOrAfter(starvingPriority.get())) {
+                            masterService.submitUnbatchedStateUpdateTask(taskName + " iteration " + (iteration++), this);
+                        }
+                        tasksExecuted.incrementAndGet();
+                        final var nowMillis = deterministicTaskQueue.getCurrentTimeMillis();
+                        lastTaskExecutionTime.set(nowMillis);
+                        firstTaskExecutionTime.compareAndSet(Long.MIN_VALUE, nowMillis);
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+                };
+                masterService.submitUnbatchedStateUpdateTask(taskName, loopingTask);
             }
+
+            final IntConsumer someTasksRunner = targetCount -> {
+                tasksExecuted.set(0);
+                while (tasksExecuted.get() < targetCount) {
+                    deterministicTaskQueue.runAllRunnableTasks();
+                    deterministicTaskQueue.advanceTime();
+                }
+            };
+
+            someTasksRunner.accept(between(1, 5));
+            final var immediateStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
+            assertStarvationMetrics(meterRegistry, immediateStarvingDuration, ignored -> immediateStarvingDuration);
+
+            starvingPriority.set(Priority.HIGH);
+            someTasksRunner.accept(2 /* must run the IMMEDIATE and URGENT tasks first */ + between(1, 5));
+            final var highStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
+            final var lastTaskDuration = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskExecutionTime.get();
+
+            assertStarvationMetrics(
+                meterRegistry,
+                highStarvingDuration,
+                priority -> priority.sameOrAfter(Priority.HIGH) ? highStarvingDuration : lastTaskDuration
+            );
+
+            starvingPriority.set(Priority.LANGUID); // no more starvation
+            deterministicTaskQueue.runAllTasks();
+
+            assertStarvationMetrics(meterRegistry, 0L, ignored -> 0L);
+        }
+    }
+
+    private static void assertStarvationMetrics(
+        RecordingMeterRegistry meterRegistry,
+        long overallNonemptyDuration,
+        ToLongFunction<Priority> perPriorityNonemptyDuration
+    ) {
+        meterRegistry.getRecorder().resetCalls();
+        meterRegistry.getRecorder().collect();
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
+            measures(overallNonemptyDuration)
+        );
+        for (final var priority : Priority.values()) {
+            assertThat(
+                priority.toString(),
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
+                measures(perPriorityNonemptyDuration.applyAsLong(priority))
+            );
         }
     }
 

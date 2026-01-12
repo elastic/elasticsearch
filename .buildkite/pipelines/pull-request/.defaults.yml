@@ -1,4 +1,6 @@
 config:
+  allow-labels:
+    - "TODO_remove_me"
   skip-labels:
     - ">test-mute"
   excluded-regions:

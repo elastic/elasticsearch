@@ -269,7 +269,6 @@ abstract class FetchPhaseDocsIterator {
         int currentLeafOrd = -1;
         LeafReaderContext currentCtx = null;
 
-
         // Fetch all hits in docID order, and place them into an array keyed by score-position.
         // Guarantees that subsequent chunking/sequence numbers are contiguous and correct.
         final SearchHit[] hitsByScorePos = new SearchHit[totalDocs];

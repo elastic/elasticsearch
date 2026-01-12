@@ -152,7 +152,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
+        try (var o = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(tmp)) {
             o.setTransportVersion(version);
             writeable.writeTo(o);
         }
@@ -195,7 +195,7 @@ public abstract class StreamOutput extends OutputStream {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
-    public final void writeShort(short v) throws IOException {
+    public void writeShort(short v) throws IOException {
         final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);

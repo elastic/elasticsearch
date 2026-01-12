@@ -109,7 +109,7 @@ public final class CompressedXContent implements Writeable {
         BytesStreamOutput bStream = baos.get();
         try {
             OutputStream checkedStream = new DigestOutputStream(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream),
+                CompressorFactory.COMPRESSOR.threadLocalStreamOutput(bStream),
                 messageDigest
             );
             try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {

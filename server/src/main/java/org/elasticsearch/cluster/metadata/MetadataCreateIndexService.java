@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionLi
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -141,6 +143,14 @@ public class MetadataCreateIndexService {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Integer> SETTING_CLUSTER_MAX_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.max_indices_per_project",
+        15000,
+        11250,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
@@ -172,6 +182,7 @@ public class MetadataCreateIndexService {
     private final Priority clusterStateUpdateTaskPriority;
 
     private volatile TimeValue maxMasterNodeTimeout;
+    private static volatile int maxIndicesPerProject;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -207,6 +218,21 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings().initializeAndWatch(CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
         } else {
             maxMasterNodeTimeout = CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
+        }
+
+        clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT, v -> maxIndicesPerProject = v);
+    }
+
+    public static void validateIndexLimit(ProjectMetadata projectMetadata) {
+        if (projectMetadata.getConcreteAllIndices().length >= maxIndicesPerProject) {
+            throw new IndexLimitExceededException(
+                "This action would add an index, but this project currently has ["
+                    + projectMetadata.getConcreteAllIndices().length
+                    + "]/["
+                    + maxIndicesPerProject
+                    + "] maximum indices; for more information, see "
+                    + ReferenceDocs.MAX_INDICES_PER_PROJECT
+            );
         }
     }
 
@@ -1623,6 +1649,7 @@ public class MetadataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ProjectMetadata projectMetadata, RoutingTable routingTable) {
+        validateIndexLimit(projectMetadata);
         validateIndexName(request.index(), projectMetadata, routingTable);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings && request.settingsSystemProvided() == false);
     }

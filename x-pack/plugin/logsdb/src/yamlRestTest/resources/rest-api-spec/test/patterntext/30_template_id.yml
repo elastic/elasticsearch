@@ -142,8 +142,8 @@ Range query:
                 lt: "l"
   # one doc has a null value for template_id and two start with m > l
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "4" }
 
 ---
 Term aggregation:

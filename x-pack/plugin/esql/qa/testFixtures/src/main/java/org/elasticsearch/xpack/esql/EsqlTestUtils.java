@@ -1226,10 +1226,7 @@ public final class EsqlTestUtils {
     }
 
     public static QueryParams paramsAsConstant(Map<String, Object> params) {
-        return new QueryParams(params.entrySet()
-            .stream()
-            .map(e -> paramAsConstant(e.getKey(), e.getValue()))
-            .toList());
+        return new QueryParams(params.entrySet().stream().map(e -> paramAsConstant(e.getKey(), e.getValue())).toList());
     }
 
     public static QueryParam paramAsConstant(String name, Object value) {

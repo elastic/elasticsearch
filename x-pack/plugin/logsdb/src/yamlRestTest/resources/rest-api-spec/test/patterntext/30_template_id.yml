@@ -8,6 +8,7 @@ setup:
         index:  test
         body:
           settings:
+            number_of_shards: 1
             index.mapping.use_doc_values_skipper: true
             index.mode: logsdb
             sort.field: [ "foo.template_id" ]
@@ -141,12 +142,9 @@ Range query:
               foo.template_id:
                 lt: "l"
   # one doc has a null value for template_id and two start with m > l
-  # The order of these hits varies between Serverless (multi shard) and core ES (single shard)
   - match: { hits.total.value: 2 }
-  - gte: { hits.hits.0._id: "3" }
-  - lte: { hits.hits.0._id: "4" }
-  - gte: { hits.hits.1._id: "3" }
-  - lte: { hits.hits.1._id: "4" }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "3" }
 
 ---
 Term aggregation:

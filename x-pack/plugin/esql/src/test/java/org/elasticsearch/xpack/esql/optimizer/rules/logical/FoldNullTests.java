@@ -95,7 +95,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testBasicNullFolding() {
-        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
         assertNullLiteral(foldNull(new Pow(EMPTY, NULL, NULL)));
         assertNullLiteral(foldNull(new DateFormat(EMPTY, NULL, NULL, TEST_CFG)));
@@ -149,7 +149,7 @@ public class FoldNullTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // arithmetic
-        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL, TEST_CFG)));
         // comparison
         assertNullLiteral(foldNull(greaterThanOf(getFieldAttribute("a"), NULL)));
         // regex
@@ -232,10 +232,10 @@ public class FoldNullTests extends ESTestCase {
         DataType numericType = randomFrom(INTEGER, LONG, DOUBLE);
         DataType genericType = randomFrom(INTEGER, LONG, DOUBLE, UNSIGNED_LONG, KEYWORD, TEXT, GEO_POINT, GEO_SHAPE, VERSION, IP);
         List<Expression> items = List.of(
-            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
-            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
-            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
-            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), TEST_CFG),
+            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), TEST_CFG),
+            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), TEST_CFG),
+            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), TEST_CFG),
             new Mul(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
             new Mul(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
             new Div(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),

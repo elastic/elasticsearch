@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -69,7 +70,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
     public static final String NAME = "cohere";
 
     private static final String SERVICE_NAME = "Cohere";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -79,6 +80,64 @@ public class CohereService extends SenderService implements RerankingInferenceSe
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
+    private static final Map<TaskType, CohereModelCreator> MODEL_CREATORS = Map.of(TaskType.TEXT_EMBEDDING, new CohereModelCreator() {
+        @Override
+        public CohereEmbeddingsModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        ) {
+            return new CohereEmbeddingsModel(inferenceId, serviceSettings, taskSettings, chunkingSettings, secretSettings, context);
+        }
+
+        @Override
+        public CohereEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+            return new CohereEmbeddingsModel(config, secrets);
+        }
+    }, TaskType.RERANK, new CohereModelCreator() {
+        @Override
+        public CohereRerankModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        ) {
+            return new CohereRerankModel(inferenceId, serviceSettings, taskSettings, secretSettings, context);
+        }
+
+        @Override
+        public CohereRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+            return new CohereRerankModel(config, secrets);
+        }
+    }, TaskType.COMPLETION, new CohereModelCreator() {
+        @Override
+        public CohereCompletionModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        ) {
+            return new CohereCompletionModel(inferenceId, serviceSettings, secretSettings, context);
+        }
+
+        @Override
+        public CohereCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+            return new CohereCompletionModel(config, secrets);
+        }
+    });
 
     // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
     // the Cohere*RequestManager via the CohereActionCreator class
@@ -168,19 +227,20 @@ public class CohereService extends SenderService implements RerankingInferenceSe
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
-                inferenceEntityId,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new CohereRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
-            case COMPLETION -> new CohereCompletionModel(inferenceEntityId, serviceSettings, secretSettings, context);
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        var creator = MODEL_CREATORS.get(taskType);
+        if (creator == null) {
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        }
+        return creator.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -211,17 +271,16 @@ public class CohereService extends SenderService implements RerankingInferenceSe
 
     @Override
     public CohereModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return switch (config.getTaskType()) {
-            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(config, secrets);
-            case RERANK -> new CohereRerankModel(config, secrets);
-            case COMPLETION -> new CohereCompletionModel(config, secrets);
-            default -> throw createInvalidTaskTypeException(
+        var creator = MODEL_CREATORS.get(config.getTaskType());
+        if (creator == null) {
+            throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
                 NAME,
                 config.getTaskType(),
                 ConfigurationParseContext.PERSISTENT
             );
-        };
+        }
+        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -251,7 +310,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -388,7 +447,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -399,15 +458,30 @@ public class CohereService extends SenderService implements RerankingInferenceSe
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }
         );
+    }
+
+    private interface CohereModelCreator extends ModelCreator {
+        CohereModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        );
+
+        CohereModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

@@ -73,7 +73,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.SPARSE_EMBEDDING,
         TaskType.RERANK,
@@ -171,7 +171,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -212,7 +212,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
-        if (supportedTaskTypes.contains(taskType) == false) {
+        if (SUPPORTED_TASK_TYPES.contains(taskType) == false) {
             throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         }
         return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, chunkingSettings, context);
@@ -243,7 +243,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     @Override
     public CustomModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        if (supportedTaskTypes.contains(config.getTaskType()) == false) {
+        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType()) == false) {
             throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
                 NAME,
@@ -414,7 +414,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
                 // TODO revisit this
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

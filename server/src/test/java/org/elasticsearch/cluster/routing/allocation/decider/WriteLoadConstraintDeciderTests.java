@@ -423,8 +423,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .nodeIdsWriteLoadHotspotting(Map.of(overloadedNode.getId(), true, otherNode.getId(), false))
             .build();
 
-        final var clusterSettings = createBuiltInClusterSettings(settings);
-        final var writeLoadConstraintDecider = new WriteLoadConstraintDecider(clusterSettings);
+        final var writeLoadConstraintDecider = createWriteLoadConstraintDecider(settings);
         final var routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(writeLoadConstraintDecider)),
             state.getRoutingNodes().mutableCopy(),

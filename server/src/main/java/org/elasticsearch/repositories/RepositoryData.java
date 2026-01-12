@@ -374,12 +374,11 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns a map of {@link IndexId} to a collection of {@link String} containing all the {@link IndexId} and the
-     * {@link IndexMetadata} blob name in it that can be removed after removing the given snapshot from the repository.
-     * NOTE: Does not return a mapping for {@link IndexId} values that will be removed completely from the repository.
+     * Enumerates per-index collections of all the {@link IndexMetadata} blob names that can be removed after removing the given
+     * snapshots from the repository.
+     * NOTE: Does not return items for {@link IndexId} values that will be removed completely from the repository.
      *
      * @param snapshotIds SnapshotIds to remove
-     * @return map of index to index metadata blob id to delete
      */
     public Iterator<Tuple<IndexId, Collection<String>>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);

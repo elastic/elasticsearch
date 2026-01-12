@@ -923,11 +923,6 @@ public class EsqlCapabilities {
         METADATA_SCORE,
 
         /**
-         * Term function
-         */
-        TERM_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Additional types for match function and operator
          */
         MATCH_ADDITIONAL_TYPES,
@@ -1355,6 +1350,11 @@ public class EsqlCapabilities {
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
         DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in + and - operators.
+         */
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command
@@ -1837,6 +1837,10 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         /**
+         * Support for requesting the "_tier" metadata field.
+         */
+        METADATA_TIER_FIELD,
+        /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887
          */
@@ -1846,6 +1850,11 @@ public class EsqlCapabilities {
          * Exceptions parsing date-times are thrown as IllegalArgumentException
          */
         DATE_TIME_EXCEPTIONS_HANDLED,
+
+        /**
+         * Enrich works with dense_vector fields
+         */
+        ENRICH_DENSE_VECTOR_BUGFIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

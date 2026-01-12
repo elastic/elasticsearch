@@ -214,6 +214,9 @@ public class EsqlSession {
         EsqlStatement statement = parse(request);
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
+
+        Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+
         Configuration configuration = new Configuration(
             request.timeZone() == null
                 ? statement.setting(QuerySettings.TIME_ZONE)
@@ -1034,6 +1037,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())

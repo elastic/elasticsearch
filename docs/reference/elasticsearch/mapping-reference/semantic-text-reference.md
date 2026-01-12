@@ -24,11 +24,7 @@ endpoint will only be used at index time. Learn more about [configuring this par
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.0" }
-This parameter cannot be updated.
-:::
-
-:::{applies-item} { "stack": "ga 9.3" }
+:::{applies-item} stack: ga 9.3+
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
@@ -38,6 +34,10 @@ You can update the {{infer}} endpoint if no values have been indexed or if the n
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
 ::::
 
+:::
+
+:::{applies-item} stack: ga 9.0-9.2
+This parameter cannot be updated.
 :::
 
 ::::
@@ -156,6 +156,69 @@ You can [pre-chunk content](./semantic-text-ingestions.md#pre-chunking) by provi
 
 Refer to the [{{infer-cap}} API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](docs-content://explore-analyze/elastic-inference/inference-api.md#infer-chunking-config) to learn about different chunking strategies.
 
+## Pre-filtering for dense vector queries
+```{applies_to}
+stack: ga 9.3
+serverless: ga
+```
+
+When you query `semantic_text` fields with dense vector embeddings, {{es}} automatically applies filters from Query DSL or ES|QL queries as [pre-filters](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-filtering) to the vector search. The vector search then finds the most semantically relevant results within the filtered set of documents, ensuring that the number of requested documents is returned.
+
+The following examples in Query DSL and ES|QL syntax demonstrate finding the 10 most relevant documents matching "quick drying t-shirts" while filtering to only green items.
+
+### Query DSL example
+
+In Query DSL, `must`, `filter`, and `must_not` queries within the parent `bool` query are used as pre-filters for `semantic_text` queries. The `term` query below will be applied as a pre-filter to the knn search on `dense_semantic_text_field`.
+
+```console
+POST my-index/_search
+{
+  "size" : 10,
+  "query" : {
+    "bool" : {
+      "must" : {
+        "match": { <1>
+          "dense_semantic_text_field": {
+            "query": "quick drying t-shirts"
+          }
+        }
+      },
+      "filter" : {
+        "term" : {
+          "color": {
+            "value": "green"
+          }
+        }
+      }
+    }
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+1. The `match` query automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
+
+::::{important}
+When you query a `semantic_text` field directly with a [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) in Query DSL, automatic pre-filtering does not apply. The kNN query provides a direct parameter for defining pre-filters as explained in [Pre-filters and post-filters](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-filtering).
+::::
+
+### ES|QL example
+
+The `WHERE color == "green"` clause will be applied as a pre-filter to the kNN search on `dense_semantic_text_field`.
+
+```console
+POST /_query
+{
+  "query": """
+          FROM my-index METADATA _score
+          | WHERE MATCH(dense_semantic_text_field, "quick drying t-shirts") <1>
+          | WHERE color == "green"
+          | SORT _score DESC
+          | LIMIT 10
+   """
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
 
 ## Limitations [limitations]
 
@@ -169,7 +232,8 @@ Refer to the [{{infer-cap}} API documentation](https://www.elastic.co/docs/api/d
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `false`.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
 * `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).
-
+* [Automatic pre-filtering](#pre-filtering-for-dense-vector-queries) in Query DSL does not apply to [Nested queries](/reference/query-languages/query-dsl/query-dsl-nested-query.md). Such queries will be applied as post-filters.
+* [Automatic pre-filtering](#pre-filtering-for-dense-vector-queries) in ES|QL does not apply to filters that use certain functions (like `WHERE TO_LOWER(my_field) == 'a'`). Such filters will be applied as post-filters.
 
 ## Document count discrepancy in `_cat/indices` [document-count-discrepancy]
 

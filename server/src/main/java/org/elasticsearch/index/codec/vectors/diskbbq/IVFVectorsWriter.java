@@ -89,7 +89,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             state.segmentSuffix,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION
         );
-        boolean success = false;
         try {
             ivfMeta = state.directory.createOutput(metaFileName, state.context);
             CodecUtil.writeIndexHeader(
@@ -115,11 +114,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -306,7 +303,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         final int numVectors;
         String tempRawVectorsFileName = null;
         String docsFileName = null;
-        boolean success = false;
         // build a float vector values with random access. In order to do that we dump the vectors to
         // a temporary file and if the segment is not dense, the docs to another file/
         try (
@@ -331,17 +327,15 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 if (docsOut != null) {
                     CodecUtil.writeFooter(docsOut);
                 }
-                success = true;
             }
-        } finally {
-            if (success == false) {
-                if (tempRawVectorsFileName != null) {
-                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
-                }
-                if (docsFileName != null) {
-                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, docsFileName);
-                }
+        } catch (Throwable t) {
+            if (tempRawVectorsFileName != null) {
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
             }
+            if (docsFileName != null) {
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, docsFileName);
+            }
+            throw t;
         }
         if (numVectors == 0) {
             long centroidOffset = ivfCentroids.getFilePointer();
@@ -372,7 +366,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final float[] calculatedGlobalCentroid;
             String centroidTempName = null;
             IndexOutput centroidTemp = null;
-            success = false;
             try {
                 centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                 centroidTempName = centroidTemp.getName();
@@ -391,12 +384,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 assignments = centroidAssignments.assignments();
                 calculatedGlobalCentroid = centroidAssignments.globalCentroid();
                 overspillAssignments = centroidAssignments.overspillAssignments();
-                success = true;
-            } finally {
-                if (success == false && centroidTempName != null) {
+            } catch (Throwable t) {
+                if (centroidTempName != null) {
                     IOUtils.closeWhileHandlingException(centroidTemp);
                     org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, centroidTempName);
                 }
+                throw t;
             }
             try {
                 if (numCentroids == 0) {

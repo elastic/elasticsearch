@@ -110,6 +110,10 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
 
         @Override
         public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
+            if (isEmpty() == false) {
+                return;
+            }
+
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
                 if (docValues.advanceExact(docId) == false) {

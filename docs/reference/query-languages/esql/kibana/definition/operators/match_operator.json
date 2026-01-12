@@ -529,7 +529,9 @@
     }
   ],
   "examples" : [
-    "FROM books\n| WHERE author:\"Faulkner\""
+    "FROM books\n| WHERE author:\"Faulkner\"",
+    "FROM employees\n| WHERE job_positions:\"Internship\"\n| KEEP emp_no, job_positions",
+    "FROM books METADATA _score\n| WHERE semantic_title:\"Shakespeare\"\n| SORT _score DESC\n| KEEP _score, semantic_title"
   ],
   "preview" : false,
   "snapshot_only" : false

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -300,10 +301,7 @@ public class CsvTests extends ESTestCase {
                 "can't load metrics in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName())
             );
-            assumeFalse(
-                "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
-            );
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
             assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
@@ -327,10 +325,6 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "lookup join disabled for csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
-            );
-            assumeFalse(
-                "can't use TERM function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TERM_FUNCTION.capabilityName())
             );
             assumeFalse(
                 "CSV tests cannot correctly handle the field caps change",
@@ -360,10 +354,7 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
-            assumeFalse(
-                "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
-            );
+            assumeFalse("can't use PromQL in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
 
             if (Build.current().isSnapshot()) {
                 assertThat(

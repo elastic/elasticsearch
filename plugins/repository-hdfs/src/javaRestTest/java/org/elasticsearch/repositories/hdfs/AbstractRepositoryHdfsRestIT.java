@@ -37,7 +37,7 @@ abstract class AbstractRepositoryHdfsRestIT extends ESRestTestCase {
             ResponseException.class,
             () -> registerHdfsRepository("file://does-not-matter", randomRepoName(), randomPath(), randomBoolean(), randomBoolean())
         );
-        assertEquals("expect bad URL response, got: " + ex.getResponse(),500, ex.getResponse().getStatusLine().getStatusCode());
+        assertEquals("expect bad URL response, got: " + ex.getResponse(), 500, ex.getResponse().getStatusLine().getStatusCode());
     }
 
     public void testCreateGetDeleteRepository() throws IOException {

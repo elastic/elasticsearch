@@ -155,7 +155,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final int docChannel;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
-    final Map<String, Integer> convertersUsed = new TreeMap<>();
     long valuesLoaded;
 
     private int lastShard = -1;
@@ -343,7 +342,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     ) {
         return new ValuesSourceReaderOperatorStatus(
             new TreeMap<>(readersBuilt),
-            new TreeMap<>(convertersUsed),
+            converterEvaluators.used(),
             processNanos,
             pagesReceived,
             pagesEmitted,
@@ -387,20 +386,45 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         return fields[field].info.name + "[" + loader + "]: " + block;
     }
 
-    public class ConverterEvaluators implements Releasable {
-        record Key(int shard, String field) {}
+    class ConverterEvaluators implements Releasable {
+        private final Map<Key, ConverterAndCount> built = new HashMap<>();
 
-        private final Map<Key, ConverterEvaluator> built = new HashMap<>();
+        public ConverterEvaluator get(int shard, String field, ConverterFactory converter) {
+            ConverterAndCount evaluator = built.computeIfAbsent(
+                new Key(shard, field),
+                unused -> new ConverterAndCount(converter.build(driverContext))
+            );
+            evaluator.used++;
+            return evaluator.evaluator;
+        }
+
+        public Map<String, Integer> used() {
+            Map<String, Integer> used = new TreeMap<>();
+            for (var e : built.entrySet()) {
+                used.merge(e.getKey().field + ":" + e.getValue().evaluator, e.getValue().used, Integer::sum);
+            }
+            return used;
+        }
 
         @Override
         public void close() {
             Releasables.close(built.values());
         }
+    }
 
-        public ConverterEvaluator get(int shard, String field, ConverterFactory converter) {
-            ConverterEvaluator evaluator = built.computeIfAbsent(new Key(shard, field), unused -> converter.build(driverContext));
-            convertersUsed.merge(field + ":" + evaluator, 1, Integer::sum);
-            return evaluator;
+    record Key(int shard, String field) {}
+
+    private static class ConverterAndCount implements Releasable {
+        private final ConverterEvaluator evaluator;
+        private int used;
+
+        private ConverterAndCount(ConverterEvaluator evaluator) {
+            this.evaluator = evaluator;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(evaluator);
         }
     }
 

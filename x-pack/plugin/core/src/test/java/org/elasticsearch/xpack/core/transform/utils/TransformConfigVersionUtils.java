@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 

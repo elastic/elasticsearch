@@ -358,7 +358,7 @@ public final class IndexSortConfig {
     }
 
     public boolean getPrimarySortOrderDesc() {
-        return  sortSpecs[0].order == SortOrder.DESC;
+        return sortSpecs[0].order == SortOrder.DESC;
     }
 
     /**

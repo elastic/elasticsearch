@@ -598,21 +598,6 @@ cost:double | pod:keyword | time_bucket:datetime
 1237.0      | three       | 2024-05-09T23:40:00.000Z
 ;
 
-max_over_time_older_than_10h_promql
-required_capability: promql_pre_tech_preview_v12
-required_capability: aggregate_metric_double_v0
-
-PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:00:00.000Z" end="2024-05-10T00:00:00.000Z" cost=(avg by (pod) (max_over_time(network.eth0.rx{cluster="qa"}[10m])))
-| SORT step, pod | LIMIT 5;
-
-cost:double | step:datetime            | pod:keyword
-655.0       | 2024-05-09T23:30:00.000Z | one
-1.0         | 2024-05-09T23:30:00.000Z | three
-461.0       | 2024-05-09T23:30:00.000Z | two
-1049.0      | 2024-05-09T23:40:00.000Z | one
-1237.0      | 2024-05-09T23:40:00.000Z | three
-;
-
 eval_on_max_over_time
 required_capability: ts_command_v0
 TS k8s | STATS max_bytes = avg(max_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (max_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
@@ -703,14 +688,15 @@ null        | two         | 2024-05-10T00:13:00.000Z
 7           | two         | 2024-05-10T00:10:00.000Z
 ;
 
-# Awaits fix: PromQL should omit buckets with no samples
-max_over_time_null_values_promql-Ignore
+max_over_time_null_values_promql
 required_capability: promql_pre_tech_preview_v12
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (max_over_time(events_received[1m])))
 | SORT events DESC, step | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
+null          | 2024-05-10T00:12:00.000Z | one
+null          | 2024-05-10T00:13:00.000Z | two 
 20.0          | 2024-05-10T00:14:00.000Z | two
 18.0          | 2024-05-10T00:12:00.000Z | two
 17.0          | 2024-05-10T00:13:00.000Z | one

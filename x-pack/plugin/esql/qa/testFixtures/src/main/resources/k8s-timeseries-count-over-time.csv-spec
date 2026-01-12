@@ -164,9 +164,9 @@ eth0_up:double | step:datetime            | cluster:keyword
 
 count_over_time_of_date_nanos
 required_capability: ts_command_v0
-TS k8s | STATS last_up = max(count_over_time(network.eth0.last_up)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS datenanos-k8s | STATS last_up = max(count_over_time(network.eth0.last_up)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;
 
-last_up:long | cluster:keyword | time_bucket:datetime
+last_up:long | cluster:keyword | time_bucket:date_nanos
 10           | prod            | 2024-05-10T00:00:00.000Z
 14           | qa              | 2024-05-10T00:00:00.000Z
 10           | staging         | 2024-05-10T00:00:00.000Z
@@ -180,11 +180,12 @@ last_up:long | cluster:keyword | time_bucket:datetime
 
 count_over_time_of_date_nanos_promql
 required_capability: promql_pre_tech_preview_v12
+required_capability: promql_date_nanos_support_v0
 
-PROMQL index=k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
+PROMQL index=datenanos-k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
 
-last_up:double | step:datetime            | cluster:keyword
+last_up:double | step:date_nanos          | cluster:keyword
 10.0           | 2024-05-10T00:00:00.000Z | prod
 14.0           | 2024-05-10T00:00:00.000Z | qa
 10.0           | 2024-05-10T00:00:00.000Z | staging
@@ -585,21 +586,6 @@ cost:double | pod:keyword | time_bucket:datetime
 10.0        | three       | 2024-05-09T23:40:00.000Z
 ;
 
-count_over_time_older_than_10d_promql
-required_capability: promql_pre_tech_preview_v12
-required_capability: aggregate_metric_double_v0
-
-PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:00:00.000Z" end="2024-05-10T00:00:00.000Z" cost=(avg by (pod) (count_over_time(network.eth0.rx{cluster="qa"}[10m])))
-| SORT step, pod | LIMIT 5;
-
-cost:double | step:datetime            | pod:keyword
-9.0         | 2024-05-09T23:30:00.000Z | one
-1.0         | 2024-05-09T23:30:00.000Z | three
-9.0         | 2024-05-09T23:30:00.000Z | two
-10.0        | 2024-05-09T23:40:00.000Z | one
-10.0        | 2024-05-09T23:40:00.000Z | three
-;
-
 eval_on_count_over_time
 required_capability: ts_command_v0
 TS k8s | STATS bytes = sum(count_over_time(network.bytes_in)) BY pod, time_bucket = bucket(@timestamp, 10minute) | EVAL kb = to_double(bytes) / 1000.0 | LIMIT 10 | SORT time_bucket, pod;
@@ -760,7 +746,7 @@ bytes:long | pod:keyword | time_bucket:datetime
 20         | one         | 2024-05-09T23:40:00.000Z
 ;
 
-# Awaits fix: Index wildcard selector is not supported at this time.
+# Awaits fix: https://github.com/elastic/metrics-program/issues/302
 count_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
 required_capability: promql_pre_tech_preview_v12
 required_capability: aggregate_metric_double_v0

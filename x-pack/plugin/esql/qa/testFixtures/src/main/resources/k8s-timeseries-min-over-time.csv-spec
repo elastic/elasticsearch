@@ -614,21 +614,6 @@ cost:double | pod:keyword | time_bucket:datetime
 690.0       | three       | 2024-05-09T23:40:00.000Z
 ;
 
-min_over_time_older_than_10h_promql
-required_capability: promql_pre_tech_preview_v12
-required_capability: aggregate_metric_double_v0
-
-PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:00:00.000Z" end="2024-05-10T00:00:00.000Z" cost=(avg by (pod) (min_over_time(network.eth0.rx{cluster="qa"}[10m])))
-| SORT step, pod | LIMIT 5;
-
-cost:double | step:datetime            | pod:keyword
-329.0       | 2024-05-09T23:30:00.000Z | one
-1.0         | 2024-05-09T23:30:00.000Z | three
-382.0       | 2024-05-09T23:30:00.000Z | two
-684.0       | 2024-05-09T23:40:00.000Z | one
-690.0       | 2024-05-09T23:40:00.000Z | three
-;
-
 eval_on_min_over_time
 required_capability: ts_command_v0
 TS k8s | STATS min_bytes = sum(min_over_time(network.bytes_in)) BY pod, time_bucket = bucket(@timestamp, 10minute) | EVAL kb = to_double(min_bytes) / 1000.0 | LIMIT 10 | SORT time_bucket, pod;

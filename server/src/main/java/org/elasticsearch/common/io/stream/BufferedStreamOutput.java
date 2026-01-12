@@ -65,6 +65,7 @@ public class BufferedStreamOutput extends StreamOutput {
     private final int endPosition;
     private int position;
     private long flushedBytes;
+    private boolean isClosed;
 
     /**
      * Wrap the given stream, using the given {@link BytesRef} for the buffer. It is the caller's responsibility to make sure that nothing
@@ -157,8 +158,11 @@ public class BufferedStreamOutput extends StreamOutput {
 
     @Override
     public void close() throws IOException {
-        flush();
-        delegate.close();
+        if (isClosed == false) {
+            isClosed = true;
+            flush();
+            delegate.close();
+        }
     }
 
     @Override

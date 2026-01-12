@@ -1,7 +1,12 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.keyword.high_cardinality_length_function_fuse_to_load"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ extended_doc_values_params ]
       reason: "testing binary doc values search"
 
   - do:

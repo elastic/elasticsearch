@@ -1075,7 +1075,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new InferenceFieldMetadata("inference_field", "missing_inference_id", new String[] { "inference_field" }, null)
         );
 
-        // Create enough items to guarantee that indexing pressure will trip
         BulkItemRequest[] items = new BulkItemRequest[100];
         for (int i = 0; i < 100; i++) {
             items[i] = new BulkItemRequest(

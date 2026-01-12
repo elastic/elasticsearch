@@ -520,10 +520,11 @@ TS k8s
     rate = rate(network.total_bytes_in),
     null_literal = rate(null),
     null_propagated = rate(null_col)
+| EVAL rate=ROUND(rate, 4)
 | SORT rate DESC
 | LIMIT 2;
 
 rate:double | null_literal:double | null_propagated:double
-13.17373    | null                | null
-10.64915    | null                | null
+13.1737     | null                | null
+10.6492     | null                | null
 ;

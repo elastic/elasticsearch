@@ -306,10 +306,11 @@ public final class FetchPhase {
                     storedFields.prefetch(doc);
                 } catch (IOException exc) {
                     // ignore error
-                    LOGGER.warn("Failed to prefetch stored fields for doc [{}]", doc, exc);
+                    LOGGER.warn("Failed to prefetch stored fields for doc [" + doc + "]", exc);
                 }
             }
         } catch (IOException exc) {
+            // ignore error
             LOGGER.warn("Failed to prefetch stored fields", exc);
         }
     }

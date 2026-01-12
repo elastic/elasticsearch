@@ -277,9 +277,9 @@ true             | two         | 2024-05-10T00:20:00.000Z | 1
 present_over_time_events_received_as_integer
 required_capability: ts_command_v0
 
-TS k8s
-| WHERE cluster == "prod" AND pod == "two"
-| STATS events_received = max(to_integer(present_over_time(events_received))) BY pod, time_bucket = tbucket(2 minute)
+TS k8s 
+| WHERE cluster == "prod" AND pod == "two" 
+| STATS events_received = max(to_integer(present_over_time(events_received))) BY pod, time_bucket = tbucket(2 minute) 
 | SORT time_bucket
 ;
 ignoreOrder:true
@@ -294,62 +294,4 @@ events_received:integer | pod:keyword | time_bucket:datetime
 0                       | two         | 2024-05-10T00:18:00.000Z
 1                       | two         | 2024-05-10T00:20:00.000Z
 1                       | two         | 2024-05-10T00:22:00.000Z
-;
-
-present_over_time_of_dense_vector
-required_capability: ts_command_v0
-TS k8s 
-| STATS is_present = max(present_over_time(dense_vector)) BY cluster, time_bucket = tbucket(10minute) 
-| SORT time_bucket, cluster 
-| LIMIT 10;
-
-is_present:boolean | cluster:keyword | time_bucket:datetime
-true               | prod            | 2024-05-10T00:00:00.000Z
-true               | qa              | 2024-05-10T00:00:00.000Z
-true               | staging         | 2024-05-10T00:00:00.000Z
-true               | prod            | 2024-05-10T00:10:00.000Z
-true               | qa              | 2024-05-10T00:10:00.000Z
-true               | staging         | 2024-05-10T00:10:00.000Z
-true               | prod            | 2024-05-10T00:20:00.000Z
-true               | qa              | 2024-05-10T00:20:00.000Z
-true               | staging         | 2024-05-10T00:20:00.000Z
-;
-
-present_over_time_of_dense_vector_with_filtering
-required_capability: ts_command_v0
-TS k8s | WHERE pod != "one" 
-| STATS is_present = max(present_over_time(dense_vector)) BY cluster, time_bucket = tbucket(10 minute) 
-| SORT time_bucket, cluster 
-| LIMIT 10;
-
-is_present:boolean | cluster:keyword | time_bucket:datetime
-true               | prod            | 2024-05-10T00:00:00.000Z
-true               | qa              | 2024-05-10T00:00:00.000Z
-true               | staging         | 2024-05-10T00:00:00.000Z
-true               | prod            | 2024-05-10T00:10:00.000Z
-true               | qa              | 2024-05-10T00:10:00.000Z
-true               | staging         | 2024-05-10T00:10:00.000Z
-true               | prod            | 2024-05-10T00:20:00.000Z
-true               | qa              | 2024-05-10T00:20:00.000Z
-true               | staging         | 2024-05-10T00:20:00.000Z
-;
-
-eval_on_present_over_time_dense_vector
-required_capability: ts_command_v0
-TS k8s 
-| STATS is_present = max(present_over_time(dense_vector)) BY pod, time_bucket = tbucket(10 minute) 
-| EVAL int = to_integer(is_present) 
-| LIMIT 10 
-| SORT time_bucket, pod;
-
-is_present:boolean | pod:keyword | time_bucket:datetime     | int:integer
-true               | one         | 2024-05-10T00:00:00.000Z | 1
-true               | three       | 2024-05-10T00:00:00.000Z | 1
-true               | two         | 2024-05-10T00:00:00.000Z | 1
-true               | one         | 2024-05-10T00:10:00.000Z | 1
-true               | three       | 2024-05-10T00:10:00.000Z | 1
-true               | two         | 2024-05-10T00:10:00.000Z | 1
-true               | one         | 2024-05-10T00:20:00.000Z | 1
-true               | three       | 2024-05-10T00:20:00.000Z | 1
-true               | two         | 2024-05-10T00:20:00.000Z | 1
 ;

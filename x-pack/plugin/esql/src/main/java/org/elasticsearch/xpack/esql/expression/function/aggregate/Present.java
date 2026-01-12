@@ -70,6 +70,7 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -139,10 +140,10 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types, dense_vector or date_range"
+            "any type except counter types or date_range"
         );
     }
 }

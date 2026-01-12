@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -473,7 +472,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     /*
      * Limit[1000[INTEGER],false]
      * \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
-     *   |_EsqlProject[[salary{f}#14, emp_no{f}#9]]
+     *   |_Project[[salary{f}#14, emp_no{f}#9]]
      *   | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *   \_Project[[sum(salary)   1 where false{r}#5, sum(salary)   2{r}#7, emp_no{f}#9]]
      *     \_Eval[[null[LONG] AS sum(salary)   1 where false#5, $$SUM$sum(salary)_ _2$1{r$}#21   2[INTEGER] AS sum(salary)   2#7]]
@@ -494,7 +493,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var plan = plan(query);
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
-        var left = as(ij.left(), EsqlProject.class);
+        var left = as(ij.left(), Project.class);
         assertThat(Expressions.names(left.projections()), contains("salary", "emp_no"));
         var relation = as(left.child(), EsRelation.class);
         var right = as(ij.right(), Project.class);
@@ -525,7 +524,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     /**
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[],[],[]]
-     *   |_EsqlProject[[salary{f}#16]]
+     *   |_Project[[salary{f}#16]]
      *   | \_Limit[1000[INTEGER],false]
      *   |   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *   \_Project[[sum(salary)   1 where false{r}#4, sum(salary)   3{r}#6, sum(salary)   2 where null{r}#8, sum(salary)   4 wher
@@ -584,7 +583,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     }
 
     /**
-     * EsqlProject[[emp_no{f}#6, salary{f}#11, count(salary) where not true{r}#5]]
+     * Project[[emp_no{f}#6, salary{f}#11, count(salary) where not true{r}#5]]
      * \_Eval[[0[LONG] AS count(salary) where not true#5]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
@@ -599,7 +598,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             return;
         }
         var plan = plan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary", "count(salary) where not true"));
 
         var eval = as(project.child(), Eval.class);
@@ -616,7 +615,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     /*
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[],[],[]]
-     *   |_EsqlProject[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
+     *   |_Project[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
      *   | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *   \_Aggregate[[],[COUNT(salary{f}#13,true[BOOLEAN]) AS m1#7]]
      *     \_StubRelation[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
@@ -634,7 +633,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
-        var left = as(ij.left(), EsqlProject.class);
+        var left = as(ij.left(), Project.class);
         assertThat(Expressions.names(left.projections()), contains("emp_no", "salary", "gender"));
         var relation = as(left.child(), EsRelation.class);
 
@@ -649,7 +648,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     }
 
     /**
-     * EsqlProject[[salary{f}#10, count(salary) where false{r}#4]]
+     * Project[[salary{f}#10, count(salary) where false{r}#4]]
      * \_Eval[[0[LONG] AS count(salary) where false#4]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
@@ -664,7 +663,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             return;
         }
         var plan = plan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count(salary) where false"));
 
         var eval = as(project.child(), Eval.class);
@@ -679,7 +678,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     }
 
     /**
-     * EsqlProject[[salary{f}#10, count_distinct(salary   2)   3 where false{r}#4]]
+     * Project[[salary{f}#10, count_distinct(salary   2)   3 where false{r}#4]]
      * \_Eval[[3[LONG] AS count_distinct(salary   2)   3 where false#4]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
@@ -694,7 +693,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             return;
         }
         var plan = plan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count_distinct(salary + 2) + 3 where false"));
 
         var eval = as(project.child(), Eval.class);
@@ -711,7 +710,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     /*
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[emp_no{f}#17],[emp_no{f}#17],[emp_no{r}#17]]
-     *   |_EsqlProject[[emp_no{f}#17, salary{f}#22]]
+     *   |_Project[[emp_no{f}#17, salary{f}#22]]
      *   | \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      *   \_Project[[max{r}#6, max_a{r}#9, min{r}#12, min_a{r}#15, emp_no{f}#17]]
      *     \_Eval[[null[INTEGER] AS max_a#9, null[INTEGER] AS min_a#15]]
@@ -734,7 +733,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
-        var left = as(ij.left(), EsqlProject.class);
+        var left = as(ij.left(), Project.class);
         assertThat(Expressions.names(left.projections()), contains("emp_no", "salary"));
         var relation = as(left.child(), EsRelation.class);
 
@@ -764,7 +763,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
     }
 
     /*
-     * EsqlProject[[emp_no{f}#9, count{r}#5, cc{r}#8]]
+     * Project[[emp_no{f}#9, count{r}#5, cc{r}#8]]
      * \_TopN[[Order[emp_no{f}#9,ASC,LAST]],3[INTEGER]]
      *   \_Eval[[0[LONG] AS count#5, 0[LONG] AS cc#8]]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
@@ -782,7 +781,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             return;
         }
         var plan = plan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "count", "cc"));
 
         var topN = as(project.child(), TopN.class);

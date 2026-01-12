@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
@@ -20,14 +19,14 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * This version of {@link EsqlProject} saves part of its state for computing its projections based on its child's output. This avoids
+ * This version of {@link Project} saves part of its state for computing its projections based on its child's output. This avoids
  * the problem that once the projections are computed, we don't know which pattern was used to generate them. This is important
  * when dealing with unmapped fields: E.g. in
  * {@code SET unmapped_fields="nullify"; FROM idx | KEEP foo* | WHERE foo_bar > 10}, if {@code foo_bar} is not mapped, we need to inject
  * a {@code NULL} literal for it before the {@code KEEP}. It's correct to update the projection of the {@code KEEP} to include this new
  * attribute because the pattern {@code foo*} matches it. But if the pattern was {@code foo_baz}, it would be incorrect to do so.
  */
-public class ResolvingProject extends EsqlProject {
+public class ResolvingProject extends Project {
 
     private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
 
@@ -87,7 +86,7 @@ public class ResolvingProject extends EsqlProject {
         return super.equals(obj) && Objects.equals(resolver, other.resolver);
     }
 
-    public EsqlProject asEsqlProject() {
-        return new EsqlProject(source(), child(), projections());
+    public Project asProject() {
+        return new Project(source(), child(), projections());
     }
 }

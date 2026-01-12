@@ -122,7 +122,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -1306,7 +1305,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.FAIL
-                ? new EsqlProject(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
+                ? new Project(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
                 : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
         }
 
@@ -1358,7 +1357,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.FAIL
-                ? new EsqlProject(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
+                ? new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
                 : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
         }
 
@@ -1394,7 +1393,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.FAIL
-                ? new EsqlProject(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
+                ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),
@@ -2697,7 +2696,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (aliases.isEmpty() == false && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
                 Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new EsqlProject(project.source(), eval, output);
+                return new Project(project.source(), eval, output);
             }
             return child;
         }

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -79,7 +78,6 @@ public class PlanWritables {
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
-            EsqlProject.ENTRY,
             Eval.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
@@ -92,6 +90,7 @@ public class PlanWritables {
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
+            Project.V9_ENTRY, // Backward compatibility for reading old "EsqlProject" type
             Rerank.ENTRY,
             Sample.ENTRY,
             Subquery.ENTRY,

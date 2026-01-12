@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -263,7 +262,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var evalY = as(limit.child(), Eval.class);
         var evalX = as(evalY.child(), Eval.class);
-        var esqlProject = as(evalX.child(), EsqlProject.class);
+        var esqlProject = as(evalX.child(), Project.class);
         var evalNull = as(esqlProject.child(), Eval.class);
         var source = as(evalNull.child(), EsRelation.class);
         // TODO: golden testing
@@ -289,7 +288,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var evalY = as(limit.child(), Eval.class);
         var evalX = as(evalY.child(), Eval.class);
-        var esqlProject = as(evalX.child(), EsqlProject.class);
+        var esqlProject = as(evalX.child(), Project.class);
         var evalNull = as(esqlProject.child(), Eval.class);
         var source = as(evalNull.child(), EsRelation.class);
         // TODO: golden testing
@@ -560,7 +559,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         var limit = as(plan, Limit.class);
         var eval1 = as(limit.child(), Eval.class);
-        var project = as(eval1.child(), EsqlProject.class);
+        var project = as(eval1.child(), Project.class);
         var eval2 = as(project.child(), Eval.class);
         var source = as(eval2.child(), EsRelation.class);
         // TODO: golden testing
@@ -1841,7 +1840,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(orderBy.order().get(0).child()), is("emp_no"));
         assertThat(Expressions.name(orderBy.order().get(1).child()), is("emp_no_plus"));
 
-        var project = as(orderBy.child(), EsqlProject.class);
+        var project = as(orderBy.child(), Project.class);
         assertThat(project.projections(), hasSize(3));
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "emp_no_foo", "emp_no_plus")));
 
@@ -1894,7 +1893,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(orderBy.order().get(0).child()), is("emp_no"));
         assertThat(Expressions.name(orderBy.order().get(1).child()), is("emp_no_plus"));
 
-        var project = as(orderBy.child(), EsqlProject.class);
+        var project = as(orderBy.child(), Project.class);
         assertThat(project.projections(), hasSize(11));
         assertThat(
             Expressions.names(project.projections()),
@@ -2565,7 +2564,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         // Branch 0
         var b0Limit = as(fork.children().get(0), Limit.class);
         assertThat(b0Limit.limit().fold(FoldContext.small()), is(10000));
-        var b0Proj = as(b0Limit.child(), EsqlProject.class);
+        var b0Proj = as(b0Limit.child(), Project.class);
 
         // Adds dne4/xyz/x/y nulls, verify does_not_exist4 NULL
         var b0Eval4 = as(b0Proj.child(), Eval.class);
@@ -2614,7 +2613,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         // Branch 1
         var b1Limit = as(fork.children().get(1), Limit.class);
         assertThat(b1Limit.limit().fold(FoldContext.small()), is(1000));
-        var b1Proj = as(b1Limit.child(), EsqlProject.class);
+        var b1Proj = as(b1Limit.child(), Project.class);
 
         // Adds dne3,x,y NULLs at top
         var b1Eval3 = as(b1Proj.child(), Eval.class);
@@ -2666,7 +2665,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         // Branch 2
         var b2Limit = as(fork.children().get(2), Limit.class);
         assertThat(b2Limit.limit().fold(FoldContext.small()), is(1000));
-        var b2Proj = as(b2Limit.child(), EsqlProject.class);
+        var b2Proj = as(b2Limit.child(), Project.class);
 
         // Many nulls including does_not_exist1/2/3/4
         var b2EvalNulls = as(b2Proj.child(), Eval.class);

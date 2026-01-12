@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderE
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -203,7 +202,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
                 return plan;
             }
             // Found a new pushable attribute, discard it *after* use so we don't modify the output.
-            return new EsqlProject(Source.EMPTY, transformedPlan, transformedPlan.output());
+            return new Project(Source.EMPTY, transformedPlan, transformedPlan.output());
         }
 
         private Expression transformExpression(LogicalPlan nodeWithExpression, Expression e, BlockLoaderExpression ble) {

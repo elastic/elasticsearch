@@ -8,18 +8,17 @@
 package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 
 /**
- * Converts any Analyzer-specific {@link ResolvingProject} into an {@link EsqlProject} equivalent.
+ * Converts any Analyzer-specific {@link ResolvingProject} into an {@link org.elasticsearch.xpack.esql.plan.logical.Project} equivalent.
  */
 public class ResolvedProjects extends AnalyzerRules.AnalyzerRule<ResolvingProject> {
 
     @Override
     protected LogicalPlan rule(ResolvingProject plan) {
-        return plan.asEsqlProject();
+        return plan.asProject();
     }
 
     @Override

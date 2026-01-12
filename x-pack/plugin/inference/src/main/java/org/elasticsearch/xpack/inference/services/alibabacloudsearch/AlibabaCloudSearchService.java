@@ -500,21 +500,6 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
         return 5500;
     }
 
-    private interface AlibabaCloudSearchModelCreator extends ModelCreator {
-        AlibabaCloudSearchModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        );
-
-        AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
-    }
-
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
@@ -591,5 +576,20 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
                     .build();
             }
         );
+    }
+
+    private interface AlibabaCloudSearchModelCreator extends ModelCreator {
+        AlibabaCloudSearchModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        );
+
+        AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

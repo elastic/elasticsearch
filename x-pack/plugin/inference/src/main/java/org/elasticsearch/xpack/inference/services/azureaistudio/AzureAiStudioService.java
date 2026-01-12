@@ -239,9 +239,8 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
         var chunkingSettings = config.getChunkingSettings();
         var secretSettings = secrets.getSecretSettings();
 
-        AzureAiStudioModel model;
-        switch (taskType) {
-            case TEXT_EMBEDDING -> model = new AzureAiStudioEmbeddingsModel(
+        var model = switch (taskType) {
+            case TEXT_EMBEDDING -> new AzureAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -250,7 +249,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
                 chunkingSettings,
                 (DefaultSecretSettings) secretSettings
             );
-            case COMPLETION -> model = new AzureAiStudioChatCompletionModel(
+            case COMPLETION -> new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -258,14 +257,14 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
                 (AzureAiStudioChatCompletionTaskSettings) taskSettings,
                 (DefaultSecretSettings) secretSettings
             );
-            case RERANK -> model = new AzureAiStudioRerankModel(
+            case RERANK -> new AzureAiStudioRerankModel(
                 inferenceEntityId,
                 (AzureAiStudioRerankServiceSettings) serviceSettings,
                 (AzureAiStudioRerankTaskSettings) taskSettings,
                 (DefaultSecretSettings) secretSettings
             );
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
-        }
+        };
         final var azureAiStudioServiceSettings = (AzureAiStudioServiceSettings) model.getServiceSettings();
         checkProviderAndEndpointTypeForTask(taskType, azureAiStudioServiceSettings.provider(), azureAiStudioServiceSettings.endpointType());
         return model;
@@ -319,9 +318,8 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
         ConfigurationParseContext context
     ) {
 
-        AzureAiStudioModel model;
-        switch (taskType) {
-            case TEXT_EMBEDDING -> model = new AzureAiStudioEmbeddingsModel(
+        var model = switch (taskType) {
+            case TEXT_EMBEDDING -> new AzureAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -331,7 +329,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
                 secretSettings,
                 context
             );
-            case COMPLETION -> model = new AzureAiStudioChatCompletionModel(
+            case COMPLETION -> new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -340,9 +338,9 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
                 secretSettings,
                 context
             );
-            case RERANK -> model = new AzureAiStudioRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            case RERANK -> new AzureAiStudioRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
+        };
         final var azureAiStudioServiceSettings = (AzureAiStudioServiceSettings) model.getServiceSettings();
         checkProviderAndEndpointTypeForTask(taskType, azureAiStudioServiceSettings.provider(), azureAiStudioServiceSettings.endpointType());
         return model;

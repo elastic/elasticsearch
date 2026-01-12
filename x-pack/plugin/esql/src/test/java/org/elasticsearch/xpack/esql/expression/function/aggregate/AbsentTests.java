@@ -110,7 +110,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
         return new Absent(source, args.getFirst());
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             boolean absent = fieldTypedData.multiRowData().stream().allMatch(Objects::isNull);

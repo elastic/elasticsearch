@@ -55,7 +55,6 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
                 "cartesian_shape",
                 "date",
                 "date_nanos",
-                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",

@@ -103,7 +103,7 @@ public class CountTests extends AbstractAggregationTestCase {
         return new Count(source, args.get(0));
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
             long count;

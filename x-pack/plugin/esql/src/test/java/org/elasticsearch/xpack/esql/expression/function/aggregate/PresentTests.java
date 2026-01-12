@@ -110,7 +110,7 @@ public class PresentTests extends AbstractAggregationTestCase {
         return new Present(source, args.getFirst());
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             boolean present = fieldTypedData.multiRowData().stream().anyMatch(Objects::nonNull);

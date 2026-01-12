@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
 public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
@@ -22,16 +24,23 @@ public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
         MultilingualE5SmallInternalServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
-        if (chunkingSettings != null && chunkingSettings.maxChunkSize() != null) {
-            if (chunkingSettings.maxChunkSize() > E5_SMALL_MAX_WINDOW_SIZE) throw new IllegalArgumentException(
-                serviceSettings.modelId()
-                    + " does not support chunk sizes larger than "
-                    + E5_SMALL_MAX_WINDOW_SIZE
-                    + ". Requested chunk size: "
-                    + chunkingSettings.maxChunkSize()
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings));
+    }
+
+    public MultilingualE5SmallModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
+        var chunkingSettings = modelConfigurations.getChunkingSettings();
+
+        if (chunkingSettings != null
+            && chunkingSettings.maxChunkSize() != null
+            && chunkingSettings.maxChunkSize() > E5_SMALL_MAX_WINDOW_SIZE) throw new IllegalArgumentException(
+                Strings.format(
+                    "%s does not support chunk sizes larger than %d. Requested chunk size: %d",
+                    internalServiceSettings.modelId(),
+                    E5_SMALL_MAX_WINDOW_SIZE,
+                    chunkingSettings.maxChunkSize()
+                )
             );
-        }
     }
 
     @Override

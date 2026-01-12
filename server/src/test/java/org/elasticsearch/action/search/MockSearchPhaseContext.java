@@ -71,7 +71,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             5,
             null,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-            Map.of()
+            Map.of(),
+            false
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

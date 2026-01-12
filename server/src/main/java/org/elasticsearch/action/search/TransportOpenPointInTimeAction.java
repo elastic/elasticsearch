@@ -400,7 +400,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters,
                 searchResponseMetrics,
-                searchRequestAttributes
+                searchRequestAttributes,
+                false
             ) {
                 @Override
                 protected void executePhaseOnShard(

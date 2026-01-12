@@ -304,6 +304,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final FeatureFlag PIT_RELOCATION_FEATURE_FLAG = new FeatureFlag("pit_relocation_feature");
 
+    public static final Setting<Boolean> PIT_RELOCATION_ENABLED = Setting.boolSetting(
+        "search.pit_relocation_enabled",
+        PIT_RELOCATION_FEATURE_FLAG.isEnabled(),
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     /**
      * The size of the buffer used for memory accounting.
      * This buffer is used to locally track the memory accummulated during the execution of
@@ -348,6 +355,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean batchQueryPhase;
+
+    private volatile boolean pitRelocationEnabled;
 
     private final int minimumDocsPerSlice;
 
@@ -452,6 +461,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
         prewarmingMaxPoolFactorThreshold = PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE.get(settings);
+
+        if (PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+            pitRelocationEnabled = PIT_RELOCATION_ENABLED.get(settings);
+        } else {
+            pitRelocationEnabled = false;
+        }
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(PIT_RELOCATION_ENABLED, pitRelocationEnabled -> this.pitRelocationEnabled = pitRelocationEnabled);
+    }
+
+    public boolean isPitRelocationEnabled() {
+        return pitRelocationEnabled;
     }
 
     public CircuitBreaker getCircuitBreaker() {
@@ -1273,7 +1294,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 ReaderContext readerContext = null;
                 // don't handle contexts originating from the current SearchService session, they get added as normal temporary contexts
-                if (PIT_RELOCATION_FEATURE_FLAG.isEnabled() && sessionId.equals(contextId.getSessionId()) == false) {
+                if (pitRelocationEnabled && sessionId.equals(contextId.getSessionId()) == false) {
                     readerContext = createAndPutRelocatedPitContext(
                         contextId,
                         indexService,

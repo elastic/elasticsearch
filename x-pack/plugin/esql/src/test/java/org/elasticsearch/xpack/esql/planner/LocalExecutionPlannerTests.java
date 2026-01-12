@@ -69,6 +69,7 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -357,6 +358,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private Configuration config() {
         return new Configuration(
             randomZone(),
+            randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE)),
             randomLocale(random()),
             "test_user",
             "test_cluster",

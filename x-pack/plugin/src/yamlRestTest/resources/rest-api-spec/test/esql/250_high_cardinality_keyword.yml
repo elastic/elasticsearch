@@ -1,6 +1,10 @@
 ---
 setup:
   - requires:
+      capabilities:
+        - method: GET
+          path: /_data_stream/{target}
+          capabilities: [ 'mapper.keyword.high_cardinality_length_function_fuse_to_load' ]
       cluster_features: ["mapper.keyword.high_cardinality_length_function_fuse_to_load"]
       reason: "testing binary doc values search"
 

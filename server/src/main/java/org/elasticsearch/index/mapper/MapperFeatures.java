@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -125,5 +126,14 @@ public class MapperFeatures implements FeatureSpecification {
             HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE
         );
+    }
+
+    public static Set<String> getCapabilities() {
+        var capabilities = new HashSet<String>();
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            capabilities.add(STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES.id());
+            capabilities.add(HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD.id());
+        }
+        return capabilities;
     }
 }

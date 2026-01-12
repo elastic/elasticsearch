@@ -556,8 +556,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Index index = backingIndices.indices.get(i);
             IndexMetadata im = project.index(index);
 
-            // TODO: make index_mode, start and end time fields in IndexMetadata class.
-            // (this to avoid the overhead that occurs when reading a setting)
             if (im.getIndexMode() != IndexMode.TIME_SERIES) {
                 // Not a tsdb backing index, so skip.
                 // (This can happen if this is a migrated tsdb data stream)
@@ -566,6 +564,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
             Instant start = im.getTimeSeriesStart();
             Instant end = im.getTimeSeriesEnd();
+            assert start != null && end != null : "start and end markers cannot be null";
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;

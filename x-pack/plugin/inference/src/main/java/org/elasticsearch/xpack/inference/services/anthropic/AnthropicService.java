@@ -58,8 +58,7 @@ public class AnthropicService extends SenderService {
     private static final String SERVICE_NAME = "Anthropic";
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION);
-
-    private static final AnthropicModelCreator MODEL_CREATOR = new AnthropicModelCreator() {
+    private static final Map<TaskType, AnthropicModelCreator> MODEL_CREATORS = Map.of(TaskType.COMPLETION, new AnthropicModelCreator() {
         @Override
         public AnthropicChatCompletionModel createFromMaps(
             String inferenceId,
@@ -78,7 +77,7 @@ public class AnthropicService extends SenderService {
         public AnthropicChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
             return new AnthropicChatCompletionModel(config, secrets);
         }
-    };
+    });
 
     public AnthropicService(
         HttpRequestSender.Factory factory,
@@ -153,20 +152,11 @@ public class AnthropicService extends SenderService {
         ConfigurationParseContext context
     ) {
 
-        if (SUPPORTED_TASK_TYPES.contains(taskType)) {
-            return MODEL_CREATOR.createFromMaps(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                null,
-                secretSettings,
-                context
-            );
-        } else {
+        var creator = MODEL_CREATORS.get(taskType);
+        if (creator == null) {
             throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         }
+        return creator.createFromMaps(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, null, secretSettings, context);
     }
 
     @Override
@@ -185,9 +175,8 @@ public class AnthropicService extends SenderService {
 
     @Override
     public AnthropicModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType())) {
-            return MODEL_CREATOR.createFromModelConfigurationsAndSecrets(config, secrets);
-        } else {
+        var creator = MODEL_CREATORS.get(config.getTaskType());
+        if (creator == null) {
             throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
                 NAME,
@@ -195,6 +184,7 @@ public class AnthropicService extends SenderService {
                 ConfigurationParseContext.PERSISTENT
             );
         }
+        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

@@ -73,7 +73,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
     public static final String NAME = AlibabaCloudSearchUtils.SERVICE_NAME;
     private static final String SERVICE_NAME = "AlibabaCloud AI Search";
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.SPARSE_EMBEDDING,
         TaskType.RERANK,
@@ -274,7 +274,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     private static AlibabaCloudSearchModel createModelWithoutLoggingDeprecations(
@@ -511,7 +511,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
                 configurationMap.put(
                     SERVICE_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model service to use for the {infer} task."
                     )
                         .setLabel("Project ID")
@@ -524,7 +524,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
                 configurationMap.put(
                     HOST,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the host address used for the {infer} task. You can find the host address at "
                             + "https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] "
                             + "of the documentation."
@@ -539,7 +539,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
                 configurationMap.put(
                     HTTP_SCHEMA_NAME,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("")
                         .setLabel("HTTP Schema")
                         .setRequired(false)
                         .setSensitive(false)
@@ -550,7 +550,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
                 configurationMap.put(
                     WORKSPACE_NAME,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the workspace used for the {infer} task."
                     )
                         .setLabel("Workspace")
@@ -564,14 +564,14 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
                 configurationMap.putAll(
                     DefaultSecretSettings.toSettingsConfigurationWithDescription(
                         "A valid API key for the AlibabaCloud AI Search API.",
-                        supportedTaskTypes
+                        SUPPORTED_TASK_TYPES
                     )
                 );
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

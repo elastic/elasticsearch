@@ -79,7 +79,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
     public static final String NAME = "azureaistudio";
 
     private static final String SERVICE_NAME = "Azure AI Studio";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -351,7 +351,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -504,7 +504,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
 
                 configurationMap.put(
                     TARGET_FIELD,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The target URL of your Azure AI Studio model deployment."
                     )
                         .setLabel("Target")
@@ -517,7 +517,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
 
                 configurationMap.put(
                     ENDPOINT_TYPE_FIELD,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "Specifies the type of endpoint that is used in your model deployment."
                     )
                         .setLabel("Endpoint Type")
@@ -530,7 +530,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
                         .setRequired(true)
                         .setSensitive(false)
@@ -553,12 +553,12 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

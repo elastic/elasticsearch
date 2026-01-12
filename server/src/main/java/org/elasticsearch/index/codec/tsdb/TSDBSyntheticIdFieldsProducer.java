@@ -20,6 +20,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -250,6 +251,16 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                             nextDocTsIdOrd = docValues.docTsIdOrdinal(nextDocID);
                         }
                         if (nextDocTsIdOrd == tsIdOrd && nextDocTimestamp == timestamp) {
+                            if (Assertions.ENABLED) {
+                                // _ts_routing_hash read from doc values
+                                var routingHashDVBytes = docValues.docRoutingHash(nextDocID);
+                                int routingHashDV = TimeSeriesRoutingHashFieldMapper.decode(
+                                    Uid.decodeId(routingHashDVBytes.bytes, routingHashDVBytes.offset, routingHashDVBytes.length)
+                                );
+                                // _ts_routing_hash from the synthetic id
+                                int routingHashSyntheticId = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(id);
+                                assert Objects.equals(routingHashDV, routingHashSyntheticId): routingHashDV + "!=" + routingHashSyntheticId;
+                            }
                             // Document is found
                             docID = nextDocID;
                             docTsIdOrd = nextDocTsIdOrd;
@@ -276,7 +287,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             if (docTimestamp == null) {
                 docTimestamp = docValues.docTimestamp(docID);
             }
-            return syntheticId(docValues.lookupTsIdOrd(docTsIdOrd), docTimestamp, docValues.docRoutingHash(docID));
+            return docValues.docSyntheticId(docID, docTsIdOrd, docTimestamp);
         }
 
         @Override
@@ -415,15 +426,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         public BytesRef getPayload() throws IOException {
             return null; // not supported
         }
-    }
-
-    private static BytesRef syntheticId(BytesRef tsId, long timestamp, BytesRef routingHashBytes) {
-        assert tsId != null;
-        assert timestamp > 0L;
-        assert routingHashBytes != null;
-        String routingHashString = Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length);
-        int routingHash = TimeSeriesRoutingHashFieldMapper.decode(routingHashString);
-        return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(tsId, timestamp, routingHash);
     }
 
     private static boolean assertFieldInfosExist(FieldInfos fieldInfos, String... fieldNames) {

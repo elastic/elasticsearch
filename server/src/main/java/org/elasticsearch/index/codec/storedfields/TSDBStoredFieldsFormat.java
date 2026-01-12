@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 
 import java.io.Closeable;
@@ -35,10 +36,12 @@ import java.util.List;
  * Composite stored fields format for {@code TIME_SERIES} indices that combines bloom filter optimization
  * for document ID lookups with standard field storage.
  *
- * <p>This format uses a two-layer approach:
+ * <p>This format uses a multi-layer approach:
  * <ul>
  *   <li>{@link ES93BloomFilterStoredFieldsFormat} - Creates a bloom filter index on the {@code _id}
  *       field to enable fast document existence checks and skips storing the _id</li>
+ *   <li>{@link TSDBSyntheticIdStoredFieldsReader} - Provides a {@link StoredFieldsReader} that materializes synthetic _id fields on-demand
+ *   from other doc values fields</li>
  *   <li>Delegate {@link StoredFieldsFormat} - Handles storage and retrieval of all other fields
  *       using the standard format</li>
  * </ul>
@@ -200,18 +203,22 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
     class TSDBStoredFieldsReader extends StoredFieldsReader implements BloomFilter {
         private final StoredFieldsReader storedFieldsReader;
+        private final StoredFieldsReader syntheticIdStoredFieldsReader; // null if no synthetic _id
         private final StoredFieldsReader bloomFilterStoredFieldsReader;
         private final BloomFilter bloomFilter;
 
         TSDBStoredFieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
             boolean success = false;
-            List<Closeable> toClose = new ArrayList<>(2);
+            List<Closeable> toClose = new ArrayList<>(3);
             try {
                 this.storedFieldsReader = delegate.fieldsReader(directory, si, fn, context);
                 toClose.add(this.storedFieldsReader);
+                // Do we need to check again if _id is synthetic in field infos?
+                this.syntheticIdStoredFieldsReader = TSDBSyntheticIdStoredFieldsReader.open(directory, si, fn, context);
+                toClose.add(this.syntheticIdStoredFieldsReader);
                 this.bloomFilterStoredFieldsReader = bloomFilterStoredFieldsFormat.fieldsReader(directory, si, fn, context);
-                this.bloomFilter = (BloomFilter) bloomFilterStoredFieldsReader;
                 toClose.add(this.bloomFilterStoredFieldsReader);
+                this.bloomFilter = (BloomFilter) bloomFilterStoredFieldsReader;
                 success = true;
             } finally {
                 if (success == false) {
@@ -220,8 +227,14 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             }
         }
 
-        TSDBStoredFieldsReader(StoredFieldsReader storedFieldsReader, StoredFieldsReader bloomFilterStoredFieldsReader) {
+        TSDBStoredFieldsReader(
+            StoredFieldsReader storedFieldsReader,
+            StoredFieldsReader syntheticIdStoredFieldsReader,
+            StoredFieldsReader bloomFilterStoredFieldsReader
+        ) {
             this.storedFieldsReader = storedFieldsReader;
+            assert syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader: syntheticIdStoredFieldsReader;
+            this.syntheticIdStoredFieldsReader = syntheticIdStoredFieldsReader;
             this.bloomFilterStoredFieldsReader = bloomFilterStoredFieldsReader;
             assert bloomFilterStoredFieldsReader instanceof BloomFilter;
             this.bloomFilter = (BloomFilter) bloomFilterStoredFieldsReader;
@@ -229,23 +242,32 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public StoredFieldsReader clone() {
-            return new TSDBStoredFieldsReader(storedFieldsReader.clone(), bloomFilterStoredFieldsReader.clone());
+            return new TSDBStoredFieldsReader(
+                storedFieldsReader.clone(),
+                syntheticIdStoredFieldsReader.clone(),
+                bloomFilterStoredFieldsReader.clone()
+            );
         }
 
         @Override
         public StoredFieldsReader getMergeInstance() {
-            return new TSDBStoredFieldsReader(storedFieldsReader.getMergeInstance(), bloomFilterStoredFieldsReader.getMergeInstance());
+            return new TSDBStoredFieldsReader(
+                storedFieldsReader.getMergeInstance(),
+                syntheticIdStoredFieldsReader.getMergeInstance(),
+                bloomFilterStoredFieldsReader.getMergeInstance()
+            );
         }
 
         @Override
         public void checkIntegrity() throws IOException {
             storedFieldsReader.checkIntegrity();
+            syntheticIdStoredFieldsReader.checkIntegrity();
             bloomFilterStoredFieldsReader.checkIntegrity();
         }
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(storedFieldsReader, bloomFilterStoredFieldsReader);
+            IOUtils.close(storedFieldsReader, syntheticIdStoredFieldsReader, bloomFilterStoredFieldsReader);
         }
 
         @Override
@@ -254,6 +276,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             // therefore we call first to the bloom filter reader so we can synthesize the _id
             // and read it in the expected order.
             bloomFilterStoredFieldsReader.document(docID, visitor);
+            syntheticIdStoredFieldsReader.document(docID, visitor);
             storedFieldsReader.document(docID, visitor);
         }
 

@@ -193,7 +193,7 @@ public class ApproximationTests extends ESTestCase {
 
     public void testVerify_incompatibleSourceCommand() {
         assertError("SHOW INFO | STATS COUNT()", equalTo("line 1:1: query with [SHOWINFO] cannot be approximated"));
-        assertError("TS test | STATS COUNT(emp_no)", equalTo("line 1:11: query with [TIMESERIESAGGREGATE] cannot be approximated"));
+        assertError("TS k8s | STATS COUNT(network.cost)", equalTo("line 1:10: query with [TIMESERIESAGGREGATE] cannot be approximated"));
     }
 
     public void testVerify_incompatibleProcessingCommand() {

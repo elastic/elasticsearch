@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -155,7 +154,6 @@ public class Approximation {
         Dissect.class,
         Drop.class,
         Enrich.class,
-        EsqlProject.class,
         EsRelation.class,
         Eval.class,
         Filter.class,
@@ -183,7 +181,6 @@ public class Approximation {
         Dissect.class,
         Drop.class,
         Enrich.class,
-        EsqlProject.class,
         Eval.class,
         Grok.class,
         Insist.class,

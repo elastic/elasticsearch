@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,6 +91,22 @@ public class KnnIndexTester {
         GPU_HNSW
     }
 
+    enum VectorEncoding {
+        BYTE(org.apache.lucene.index.VectorEncoding.BYTE),
+        FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32),
+        BFLOAT16(org.apache.lucene.index.VectorEncoding.FLOAT32);
+
+        private final org.apache.lucene.index.VectorEncoding luceneEncoding;
+
+        VectorEncoding(org.apache.lucene.index.VectorEncoding luceneEncoding) {
+            this.luceneEncoding = luceneEncoding;
+        }
+
+        public org.apache.lucene.index.VectorEncoding luceneEncoding() {
+            return luceneEncoding;
+        }
+    }
+
     enum MergePolicyType {
         TIERED,
         LOG_BYTE,
@@ -119,6 +136,11 @@ public class KnnIndexTester {
     static Codec createCodec(TestConfiguration args) {
         final KnnVectorsFormat format;
         int quantizeBits = args.quantizeBits();
+        DenseVectorFieldMapper.ElementType elementType = switch (args.vectorEncoding()) {
+            case BYTE -> DenseVectorFieldMapper.ElementType.BYTE;
+            case FLOAT32 -> DenseVectorFieldMapper.ElementType.FLOAT;
+            case BFLOAT16 -> DenseVectorFieldMapper.ElementType.BFLOAT16;
+        };
         if (args.indexType() == IndexType.IVF) {
             ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
                 case (1) -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
@@ -132,8 +154,10 @@ public class KnnIndexTester {
                 encoding,
                 args.ivfClusterSize(),
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                args.onDiskRescore()
+                elementType,
+                args.onDiskRescore(),
+                null,
+                1
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {
@@ -146,29 +170,18 @@ public class KnnIndexTester {
         } else {
             if (quantizeBits == 1) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93BinaryQuantizedVectorsFormat();
+                    format = new ES93BinaryQuantizedVectorsFormat(elementType, false);
                 } else {
-                    format = new ES93HnswBinaryQuantizedVectorsFormat(
-                        args.hnswM(),
-                        args.hnswEfConstruction(),
-                        DenseVectorFieldMapper.ElementType.FLOAT,
-                        false
-                    );
+                    format = new ES93HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, false);
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93ScalarQuantizedVectorsFormat(
-                        DenseVectorFieldMapper.ElementType.FLOAT,
-                        null,
-                        quantizeBits,
-                        true,
-                        false
-                    );
+                    format = new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
                 } else {
                     format = new ES93HnswScalarQuantizedVectorsFormat(
                         args.hnswM(),
                         args.hnswEfConstruction(),
-                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        elementType,
                         null,
                         quantizeBits,
                         true,
@@ -176,7 +189,7 @@ public class KnnIndexTester {
                     );
                 }
             } else {
-                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), DenseVectorFieldMapper.ElementType.FLOAT);
+                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType);
             }
         }
         return new Lucene103Codec() {
@@ -314,7 +327,7 @@ public class KnnIndexTester {
                     indexPath,
                     codec,
                     testConfiguration.indexThreads(),
-                    testConfiguration.vectorEncoding(),
+                    testConfiguration.vectorEncoding().luceneEncoding,
                     testConfiguration.dimensions(),
                     testConfiguration.vectorSpace(),
                     testConfiguration.numDocs(),
@@ -362,24 +375,16 @@ public class KnnIndexTester {
     }
 
     private static MergePolicy getMergePolicy(TestConfiguration args) {
-        MergePolicy mergePolicy = null;
-        if (args.mergePolicy() != null) {
-            if (args.mergePolicy() == MergePolicyType.TIERED) {
-                mergePolicy = new TieredMergePolicy();
-            } else if (args.mergePolicy() == MergePolicyType.LOG_BYTE) {
-                mergePolicy = new LogByteSizeMergePolicy();
-            } else if (args.mergePolicy() == MergePolicyType.NO) {
-                mergePolicy = NoMergePolicy.INSTANCE;
-            } else if (args.mergePolicy() == MergePolicyType.LOG_DOC) {
-                mergePolicy = new LogDocMergePolicy();
-            } else {
-                throw new IllegalArgumentException("Invalid merge policy: " + args.mergePolicy());
-            }
-        }
-        return mergePolicy;
+        return switch (args.mergePolicy()) {
+            case null -> null;
+            case TIERED -> new TieredMergePolicy();
+            case LOG_BYTE -> new LogByteSizeMergePolicy();
+            case NO -> NoMergePolicy.INSTANCE;
+            case LOG_DOC -> new LogDocMergePolicy();
+        };
     }
 
-    static void numSegments(Path indexPath, KnnIndexTester.Results result) {
+    static void numSegments(Path indexPath, Results result) {
         try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
         } catch (IOException e) {
@@ -547,7 +552,7 @@ public class KnnIndexTester {
     }
 
     static final class ThreadDetails {
-        private static final ThreadMXBean threadBean = (ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        private static final ThreadMXBean threadBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
         public final long[] threadIDs;
         public final long[] cpuTimesNS;
         public final ThreadInfo[] threadInfos;

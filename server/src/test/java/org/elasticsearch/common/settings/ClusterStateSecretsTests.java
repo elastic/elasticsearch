@@ -149,12 +149,12 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
         for (int i = 0; i < size; i++) {
             secureSettings.setFile(randomAlphaOfLength(10), randomAlphaOfLength(15).getBytes(StandardCharsets.UTF_8));
         }
-        return new ClusterSecrets(version, new SecureClusterStateSettings(secureSettings));
+        return new ClusterSecrets(version, secureSettings.toSecureClusterStateSettings());
     }
 
     @Override
     protected ClusterSecrets mutateInstance(ClusterSecrets instance) throws IOException {
-        return new ClusterSecrets(instance.getVersion() + 1L, new SecureClusterStateSettings(instance.getSettings()));
+        return new ClusterSecrets(instance.getVersion() + 1L, (SecureClusterStateSettings) instance.getSettings());
     }
 
     @Override

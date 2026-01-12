@@ -34,7 +34,7 @@ public class ProjectSecretsTests extends AbstractNamedWriteableTestCase<ProjectS
         // string or file
         mockSecureSettings.setFile("foo", "bar".getBytes(StandardCharsets.UTF_8));
         mockSecureSettings.setFile("goo", "baz".getBytes(StandardCharsets.UTF_8));
-        secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
+        secureClusterStateSettings = mockSecureSettings.toSecureClusterStateSettings();
     }
 
     public void testGetSettings() throws Exception {
@@ -77,7 +77,7 @@ public class ProjectSecretsTests extends AbstractNamedWriteableTestCase<ProjectS
         for (int i = 0; i < size; i++) {
             secureSettings.setFile(randomAlphaOfLength(10), randomAlphaOfLength(15).getBytes(StandardCharsets.UTF_8));
         }
-        return new ProjectSecrets(new SecureClusterStateSettings(secureSettings));
+        return new ProjectSecrets(secureSettings.toSecureClusterStateSettings());
     }
 
     @Override
@@ -87,7 +87,7 @@ public class ProjectSecretsTests extends AbstractNamedWriteableTestCase<ProjectS
             updatedSettings.setFile(settingName, instance.getSettings().getString(settingName).toString().getBytes(StandardCharsets.UTF_8));
         }
         updatedSettings.setFile(randomAlphaOfLength(9), randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
-        return new ProjectSecrets(new SecureClusterStateSettings(updatedSettings));
+        return new ProjectSecrets(updatedSettings.toSecureClusterStateSettings());
     }
 
     @Override

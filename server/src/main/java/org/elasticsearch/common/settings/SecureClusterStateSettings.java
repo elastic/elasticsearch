@@ -64,7 +64,11 @@ public class SecureClusterStateSettings implements SecureSettings {
     private @Nullable Map<String, Secret> secrets;
     private final Set<String> secretNames;
 
-    // Use for testing only!
+    /**
+     * Do NOT use, this will be removed as part of ES-13910.
+     * @deprecated  For testing, use {@code new MockSecureSettings().toSecureClusterStateSettings()} instead.
+     */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public SecureClusterStateSettings(SecureSettings secureSettings) {
         this(

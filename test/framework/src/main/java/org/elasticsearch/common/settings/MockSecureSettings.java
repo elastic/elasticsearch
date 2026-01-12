@@ -10,6 +10,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.ByteArrayInputStream;
@@ -75,6 +76,10 @@ public class MockSecureSettings implements SecureSettings {
 
     public void setString(String setting, String value) {
         ensureOpen();
+        if (files.containsKey(setting)) {
+            throw new IllegalArgumentException("Secure setting [" + setting + "] already present as file setting.");
+        }
+        settingNames.add(setting);
         secureStrings.put(setting, value);
         sha256Digests.put(setting, MessageDigests.sha256().digest(value.getBytes(StandardCharsets.UTF_8)));
         settingNames.add(setting);
@@ -82,6 +87,9 @@ public class MockSecureSettings implements SecureSettings {
 
     public void setFile(String setting, byte[] value) {
         ensureOpen();
+        if (secureStrings.containsKey(setting)) {
+            throw new IllegalArgumentException("Secure setting [" + setting + "] already present as string setting.");
+        }
         files.put(setting, value);
         sha256Digests.put(setting, MessageDigests.sha256().digest(value));
         settingNames.add(setting);
@@ -120,4 +128,27 @@ public class MockSecureSettings implements SecureSettings {
     public void writeTo(StreamOutput out) throws IOException {
         throw new IllegalStateException("Not supported, implement me!");
     }
+
+    public SecureClusterStateSettings toSecureClusterStateSettings() {
+        BytesStreamOutput out = new BytesStreamOutput();
+        try {
+            out.writeVInt(settingNames.size());
+            if (settingNames.size() > 0) {
+                for (var setting : settingNames) {
+                    out.writeString(setting);
+                    if (files.containsKey(setting)) {
+                        out.writeByteArray(files.get(setting));
+                    } else {
+                        out.writeByteArray(secureStrings.get(setting).getBytes(StandardCharsets.UTF_8));
+                    }
+                    out.writeByteArray(sha256Digests.get(setting));
+                }
+            }
+            return new SecureClusterStateSettings(out.bytes().streamInput());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
 }

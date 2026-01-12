@@ -167,7 +167,8 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
-         * Support for Optional fields FAIL/NULLIFY options.
+         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
+         * capability until we enable the LOAD option mentioned above.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 

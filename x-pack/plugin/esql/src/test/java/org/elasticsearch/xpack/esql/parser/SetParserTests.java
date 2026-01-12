@@ -208,26 +208,20 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSetUnmappedFields_snapshot() {
         assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        assumeTrue("SET command required", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        assumeTrue("OPTIONAL_FIELDS option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+
         var modes = List.of("FAIL", "NULLIFY", "LOAD");
+        verifySetUnmappedFields(modes);
         assertThat(modes.size(), is(UnmappedResolution.values().length));
-        for (var mode : modes) {
-            EsqlStatement statement = statement("SET unmapped_fields=\"" + randomizeCase(mode) + "\"; row a = 1");
-            assertThat(statement.setting(UNMAPPED_FIELDS), is(UnmappedResolution.valueOf(mode)));
-            assertThat(statement.plan(), is(instanceOf(Row.class)));
-        }
     }
 
     public void testSetUnmappedFields_nonSnapshot() {
         assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         assumeTrue("Non-snapshot mode required", Build.current().isSnapshot() == false);
         assumeTrue("Requires optional fields tech preview", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
-        var modes = List.of("FAIL", "NULLIFY");
-        for (var mode : modes) {
-            EsqlStatement statement = statement("SET unmapped_fields=\"" + randomizeCase(mode) + "\"; row a = 1");
-            assertThat(statement.setting(UNMAPPED_FIELDS), is(UnmappedResolution.valueOf(mode)));
-            assertThat(statement.plan(), is(instanceOf(Row.class)));
-        }
+
+        verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
+
         try {
             statement("SET unmapped_fields=\"" + randomizeCase(UnmappedResolution.LOAD.name()) + "\"; row a = 1");
             fail("ParsingException expected");
@@ -239,6 +233,14 @@ public class SetParserTests extends AbstractStatementParserTests {
                         + "must be one of [FAIL, NULLIFY]"
                 )
             );
+        }
+    }
+
+    private void verifySetUnmappedFields(List<String> modes) {
+        for (var mode : modes) {
+            EsqlStatement statement = statement("SET unmapped_fields=\"" + randomizeCase(mode) + "\"; row a = 1");
+            assertThat(statement.setting(UNMAPPED_FIELDS), is(UnmappedResolution.valueOf(mode)));
+            assertThat(statement.plan(), is(instanceOf(Row.class)));
         }
     }
 

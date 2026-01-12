@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -64,24 +63,6 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         this.start = start;
         this.end = end;
         this.params = params;
-    }
-
-    private String resolveParamValue(TerminalNode node) {
-        if (node == null || params == null) {
-            return null;
-        }
-
-        String text = node.getText();
-        String nameOrPosition = text.substring(1); // Remove leading '?'
-        Source source = source(node);
-
-        QueryParam param = ExpressionBuilder.paramByNameOrPosition(params, source, nameOrPosition);
-
-        if (param == null || param.value() == null) {
-            throw new ParsingException(source, "Parameter [{}] has no value", text);
-        }
-
-        return param.value().toString();
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -223,9 +204,24 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Duration visitTimeValue(TimeValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
-            String paramValue = resolveParamValue(ctx.NAMED_OR_POSITIONAL_PARAM());
+            QueryParam param = ExpressionBuilder.paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM(), params);
+            if (param == null) {
+                throw new ParsingException(
+                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
+                    "No value found for parameter [{}]",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+                );
+            }
+            if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
+                throw new ParsingException(
+                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
+                    "Expected parameter [{}] to be of type string, but found [{}]",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText(),
+                    param.type()
+                );
+            }
             Source source = source(ctx.NAMED_OR_POSITIONAL_PARAM());
-            return parseTimeValue(source, paramValue);
+            return parseTimeValue(source, param.value().toString());
         }
 
         if (ctx.number() != null) {

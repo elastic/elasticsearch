@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramsAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -265,14 +266,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testNamedParameterInDuration() {
         PromqlCommand promql = as(
-            parser.parseQuery(
-                "PROMQL index=test step=10m rate(http_requests_total[?_duration])",
-                new QueryParams(
-                    List.of(
-                        paramAsConstant("_duration", "10m")
-                    )
-                )
-            ),
+            parser.parseQuery("PROMQL index=test step=10m rate(http_requests_total[?_duration])", paramsAsConstant("_duration", "10m")),
             PromqlCommand.class
         );
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(10)));
@@ -283,14 +277,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testPositionalParameterInDuration() {
         PromqlCommand promql = as(
-            parser.parseQuery(
-                "PROMQL index=test step=15m rate(http_requests_total[?1])",
-                new QueryParams(
-                    List.of(
-                        paramAsConstant(null, "15m")
-                    )
-                )
-            ),
+            parser.parseQuery("PROMQL index=test step=15m rate(http_requests_total[?1])", paramsAsConstant(null, "15m")),
             PromqlCommand.class
         );
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(15)));
@@ -301,14 +288,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testSameParameterUsedMultipleTimes() {
         PromqlCommand promql = as(
-            parser.parseQuery(
-                "PROMQL index=test step=?_step rate(foo[?_step]) + rate(bar[?_step])",
-                new QueryParams(
-                    List.of(
-                        paramAsConstant("_step", "5m")
-                    )
-                )
-            ),
+            parser.parseQuery("PROMQL index=test step=?_step rate(foo[?_step]) + rate(bar[?_step])", paramsAsConstant("_step", "5m")),
             PromqlCommand.class
         );
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
@@ -322,27 +302,33 @@ public class PromqlParserTests extends ESTestCase {
     public void testUnknownParameterInDurationError() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parser.parseQuery(
-                "PROMQL index=test step=5m rate(foo[?_unknown])",
-                new QueryParams(List.of())
-            )
+            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_unknown])", new QueryParams(List.of()))
         );
-        assertThat(e.getMessage(), containsString("Unknown query parameter"));
+        assertThat(e.getMessage(), containsString("No value found for parameter [?_unknown]"));
     }
 
     public void testParameterWithInvalidDurationValue() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parser.parseQuery(
-                "PROMQL index=test step=5m rate(foo[?_bad])",
-                new QueryParams(
-                    List.of(
-                        paramAsConstant("_bad", "not_a_duration")
-                    )
-                )
-            )
+            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", "not_a_duration"))
         );
         assertThat(e.getMessage(), containsString("Invalid time duration"));
+    }
+
+    public void testParameterWithListType() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", List.of("1m", "5m")))
+        );
+        assertThat(e.getMessage(), containsString("Invalid time duration"));
+    }
+
+    public void testParameterWithInvalidType() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", 42))
+        );
+        assertThat(e.getMessage(), containsString("Expected parameter [?_bad] to be of type string, but found [INTEGER]"));
     }
 
     private static PromqlCommand parse(String query) {

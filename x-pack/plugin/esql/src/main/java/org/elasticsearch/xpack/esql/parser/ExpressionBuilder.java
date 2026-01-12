@@ -1205,6 +1205,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     QueryParam paramByNameOrPosition(TerminalNode node) {
+        return paramByNameOrPosition(node, context.params());
+    }
+
+    public static QueryParam paramByNameOrPosition(TerminalNode node, QueryParams params) {
         if (node == null) {
             return null;
         }
@@ -1213,45 +1217,26 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String nameOrPosition = nameOrPosition(token);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
-            if (context.params().get(index) == null) {
+            if (params.get(index) == null) {
                 String message = "";
-                int np = context.params().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                context.params()
+                params
                     .addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
             }
-            return context.params().get(index);
+            return params.get(index);
         } else {
-            if (context.params().contains(nameOrPosition) == false) {
+            if (params.contains(nameOrPosition) == false) {
                 String message = "";
-                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, context.params().namedParams().keySet());
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
                 if (potentialMatches.size() > 0) {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                context.params()
+                params
                     .addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
-            }
-            return context.params().get(nameOrPosition);
-        }
-    }
-
-    public static QueryParam paramByNameOrPosition(QueryParams params, Source source, String nameOrPosition) {
-        if (params == null || nameOrPosition == null) {
-            return null;
-        }
-        if (isInteger(nameOrPosition)) {
-            int index = Integer.parseInt(nameOrPosition);
-            QueryParam param = params.get(index);
-            if (param == null) {
-                throw new ParsingException(source, "No parameter is defined for position [{}]", index);
-            }
-            return param;
-        } else {
-            if (params.contains(nameOrPosition) == false) {
-                throw new ParsingException(source, "Unknown query parameter [{}]", nameOrPosition);
             }
             return params.get(nameOrPosition);
         }

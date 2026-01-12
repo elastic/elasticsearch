@@ -93,7 +93,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NOT_PREFERRED,
                 NAME,
-                "Node [%s] is currently hotspotting and in a waiting period, and does not prefer shards moved onto it",
+                "Node [%s] is currently hotspotting or in a waiting period, and does not prefer shards moved onto it",
                 node.nodeId()
             );
         }

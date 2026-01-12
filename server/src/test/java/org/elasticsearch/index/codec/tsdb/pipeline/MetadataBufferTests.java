@@ -83,18 +83,7 @@ public class MetadataBufferTests extends ESTestCase {
     public void testVIntBoundaryValues() {
         final MetadataBuffer buffer = new MetadataBuffer();
 
-        final int[] boundaryValues = {
-            0,
-            1,
-            0x7F,
-            0x80,
-            0x3FFF,
-            0x4000,
-            0x1FFFFF,
-            0x200000,
-            0x0FFFFFFF,
-            0x10000000,
-            Integer.MAX_VALUE };
+        final int[] boundaryValues = { 0, 1, 0x7F, 0x80, 0x3FFF, 0x4000, 0x1FFFFF, 0x200000, 0x0FFFFFFF, 0x10000000, Integer.MAX_VALUE };
 
         for (final int value : boundaryValues) {
             buffer.writeVInt(value);

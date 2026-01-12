@@ -674,12 +674,15 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 // master failover to resync them in this case. The nacks happen when the blackholed requests are processed.
 
                 while (leader.deliverBlackholedRequests()) {
-                    // processing the requests takes a few steps - 10 is more than enough
-                    cluster.runFor(DEFAULT_DELAY_VARIABILITY * 10, "processing blackholed cluster state update requests");
+                    // two tasks: (i) deliver the error response, and then (ii) handle it
+                    cluster.runFor(DEFAULT_DELAY_VARIABILITY * 2, "processing blackholed cluster state update requests");
                 }
 
                 assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
                 assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
+
+                // one more task delay for the final ack
+                cluster.runFor(DEFAULT_DELAY_VARIABILITY, "processing final ack from leader");
                 assertTrue("expected ack from leader, " + leader, ackCollector.hasAckedSuccessfully(leader));
 
                 leader.submitValue(randomLong());

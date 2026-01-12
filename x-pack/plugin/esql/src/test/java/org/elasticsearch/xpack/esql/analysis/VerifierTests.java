@@ -749,6 +749,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
     }
 
+    public void testDropUnknownPattern() {
+        assertEquals("1:18: No matches found for pattern [foobar*]", error("from test | drop foobar*"));
+    }
+
     public void testNonStringFieldsInDissect() {
         assertEquals(
             "1:21: Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
@@ -1193,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );

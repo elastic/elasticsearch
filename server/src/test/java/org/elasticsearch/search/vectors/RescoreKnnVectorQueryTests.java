@@ -319,7 +319,14 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             DenseVectorFieldMapper.ElementType.BFLOAT16
         );
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, elementType, randomBoolean()),
+            new ES920DiskBBQVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                randomBoolean(),
+                null,
+                1
+            ),
             new ES93BinaryQuantizedVectorsFormat(elementType, false),
             new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
             new ES93ScalarQuantizedVectorsFormat(elementType),

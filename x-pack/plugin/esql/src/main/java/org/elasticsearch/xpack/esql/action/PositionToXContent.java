@@ -125,22 +125,28 @@ public abstract class PositionToXContent {
                     return builder.value(ipToString(val));
                 }
             };
-            case DATETIME -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    long longVal = ((LongBlock) block).getLong(valueIndex);
-                    return builder.value(DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId).formatMillis(longVal));
-                }
-            };
-            case DATE_NANOS -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    long longVal = ((LongBlock) block).getLong(valueIndex);
-                    return builder.value(DEFAULT_DATE_NANOS_FORMATTER.withZone(zoneId).formatNanos(longVal));
-                }
-            };
+            case DATETIME -> {
+                var dateTimeFormatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
+                yield new PositionToXContent(block) {
+                    @Override
+                    protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                        throws IOException {
+                        long longVal = ((LongBlock) block).getLong(valueIndex);
+                        return builder.value(dateTimeFormatter.formatMillis(longVal));
+                    }
+                };
+            }
+            case DATE_NANOS -> {
+                var dateNanosFormatter = DEFAULT_DATE_NANOS_FORMATTER.withZone(zoneId);
+                yield new PositionToXContent(block) {
+                    @Override
+                    protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                        throws IOException {
+                        long longVal = ((LongBlock) block).getLong(valueIndex);
+                        return builder.value(dateNanosFormatter.formatNanos(longVal));
+                    }
+                };
+            }
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)

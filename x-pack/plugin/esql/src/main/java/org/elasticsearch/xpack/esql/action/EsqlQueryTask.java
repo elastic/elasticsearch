@@ -56,7 +56,7 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
             getExecutionId().getEncoded(),
             true,
             true,
-            ZoneOffset.UTC,
+            ZoneOffset.UTC, // TODO: Retrieve the actual query timezone if we want to return early results
             getStartTime(),
             getExpirationTimeMillis(),
             executionInfo

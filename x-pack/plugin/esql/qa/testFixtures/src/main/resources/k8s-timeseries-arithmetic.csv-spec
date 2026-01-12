@@ -27,6 +27,7 @@ network_in_bits:double | step:datetime            | _timeseries:keyword
 7576.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 multiplication_metric_scalar_ts
+required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
 TS k8s
 | STATS network_in_bits = network.total_bytes_in * 8
@@ -72,6 +73,7 @@ max_bits:double | step:datetime
 86376.0         | 2024-05-10T00:00:00.000Z
 ;
 across_series_multiplication_metric_scalar_ts
+required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
 TS k8s
 | STATS max_bits=max(last_over_time(network.total_bytes_in) * 8) BY step=TBUCKET(1h)
@@ -91,6 +93,7 @@ max_bits:double | step:datetime
 86376.0         | 2024-05-10T00:00:00.000Z
 ;
 multiplication_across_series_scalar_ts
+required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
 TS k8s
 | STATS max_bits=max(network.total_bytes_in) * 8 BY step=TBUCKET(1h)
@@ -101,6 +104,7 @@ max_bits:long | step:datetime
 ;
 
 across_series_grouping_multiplication_within_series_scalar_ts
+required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
 TS k8s
 | STATS max_bits=max(last_over_time(network.total_bytes_in) * 8) BY TBUCKET(1h), cluster 
@@ -124,6 +128,7 @@ max_bits:double | step:datetime            | cluster:keyword
 ;
 
 across_series_grouping_multiplication_metric_scalar_ts
+required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
 TS k8s
 | STATS max_bits=max(last_over_time(network.total_bytes_in) * 8) BY TBUCKET(1h), cluster
@@ -171,6 +176,7 @@ max_bits:double | step:datetime            | cluster:keyword
 59224.0         | 2024-05-10T00:00:00.000Z | staging
 ;
 multiplication_across_series_grouping_within_series_scalar_ts
+required_capability: ts_command_v0
 required_capability: ts_stats_binary_ops
 TS k8s
 | STATS max_bits=max(last_over_time(network.total_bytes_in)) * 8 BY step=TBUCKET(1h), cluster

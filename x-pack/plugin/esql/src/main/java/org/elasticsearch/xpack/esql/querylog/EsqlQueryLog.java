@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
@@ -52,16 +53,16 @@ public final class EsqlQueryLog {
     private volatile long queryDebugThreshold;
     private volatile long queryTraceThreshold;
 
-    private volatile boolean includeUser;
-
     public EsqlQueryLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
-        settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, this::setIncludeUser);
 
-        this.additionalFields = slowLogFieldProvider.create();
+        SlowLogContext logContext = new SlowLogContext();
+        settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
+
+        this.additionalFields = slowLogFieldProvider.create(logContext);
     }
 
     public void onQueryPhase(Versioned<Result> esqlResult, String query) {
@@ -69,11 +70,11 @@ public final class EsqlQueryLog {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult.inner(), query, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
+        log(() -> Message.of(esqlResult.inner(), query, additionalFields.logFields()), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {
-        log(() -> Message.of(query, tookInNanos, ex, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
+        log(() -> Message.of(query, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -102,10 +103,6 @@ public final class EsqlQueryLog {
 
     public void setQueryTraceThreshold(TimeValue queryTraceThreshold) {
         this.queryTraceThreshold = queryTraceThreshold.nanos();
-    }
-
-    public void setIncludeUser(boolean includeUser) {
-        this.includeUser = includeUser;
     }
 
     static final class Message {

@@ -751,18 +751,6 @@ maxRate:double | tbucket:datetime
 0.05898        | 2024-05-10T00:00:00.000Z
 ;
 
-Rename timestamp when aggs don't require timestamp
-required_capability: ts_command_v0
-
-TS k8s 
-| RENAME @timestamp AS newTs 
-| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
-;
-
-mx:integer | tbucket:datetime
-1716       | 2024-05-10T00:00:00.000Z
-;
-
 instant_selector_dimensions_promql
 required_capability: promql_pre_tech_preview_v12
 

@@ -69,6 +69,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -1117,9 +1118,9 @@ public final class TextFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // 1. check if we can load from a synthetic source delegate
             if (canUseSyntheticSourceDelegateForLoading()) {
-                return new BlockLoader.Delegating(syntheticSourceDelegate.get().blockLoader(blContext)) {
+                return new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
-                    protected String delegatingTo() {
+                    public String delegatingTo() {
                         return syntheticSourceDelegate.get().name();
                     }
                 };
@@ -1137,9 +1138,9 @@ public final class TextFieldMapper extends FieldMapper {
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
-                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                        return new DelegatingBlockLoader(kwd.blockLoader(blContext)) {
                             @Override
-                            protected String delegatingTo() {
+                            public String delegatingTo() {
                                 return kwd.name();
                             }
                         };
@@ -1544,7 +1545,7 @@ public final class TextFieldMapper extends FieldMapper {
                 // store the value in a binary doc values field, create one if it doesn't exist
                 MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
                 if (field == null) {
-                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, new ArrayList<>());
+                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
                     context.doc().addWithKey(fallbackFieldName, field);
                 }
                 field.add(bytesRef);

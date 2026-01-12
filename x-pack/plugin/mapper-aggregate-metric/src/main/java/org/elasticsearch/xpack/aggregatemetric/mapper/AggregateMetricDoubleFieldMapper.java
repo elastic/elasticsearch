@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -521,7 +522,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         private BlockLoader getIndividualBlockLoader(Metric metric) {
             if (metricFields.containsKey(metric) == false) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
             if (metric == Metric.value_count) {
                 return new IntsBlockLoader(metricFields.get(Metric.value_count).name());

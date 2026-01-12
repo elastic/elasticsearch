@@ -19,6 +19,7 @@ import fixture.s3.S3HttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -55,7 +56,8 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
 
     private static final AwsStsHttpFixture stsHttpFixture = new AwsStsHttpFixture(
         dynamicCredentials::addValidCredentials,
-        WEB_IDENTITY_TOKEN_FILE_CONTENTS
+        () -> WEB_IDENTITY_TOKEN_FILE_CONTENTS,
+        TimeValue.timeValueDays(1)
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

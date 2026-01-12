@@ -18,22 +18,24 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
-import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BufferedStreamOutputTests extends ESTestCase {
+public class StreamOutputToBytesTests extends ESTestCase {
 
     public void testRandomWrites() throws IOException {
         final var bufferPool = randomByteArrayOfLength(between(KB.toIntBytes(1), KB.toIntBytes(4)));
@@ -50,8 +52,11 @@ public class BufferedStreamOutputTests extends ESTestCase {
         final var targetSize = between(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2);
 
         try (
-            var expectedStream = new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE);
-            var actualStream = new ByteArrayOutputStream(targetSize) {
+            var countingStream = new CountingStreamOutput();
+            var mockRecycler = new MockBytesRefRecycler();
+            var recyclerBytesStream = new RecyclerBytesStreamOutput(mockRecycler);
+            var plainBytesStream = new BytesStreamOutput();
+            var toBeBufferedStream = new ByteArrayOutputStream(targetSize) {
                 @Override
                 public void write(int b) {
                     fail("buffered stream should not write single bytes");
@@ -63,8 +68,12 @@ public class BufferedStreamOutputTests extends ESTestCase {
                     super.write(b, off, len);
                 }
             };
-            var bufferedStream = new BufferedStreamOutput(actualStream, buffer)
+            var bufferedStream = new BufferedStreamOutput(toBeBufferedStream, buffer);
+            var toBeWrappedStream = new ByteArrayOutputStream(targetSize);
+            var wrappedStream = new OutputStreamStreamOutput(toBeWrappedStream)
         ) {
+            final var streams = List.of(countingStream, recyclerBytesStream, plainBytesStream, bufferedStream, wrappedStream);
+
             final var writers = List.<Supplier<CheckedConsumer<StreamOutput, IOException>>>of(() -> {
                 final var b = randomByte();
                 return s -> s.writeByte(b);
@@ -117,17 +126,25 @@ public class BufferedStreamOutputTests extends ESTestCase {
                 return s -> s.writeGenericString(value);
             });
 
-            while (expectedStream.position() < targetSize) {
+            while (countingStream.size() < targetSize) {
                 var writerIndex = between(0, writers.size() - 1);
                 var writer = writers.get(writerIndex).get();
-                writer.accept(bufferedStream);
-                writer.accept(expectedStream);
-                assertEquals("after " + writerIndex, expectedStream.position(), bufferedStream.position());
+                for (var stream : streams) {
+                    writer.accept(stream);
+                }
+                assertEquals("recyclerBytesStream after " + writerIndex, countingStream.size(), recyclerBytesStream.position());
+                assertEquals("plainBytesStream after " + writerIndex, countingStream.size(), plainBytesStream.position());
+                assertEquals("bufferedStream after " + writerIndex, countingStream.size(), bufferedStream.position());
             }
 
             isExpectedWriteSize.set(allOf(lessThanOrEqualTo(bufferLen), greaterThan(0))); // last write may be undersized
-            bufferedStream.flush();
-            assertThat(new BytesArray(actualStream.toByteArray()), equalBytes(expectedStream.bytes()));
+            for (var stream : streams) {
+                stream.flush();
+            }
+            final var isExpectedBytes = equalBytes(new BytesArray(toBeWrappedStream.toByteArray()));
+            assertThat(new BytesArray(toBeBufferedStream.toByteArray()), isExpectedBytes);
+            assertThat(recyclerBytesStream.bytes(), isExpectedBytes);
+            assertThat(plainBytesStream.bytes(), isExpectedBytes);
         }
 
         if (Assertions.ENABLED == false) {
@@ -135,5 +152,36 @@ public class BufferedStreamOutputTests extends ESTestCase {
             Arrays.fill(bufferPool, bufferStart, bufferStart + bufferLen, (byte) 0xa5);
         }
         assertArrayEquals("wrote out of bounds", bufferPoolCopy, bufferPool);
+    }
+
+    public void testDoubleClose() throws IOException {
+        var buffered = new BufferedStreamOutput(new AssertClosedOnceOutputStream(), new BytesRef(new byte[10], 0, 10));
+        buffered.close();
+        buffered.close();
+    }
+
+    public void testDoubleCloseInTryWithResources() throws IOException {
+        try (
+            var buffered = new BufferedStreamOutput(new AssertClosedOnceOutputStream(), new BytesRef(new byte[10], 0, 10));
+            var wrapper = new FilterOutputStream(buffered)
+        ) {
+            if (randomBoolean()) {
+                wrapper.write(0);
+            }
+            // {wrapper} is closed first, and propagates the close to {buffered}, but it's a separate resource so {buffered} is then closed
+            // again
+        }
+    }
+
+    private static class AssertClosedOnceOutputStream extends OutputStream {
+        private final AtomicBoolean isClosed = new AtomicBoolean();
+
+        @Override
+        public void write(int b) {}
+
+        @Override
+        public void close() {
+            assertTrue(isClosed.compareAndSet(false, true));
+        }
     }
 }

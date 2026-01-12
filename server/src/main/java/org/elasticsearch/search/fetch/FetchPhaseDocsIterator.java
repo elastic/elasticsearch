@@ -473,9 +473,7 @@ abstract class FetchPhaseDocsIterator {
             int leafOrd = entry.getKey();
             LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
             int docBase = ctx.docBase;
-            int[] docsInLeaf = entry.getValue().stream()
-                .mapToInt(docId -> docId - docBase)
-                .toArray();
+            int[] docsInLeaf = entry.getValue().stream().mapToInt(docId -> docId - docBase).toArray();
             result.put(leafOrd, docsInLeaf);
         }
         return result;

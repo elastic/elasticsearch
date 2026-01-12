@@ -61,7 +61,7 @@ import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
  */
 public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
-    private static final Literal NULLIFIED = Literal.NULL; // TODO? new Literal(Source.EMPTY, null, DataType.KEYWORD)
+    private static final Literal NULLIFIED = Literal.NULL;
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {

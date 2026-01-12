@@ -9,13 +9,14 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -38,14 +39,17 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 for (var entry : expectedCounts.entrySet()) {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
-                        var field = new BinaryFieldMapper.CustomBinaryDocValuesField(
-                            "field",
-                            entry.getKey().getBytes(StandardCharsets.UTF_8)
-                        );
+
+                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                        field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
+                        var countField = new NumericDocValuesField("field.counts", 1);
+
                         if (randomBoolean()) {
-                            field.add("z".getBytes(StandardCharsets.UTF_8));
+                            field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
+                            countField.setLongValue(field.count());
                         }
                         document.add(field);
+                        document.add(countField);
                         writer.addDocument(document);
                     }
                 }
@@ -81,7 +85,13 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
-                document.add(new BinaryFieldMapper.CustomBinaryDocValuesField("field", "a".getBytes(StandardCharsets.UTF_8)));
+
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
+                var countField = new NumericDocValuesField("field.counts", 1);
+                document.add(field);
+                document.add(countField);
+
                 writer.addDocument(document);
                 writer.commit();
                 writer.addDocument(new Document());

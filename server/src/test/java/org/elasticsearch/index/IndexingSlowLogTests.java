@@ -22,7 +22,6 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
 import org.elasticsearch.index.engine.Engine;
@@ -43,6 +42,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,11 +52,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
 
 public class IndexingSlowLogTests extends ESTestCase {
     static MockAppender appender;
-    static Releasable appenderRelease;
     static Logger testLogger1 = LogManager.getLogger(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
     static Level origLogLevel = testLogger1.getLevel();
 
@@ -81,7 +79,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         String uuid = UUIDs.randomBase64UUID();
         IndexMetadata metadata = createIndexMetadata("index-precedence", settings(uuid));
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
@@ -142,7 +140,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             ),
             Settings.EMPTY
         );
-        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFields.class));
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mockLogFieldProvider());
 
         IndexSettings index2Settings = new IndexSettings(
             createIndexMetadata(
@@ -155,7 +153,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             ),
             Settings.EMPTY
         );
-        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFields.class));
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mockLogFieldProvider());
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
@@ -179,12 +177,12 @@ public class IndexingSlowLogTests extends ESTestCase {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata("index1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFields.class));
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mockLogFieldProvider());
 
         int numberOfLoggersBefore = context.getLoggers().size();
 
         IndexSettings index2Settings = new IndexSettings(createIndexMetadata("index2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFields.class));
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mockLogFieldProvider());
         context = (LoggerContext) LogManager.getContext(false);
 
         int numberOfLoggersAfter = context.getLoggers().size();
@@ -355,7 +353,7 @@ public class IndexingSlowLogTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
         assertFalse(log.isReformat());
         settings.updateIndexMetadata(
             newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), "true").build())
@@ -372,7 +370,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
+        log = new IndexingSlowLog(settings, mockLogFieldProvider());
         assertTrue(log.isReformat());
         try {
             settings.updateIndexMetadata(
@@ -405,7 +403,7 @@ public class IndexingSlowLogTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
         assertEquals(TimeValue.timeValueMillis(100).nanos(), log.getIndexTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), log.getIndexDebugThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getIndexInfoThreshold());
@@ -436,7 +434,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
+        log = new IndexingSlowLog(settings, mockLogFieldProvider());
 
         assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexTraceThreshold());
         assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexDebugThreshold());

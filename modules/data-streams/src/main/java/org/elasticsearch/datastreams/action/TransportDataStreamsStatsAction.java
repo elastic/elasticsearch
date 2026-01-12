@@ -141,7 +141,8 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
             if (maxPackedValue != null) {
                 return LongPoint.decodeDimension(maxPackedValue, 0);
             }
-            return DocValuesSkipper.globalMaxValue(searcher, DataStream.TIMESTAMP_FIELD_NAME);
+            // DocValuesSkipper.globalMaxValue() can return a negative number
+            return Math.max(0, DocValuesSkipper.globalMaxValue(searcher, DataStream.TIMESTAMP_FIELD_NAME));
         }
     }
 

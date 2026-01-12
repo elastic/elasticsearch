@@ -829,6 +829,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("value_count", 25);
                     doc.endObject();
                 }
+                case DATE_RANGE -> {
+                    doc.startObject();
+                    doc.field("gte", "1989-01-01");
+                    doc.field("lt", "2025-01-01");
+                    doc.endObject();
+                }
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
@@ -959,6 +965,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
+            case DATE_RANGE -> {
+                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
+                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
+                // will always be null here.
+                yield nullValue();
+            }
+
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
     }
@@ -1005,9 +1018,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
-                EXPONENTIAL_HISTOGRAM, TDIGEST,
-                // https://github.com/elastic/elasticsearch/issues/137699
-                DENSE_VECTOR -> false;
+                EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
             default -> true;
         };
     }
@@ -1093,6 +1104,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("dense_vector");
+            }
+            case DATE_RANGE -> {
+                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
+                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
+                // will always be "unsupported" here.
+                yield equalTo("unsupported");
             }
             case HISTOGRAM -> {
                 // support for histogram was added later

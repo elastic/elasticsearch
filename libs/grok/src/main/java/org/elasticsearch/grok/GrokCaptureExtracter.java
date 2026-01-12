@@ -59,7 +59,7 @@ public interface GrokCaptureExtracter {
                     if (existingValue != NOT_FOUND) {
                         if (existingValue instanceof List<?> values) {
                             @SuppressWarnings("unchecked")
-                            var typedValues = (ArrayList<Object>) values;
+                            var typedValues = (List<Object>) values;
                             typedValues.add(value);
                         } else {
                             var values = new ArrayList<>();

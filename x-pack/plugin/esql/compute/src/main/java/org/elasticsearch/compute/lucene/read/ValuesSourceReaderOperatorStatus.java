@@ -76,7 +76,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             rowsEmitted = status.rowsEmitted();
         }
         Map<String, Integer> readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
-        Map<String, Integer> convertersUsed = CONVERTERS_USED.supports(in.getTransportVersion())
+        Map<String, Integer> convertersUsed = in.getTransportVersion().supports(CONVERTERS_USED)
             ? in.readOrderedMap(StreamInput::readString, StreamInput::readVInt)
             : Map.of();
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
@@ -104,7 +104,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             new AbstractPageMappingOperator.Status(processNanos(), pagesEmitted(), rowsReceived(), rowsEmitted()).writeTo(out);
         }
         out.writeMap(readersBuilt, StreamOutput::writeVInt);
-        if (CONVERTERS_USED.supports(out.getTransportVersion())) {
+        if (out.getTransportVersion().supports(CONVERTERS_USED)) {
             out.writeMap(convertersUsed, StreamOutput::writeVInt);
         }
         if (supportsValuesLoaded(out.getTransportVersion())) {

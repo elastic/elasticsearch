@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionCreator;
@@ -55,7 +57,28 @@ public class AnthropicService extends SenderService {
     public static final String NAME = "anthropic";
     private static final String SERVICE_NAME = "Anthropic";
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION);
+
+    private static final AnthropicModelCreator MODEL_CREATOR = new AnthropicModelCreator() {
+        @Override
+        public AnthropicChatCompletionModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            @Nullable ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        ) {
+            return new AnthropicChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+        }
+
+        @Override
+        public AnthropicChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+            return new AnthropicChatCompletionModel(config, secrets);
+        }
+    };
 
     public AnthropicService(
         HttpRequestSender.Factory factory,
@@ -129,18 +152,21 @@ public class AnthropicService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case COMPLETION -> new AnthropicChatCompletionModel(
+
+        if (SUPPORTED_TASK_TYPES.contains(taskType)) {
+            return MODEL_CREATOR.createFromMaps(
                 inferenceEntityId,
                 taskType,
                 NAME,
                 serviceSettings,
                 taskSettings,
+                null,
                 secretSettings,
                 context
             );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        } else {
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        }
     }
 
     @Override
@@ -159,15 +185,16 @@ public class AnthropicService extends SenderService {
 
     @Override
     public AnthropicModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return switch (config.getTaskType()) {
-            case COMPLETION -> new AnthropicChatCompletionModel(config, secrets);
-            default -> throw createInvalidTaskTypeException(
+        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType())) {
+            return MODEL_CREATOR.createFromModelConfigurationsAndSecrets(config, secrets);
+        } else {
+            throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
                 NAME,
                 config.getTaskType(),
                 ConfigurationParseContext.PERSISTENT
             );
-        };
+        }
     }
 
     @Override
@@ -185,7 +212,7 @@ public class AnthropicService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -260,7 +287,7 @@ public class AnthropicService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -284,20 +311,35 @@ public class AnthropicService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "By default, the anthropic service sets the number of requests allowed per minute to 50.",
-                        supportedTaskTypes
+                        SUPPORTED_TASK_TYPES
                     )
                 );
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }
         );
+    }
+
+    private interface AnthropicModelCreator extends ModelCreator {
+        AnthropicModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            @Nullable ChunkingSettings chunkingSettings,
+            Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        );
+
+        AnthropicModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

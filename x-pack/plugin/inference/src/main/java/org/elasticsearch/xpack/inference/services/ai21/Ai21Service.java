@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -76,6 +78,27 @@ public class Ai21Service extends SenderService {
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
     );
+
+    private static final Ai21ModelCreator MODEL_CREATOR = new Ai21ModelCreator() {
+        @Override
+        public Ai21ChatCompletionModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            @Nullable Map<String, Object> taskSettings,
+            @Nullable ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        ) {
+            return new Ai21ChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
+        }
+
+        @Override
+        public Ai21ChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+            return new Ai21ChatCompletionModel(config, secrets);
+        }
+    };
 
     public Ai21Service(
         HttpRequestSender.Factory factory,
@@ -210,15 +233,16 @@ public class Ai21Service extends SenderService {
 
     @Override
     public Ai21Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return switch (config.getTaskType()) {
-            case CHAT_COMPLETION, COMPLETION -> new Ai21ChatCompletionModel(config, secrets);
-            default -> throw createInvalidTaskTypeException(
+        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType())) {
+            return MODEL_CREATOR.createFromModelConfigurationsAndSecrets(config, secrets);
+        } else {
+            throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
                 NAME,
                 config.getTaskType(),
                 ConfigurationParseContext.PERSISTENT
             );
-        };
+        }
     }
 
     @Override
@@ -240,17 +264,16 @@ public class Ai21Service extends SenderService {
     }
 
     private static Ai21Model createModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION:
-                return new Ai21ChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw createInvalidTaskTypeException(modelId, NAME, taskType, context);
+        if (SUPPORTED_TASK_TYPES.contains(taskType)) {
+            return MODEL_CREATOR.createFromMaps(inferenceId, taskType, NAME, serviceSettings, null, null, secretSettings, context);
+        } else {
+            throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
         }
     }
 
@@ -299,5 +322,20 @@ public class Ai21Service extends SenderService {
                     .build();
             }
         );
+    }
+
+    private interface Ai21ModelCreator extends ModelCreator {
+        Ai21Model createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            @Nullable Map<String, Object> taskSettings,
+            @Nullable ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        );
+
+        Ai21Model createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

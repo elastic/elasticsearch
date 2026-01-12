@@ -37,8 +37,8 @@ public interface ModelCreator {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
+        @Nullable Map<String, Object> taskSettings,
+        @Nullable ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     );

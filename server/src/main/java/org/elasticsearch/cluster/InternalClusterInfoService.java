@@ -472,7 +472,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
                 }
             });
-            final Map<String, Boolean> nodesWriteLoadHotspotting = ClusterInfo.buildNodeIdsWriteLoadHotspottingTable(
+            final Map<String, Boolean> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingTable(
                 nodeThreadPoolUsageStatsPerNode,
                 writeLoadConstraintSettings.getQueueLatencyThreshold().millis()
             );
@@ -488,10 +488,23 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodeThreadPoolUsageStatsPerNode,
                 indicesStatsSummary.shardWriteLoads(),
                 maxHeapPerNode,
-                nodesWriteLoadHotspotting
+                nodeIdsWriteLoadHotspotting
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;
+        }
+
+        public static Map<String, Boolean> buildNodeIdsWriteLoadHotspottingTable(
+            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
+            long queueLatencyThreshold) {
+            final Map<String, Boolean> nodeIdsWriteLoadHotspotting = new HashMap<>(nodeThreadPoolUsageStatsPerNode.size());
+            nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
+                NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats
+                    .threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE);
+                nodeIdsWriteLoadHotspotting.put(nodeId, threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= queueLatencyThreshold);
+            });
+            return nodeIdsWriteLoadHotspotting;
         }
     }
 

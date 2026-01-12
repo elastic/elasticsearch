@@ -418,20 +418,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         return this.maxHeapSizePerNode;
     }
 
-    public static Map<String, Boolean> buildNodeIdsWriteLoadHotspottingTable(
-        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
-        long writeLoadQueueLatencyThreshold
-    ) {
-        final Map<String, Boolean> nodeIdsWriteLoadHotspotting = new HashMap<>(nodeUsageStatsForThreadPools.size());
-        nodeUsageStatsForThreadPools.forEach((nodeId, nodeUsageStats) -> {
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE);
-            boolean isHotspotting = threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= writeLoadQueueLatencyThreshold;
-            nodeIdsWriteLoadHotspotting.put(nodeId, isHotspotting);
-        });
-        return nodeIdsWriteLoadHotspotting;
-    }
-
     public boolean nodeIsWriteLoadHotspotting(String nodeId) {
         return nodeIdsWriteLoadHotspotting.getOrDefault(nodeId, false);
     }
@@ -685,10 +671,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         public Builder nodeIdsWriteLoadHotspotting(Map<String, Boolean> nodeIdsWriteLoadHotspotting) {
             this.nodeIdsWriteLoadHotspotting = nodeIdsWriteLoadHotspotting;
             return this;
-        }
-
-        public Builder setNodeIdsWriteLoadHotspottingFromNodeUsageStats(long threshold) {
-            return nodeIdsWriteLoadHotspotting(buildNodeIdsWriteLoadHotspottingTable(this.nodeUsageStatsForThreadPools, threshold));
         }
     }
 }

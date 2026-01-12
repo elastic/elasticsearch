@@ -324,7 +324,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     .filter(ignored -> randomBoolean()) // some write-loads are missing altogether
                     .collect(Collectors.toMap(ShardRouting::shardId, ignored -> 0.0d))  // the rest are zero
             )
-            .setNodesWriteLoadHotspottingFromNodeUsageStats(highLatencyThreshold)
+            .nodeIdsWriteLoadHotspotting(Map.of(overloadedNode.getId(), true, otherNode.getId(), false))
             .build();
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
@@ -408,7 +408,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     )
                 )
             )
-            .setNodesWriteLoadHotspottingFromNodeUsageStats(highLatencyThreshold)
+            .nodeIdsWriteLoadHotspotting(Map.of(overloadedNode.getId(), true, otherNode.getId(), false))
             .build();
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
@@ -542,6 +542,15 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         nodeIdToNodeUsageStatsForThreadPools.put(queuingBelowThresholdDiscoveryNode4.getId(), nodeThreadPoolStatsWithQueuingBelowThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(queuingAboveThresholdDiscoveryNode5.getId(), nodeThreadPoolStatsWithQueuingAboveThreshold);
 
+        // create a map of hotspots
+        var nodeIdsWriteLoadHotspotting = Map.of(
+            exceedingThresholdDiscoveryNode.getId(), false,
+            belowThresholdDiscoveryNode2.getId(), false,
+            nearThresholdDiscoveryNode3.getId(), false,
+            queuingBelowThresholdDiscoveryNode4.getId(), false,
+            queuingAboveThresholdDiscoveryNode5.getId(), true
+        );
+
         // Create a map of usage per shard.
         var shardIdToWriteLoadEstimate = new HashMap<ShardId, Double>();
         shardIdToWriteLoadEstimate.put(testShardId1, 0.5);
@@ -556,7 +565,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeIdToNodeUsageStatsForThreadPools)
             .shardWriteLoads(shardIdToWriteLoadEstimate)
-            .setNodesWriteLoadHotspottingFromNodeUsageStats(10_000)
+            .nodeIdsWriteLoadHotspotting(nodeIdsWriteLoadHotspotting)
             .build();
 
         /**

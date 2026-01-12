@@ -356,12 +356,13 @@ static inline void dotf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
+    const int32_t vec_size = pitch / sizeof(f32_t);
     int c = 0;
     for (; c + 3 < count; c += 4) {
-        const f32_t *a0 = a + mapper(c + 0, offsets) * dims;
-        const f32_t *a1 = a + mapper(c + 1, offsets) * dims;
-        const f32_t *a2 = a + mapper(c + 2, offsets) * dims;
-        const f32_t *a3 = a + mapper(c + 3, offsets) * dims;
+        const f32_t *a0 = a + mapper(c + 0, offsets) * vec_size;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * vec_size;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * vec_size;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * vec_size;
 
         __m256 sum0 = _mm256_setzero_ps();
         __m256 sum1 = _mm256_setzero_ps();
@@ -369,7 +370,7 @@ static inline void dotf32_inner_bulk(
         __m256 sum3 = _mm256_setzero_ps();
 
         int32_t i = 0;
-        int32_t unrolled_limit = dims & ~15UL;
+        int32_t unrolled_limit = dims & ~7UL;
         // do 4 vectors at a time, iterating through the dimensions in parallel
         // Each __m256 holds 8 floats
         for (; i < unrolled_limit; i += 8) {
@@ -401,7 +402,7 @@ static inline void dotf32_inner_bulk(
 
     // vectors tail
     for (; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * dims;
+        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_dotf32(a0, b, dims);
     }
 }
@@ -467,12 +468,13 @@ static inline void sqrf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
+    const int32_t vec_size = pitch / sizeof(f32_t);
     int c = 0;
     for (; c + 3 < count; c += 4) {
-        const f32_t *a0 = a + mapper(c + 0, offsets) * dims;
-        const f32_t *a1 = a + mapper(c + 1, offsets) * dims;
-        const f32_t *a2 = a + mapper(c + 2, offsets) * dims;
-        const f32_t *a3 = a + mapper(c + 3, offsets) * dims;
+        const f32_t *a0 = a + mapper(c + 0, offsets) * vec_size;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * vec_size;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * vec_size;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * vec_size;
 
         __m256 sum0 = _mm256_setzero_ps();
         __m256 sum1 = _mm256_setzero_ps();
@@ -480,7 +482,7 @@ static inline void sqrf32_inner_bulk(
         __m256 sum3 = _mm256_setzero_ps();
 
         int32_t i = 0;
-        int32_t unrolled_limit = dims & ~15UL;
+        int32_t unrolled_limit = dims & ~7UL;
         // do 4 vectors at a time, iterating through the dimensions in parallel
         // Each __m256 holds 8 floats
         for (; i < unrolled_limit; i += 8) {
@@ -522,7 +524,7 @@ static inline void sqrf32_inner_bulk(
 
     // vectors tail
     for (; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * dims;
+        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_sqrf32(a0, b, dims);
     }
 }

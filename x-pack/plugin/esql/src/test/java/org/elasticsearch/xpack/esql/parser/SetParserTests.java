@@ -143,15 +143,16 @@ public class SetParserTests extends AbstractStatementParserTests {
 
         // non-constant map
         try {
-            statement("""
+            unvalidatedStatement("""
                 SET my_map = {"foo": bar};
                 ROW a = 1
                 """, new QueryParams());
+            fail("ParsingException expected");
         } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("mismatched input 'bar' expecting"));
         }
 
-        EsqlStatement query = statement("""
+        EsqlStatement query = unvalidatedStatement("""
             SET my_map = {"foo": {"bar": 2, "baz": "bb"}, "x": false};
             ROW a = 1
             """, new QueryParams());

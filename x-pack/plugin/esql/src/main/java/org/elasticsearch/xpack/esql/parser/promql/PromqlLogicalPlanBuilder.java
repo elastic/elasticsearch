@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -23,16 +23,17 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator.BinaryOp;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.set.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
@@ -72,8 +73,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn) {
-        super(start, end, startLine, startColumn);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
+        super(start, end, startLine, startColumn, params);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
@@ -432,12 +433,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
-        Boolean exists = PromqlFunctionRegistry.INSTANCE.functionExists(name);
-        if (Boolean.TRUE.equals(exists) == false) {
-            String message = exists == null ? "Function [{}] not implemented yet" : "Unknown function [{}]";
-            throw new ParsingException(source, message, name);
-        }
-
+        PromqlFunctionRegistry.INSTANCE.checkFunction(source, name);
         var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
 
         // TODO: the list of params could contain literals so need to handle that
@@ -479,7 +475,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
             PromqlBaseParser.LabelListContext labelListCtx = groupingContext.labelList();
             List<String> groupingKeys = visitLabelList(labelListCtx);
-            List<NamedExpression> groupings = new ArrayList<>(groupingKeys.size());
+            List<Attribute> groupings = new ArrayList<>(groupingKeys.size());
             for (int i = 0; i < groupingKeys.size(); i++) {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }

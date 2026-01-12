@@ -22,6 +22,8 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -108,7 +110,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() {
-        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            settings.put("index.codec", "default").put("index.number_of_replicas", 0).put("index.mapping.use_synthetic_id", true);
+        }
         client().admin()
             .indices()
             .prepareCreate("hosts")
@@ -930,6 +935,85 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
             assertThat(results1, equalTo(results2));
         }
+    }
+
+    public void testBareAvgOverTimeByTBucket() {
+        record TimeSeries(String cluster, String host, String tbucket) {
+            // Cluster and host are dimensions so grouping by both of them is equal to grouping by _tsid (group by all)
+        }
+        record Sample(int count, double sum) {
+
+        }
+        Map<TimeSeries, Sample> buckets = new HashMap<>();
+        var rounding = new Rounding.Builder(TimeValue.timeValueMillis(TimeValue.timeValueMinutes(1).millis())).build().prepareForUnknown();
+        for (Doc doc : docs) {
+            var tbucket = DEFAULT_DATE_TIME_FORMATTER.formatMillis(rounding.round(doc.timestamp));
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host, tbucket);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return new Sample(1, doc.cpu);
+                } else {
+                    return new Sample(v.count + 1, v.sum + doc.cpu);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg_over_time(cpu) BY tbucket(1minute)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(buckets.size()));
+
+            Map<String, Double> sumOfAvgPerTBucket = new HashMap<>();
+            Map<String, Integer> countPerTBucket = new HashMap<>();
+            for (List<Object> r : rows) {
+                double avgValue = (Double) r.get(0);
+                String tbucket = (String) r.get(2);
+                sumOfAvgPerTBucket.merge(tbucket, avgValue, Double::sum);
+                countPerTBucket.merge(tbucket, 1, Integer::sum);
+            }
+
+            Map<String, Double> expectedSumOfAvgPerTBucket = new HashMap<>();
+            Map<String, Integer> expectedCountPerTBucket = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue();
+                String tbucket = e.getKey().tbucket;
+                double avg = sample.sum / sample.count;
+                expectedSumOfAvgPerTBucket.merge(tbucket, avg, Double::sum);
+                expectedCountPerTBucket.merge(tbucket, 1, Integer::sum);
+            }
+
+            assertThat(countPerTBucket, equalTo(expectedCountPerTBucket));
+
+            for (String tbucket : sumOfAvgPerTBucket.keySet()) {
+                assertThat(sumOfAvgPerTBucket.get(tbucket), closeTo(expectedSumOfAvgPerTBucket.get(tbucket), 0.5));
+            }
+        }
+    }
+
+    public void testLoadId() {
+        Map<String, Tuple<String, String>> fromEsql = new HashMap<>();
+        try (var resp = run("FROM hosts* METADATA _id, _tsid | KEEP _id, _tsid, @timestamp | LIMIT 1000")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            for (List<Object> row : rows) {
+                String id = row.get(0).toString();
+                String tsid = row.get(1).toString();
+                String timestamp = row.get(2).toString();
+                fromEsql.put(id, Tuple.tuple(tsid, timestamp));
+            }
+        }
+        var searchResponse = client().prepareSearch("hosts*")
+            .addFetchField("_tsid")
+            .addFetchField("@timestamp")
+            .setSize(1000)
+            .setFetchSource(false)
+            .get();
+        Map<String, Tuple<String, String>> fromSearch = new HashMap<>();
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            String id = hit.getId();
+            String tsid = hit.getFields().get("_tsid").getValue().toString();
+            String timestamp = hit.getFields().get("@timestamp").getValue().toString();
+            fromSearch.put(id, Tuple.tuple(tsid, timestamp));
+        }
+        searchResponse.decRef();
+        assertThat(fromEsql, equalTo(fromSearch));
     }
 
     private static double round(double value) {

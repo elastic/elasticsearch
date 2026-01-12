@@ -17,13 +17,13 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -86,7 +86,7 @@ public class TextFormatterTests extends ESTestCase {
         randomBoolean(),
         0L,
         0L,
-        new EsqlExecutionInfo(randomBoolean())
+        createEsqlExecutionInfo(randomBoolean())
     );
 
     /**
@@ -192,7 +192,7 @@ public class TextFormatterTests extends ESTestCase {
             randomBoolean(),
             0L,
             0L,
-            new EsqlExecutionInfo(randomBoolean())
+            createEsqlExecutionInfo(randomBoolean())
         );
 
         String[] result = getTextBodyContent(new TextFormatter(response, false, false).format()).split("\n");
@@ -237,7 +237,7 @@ public class TextFormatterTests extends ESTestCase {
                         randomBoolean(),
                         0L,
                         0L,
-                        new EsqlExecutionInfo(randomBoolean())
+                        createEsqlExecutionInfo(randomBoolean())
                     ),
                     false,
                     false

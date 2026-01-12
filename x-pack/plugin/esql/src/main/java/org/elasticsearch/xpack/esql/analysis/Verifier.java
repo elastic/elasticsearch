@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -90,6 +92,8 @@ public class Verifier {
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures);
 
+        ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
+
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
@@ -110,6 +114,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
         });
@@ -148,14 +153,10 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project || p instanceof Insist) {
-                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
-                            failures.add(fail(ae, ua.unresolvedMessage()));
-                        }
-                        if (ae instanceof UnsupportedAttribute) {
-                            return;
-                        }
+                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
+                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                        return;
                     }
 
                     // Do not fail multiple times in case the children are already unresolved.
@@ -177,9 +178,20 @@ public class Verifier {
                 // do groupings first
                 var groupings = agg.groupings();
                 groupings.forEach(unresolvedExpressions);
+
+                // We don't count _timeseries which is added implicitly to grouping but not to a list of aggs
+                boolean hasGroupByAll = false;
+                for (Expression grouping : groupings) {
+                    if (MetadataAttribute.isTimeSeriesAttribute(grouping)) {
+                        hasGroupByAll = true;
+                        break;
+                    }
+                }
+                int groupingSize = hasGroupByAll ? groupings.size() - 1 : groupings.size();
+
                 // followed by just the aggregates (to avoid going through the groups again)
                 var aggs = agg.aggregates();
-                int size = aggs.size() - groupings.size();
+                int size = aggs.size() - groupingSize;
                 aggs.subList(0, size).forEach(unresolvedExpressions);
             }
             // similar approach for Lookup
@@ -257,6 +269,22 @@ public class Verifier {
             if ((child instanceof EsRelation || child instanceof Insist) == false) {
                 failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
             }
+        }
+    }
+
+    /**
+     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
+     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
+     * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
+     */
+    private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project || p instanceof Insist) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof UnsupportedAttribute ua) {
+                    failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
         }
     }
 

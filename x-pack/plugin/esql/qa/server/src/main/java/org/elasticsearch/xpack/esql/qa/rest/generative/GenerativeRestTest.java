@@ -71,7 +71,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
-        "Potential cycle detected", // https://github.com/elastic/elasticsearch/issues/138346
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -83,7 +82,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "implicit time-series aggregation function .* doesn't support type .*",
         "INLINE STATS .* can only be used after STATS when used with TS command",
         "cannot group by a metric field .* in a time-series aggregation",
-        "a @timestamp field of type date or date_nanos to be present when run with the TS command, but it was not present",
+        "a @timestamp field of type date or date_nanos to be present",
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
@@ -265,7 +264,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

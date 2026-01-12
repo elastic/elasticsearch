@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
@@ -210,7 +211,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
-
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
@@ -218,25 +218,14 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public SlowLogFields create(SlowLogContext context) {
+            return new SlowLogFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
         }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
-        }
-
     }
 
     public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
@@ -248,23 +237,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public SlowLogFields create(SlowLogContext context) {
+            return new SlowLogFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
-        }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
         }
     }
 
@@ -847,33 +826,29 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         var indicesService = getIndicesService();
         SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
-        SlowLogFields fields = fieldProvider.create(null);
+        SlowLogFields fields = fieldProvider.create(new SlowLogContext());
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.logFields());
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fields::searchFields);
-        assertThrows(IllegalStateException.class, fields::indexFields);
+        assertThrows(IllegalStateException.class, fields::logFields);
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1"), fields.logFields());
 
         TestSlowLogFieldProvider.setFields(Map.of());
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fields.searchFields());
-        assertEquals(Map.of(), fields.indexFields());
+        assertEquals(Map.of(), fields.logFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
@@ -897,13 +872,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testMapperServiceForValidationReusesExistingDocumentMapper() throws IOException {
         IndicesService indicesService = getIndicesService();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
             .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
             .build();
-        IndexService indexService = indicesService.createIndex(indexMetadata, List.of(), randomBoolean());
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
 
-        IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
-            .mappingVersion(indexMetadata.getMappingVersion() + 1)
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
             .putMapping("""
                 {
                   "_doc":{
@@ -915,14 +890,50 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                   }
                 }""")
             .build();
-        indexService.updateMapping(indexMetadata, newIndexMetadata);
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
 
         assertNotNull(indexService.mapperService());
         DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
         assertNotNull(existingDocumentMapper);
-        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(indexMetadata).documentMapper();
+        // Create the mapper service with the same index metadata that we used to update the mapping to ensure the document mapper is reused
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(newIndexMetadata).documentMapper();
         assertNotNull(temporaryDocumentMapper);
         assertSame(existingDocumentMapper, temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that we only reuse the existing document mapper from the index service if the mapping is unchanged.
+     */
+    public void testMapperServiceForValidationChecksMapping() throws IOException {
+        IndicesService indicesService = getIndicesService();
+
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+
+        assertNotNull(indexService.mapperService());
+        DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
+        assertNotNull(existingDocumentMapper);
+        // Create the mapper service with the initial index metadata to ensure the document mapper is NOT reused as the mapping is different
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(initialIndexMetadata)
+            .documentMapper();
+        assertNull(temporaryDocumentMapper);
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

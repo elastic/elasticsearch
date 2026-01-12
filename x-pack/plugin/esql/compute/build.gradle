@@ -17,6 +17,7 @@ dependencies {
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
+  implementation project(':libs:swisshash')
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
@@ -959,6 +960,11 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs

@@ -156,27 +156,27 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
 
-                ModelConfigurations newModelConfigurations = combineExistingModelConfigurationsWithNewSettings(
+                ModelConfigurations mergedModelConfigurations = combineExistingModelConfigurationsWithNewSettings(
                     existingParsedModel,
                     request.getContentAsSettings(),
                     service.get().name()
                 );
 
-                ModelSecrets newModelSecrets = combineExistingSecretsWithNewSecrets(
+                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(
                     existingParsedModel,
                     request.getContentAsSettings().serviceSettings()
                 );
 
-                Model newParsedModel = service.get().buildModelFromConfigAndSecrets(newModelConfigurations, newModelSecrets);
+                Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
 
                 if (isInClusterService(service.get().name())) {
-                    updateInClusterEndpoint(request, newParsedModel, existingParsedModel, listener);
+                    updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);
                 } else {
                     ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
                         (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
                     );
-                    ModelValidatorBuilder.buildModelValidator(newParsedModel.getTaskType(), service.get())
-                        .validate(service.get(), newParsedModel, TimeValue.THIRTY_SECONDS, updateModelListener);
+                    ModelValidatorBuilder.buildModelValidator(mergedParsedModel.getTaskType(), service.get())
+                        .validate(service.get(), mergedParsedModel, TimeValue.THIRTY_SECONDS, updateModelListener);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
@@ -229,22 +229,22 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
         ServiceSettings existingServiceSettings = existingConfigs.getServiceSettings();
 
-        TaskSettings newTaskSettings = existingTaskSettings;
-        ServiceSettings newServiceSettings = existingServiceSettings;
+        TaskSettings mergedTaskSettings = existingTaskSettings;
+        ServiceSettings mergedServiceSettings = existingServiceSettings;
 
         if (newSettings.serviceSettings() != null) {
-            newServiceSettings = newServiceSettings.updateServiceSettings(newSettings.serviceSettings());
+            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newSettings.serviceSettings());
         }
         if (newSettings.taskSettings() != null && existingTaskSettings != null) {
-            newTaskSettings = newTaskSettings.updatedTaskSettings(newSettings.taskSettings());
+            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newSettings.taskSettings());
         }
 
         return new ModelConfigurations(
             existingParsedModel.getInferenceEntityId(),
             existingParsedModel.getTaskType(),
             serviceName,
-            newServiceSettings,
-            newTaskSettings,
+            mergedServiceSettings,
+            mergedTaskSettings,
             existingConfigs.getChunkingSettings()
         );
     }
@@ -257,13 +257,13 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      */
     private ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
-        SecretSettings newSecretSettings = existingSecretSettings;
+        SecretSettings mergedSecretSettings = existingSecretSettings;
 
         if (newSettingsMap != null && existingSecretSettings != null) {
-            newSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
+            mergedSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
         }
 
-        return new ModelSecrets(newSecretSettings);
+        return new ModelSecrets(mergedSecretSettings);
     }
 
     private void updateInClusterEndpoint(

@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -89,6 +90,10 @@ public class SecurityContext {
             logger.error("failed to read authentication", e);
             throw new UncheckedIOException(e);
         }
+    }
+
+    public boolean hasTaskAuthenticatingToken() {
+        return threadContext.getHeader(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY) != null;
     }
 
     public AuthorizationEngine.AuthorizationInfo getAuthorizationInfoFromContext() {

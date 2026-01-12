@@ -91,7 +91,9 @@ import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
+import org.elasticsearch.xpack.transform.checkpoint.InternalPrepareCpsAction;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
+import org.elasticsearch.xpack.transform.checkpoint.TransportInternalPrepareCpsAction;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -273,6 +275,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
             new ActionHandler(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
             new ActionHandler(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
+            new ActionHandler(InternalPrepareCpsAction.INSTANCE, TransportInternalPrepareCpsAction.class),
 
             // usage and info
             new ActionHandler(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),

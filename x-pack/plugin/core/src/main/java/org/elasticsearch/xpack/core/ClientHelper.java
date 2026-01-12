@@ -62,7 +62,13 @@ public final class ClientHelper {
     public static final Set<String> SECURITY_HEADER_FILTERS = Set.of(
         AuthenticationServiceField.RUN_AS_USER_HEADER,
         AuthenticationField.AUTHENTICATION_KEY,
-        SecondaryAuthentication.THREAD_CTX_KEY
+        SecondaryAuthentication.THREAD_CTX_KEY,
+        // not clear that we want this vs. dedicated client helper methods
+        AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY,
+        // Hack hack hack
+        "_security_serverless_authenticating_token",
+        "_security_serverless_request_scoped_credential",
+        "_security_serverless_authorized_projects"
     );
 
     /**

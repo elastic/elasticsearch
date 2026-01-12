@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
+import org.elasticsearch.xpack.transform.checkpoint.InternalPrepareCps;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
@@ -335,6 +336,16 @@ class ClientTransformIndexer extends TransformIndexer {
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
             listener
         );
+    }
+
+    @Override
+    void prepareCrossProjectSearch(ActionListener<Void> listener) {
+        // TODO would be conditional IRL
+        // Need to call resolve index API (in addition?)
+        InternalPrepareCps.execute(client, transformConfig, ActionListener.wrap(r -> {
+            logger.info("[{}] prepared cross-project search.", getJobId());
+            listener.onResponse(null);
+        }, listener::onFailure));
     }
 
     /**

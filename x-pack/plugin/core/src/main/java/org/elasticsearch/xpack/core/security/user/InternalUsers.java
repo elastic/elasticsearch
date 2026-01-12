@@ -32,6 +32,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -307,6 +308,7 @@ public class InternalUsers {
         new RoleDescriptor(
             UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
             new String[] {
+                XPackInfoAction.REMOTE_TYPE.name(),
                 RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,

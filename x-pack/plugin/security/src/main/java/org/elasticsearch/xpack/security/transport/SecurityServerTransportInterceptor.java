@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -232,6 +233,21 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AsyncSender sender
     ) {
         if (securityContext.getAuthentication() == null) {
+            // Not quite the right place for this
+            if (securityContext.hasTaskAuthenticatingToken()) {
+                logger.info("no authentication found in context, attempting to authenticate with task token before sending request");
+                authcService.authenticate(
+                    action,
+                    request,
+                    InternalUsers.SYSTEM_USER,
+                    ActionListener.wrap(
+                        auth -> sendWithUser(connection, action, request, options, handler, sender),
+                        e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e))
+                    )
+                );
+                return;
+            }
+
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
             assertNoAuthentication(action);

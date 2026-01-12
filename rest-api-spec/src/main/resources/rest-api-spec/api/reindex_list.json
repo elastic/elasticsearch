@@ -1,5 +1,5 @@
 {
-  "reindex.list": {
+  "reindex_list": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "List all running reindex operations"

@@ -27,18 +27,17 @@ import java.util.function.Function;
  * attribute because the pattern {@code foo*} matches it. But if the pattern was {@code foo_baz}, it would be incorrect to do so.
  */
 public class ResolvingProject extends Project {
-
     private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
 
     public ResolvingProject(Source source, LogicalPlan child, Function<List<Attribute>, List<? extends NamedExpression>> resolver) {
-        this(source, child, resolver, resolver.apply(child.output()));
+        this(source, child, resolver.apply(child.output()), resolver);
     }
 
     private ResolvingProject(
         Source source,
         LogicalPlan child,
-        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
-        List<? extends NamedExpression> projections
+        List<? extends NamedExpression> projections,
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver
     ) {
         super(source, child, projections);
         this.resolver = resolver;
@@ -55,7 +54,12 @@ public class ResolvingProject extends Project {
 
     @Override
     protected NodeInfo<Project> info() {
-        return NodeInfo.create(this, ResolvingProject::new, child(), resolver, projections());
+        return NodeInfo.create(
+            this,
+            (source, child, projections) -> new ResolvingProject(source, child, projections, this.resolver),
+            child(),
+            projections()
+        );
     }
 
     @Override
@@ -65,7 +69,7 @@ public class ResolvingProject extends Project {
 
     @Override
     public Project withProjections(List<? extends NamedExpression> projections) {
-        return new ResolvingProject(source(), child(), resolver, projections);
+        return new ResolvingProject(source(), child(), projections, resolver);
     }
 
     @Override

@@ -59,8 +59,21 @@ public class VectorScorerInt7uOperationBenchmark {
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
-    @Param({ "DOT_PRODUCT" })
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
+
+    @FunctionalInterface
+    private interface LuceneFunction {
+        float run(byte[] vec1, byte[] vec2);
+    }
+
+    @FunctionalInterface
+    private interface NativeFunction {
+        float run(MemorySegment vec1, MemorySegment vec2, int length);
+    }
+
+    private LuceneFunction luceneImpl;
+    private NativeFunction nativeImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -78,6 +91,17 @@ public class VectorScorerInt7uOperationBenchmark {
         MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
         nativeSegB = arena.allocate(byteArrayB.length);
         MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
+
+        luceneImpl = switch (function) {
+            case DOT_PRODUCT -> VectorUtil::dotProduct;
+            case EUCLIDEAN -> VectorUtil::squareDistance;
+            default -> throw new UnsupportedOperationException("Not used");
+        };
+        nativeImpl = switch (function) {
+            case DOT_PRODUCT -> VectorScorerInt7uOperationBenchmark::dotProduct7u;
+            case EUCLIDEAN -> VectorScorerInt7uOperationBenchmark::squareDistance7u;
+            default -> throw new UnsupportedOperationException("Not used");
+        };
     }
 
     @TearDown
@@ -86,29 +110,33 @@ public class VectorScorerInt7uOperationBenchmark {
     }
 
     @Benchmark
-    public int lucene() {
-        return VectorUtil.dotProduct(byteArrayA, byteArrayB);
+    public float lucene() {
+        return luceneImpl.run(byteArrayA, byteArrayB);
     }
 
     @Benchmark
-    public int nativeWithNativeSeg() {
-        return dotProduct7u(nativeSegA, nativeSegB, size);
+    public float nativeWithNativeSeg() {
+        return nativeImpl.run(nativeSegA, nativeSegB, size);
     }
 
     @Benchmark
-    public int nativeWithHeapSeg() {
-        return dotProduct7u(heapSegA, heapSegB, size);
+    public float nativeWithHeapSeg() {
+        return nativeImpl.run(heapSegA, heapSegB, size);
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = vectorSimilarityFunctions();
+    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 
-    static VectorSimilarityFunctions vectorSimilarityFunctions() {
-        return NativeAccess.instance().getVectorSimilarityFunctions().get();
-    }
-
-    int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
+    static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) vectorSimilarityFunctions.dotProductHandle7u().invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (int) vectorSimilarityFunctions.squareDistanceHandle7u().invokeExact(a, b, length);
         } catch (Throwable e) {
             throw rethrow(e);
         }

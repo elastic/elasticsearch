@@ -170,7 +170,6 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
 
-
         final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
 
         // buildSearchHits produces SearchHits for non-streaming mode, or dispatches chunks for streaming mode.
@@ -363,151 +362,173 @@ public final class FetchPhase {
             }
         };
 
-        // For streaming mode: preserve last chunk to return after all ACKs complete
-        final AtomicReference<SearchHits> lastChunkRef = new AtomicReference<>();
-        final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
-
-        // RefCountingListener tracks chunk ACKs in streaming mode.
-        // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives
-        // When all acquired listeners complete, the completion callback below runs
-        // returning the final SearchHits (last chunk) to the caller
-        final RefCountingListener chunkCompletionRefs = writer != null
-            ? new RefCountingListener(listener.delegateFailureAndWrap((l, ignored) -> {
-            SearchHits lastChunk = lastChunkRef.getAndSet(null);
-            try {
-                // Store sequence info in context
-                long seqStart = lastChunkSequenceStartRef.get();
-                if (seqStart >= 0) {
-                    context.fetchResult().setLastChunkSequenceStart(seqStart);
+        if (writer == null) { // Non-streaming mode, synchronous iteration
+            SearchHits resultToReturn = null;
+            Exception caughtException = null;
+            try (
+                FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
+                    context.shardTarget(),
+                    context.searcher().getIndexReader(),
+                    docIdsToLoad,
+                    context.request().allowPartialSearchResults(),
+                    context.queryResult()
+                )
+            ) {
+                if (context.isCancelled()) {
+                    for (SearchHit hit : result.hits) {
+                        if (hit != null) {
+                            // release all hits that would otherwise become owned and eventually released by SearchHits below
+                            hit.decRef();
+                        }
+                    }
+                    throw new TaskCancelledException("cancelled");
                 }
 
-                // Return last chunk - transfer our reference to listener
-                if (lastChunk != null) {
-                    l.onResponse(lastChunk);
-                    lastChunk = null;  // Ownership transferred
-                } else {
-                    l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                TotalHits totalHits = context.getTotalHits();
+                resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
+                listener.onResponse(resultToReturn);
+                resultToReturn = null; // Ownership transferred
+            } catch (Exception e) {
+                caughtException = e;
+                if (resultToReturn != null) {
+                    resultToReturn.decRef();
                 }
             } finally {
-                // Release if onResponse() threw an exception
-                if (lastChunk != null) {
-                    lastChunk.decRef();
+                if (buildListener != null) {
+                    if (caughtException != null) {
+                        buildListener.onFailure(caughtException);
+                    } else {
+                        buildListener.onResponse(null);
+                    }
+                }
+
+                if (caughtException != null) {
+                    listener.onFailure(caughtException);
+                }
+
+                // Release breaker bytes
+                long bytes = docsIterator.getRequestBreakerBytes();
+                if (bytes > 0L) {
+                    context.circuitBreaker().addWithoutBreaking(-bytes);
+                    LOGGER.debug(
+                        "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                        bytes,
+                        context.getSearchExecutionContext().getShardId(),
+                        context.circuitBreaker().getUsed()
+                    );
                 }
             }
-        })) : null;
+        } else {  // Streaming mode
+            // Preserve last chunk to return after all ACKs complete
+            final AtomicReference<SearchHits> lastChunkRef = new AtomicReference<>();
+            final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
 
-        // Acquire a listener for the main iteration. This prevents RefCountingListener from
-        // completing until we explicitly signal success/failure after iteration finishes.
-        final ActionListener<Void> mainBuildListener = chunkCompletionRefs != null
-            ? chunkCompletionRefs.acquire()
-            : null;
 
-        SearchHits resultToReturn = null;
-        Exception caughtException = null;
-        try (
-            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
+            // RefCountingListener tracks chunk ACKs in streaming mode.
+            // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives
+            // When all acquired listeners complete, the completion callback below runs
+            // returning the final SearchHits (last chunk) to the caller
+            final RefCountingListener chunkCompletionRefs = writer != null
+                ? new RefCountingListener(listener.delegateFailureAndWrap((l, ignored) -> {
+                SearchHits lastChunk = lastChunkRef.getAndSet(null);
+                try {
+                    // Store sequence info in context
+                    long seqStart = lastChunkSequenceStartRef.get();
+                    if (seqStart >= 0) {
+                        context.fetchResult().setLastChunkSequenceStart(seqStart);
+                    }
+
+                    // Return last chunk - transfer our reference to listener
+                    if (lastChunk != null) {
+                        l.onResponse(lastChunk);
+                        lastChunk = null;  // Ownership transferred
+                    } else {
+                        l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                    }
+                } finally {
+                    // Release if onResponse() threw an exception
+                    if (lastChunk != null) {
+                        lastChunk.decRef();
+                    }
+                }
+            })) : null;
+
+            // Acquire a listener for the main iteration. This prevents RefCountingListener from
+            // completing until we explicitly signal success/failure after iteration finishes.
+            final ActionListener<Void> mainBuildListener = chunkCompletionRefs != null
+                ? chunkCompletionRefs.acquire()
+                : null;
+
+            // Streaming mode: use async iteration with ThrottledIterator
+            docsIterator.iterateAsync(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
-                context.request().allowPartialSearchResults(),
-                context.queryResult(),
                 writer,
-                5, // TODO make it configurable
+                5,  // chunkSize - TODO make configurable
                 chunkCompletionRefs,
-                3,  // TODO make it configurable
+                3,  // maxInFlightChunks - TODO make configurable
                 sendFailure,
                 context.getTotalHits(),
-                context.getMaxScore()
-            )
-        ) {
+                context.getMaxScore(),
+                context::isCancelled,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(FetchPhaseDocsIterator.IterateResult result) {
+                        try (result) {
+                            if (context.isCancelled()) {
+                                throw new TaskCancelledException("cancelled");
+                            }
 
-            if (context.isCancelled()) {
-                // Clean up hits array
-                for (SearchHit hit : result.hits) {
-                    if (hit != null) {
-                        hit.decRef();
+                            // Take ownership of lastChunk for the completion callback
+                            if (result.lastChunk != null) {
+                                result.lastChunk.incRef();
+                                lastChunkRef.set(result.lastChunk);
+                                lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
+                            }
+
+                            // Signal build completion
+                            if (buildListener != null) {
+                                buildListener.onResponse(null);
+                            }
+
+                            // Signal main build listener to decrement RefCountingListener
+                            if (mainBuildListener != null) {
+                                mainBuildListener.onResponse(null);
+                            }
+
+                            // Close RefCountingListener to release initial reference
+                            if (chunkCompletionRefs != null) {
+                                chunkCompletionRefs.close();
+                            }
+                        } catch (Exception e) {
+                            onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        SearchHits lastChunk = lastChunkRef.getAndSet(null);
+                        if (lastChunk != null) {
+                            lastChunk.decRef();
+                        }
+
+                        if (buildListener != null) {
+                            buildListener.onFailure(e);
+                        }
+
+                        if (mainBuildListener != null) {
+                            mainBuildListener.onFailure(e);
+                        } else {
+                            listener.onFailure(e);
+                        }
+
+                        if (chunkCompletionRefs != null) {
+                            chunkCompletionRefs.close();
+                        }
                     }
                 }
-                throw new TaskCancelledException("cancelled");
-            }
-
-            TotalHits totalHits = context.getTotalHits();;
-
-            if (writer == null) {
-                // Non-streaming mode: return all hits
-                resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
-                try {
-                    listener.onResponse(resultToReturn);
-                } finally {
-                    resultToReturn = null; // Ownership transferred
-                }
-            } else {
-                // Streaming mode: hits already sent via chunks, release the array
-                for (SearchHit hit : result.hits) {
-                    if (hit != null) {
-                        hit.decRef();
-                    }
-                }
-
-                // Take ownership of lastChunk for the completion callback.
-                if (result.lastChunk != null) {
-                    result.lastChunk.incRef();
-                    lastChunkRef.set(result.lastChunk);
-                    lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
-                }
-            }
-        } catch (Exception e) {
-            caughtException = e;
-
-            if (resultToReturn != null) {
-                resultToReturn.decRef();
-            }
-
-            // Release our lastChunk reference if we took one
-            SearchHits lastChunk = lastChunkRef.getAndSet(null);
-            if (lastChunk != null) {
-                lastChunk.decRef();
-            }
-        } finally {
-            // Signal completion of the fetch build phase (success or failure). This is distinct from the final
-            // fetch completion in streaming mode, which may only occur after all response chunks are ACKed.
-            if (buildListener != null) {
-                if (caughtException != null) {
-                    buildListener.onFailure(caughtException);
-                } else {
-                    buildListener.onResponse(null);
-                }
-            }
-
-            // Handle completion to ensure it always runs.
-            // For streaming mode: signal success/failure to RefCountingListener
-            // For non-streaming mode: propagate any caught exception
-            if (mainBuildListener != null) {
-                if (caughtException != null) {
-                    mainBuildListener.onFailure(caughtException);
-                } else {
-                    mainBuildListener.onResponse(null);
-                }
-            } else if (caughtException != null) {
-                listener.onFailure(caughtException);
-            }
-
-            // Close to release initial reference. Without this, RefCountingListener never completes and hangs.
-            if (chunkCompletionRefs != null) {
-                chunkCompletionRefs.close();
-            }
-
-            // Release breaker bytes for non-streaming mode
-            long bytes = docsIterator.getRequestBreakerBytes();
-            if (writer == null && bytes > 0L) {
-                context.circuitBreaker().addWithoutBreaking(-bytes);
-                LOGGER.info(
-                    "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
-                    bytes,
-                    context.getSearchExecutionContext().getShardId(),
-                    context.circuitBreaker().getUsed()
-                );
-            }
+            );
         }
     }
 

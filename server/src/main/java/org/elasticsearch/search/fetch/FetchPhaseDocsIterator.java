@@ -14,9 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -26,19 +24,17 @@ import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Given a set of doc ids and an index reader, sorts the docs by id (when not streaming),
@@ -55,6 +51,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * docs are NOT sorted to preserve score order, and sequence numbers track ordering across chunks.
  */
 abstract class FetchPhaseDocsIterator {
+
+    // Timeout interval
+    private static final long CANCELLATION_CHECK_INTERVAL_MS = 100;
 
     /**
      * Accounts for FetchPhase memory usage.
@@ -92,451 +91,369 @@ abstract class FetchPhaseDocsIterator {
     protected abstract SearchHit nextDoc(int doc) throws IOException;
 
     /**
-     * Iterate over a set of docsIds within a particular shard and index reader.
-     *
-     * Streaming mode: When {@code chunkWriter} is non-null, hits are buffered and sent
-     * in chunks. Docs are kept in original order (score-based) and sequence numbers track
-     * position to handle out-of-order chunk arrival.
-     *
-     * Non-streaming mode: Docs are sorted by doc ID for efficiency, and original order
-     * is restored via index mapping.
+     * Synchronous iteration for non-streaming mode.
+     * Documents are sorted by doc ID for efficient sequential Lucene access,
+     * then results are mapped back to their original (score-based) order.
      *
      * @param shardTarget         the shard being fetched from
-     * @param indexReader         the index reader
-     * @param docIds              the document IDs to fetch
-     * @param allowPartialResults whether partial results are allowed on timeout
-     * @param querySearchResult   the query result
-     * @param chunkWriter         if non-null, enables streaming mode and sends hits in chunks
-     * @param chunkSize           number of hits per chunk (only used if chunkWriter is non-null)
-     * @param chunkCompletionRefs RefCountingListener for tracking chunk ACKs.
-     *                            Each chunk acquires a listener; when ACK is received, it signals completion.
-     * @param maxInFlightChunks   maximum number of chunks to send before backpressure
-     * @param sendFailure         reference to capture first chunk send failure
-     * @param totalHits           total hits for building SearchHits objects
-     * @param maxScore            max score for building SearchHits objects
-     * @return IterateResult containing hits array and optional last chunk with sequence info
+     * @param indexReader         the index reader for accessing documents
+     * @param docIds              document IDs to fetch (in score order)
+     * @param allowPartialResults if true, return partial results on timeout instead of failing
+     * @param querySearchResult   query result for recording timeout state
+     * @return IterateResult containing fetched hits in original score order
+     * @throws SearchTimeoutException if timeout occurs and partial results not allowed
+     * @throws FetchPhaseExecutionException if fetch fails for a document
      */
     public final IterateResult iterate(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
         int[] docIds,
         boolean allowPartialResults,
-        QuerySearchResult querySearchResult,
-        FetchPhaseResponseChunk.Writer chunkWriter,
-        int chunkSize,
-        RefCountingListener chunkCompletionRefs,
-        int maxInFlightChunks,
-        AtomicReference<Throwable> sendFailure,
-        TotalHits totalHits,
-        float maxScore
+        QuerySearchResult querySearchResult
     ) {
         SearchHit[] searchHits = new SearchHit[docIds.length];
         DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
-
-        final boolean streamingEnabled = chunkWriter != null && chunkSize > 0;
-        List<SearchHit> chunkBuffer = streamingEnabled ? new ArrayList<>(chunkSize) : null;
-        ShardId shardId = streamingEnabled ? shardTarget.getShardId() : null;
-        SearchHits lastChunk = null;
-        long lastChunkSequenceStart = -1;
-
         for (int index = 0; index < docIds.length; index++) {
             docs[index] = new DocIdToIndex(docIds[index], index);
         }
-
-        if (streamingEnabled == false) {
-            Arrays.sort(docs);
-        }
-
+        // make sure that we iterate in doc id order
+        Arrays.sort(docs);
         int currentDoc = docs[0].docId;
-
         try {
-            if (streamingEnabled) {
-                iterateStreaming(
-                    docs,
-                    indexReader,
-                    shardTarget,
-                    allowPartialResults,
-                    querySearchResult,
-                    chunkWriter,
-                    chunkSize,
-                    chunkBuffer,
-                    shardId,
-                    chunkCompletionRefs,
-                    maxInFlightChunks,
-                    sendFailure,
-                    docIds.length,
-                    totalHits,
-                    maxScore
-                );
+            if (docs.length == 0) {
+                return new IterateResult(searchHits, null, -1);
+            }
 
-                // Handle final chunk
-                if (chunkBuffer != null && chunkBuffer.isEmpty() == false) {
-                    lastChunkSequenceStart = hitSequenceCounter.get() - chunkBuffer.size();
-                    SearchHit[] lastHitsArray = chunkBuffer.toArray(new SearchHit[0]);
+            int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
+            LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+            int endReaderIdx = endReaderIdx(ctx, 0, docs);
+            int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
+            try {
+                setNextReader(ctx, docsInLeaf);
+            } catch (ContextIndexSearcher.TimeExceededException e) {
+                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                assert allowPartialResults;
+                return new IterateResult(new SearchHit[0], null, -1);
+            }
 
-                    for (SearchHit hit : lastHitsArray) {
-                        hit.decRef();
-                    }
-                    lastChunk = new SearchHits(lastHitsArray, totalHits, maxScore);
-                    chunkBuffer.clear();
-                }
-                return new IterateResult(SearchHits.EMPTY_WITHOUT_TOTAL_HITS.getHits(), lastChunk, lastChunkSequenceStart);
-            } else {
-                int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
-                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-                int endReaderIdx = endReaderIdx(ctx, 0, docs);
-                int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
-
+            for (int i = 0; i < docs.length; i++) {
                 try {
-                    setNextReader(ctx, docsInLeaf);
+                    if (i >= endReaderIdx) {
+                        leafOrd = ReaderUtil.subIndex(docs[i].docId, indexReader.leaves());
+                        ctx = indexReader.leaves().get(leafOrd);
+                        endReaderIdx = endReaderIdx(ctx, i, docs);
+                        docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
+                        setNextReader(ctx, docsInLeaf);
+                    }
+                    currentDoc = docs[i].docId;
+                    assert searchHits[docs[i].index] == null;
+                    searchHits[docs[i].index] = nextDoc(docs[i].docId);
                 } catch (ContextIndexSearcher.TimeExceededException e) {
+                    if (allowPartialResults == false) {
+                        purgeSearchHits(searchHits);
+                    }
                     SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                     assert allowPartialResults;
-                    return new IterateResult(SearchHits.EMPTY, lastChunk, lastChunkSequenceStart);
-                }
-
-                for (int i = 0; i < docs.length; i++) {
-                    try {
-                        if (i >= endReaderIdx) {
-                            leafOrd = ReaderUtil.subIndex(docs[i].docId, indexReader.leaves());
-                            ctx = indexReader.leaves().get(leafOrd);
-                            endReaderIdx = endReaderIdx(ctx, i, docs);
-                            docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
-                            setNextReader(ctx, docsInLeaf);
-                        }
-
-                        currentDoc = docs[i].docId;
-                        assert searchHits[docs[i].index] == null;
-                        SearchHit hit = nextDoc(docs[i].docId);
-                        searchHits[docs[i].index] = hit;
-
-                    } catch (ContextIndexSearcher.TimeExceededException e) {
-                        if (allowPartialResults == false) {
-                            purgeSearchHits(searchHits);
-                        }
-                        SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                        assert allowPartialResults;
-                        SearchHit[] partialSearchHits = new SearchHit[i];
-                        System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
-                        return new IterateResult(partialSearchHits, lastChunk, lastChunkSequenceStart);
-                    }
+                    SearchHit[] partialSearchHits = new SearchHit[i];
+                    System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
+                    return new IterateResult(partialSearchHits, null, -1);
                 }
             }
         } catch (SearchTimeoutException e) {
-            if (lastChunk != null) {
-                lastChunk.decRef();
-            }
             throw e;
         } catch (CircuitBreakingException e) {
             purgeSearchHits(searchHits);
-
-            if (lastChunk != null) {
-                lastChunk.decRef();
-            }
             throw e;
         } catch (Exception e) {
             purgeSearchHits(searchHits);
-
-            if (lastChunk != null) {
-                lastChunk.decRef();
-            }
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
-
-        return new IterateResult(searchHits, lastChunk, lastChunkSequenceStart);
+        return new IterateResult(searchHits, null, -1);
     }
 
     /**
-     * Streaming iteration: Fetches docs in sorted order (per reader) but preserves
-     * score order for chunk streaming. Tracks successfully sent hits in sentIndices
-     * to prevent double-decRef during cleanup if circuit breaker trips after some chunks
-     * have been successfully transmitted.
+     * Asynchronous iteration for streaming mode with backpressure.
+     * <p>
+     * Fetches documents in chunks and streams them to the coordinator as they're ready.
+     * Uses a semaphore-based backpressure mechanism to limit in-flight chunks, preventing
+     * memory exhaustion when the coordinator is slow to acknowledge.
+     * <p>
+     * <b>Threading model:</b> All Lucene operations (setNextReader, nextDoc) execute on the
+     * calling thread to maintain Lucene's thread-affinity requirements. Only the network
+     * send and ACK handling occur asynchronously.
+     * <p>
+     * <b>Chunk handling:</b>
+     * <ul>
+     *   <li>Non-last chunks are sent immediately and tracked via semaphore permits</li>
+     *   <li>The last chunk is held back and returned via the listener for the caller to send</li>
+     *   <li>Each chunk includes a sequence number for reassembly at the coordinator</li>
+     * </ul>
+     * <p>
+     * <b>Cancellation:</b> The method periodically checks the cancellation flag between chunks
+     * and while waiting for backpressure permits, ensuring responsive cancellation even under
+     * heavy backpressure.
+     *
+     * @param shardTarget         the shard being fetched from
+     * @param indexReader         the index reader for accessing documents
+     * @param docIds              document IDs to fetch (in score order, not modified)
+     * @param chunkWriter         writer for sending chunks to the coordinator
+     * @param chunkSize           number of hits per chunk
+     * @param chunkCompletionRefs ref-counting listener for tracking outstanding chunk ACKs;
+     *                            caller uses this to know when all chunks are acknowledged
+     * @param maxInFlightChunks   maximum concurrent unacknowledged chunks (backpressure limit)
+     * @param sendFailure         atomic reference to capture the first send failure;
+     *                            checked before each chunk to fail fast
+     * @param totalHits           total hits count for SearchHits metadata
+     * @param maxScore            maximum score for SearchHits metadata
+     * @param isCancelled         supplier that returns true if the task has been cancelled;
+     *                            checked periodically to support responsive cancellation
+     * @param listener            receives the result: empty hits array plus the last chunk
+     *                            (which caller must send) with its sequence start position
      */
-    private void iterateStreaming(
-        DocIdToIndex[] docs,
-        IndexReader indexReader,
+    public void iterateAsync(
         SearchShardTarget shardTarget,
-        boolean allowPartialResults,
-        QuerySearchResult querySearchResult,
+        IndexReader indexReader,
+        int[] docIds,
         FetchPhaseResponseChunk.Writer chunkWriter,
         int chunkSize,
-        List<SearchHit> chunkBuffer,
-        ShardId shardId,
         RefCountingListener chunkCompletionRefs,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
-        int totalDocs,
         TotalHits totalHits,
-        float maxScore
-    ) throws IOException {
-        List<LeafReaderContext> leaves = indexReader.leaves();
-        long currentChunkSequenceStart = -1;
+        float maxScore,
+        Supplier<Boolean> isCancelled,
+        ActionListener<IterateResult> listener
+    ) {
+        if (docIds == null || docIds.length == 0) {
+            listener.onResponse(new IterateResult(new SearchHit[0], null, -1));
+            return;
+        }
 
-        // Semaphore with maxInFlightChunks permits
+        // Semaphore controls backpressure, each in-flight chunk holds one permit.
+        // When maxInFlightChunks are in flight, we block until an ACK releases a permit.
         Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
 
-        // Track indices of hits that have been successfully sent to prevent double-cleanup
-        // if circuit breaker trips after some chunks are transmitted.
-        Set<Integer> sentIndices = new HashSet<>();
+        SearchHits lastChunk = null;
+        long lastChunkSeqStart = -1;
+        ShardId shardId = shardTarget.getShardId();
+        int totalDocs = docIds.length;
 
-        // Store hits with their original score position
-        SearchHit[] hitsInScoreOrder = new SearchHit[docs.length];
+        // Leaf reader state - maintained across iterations for efficiency.
+        // Only changes when we cross into a new segment.
+        int currentLeafOrd = -1;
+        LeafReaderContext currentCtx = null;
 
         try {
-            // Process one reader at a time
-            for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
-                LeafReaderContext ctx = leaves.get(leafOrd);
-                int docBase = ctx.docBase;
-                int maxDoc = ctx.reader().maxDoc();
-                int leafEndDoc = docBase + maxDoc;
+            for (int start = 0; start < docIds.length; start += chunkSize) {
+                int end = Math.min(start + chunkSize, docIds.length);
+                boolean isLast = (end == docIds.length);
 
-                // Collect docs that belong to this reader with their original positions
-                List<DocPosition> docsInReader = new ArrayList<>();
-                for (int i = 0; i < docs.length; i++) {
-                    if (docs[i].docId >= docBase && docs[i].docId < leafEndDoc) {
-                        docsInReader.add(new DocPosition(docs[i].docId, i));
-                    }
+                // Check cancellation at chunk boundaries for responsive task cancellation
+                if (isCancelled.get()) {
+                    throw new TaskCancelledException("cancelled");
                 }
 
-                if (docsInReader.isEmpty()) {
-                    continue;
+                // Check for prior send failure
+                Throwable failure = sendFailure.get();
+                if (failure != null) {
+                    throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
                 }
 
-                // Sort by doc ID for Lucene
-                docsInReader.sort(Comparator.comparingInt(a -> a.docId));
+                List<SearchHit> hits = new ArrayList<>(end - start);
+                for (int i = start; i < end; i++) {
+                    int docId = docIds[i];
 
-                // Prepare array for setNextReader
-                int[] docsArray = docsInReader.stream().mapToInt(dp -> dp.docId - docBase).toArray();
+                    int leafOrd = ReaderUtil.subIndex(docId, indexReader.leaves());
+                    if (leafOrd != currentLeafOrd) {
+                        currentLeafOrd = leafOrd;
+                        currentCtx = indexReader.leaves().get(leafOrd);
+                        int[] docsInLeaf = computeDocsInLeaf(docIds, i, end, currentCtx);
+                        setNextReader(currentCtx, docsInLeaf);
+                    }
 
-                try {
-                    setNextReader(ctx, docsArray);
-                } catch (ContextIndexSearcher.TimeExceededException e) {
-                    if (leafOrd == 0) {
-                        SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                        assert allowPartialResults;
-                        return;
-                    }
-                    if (allowPartialResults == false) {
-                        purgePartialHits(hitsInScoreOrder, Collections.emptySet());
-                    }
-                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                    assert allowPartialResults;
-                    return;
+                    SearchHit hit = nextDoc(docId);
+                    hits.add(hit);
                 }
 
-                // Fetch docs in sorted order
-                for (DocPosition dp : docsInReader) {
-                    try {
-                        SearchHit hit = nextDoc(dp.docId);
-                        hitsInScoreOrder[dp.scorePosition] = hit;
-                    } catch (ContextIndexSearcher.TimeExceededException e) {
-                        if (allowPartialResults == false) {
-                            purgePartialHits(hitsInScoreOrder, Collections.emptySet());
-                        }
-                        SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                        assert allowPartialResults;
-                        return;
-                    }
-                }
-            }
+                SearchHits chunk = createSearchHits(hits, totalHits, maxScore);
+                long sequenceStart = hitSequenceCounter.getAndAdd(chunk.getHits().length);
 
-            // Now stream hits in score order
-            int processedCount = 0;
-            for (int i = 0; i < hitsInScoreOrder.length; i++) {
-                SearchHit hit = hitsInScoreOrder[i];
-                if (hit == null) {
-                    continue; // Defensive
-                }
+                if (isLast) {
+                    // Hold back last chunk - caller sends it after all ACKs received
+                    lastChunk = chunk;
+                    lastChunkSeqStart = sequenceStart;
+                } else {
+                    // Wait for permit before sending
+                    // This blocks if maxInFlightChunks are already in flight,
+                    // with periodic cancellation checks to remain responsive
+                    acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
 
-                hit.incRef();
-
-                if (chunkBuffer.isEmpty()) {
-                    currentChunkSequenceStart = hitSequenceCounter.get();
-                }
-                hitSequenceCounter.getAndIncrement();
-
-                chunkBuffer.add(hit);
-                processedCount++;
-
-                // Send chunk if full (but not on last doc)
-                boolean isLastDoc = (i == hitsInScoreOrder.length - 1);
-                if (chunkBuffer.size() >= chunkSize && isLastDoc == false) {
-                    Throwable knownFailure = sendFailure.get();
-                    if (knownFailure != null) {
-                        throw new RuntimeException("Fetch chunk failed", knownFailure);
-                    }
-
-                    try {
-                        transmitPermits.acquire();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Interrupted while waiting for transmit permit", e);
-                    }
-
-                    // Track which indices are being sent in this chunk
-                    int chunkStartIdx = i - chunkBuffer.size() + 1;
-                    int chunkEndIdx = i + 1;
-
-                    // Mark indices as sent BEFORE the async call, since sendChunk immediately decRefs them
-                    for (int idx = chunkStartIdx; idx < chunkEndIdx; idx++) {
-                        sentIndices.add(idx);
-                    }
-
+                    // Send chunk asynchronously - permit released when ACK arrives
                     sendChunk(
+                        chunk,
                         chunkWriter,
-                        chunkBuffer,
                         shardId,
-                        currentChunkSequenceStart,
-                        processedCount - chunkBuffer.size(),
+                        sequenceStart,
+                        start,
                         totalDocs,
-                        totalHits,
-                        maxScore,
                         sendFailure,
-                        transmitPermits,
-                        chunkCompletionRefs.acquire()
+                        chunkCompletionRefs.acquire(),
+                        transmitPermits
                     );
-                    chunkBuffer.clear();
                 }
             }
+
+            // Wait for all in-flight chunks to be acknowledged
+            // Ensures we don't return until all chunks are safely received
+            waitForAllPermits(transmitPermits, maxInFlightChunks, isCancelled);
+
+            // Final failure check after all chunks sent
+            Throwable failure = sendFailure.get();
+            if (failure != null) {
+                if (lastChunk != null) {
+                    lastChunk.decRef();
+                }
+                throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
+            }
+
+            // Return last chunk for caller to send (completes the streaming response)
+            listener.onResponse(new IterateResult(new SearchHit[0], lastChunk, lastChunkSeqStart));
         } catch (Exception e) {
-            for (SearchHit bufferHit : chunkBuffer) {
-                if (bufferHit != null) {
-                    for (int j = 0; j < hitsInScoreOrder.length; j++) {
-                        if (hitsInScoreOrder[j] == bufferHit) {
-                            // DecRef twice: once for buffer incRef, once for base reference
-                            bufferHit.decRef();
-                            bufferHit.decRef();
-                            sentIndices.add(j);
-                            break;
-                        }
-                    }
-                }
+            // Clean up last chunk on any failure
+            if (lastChunk != null) {
+                lastChunk.decRef();
             }
-            chunkBuffer.clear();
-
-            purgePartialHits(hitsInScoreOrder, sentIndices);
-            throw e;
+            listener.onFailure(e);
         }
     }
 
     /**
-     * Helper to store doc ID with its original score position
+     * Sends a chunk of search hits to the coordinator.
+     * <p>
+     * Wraps the hits in a {@link FetchPhaseResponseChunk} message and writes it via the
+     * chunk writer. Handles reference counting and permit management for both success
+     * and failure cases.
+     *
+     * @param chunk          the search hits to send (reference will be released)
+     * @param writer         the chunk writer for network transmission
+     * @param shardId        the source shard identifier
+     * @param sequenceStart  starting sequence number for hit ordering at coordinator
+     * @param fromIndex      index of first doc in this chunk (for progress tracking)
+     * @param totalDocs      total documents being fetched (for progress tracking)
+     * @param sendFailure    atomic reference to capture first failure
+     * @param ackListener    listener to signal when ACK received (for RefCountingListener)
+     * @param transmitPermits semaphore to release when ACK received (backpressure control)
      */
-    private static class DocPosition {
-        final int docId;
-        final int scorePosition;
-
-        DocPosition(int docId, int scorePosition) {
-            this.docId = docId;
-            this.scorePosition = scorePosition;
-        }
-    }
-
-    /**
-     * Clean up partially fetched hits, skipping hits that were successfully sent in chunks.
-     * This prevents double-decRef when circuit breaker trips after some chunks were transmitted.
-     */
-    private static void purgePartialHits(SearchHit[] hits, Set<Integer> sentIndices) {
-        for (int i = 0; i < hits.length; i++) {
-            if (hits[i] != null && sentIndices.contains(i) == false) {
-                hits[i].decRef();
-            }
-        }
-    }
-
-    /**
-     * Sends a chunk of hits to the coordinator with sequence information for ordering.
-     * Releases a transmit permit when complete (success or failure). On successful transmission,
-     * adds the sent hit indices to sentIndices to prevent double-cleanup if a later circuit breaker trip occurs.
-     */
-    private static void sendChunk(
+    private void sendChunk(
+        SearchHits chunk,
         FetchPhaseResponseChunk.Writer writer,
-        List<SearchHit> buffer,
         ShardId shardId,
         long sequenceStart,
         int fromIndex,
         int totalDocs,
-        TotalHits totalHits,
-        float maxScore,
         AtomicReference<Throwable> sendFailure,
-        Semaphore transmitPermits,
-        ActionListener<Void> chunkListener
+        ActionListener<Void> ackListener,
+        Semaphore transmitPermits
     ) {
-
-        // Release if nothing to send
-        if (buffer.isEmpty()) {
-            transmitPermits.release();
-            chunkListener.onResponse(null); // Signal completion to RefCountingListener
-            return;
-        }
-
-        SearchHit[] hitsArray = buffer.toArray(new SearchHit[0]);
-
-        // We incremented when adding to buffer, SearchHits constructor will increment again
-        // So decRef to get back to refCount=1 before passing to SearchHits
-        for (SearchHit hit : hitsArray) {
-            hit.decRef();
-        }
-
-        SearchHits chunkHits = null;
         try {
-            chunkHits = new SearchHits(hitsArray, totalHits, maxScore);
-            final SearchHits finalChunkHits = chunkHits;
-
-            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
+            FetchPhaseResponseChunk chunkMsg = new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
                 FetchPhaseResponseChunk.Type.HITS,
                 shardId,
-                chunkHits,
+                chunk,
                 fromIndex,
-                hitsArray.length,
+                chunk.getHits().length,
                 totalDocs,
                 sequenceStart
             );
 
-            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                    // Success: coordinator received the chunk
-                    transmitPermits.release();
-                    finalChunkHits.decRef();
-                    chunkListener.onResponse(null);
-                },ex -> {
-                    // Failure: transmission failed, we still own the hits
-                    transmitPermits.release();
-                    finalChunkHits.decRef();
-                    sendFailure.compareAndSet(null, ex);
-                    chunkListener.onFailure(ex);
+            writer.writeResponseChunk(chunkMsg, ActionListener.wrap(
+                ack -> {
+                    // Success: clean up and signal completion
+                    chunk.decRef();
+                    ackListener.onResponse(null);
+                    transmitPermits.release();  // Allow next chunk to proceed
+                },
+                e -> {
+                    // Failure: clean up, record error, and release permit
+                    chunk.decRef();
+                    sendFailure.compareAndSet(null, e);
+                    ackListener.onFailure(e);
+                    transmitPermits.release();  // Release even on failure
                 }
             ));
         } catch (Exception e) {
-            transmitPermits.release();
+            chunk.decRef();
             sendFailure.compareAndSet(null, e);
-
-            // If chunk creation failed after SearchHits was created, clean up
-            if (chunkHits != null) {
-                chunkHits.decRef();
-            }
-
-            // Signal failure to RefCountingListener
-            chunkListener.onFailure(e);
+            ackListener.onFailure(e);
+            transmitPermits.release();
         }
+    }
+
+    /**
+     * Acquires a single permit from the semaphore, polling for task cancellation
+     * between acquisition attempts.
+     */
+    private void acquirePermitWithCancellationCheck(Semaphore semaphore, Supplier<Boolean> isCancelled)
+        throws InterruptedException {
+        while (semaphore.tryAcquire(CANCELLATION_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS) == false) {
+            if (isCancelled.get()) {
+                throw new TaskCancelledException("cancelled");
+            }
+        }
+    }
+
+    /**
+     * Waits for all permits to become available (indicating all chunks have been ACKed),
+     * polling for task cancellation between attempts. Permits are re-released after acquisition
+     * since we're just checking that all async work has completed.
+     */
+    private void waitForAllPermits(Semaphore semaphore, int totalPermits, Supplier<Boolean> isCancelled)
+        throws InterruptedException {
+        int acquired = 0;
+        try {
+            while (acquired < totalPermits) {
+                while (semaphore.tryAcquire(CANCELLATION_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS) == false) {
+                    if (isCancelled.get()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
+                }
+                acquired++;
+            }
+        } finally {
+            // Release all acquired permits - we were just checking completion
+            if (acquired > 0) {
+                semaphore.release(acquired);
+            }
+        }
+    }
+
+    private int[] computeDocsInLeaf(int[] docIds, int fromIndex, int toIndex, LeafReaderContext ctx) {
+        int docBase = ctx.docBase;
+        int leafEndDoc = docBase + ctx.reader().maxDoc();
+
+        List<Integer> docsInLeaf = new ArrayList<>();
+        for (int i = fromIndex; i < toIndex; i++) {
+            int docId = docIds[i];
+            if (docId >= docBase && docId < leafEndDoc) {
+                docsInLeaf.add(docId - docBase);
+            }
+        }
+        return docsInLeaf.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    private SearchHits createSearchHits(List<SearchHit> hits, TotalHits totalHits, float maxScore) {
+        if (hits.isEmpty()) {
+            return SearchHits.empty(totalHits, maxScore);
+        }
+        SearchHit[] hitsArray = hits.toArray(new SearchHit[0]);
+        return new SearchHits(hitsArray, totalHits, maxScore);
     }
 
     private static void purgeSearchHits(SearchHit[] searchHits) {
         for (SearchHit searchHit : searchHits) {
             if (searchHit != null) {
                 searchHit.decRef();
-            }
-        }
-    }
-
-    /**
-     * Releases hits in the chunk buffer during error cleanup.
-     * Only called when streaming mode is enabled.
-     */
-    private static void purgeChunkBuffer(List<SearchHit> buffer) {
-        for (SearchHit hit : buffer) {
-            if (hit != null) {
-                hit.decRef();
             }
         }
     }
@@ -604,6 +521,15 @@ abstract class FetchPhaseDocsIterator {
             if (lastChunk != null) {
                 lastChunk.decRef();
             }
+        }
+    }
+
+    /**
+     * Represents a chunk of documents to fetch and send.
+     */
+    private record ChunkTask(int startIndex, int endIndex, boolean isLast) {
+        int size() {
+            return endIndex - startIndex;
         }
     }
 }

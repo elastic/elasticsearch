@@ -7,6 +7,7 @@ PROMQL index=k8s step=1h sum=(1+1);
 sum:double | step:datetime           
 2.0        | 2024-05-10T00:00:00.000Z
 ;
+// for TS, the analyzer rejects queries that are foldable to a constant "expected an aggregate function but found [1 + 1]"
 
 // scalar-metric tests
 
@@ -61,6 +62,25 @@ network_in_bits:double | step:datetime            | _timeseries:keyword
 53096.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 41496.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 7576.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+multiplication_within_series_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS network_in_bits = last_over_time(network.total_bytes_in) * 8
+  BY step=TBUCKET(1h)
+| SORT network_in_bits DESC;
+
+network_in_bits:long | _timeseries:keyword                                                  | step:datetime
+86376                | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+82216                | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+79752                | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+68544                | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+59224                | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+58288                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+53096                | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+41496                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+7576                 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
 ;
 
 across_series_multiplication_metric_scalar_promql
@@ -162,6 +182,18 @@ max_bits:double | step:datetime            | cluster:keyword
 82216.0         | 2024-05-10T00:00:00.000Z | prod
 59224.0         | 2024-05-10T00:00:00.000Z | staging
 ;
+multiplication_across_series_grouping_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(network.total_bytes_in) * 8 BY step=TBUCKET(1h), cluster
+| SORT max_bits DESC;
+
+max_bits:long | step:datetime            | cluster:keyword
+86376         | 2024-05-10T00:00:00.000Z | qa
+82216         | 2024-05-10T00:00:00.000Z | prod
+59224         | 2024-05-10T00:00:00.000Z | staging
+;
 
 multiplication_across_series_grouping_within_series_scalar_promql
 required_capability: promql_pre_tech_preview_v13
@@ -211,7 +243,6 @@ addition_metric_metric_ts
 required_capability: ts_command_v0
 required_capability: tbucket
 required_capability: ts_stats_binary_ops
-
 TS k8s
 | STATS in_n_out=network.eth0.rx + network.eth0.tx
   BY step=TBUCKET(1h)
@@ -279,6 +310,16 @@ PROMQL index=k8s step=1h div=(
 
 div:double | step:datetime            | cluster:keyword
 1.0        | 2024-05-10T00:00:00.000Z | qa
+;
+division_metric_metric_grouping_filtering_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| WHERE cluster != "prod" AND cluster != "staging"
+| STATS div=max(network.total_bytes_in / network.total_bytes_in) BY step=TBUCKET(1h), cluster
+| SORT cluster;
+div:long | step:datetime            | cluster:keyword
+1        | 2024-05-10T00:00:00.000Z | qa
 ;
 
 division_within_series_grouping_ts

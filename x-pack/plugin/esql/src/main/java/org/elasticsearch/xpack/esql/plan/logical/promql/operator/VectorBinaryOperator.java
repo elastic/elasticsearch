@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
     }
 
     public interface ScalarFunctionFactory {
-        Function create(Source source, Expression left, Expression right);
+        Function create(Source source, Expression left, Expression right, Configuration configuration);
     }
 
     protected VectorBinaryOperator(

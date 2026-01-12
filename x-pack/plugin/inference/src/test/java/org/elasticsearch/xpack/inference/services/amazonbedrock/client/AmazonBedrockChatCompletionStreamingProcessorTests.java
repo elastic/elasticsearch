@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
@@ -111,7 +110,6 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         }));
     }
 
-    @SuppressWarnings("unchecked")
     public void testForwardsDownstream() {
         var expectedMessageStartRole = "assistant";
         ExecutorService executorService = mock();
@@ -144,7 +142,10 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
             StreamingUnifiedChatCompletionResults.Results.class
         );
 
-        verify(downstream, times(3)).onNext(argument.capture());
+        // 3 because we call onNext three times above
+        var initialInvocations = 3;
+
+        verify(downstream, times(initialInvocations)).onNext(argument.capture());
         assertThat(argument.getAllValues().size(), is(3));
         assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
         assertThat(
@@ -158,15 +159,16 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         verify(executorService, times(3)).execute(any());
         verify(upstream, times(0)).request(anyLong());
 
-        Mockito.clearInvocations(downstream);
-
-        // This event type is ignored, so it won't call onNext for the downstream
+        // These event types are ignored, so it won't call onNext for the downstream
         processor.onNext(contentBlockStopOutput);
+        processor.onNext(contentBlockStopOutput);
+
+        // These cause actual calls to onNext for the downstream
         processor.onNext(messageStopOutput);
         processor.onNext(metadata);
 
         // Only 2 calls because content block stop is ignored
-        verify(downstream, times(2)).onNext(any());
+        verify(downstream, times(initialInvocations + 2)).onNext(any());
         assertThat(argument.getAllValues().size(), is(3));
         assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(1).chunks().size(), is(1));

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionVisitor;
 
 import java.util.Map;
-import java.util.Objects;
 
 public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
 
@@ -55,7 +54,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
             originalModelServiceSettings.region(),
-            Objects.requireNonNull(request.model(), originalModelServiceSettings.modelId()),
+            request.model(),
             originalModelServiceSettings.provider(),
             originalModelServiceSettings.rateLimitSettings()
         );

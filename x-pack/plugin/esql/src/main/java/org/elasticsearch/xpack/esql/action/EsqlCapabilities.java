@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -809,6 +811,11 @@ public class EsqlCapabilities {
          * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
          */
         SOURCE_FIELD_MAPPING,
+
+        /**
+         * Support for extended doc values params.
+         */
+        EXTENDED_DOC_VALUES_PARAMS(EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()),
 
         /**
          * Allow filter per individual aggregation.

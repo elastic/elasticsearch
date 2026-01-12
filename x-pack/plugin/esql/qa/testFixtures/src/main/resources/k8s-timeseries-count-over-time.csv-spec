@@ -368,3 +368,62 @@ bytes:long | pod:keyword | time_bucket:datetime
 19         | two         | 2024-05-09T23:50:00.000Z
 20         | one         | 2024-05-09T23:40:00.000Z
 ;
+
+count_over_time_of_dense_vector
+required_capability: ts_command_v0
+TS k8s 
+| STATS vectors = sum(count_over_time(dense_vector)) BY cluster, time_bucket = bucket(@timestamp,10minute) 
+| SORT time_bucket, cluster 
+| LIMIT 10;
+
+vectors:long | cluster:keyword | time_bucket:datetime
+63           | prod            | 2024-05-10T00:00:00.000Z
+99           | qa              | 2024-05-10T00:00:00.000Z
+66           | staging         | 2024-05-10T00:00:00.000Z
+84           | prod            | 2024-05-10T00:10:00.000Z
+108          | qa              | 2024-05-10T00:10:00.000Z
+66           | staging         | 2024-05-10T00:10:00.000Z
+12           | prod            | 2024-05-10T00:20:00.000Z
+18           | qa              | 2024-05-10T00:20:00.000Z
+30           | staging         | 2024-05-10T00:20:00.000Z
+;
+
+count_over_time_of_dense_vector_with_filtering
+required_capability: ts_command_v0
+TS k8s 
+| WHERE pod != "one" 
+| STATS vectors = sum(count_over_time(dense_vector)) BY cluster, time_bucket = bucket(@timestamp, 10minute) 
+| SORT time_bucket, cluster 
+| LIMIT 10;
+
+vectors:long | cluster:keyword | time_bucket:datetime
+36           | prod            | 2024-05-10T00:00:00.000Z
+63           | qa              | 2024-05-10T00:00:00.000Z
+48           | staging         | 2024-05-10T00:00:00.000Z
+54           | prod            | 2024-05-10T00:10:00.000Z
+69           | qa              | 2024-05-10T00:10:00.000Z
+54           | staging         | 2024-05-10T00:10:00.000Z
+6            | prod            | 2024-05-10T00:20:00.000Z
+9            | qa              | 2024-05-10T00:20:00.000Z
+24           | staging         | 2024-05-10T00:20:00.000Z
+;
+
+eval_on_count_over_time_dense_vector
+required_capability: ts_command_v0
+TS k8s 
+| STATS vectors = sum(count_over_time(dense_vector)) BY pod, time_bucket = bucket(@timestamp, 10minute) 
+| EVAL avg_per_pod = to_double(vectors) / 3.0 
+| LIMIT 10 
+| SORT time_bucket, pod;
+
+vectors:long | pod:keyword | time_bucket:datetime     | avg_per_pod:double
+81           | one         | 2024-05-10T00:00:00.000Z | 27.0
+69           | three       | 2024-05-10T00:00:00.000Z | 23.0
+78           | two         | 2024-05-10T00:00:00.000Z | 26.0
+81           | one         | 2024-05-10T00:10:00.000Z | 27.0
+90           | three       | 2024-05-10T00:10:00.000Z | 30.0
+87           | two         | 2024-05-10T00:10:00.000Z | 29.0
+21           | one         | 2024-05-10T00:20:00.000Z | 7.0
+24           | three       | 2024-05-10T00:20:00.000Z | 8.0
+15           | two         | 2024-05-10T00:20:00.000Z | 5.0
+;

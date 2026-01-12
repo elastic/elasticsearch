@@ -10775,4 +10775,68 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
     }
+
+    /*
+     * EsqlProject[[salary{f}#15, aaaaa{r}#7]]
+     * \_Limit[10[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[languages{f}#13],[languages{r}#13]]
+     *     |_EsqlProject[[languages{f}#13, salary{f}#15]]
+     *     | \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     \_Project[[aaaaa{r}#7, languages{f}#13]]
+     *       \_Eval[[$$SUM$aaaaa$0{r$}#21 / $$COUNT$aaaaa$1{r$}#22 AS aaaaa#7]]
+     *         \_Aggregate[[languages{f}#13],[SUM(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$aaaaa$0#21
+     * , COUNT(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$aaaaa$1#22, languages{f}#13]]
+     *           \_StubRelation[[languages{f}#13, salary{f}#15]]
+     */
+    public void testDropInlineStatsGrouping() {
+        var query = """
+            FROM employees
+            | KEEP languages, salary
+            | INLINE STATS aaaaa = AVG(salary) BY languages
+            | DROP languages
+            | LIMIT 10
+            """;
+
+        var plan = optimizedPlan(query);
+    }
+
+    public void testKeepExceptInlineStatsGrouping() {
+        var query = """
+            FROM employees
+            | KEEP languages, salary
+            | INLINE STATS aaaaa = AVG(salary) BY languages
+            | KEEP salary, aaaaa
+            | LIMIT 10
+            """;
+
+        var plan = optimizedPlan(query);
+    }
+
+    public void testDropDoubleInlineStatsGrouping() {
+        var query = """
+            FROM employees
+            | KEEP languages, salary
+            | INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+            | INLINE STATS languages2 = SUM(languages1), avg = AVG(salary) BY languages
+            | DROP languages
+            | SORT salary
+            | LIMIT 10
+            """;
+
+        var plan = optimizedPlan(query);
+    }
+
+    public void testDropDoubleInlineStats_PartialMultipleGroupings() {
+        var query = """
+            FROM employees
+            | KEEP languages, salary, long_noidx, gender
+            | INLINE STATS languages1 = MV_AVG(long_noidx), avg = AVG(salary) BY languages, long_noidx
+            | INLINE STATS languages2 = SUM(languages1), avg = AVG(salary) BY languages, gender
+            | DROP languages
+            | SORT salary
+            | LIMIT 10
+            """;
+
+        var plan = optimizedPlan(query);
+    }
 }

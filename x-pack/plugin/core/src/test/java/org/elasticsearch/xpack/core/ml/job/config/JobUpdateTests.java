@@ -404,7 +404,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
         jobBuilder.setAnalysisLimits(new AnalysisLimits(1024L, 3L));
-        Job job =  jobBuilder.build();
+        Job job = jobBuilder.build();
         JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
         Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
 
@@ -420,7 +420,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
         jobBuilder.setAnalysisLimits(new AnalysisLimits(1024L, 3L));
-        Job job =  jobBuilder.build();
+        Job job = jobBuilder.build();
         JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(null, 5L)).build();
         Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
 

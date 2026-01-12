@@ -300,33 +300,26 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
 
     private static LogicalPlan appendLimitIfNeededForKnn(LogicalPlan subquery, LogicalOptimizerContext context) {
         Holder<Integer> maxImplicitK = new Holder<>(null);
-        Holder<Boolean> hasLimitAlready = new Holder<>(false);
 
-        subquery.forEachDown(plan -> {
-            if (hasLimitAlready.get()) {
-                return;
-            }
-
+        boolean foundLimitAfterKnn = subquery.forEachDownMayReturnEarly((plan, hasLimitAfterKnn) -> {
             if (plan instanceof Limit && maxImplicitK.get() == null) { // found a limit before finding knn
-                hasLimitAlready.set(true);
+                hasLimitAfterKnn.set(true);
                 return;
             }
 
             // haven't found limit yet, look for knn in the plan
-            plan.forEachExpression(exp -> {
-                if (exp instanceof Knn knn) {
-                    Integer k = knn.implicitK();
-                    if (k != null) {
-                        Integer currentMax = maxImplicitK.get();
-                        maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
-                    }
+            plan.forEachExpression(Knn.class, knn -> {
+                Integer k = knn.implicitK();
+                if (k != null) {
+                    Integer currentMax = maxImplicitK.get();
+                    maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
                 }
             });
         });
 
         // there is knn with implicitK and there is no limit after knn, append a limit
         Integer k = maxImplicitK.get();
-        if (k != null && hasLimitAlready.get() == false) {
+        if (k != null && foundLimitAfterKnn == false) {
             Source source = subquery.source();
             // check the implicit K against default and maximum implicit limit
             int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);

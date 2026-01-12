@@ -703,16 +703,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     void initGiantTextField(int docs) throws IOException {
-        int docsPerBulk = 10;
-        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
-            for (Object module : (List<?>) nodeInfo.get("modules")) {
-                Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                final String moduleName = moduleInfo.get("name").toString();
-                if (moduleName.startsWith("serverless-")) {
-                    docsPerBulk = 3;
-                }
-            }
-        }
+        int docsPerBulk = isServerless() ? 3 : 10;
         logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
 
         int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());

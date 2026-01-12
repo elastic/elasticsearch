@@ -364,17 +364,4 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns,values"));
     }
-
-    private static boolean isServerless() throws IOException {
-        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
-            for (Object module : (List<?>) nodeInfo.get("modules")) {
-                Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                final String moduleName = moduleInfo.get("name").toString();
-                if (moduleName.startsWith("serverless-")) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }

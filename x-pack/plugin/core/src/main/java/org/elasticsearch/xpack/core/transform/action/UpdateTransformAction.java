@@ -190,11 +190,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public boolean match(Task task) {
-            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
-                return taskId.equals(this.id);
-            }
-            return false;
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

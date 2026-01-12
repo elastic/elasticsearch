@@ -78,13 +78,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         };
 
-        FetchPhaseDocsIterator.IterateResult result = it.iterate(
-            null,
-            reader,
-            docs,
-            randomBoolean(),
-            new QuerySearchResult()
-        );
+        FetchPhaseDocsIterator.IterateResult result = it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult());
 
         assertThat(result.hits.length, equalTo(docs.length));
         for (int i = 0; i < result.hits.length; i++) {

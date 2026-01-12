@@ -22,7 +22,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 

@@ -27,7 +27,6 @@ public class AnalyzerContext {
     private final TransportVersion minimumVersion;
     private final UnmappedResolution unmappedResolution;
 
-
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
@@ -79,7 +78,6 @@ public class AnalyzerContext {
     public TransportVersion minimumVersion() {
         return minimumVersion;
     }
-
 
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;

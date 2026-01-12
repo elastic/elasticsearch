@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -81,11 +79,8 @@ public class QuerySettings {
         UnmappedResolution.FAIL
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(
-        UNMAPPED_FIELDS,
-        PROJECT_ROUTING,
-        TIME_ZONE
-    ).collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(UNMAPPED_FIELDS, PROJECT_ROUTING, TIME_ZONE)
+        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {

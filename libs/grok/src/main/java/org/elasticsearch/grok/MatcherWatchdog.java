@@ -45,10 +45,10 @@ public interface MatcherWatchdog {
     /**
      * Returns an implementation that relies on the {@link org.joni.Matcher#setTimeout(long)} method.
      *
-     * @param maxExecutionTime The time in millis that a matcher has to execute an operation.
+     * @param maxExecutionTimeMillis The time in millis that a matcher has to execute an operation.
      */
-    static MatcherWatchdog newInstance(long maxExecutionTime) {
-        return new Default(maxExecutionTime);
+    static MatcherWatchdog newInstance(long maxExecutionTimeMillis) {
+        return new Default(maxExecutionTimeMillis);
     }
 
     /**

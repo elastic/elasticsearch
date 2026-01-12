@@ -37,23 +37,35 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
- * Given a set of doc ids and an index reader, sorts the docs by id (when not streaming),
- * splits the sorted docs by leaf reader, and iterates through them calling abstract methods
- * {@link #setNextReader(LeafReaderContext, int[])} for each new leaf reader and
- * {@link #nextDoc(int)} for each document; then collects the resulting {@link SearchHit}s
- * into an array and returns them in the order of the original doc ids.
+ * Iterates through a set of document IDs, fetching each document and collecting
+ * the resulting {@link SearchHit}s.
  * <p>
- * Optionally supports streaming hits in chunks if a {@link FetchPhaseResponseChunk.Writer}
- * is provided, reducing memory footprint for large result sets.
+ * Supports two modes of operation:
+ * <ul>
+ *   <li><b>Non-streaming mode</b> ({@link #iterate}): Documents are sorted by doc ID for
+ *       efficient sequential Lucene access, then results are mapped back to their original
+ *       score-based order. All hits are collected in memory and returned at once.</li>
+ *   <li><b>Streaming mode</b> ({@link #iterateAsync}): Documents are fetched in chunks and
+ *       streamed to the coordinator as they become ready. A semaphore-based backpressure
+ *       mechanism limits in-flight chunks to bound memory usage. Sequence numbers track
+ *       hit ordering for reassembly at the coordinator.</li>
+ * </ul>
  * <p>
- * ORDERING: When streaming is disabled, docs are sorted by doc ID for efficient index access,
- * but the original score-based order is restored via index mapping. When streaming is enabled,
- * docs are NOT sorted to preserve score order, and sequence numbers track ordering across chunks.
+ * In both modes, the iterator splits documents by leaf reader and calls
+ * {@link #setNextReader(LeafReaderContext, int[])} when crossing segment boundaries,
+ * then {@link #nextDoc(int)} for each document.
+ * <p>
+ * <b>Threading:</b> All Lucene operations execute on a single thread to satisfy
+ * Lucene's thread-affinity requirements. In streaming mode, only network transmission
+ * and ACK handling occur asynchronously.
+ * <p>
+ * <b>Cancellation:</b> Streaming mode supports responsive task cancellation by polling
+ * a cancellation flag at chunk boundaries and during backpressure waits.
  */
 abstract class FetchPhaseDocsIterator {
 
     // Timeout interval
-    private static final long CANCELLATION_CHECK_INTERVAL_MS = 100;
+    private static final long CANCELLATION_CHECK_INTERVAL_MS = 200;
 
     /**
      * Accounts for FetchPhase memory usage.
@@ -521,15 +533,6 @@ abstract class FetchPhaseDocsIterator {
             if (lastChunk != null) {
                 lastChunk.decRef();
             }
-        }
-    }
-
-    /**
-     * Represents a chunk of documents to fetch and send.
-     */
-    private record ChunkTask(int startIndex, int endIndex, boolean isLast) {
-        int size() {
-            return endIndex - startIndex;
         }
     }
 }

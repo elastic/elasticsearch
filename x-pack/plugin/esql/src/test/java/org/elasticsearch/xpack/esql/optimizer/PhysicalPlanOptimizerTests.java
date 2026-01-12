@@ -2989,6 +2989,83 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[_meta_field{f}#8586, ...]<[],[]>
+     *       \_EsQueryExec[test], query={"term":{"_tier":{"value":"data_hot","boost":0.0}}}
+     */
+    public void testPushDownMetadataTierInEquality() {
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier == "data_hot"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.value(), is("data_hot"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],..]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[_meta_field{f}#9140, ...]<[],[]>
+     *       \_EsQueryExec[test], query={"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":1.0}}
+     */
+    public void testPushDownMetadataTierInNotEquality() {
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier != "data_hot"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.mustNot().size(), is(1));
+        var tq = as(bq.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.value(), is("data_hot"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[_meta_field{f}#1816, ..., _tier{m}#1808]]
+     *     \_FieldExtractExec[_meta_field{f}#1816, ...]<[],[]>
+     *       \_EsQueryExec[test], query={"wildcard":{"_tier":{"wildcard":"data_*","boost":0.0}}}
+     */
+    public void testPushDownMetadataTierInWildcard() {
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier like "data_*"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), WildcardQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.value(), is("data_*"));
+    }
+
     public void testDontPushDownMetadataVersionAndId() {
         for (var t : List.of(tuple("_version", "2"), tuple("_id", "\"2\""))) {
             var plan = physicalPlan("from test metadata " + t.v1() + " | where " + t.v1() + " == " + t.v2());
@@ -4104,7 +4181,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
     public void testSpatialTypesAndStatsGeoGridUseDocValues() {
-        for (String grid : new String[] { "geohash" }) {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
             var dataType = DataType.fromEs(grid);
             for (String query : new String[] { "FROM airports | EVAL grid = st_" + grid + "(location, 2) | STATS count=COUNT() BY grid" }) {
                 for (boolean withDocValues : new boolean[] { true, false, true }) {
@@ -4320,6 +4397,65 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 fieldExtract = as(evalExec.child(), FieldExtractExec.class);
                 assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("city_location")));
                 assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
+        }
+    }
+
+    /**
+     * The combination of spatial grid functions and SORT will lead to doc-values being extracted for points.
+     * We test that all nine spatial functions get correctly notified that they will receive doc value points.
+     */
+    public void testSpatialGridTypesAndSortWithEnvelopeUseDocValues() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            for (boolean keepLocation : new boolean[] { false, true }) {
+                String query = """
+                    FROM airports
+                    | EVAL envelope = ST_ENVELOPE(location)
+                    | EVAL points = ST_NPOINTS(location)
+                    | EVAL grid = ST_GRID(location, 2)
+                    | EVAL x = ST_X(location)
+                    | EVAL xmin = ST_XMIN(location)
+                    | EVAL xmax = ST_XMAX(location)
+                    | EVAL y = ST_Y(location)
+                    | EVAL ymin = ST_YMIN(location)
+                    | EVAL ymax = ST_YMAX(location)
+                    | SORT abbrev
+                    | KEEP abbrev, location, grid, envelope, points, x, y, xmin, xmax, ymin, ymax
+                    """.replace("GRID", grid).replace("KEEP abbrev, location", (keepLocation ? "KEEP abbrev, location" : "KEEP abbrev"));
+                for (boolean withDocValues : new boolean[] { false, true }) {
+                    withDocValues &= keepLocation == false; // if we keep location, we cannot use doc-values
+                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                    var testData = withDocValues ? airports : airportsNoDocValues;
+                    var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    var project = as(optimized, ProjectExec.class);
+                    var topNExec = as(project.child(), TopNExec.class);
+                    var exchange = as(topNExec.child(), ExchangeExec.class);
+                    project = as(exchange.child(), ProjectExec.class);
+                    if (keepLocation) {
+                        assertThat(Expressions.names(project.projections()), hasItems("abbrev", "location", "grid", "envelope", "points"));
+                    } else {
+                        assertThat(
+                            Expressions.names(project.projections()),
+                            allOf(hasItems("abbrev", "grid", "envelope", "points"), not(hasItems("location")))
+                        );
+                    }
+                    var fieldExtract = as(project.child(), FieldExtractExec.class);
+                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("abbrev"), not(hasItems("location"))));
+                    var evalExec = as(fieldExtract.child(), EvalExec.class);
+                    assertThat(Expressions.names(evalExec.fields()), hasItems("grid", "envelope", "points"));
+                    for (var field : evalExec.fields()) {
+                        var alias = as(field, Alias.class);
+                        var gridFunction = as(alias.child(), SpatialDocValuesFunction.class);
+                        assertThat(alias.name(), gridFunction.spatialDocValues(), is(withDocValues));
+                        var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                        assertThat(alias.name(), spatialField.name(), equalTo("location"));
+                        assertThat(alias.name(), spatialField.dataType(), equalTo(GEO_POINT));
+                    }
+                    fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
+                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                }
             }
         }
     }
@@ -8286,7 +8422,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * <pre>{@code
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
-     *   |_EsqlProject[[..., long_noidx{f}#23, salary{f}#19]]
+     *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>

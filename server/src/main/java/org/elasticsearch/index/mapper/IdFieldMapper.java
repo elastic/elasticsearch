@@ -85,6 +85,14 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return new SyntheticIdField(Uid.encodeId(id));
     }
 
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime. The id
+     * must be already encoded using {@link Uid#encodeId(String)}.
+     */
+    public static Field syntheticIdField(BytesRef uid) {
+        return new SyntheticIdField(uid);
+    }
+
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
@@ -127,7 +135,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockStoredFieldsReader.IdBlockLoader();
+            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader();
         }
 
         @Override

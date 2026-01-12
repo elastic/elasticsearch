@@ -113,7 +113,7 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
 
         @Override
         public String toString() {
-            return "load block for conversion";
+            return "load";
         }
     }
 
@@ -125,7 +125,7 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
 
         @Override
         public String toString() {
-            return "load block for conversion";
+            return "load";
         }
     }
 }

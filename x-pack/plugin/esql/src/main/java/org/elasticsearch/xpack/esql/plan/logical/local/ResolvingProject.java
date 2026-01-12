@@ -26,7 +26,7 @@ import java.util.function.Function;
  * a {@code NULL} literal for it before the {@code KEEP}. It's correct to update the projection of the {@code KEEP} to include this new
  * attribute because the pattern {@code foo*} matches it. But if the pattern was {@code foo_baz}, it would be incorrect to do so.
  */
-public class ResolvingProject extends Project {
+public class ResolvingProject extends EsqlProject {
     private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
 
     public ResolvingProject(Source source, LogicalPlan child, Function<List<Attribute>, List<? extends NamedExpression>> resolver) {
@@ -90,7 +90,7 @@ public class ResolvingProject extends Project {
         return super.equals(obj) && Objects.equals(resolver, other.resolver);
     }
 
-    public Project asProject() {
-        return new Project(source(), child(), projections());
+    public EsqlProject asEsqlProject() {
+        return new EsqlProject(source(), child(), projections());
     }
 }

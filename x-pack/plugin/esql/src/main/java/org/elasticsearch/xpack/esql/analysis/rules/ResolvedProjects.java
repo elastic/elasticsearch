@@ -18,7 +18,7 @@ public class ResolvedProjects extends AnalyzerRules.AnalyzerRule<ResolvingProjec
 
     @Override
     protected LogicalPlan rule(ResolvingProject plan) {
-        return plan.asProject();
+        return plan.asEsqlProject();
     }
 
     @Override

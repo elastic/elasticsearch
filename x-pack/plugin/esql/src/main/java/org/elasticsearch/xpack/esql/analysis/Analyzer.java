@@ -1304,7 +1304,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.FAIL
-                ? new Project(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
+                ? new EsqlProject(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
                 : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
         }
 
@@ -1356,7 +1356,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.FAIL
-                ? new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
+                ? new EsqlProject(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
                 : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
         }
 
@@ -1392,7 +1392,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.FAIL
-                ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
+                ? new EsqlProject(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),

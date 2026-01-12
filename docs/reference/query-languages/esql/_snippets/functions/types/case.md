@@ -30,6 +30,8 @@
 | boolean | geohex | | geohex |
 | boolean | geotile | geotile | geotile |
 | boolean | geotile | | geotile |
+| boolean | histogram | histogram | histogram |
+| boolean | histogram | | histogram |
 | boolean | integer | integer | integer |
 | boolean | integer | | integer |
 | boolean | ip | ip | ip |

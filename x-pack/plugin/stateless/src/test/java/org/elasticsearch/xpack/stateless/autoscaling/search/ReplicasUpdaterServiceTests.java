@@ -312,9 +312,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
     private Map<String, Integer> getRecommendedReplicaChanges(int searchPowerMin) {
         return ReplicasUpdaterService.getRecommendedReplicaChanges(
-            new ReplicaRankingContext(searchMetricsService.getIndices(), searchMetricsService.getShardMetrics(), searchPowerMin),
-            Collections.emptySet(),
-            -1
+            new ReplicaRankingContext(searchMetricsService.getIndices(), searchMetricsService.getShardMetrics(), searchPowerMin)
         );
     }
 
@@ -945,7 +943,12 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         ClusterState newState = createClusterState(ClusterState.EMPTY_STATE, 3, 5);
         replicasUpdaterService.clusterChanged(new ClusterChangedEvent("test", newState, initialState));
-        mockClient.assertNoUpdate();
+        // either we don't get updates, or if we do, they are unrelated to the number of search nodes, because SPMin is too low
+        updates = mockClient.updates;
+        for (Integer numReplicas : updates.keySet()) {
+            assertThat(numReplicas, lessThanOrEqualTo(2));
+        }
+        mockClient.clear();
     }
 
     public void testAutoExpandIndicesServiceDisabled() {

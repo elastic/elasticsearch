@@ -50,10 +50,8 @@ public class PosixCLibraryTests extends ESTestCase {
             }
         }
         try (var fc = FileChannel.open(tmp.resolve("foo.dat"), StandardOpenOption.READ)) {
-            var map = fc.map(MapMode.READ_ONLY, 0, fc.size());
-            var mem = MemorySegment.ofBuffer(map);
-            long length = randomLongBetween(1, fc.size());
-            assertThat(clib.madvise(mem, 0, length, PosixCLibrary.POSIX_MADV_WILLNEED), equalTo(0));
+            var map = nativeAccess.map(fc, MapMode.READ_ONLY, 0, fc.size());
+            map.prefetch(0, randomIntBetween(1, 4096));
         }
     }
 

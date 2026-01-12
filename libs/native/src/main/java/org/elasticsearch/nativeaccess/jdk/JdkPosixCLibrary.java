@@ -203,8 +203,6 @@ class JdkPosixCLibrary implements PosixCLibrary {
         long base = segment.address() + offset;
         try {
             return (int) madvise$mh.invokeExact(errnoState, base, length, advice);
-        } catch (IllegalArgumentException exc) {
-            throw exc;
         } catch (Throwable t) {
             throw new AssertionError(t);
         } finally {

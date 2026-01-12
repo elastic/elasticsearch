@@ -33,7 +33,7 @@ public class SqlStreamOutput extends OutputStreamStreamOutput {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         StreamOutput uncompressedOut = new OutputStreamStreamOutput(Base64.getEncoder().wrap(bytes));
         TransportVersion.writeVersion(version, uncompressedOut);
-        OutputStream out = CompressorFactory.COMPRESSOR.threadLocalOutputStream(uncompressedOut);
+        OutputStream out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(uncompressedOut);
         return new SqlStreamOutput(bytes, out, version, zoneId);
     }
 

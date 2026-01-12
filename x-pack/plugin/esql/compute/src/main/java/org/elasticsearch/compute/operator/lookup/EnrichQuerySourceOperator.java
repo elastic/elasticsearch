@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.lookup;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -63,8 +64,17 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
-        this.searcher = shardContext.searcher();
-        this.indexReader = searcher.getIndexReader();
+        try {
+            if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
+                // This optimization is currently disabled for ParallelCompositeReader
+                this.indexReader = new CachedDirectoryReader(directoryReader);
+            } else {
+                this.indexReader = shardContext.searcher().getIndexReader();
+            }
+            this.searcher = new IndexSearcher(this.indexReader);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.warnings = warnings;
     }
 

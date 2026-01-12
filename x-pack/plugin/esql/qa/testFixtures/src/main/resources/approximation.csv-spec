@@ -38,8 +38,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
 ;
 
-count:long | avg:double | sum:long
-325        | 17.0       | 5525
+count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long | RELIABLE(sum):boolean
+325        | 17.0       | 5525     | [325, 325]                      | true                    | [17.0, 17.0]                    | true                  | [5525, 5525]                  | true
 ;
 
 
@@ -236,10 +236,10 @@ FROM many_numbers
     | SORT value
 ;
 
-count:long | value:integer
-1          | 1
-2          | 2
-3          | 3
-4          | 4
-5          | 5
+count:long | value:integer | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean 
+1          | 1             | [1, 1]                          | true
+2          | 2             | [2, 2]                          | true
+3          | 3             | [3, 3]                          | true
+4          | 4             | [4, 4]                          | true
+5          | 5             | [5, 5]                          | true
 ;

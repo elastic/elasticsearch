@@ -393,12 +393,47 @@ public class Approximation {
         // only slow things down in that case. When the query is not an ES stats query,
         // an exception is thrown and approximation is attempted.
         runner.run(
-            toPhysicalPlan.apply(logicalPlan),
+            toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
             configuration.throwOnNonEsStatsQuery(true),
             foldContext,
             planTimeProfile,
             approximateListener(listener)
         );
+    }
+
+    /**
+     * Returns the original (exact) logical plan, extended with the confidence interval and
+     * reliable fields, that the approximation plan would have returned. The confidence interval
+     * of a field is [exact_value, exact_value] and the reliable field is always true.
+     */
+    private LogicalPlan exactPlanWithConfidenceIntervals() {
+        Set<NameId> exactFieldIds = logicalPlan.output().stream().map(Attribute::id).collect(Collectors.toSet());
+        Map<String, Attribute> exactFields = logicalPlan.output()
+            .stream()
+            .collect(Collectors.toMap(NamedExpression::name, Function.identity()));
+
+        // Compute the approximation plan to find out which fields need confidence intervals.
+        LogicalPlan approximationPlan = approximationPlan(SAMPLE_PROBABILITY_THRESHOLD / 2.0);
+        List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
+        for (Attribute field : approximationPlan.output()) {
+            if (exactFieldIds.contains(field.id())) {
+                continue;
+            }
+            if (field.name().startsWith("CONFIDENCE_INTERVAL")) {
+                String exactFieldName = field.name().substring("CONFIDENCE_INTERVAL(".length(), field.name().length() - 1);
+                Attribute exactField = exactFields.get(exactFieldName);
+                confidenceIntervalsAndReliable.add(
+                    new Alias(Source.EMPTY, field.name(), new MvAppend(Source.EMPTY, exactField, exactField))
+                );
+            }
+            if (field.name().startsWith("RELIABLE")) {
+                confidenceIntervalsAndReliable.add(new Alias(Source.EMPTY, field.name(), Literal.TRUE));
+            }
+        }
+        LogicalPlan logicalPlanWithConfidenceIntervals = new Eval(Source.EMPTY, logicalPlan, confidenceIntervalsAndReliable);
+        logicalPlanWithConfidenceIntervals.setPreOptimized();
+        logicalPlanWithConfidenceIntervals = logicalPlanOptimizer.optimize(logicalPlanWithConfidenceIntervals);
+        return logicalPlanWithConfidenceIntervals;
     }
 
     private int sampleRowCount() {
@@ -491,7 +526,7 @@ public class Approximation {
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
+                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
                 return;
             }
             double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
@@ -510,7 +545,7 @@ public class Approximation {
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
+                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
@@ -579,7 +614,7 @@ public class Approximation {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
+                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
             } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
                 newSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
@@ -668,7 +703,7 @@ public class Approximation {
     private LogicalPlan approximationPlan(double sampleProbability) {
         if (sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
             logger.debug("using original plan (too few rows)");
-            return logicalPlan;
+            return exactPlanWithConfidenceIntervals();
         }
 
         logger.debug("generating approximate plan (p={})", sampleProbability);

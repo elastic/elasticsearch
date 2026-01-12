@@ -402,21 +402,18 @@ abstract class FetchPhaseDocsIterator {
                 sequenceStart
             );
 
-            writer.writeResponseChunk(chunkMsg, ActionListener.wrap(
-                ack -> {
-                    // Success: clean up and signal completion
-                    chunk.decRef();
-                    ackListener.onResponse(null);
-                    transmitPermits.release();  // Allow next chunk to proceed
-                },
-                e -> {
-                    // Failure: clean up, record error, and release permit
-                    chunk.decRef();
-                    sendFailure.compareAndSet(null, e);
-                    ackListener.onFailure(e);
-                    transmitPermits.release();  // Release even on failure
-                }
-            ));
+            writer.writeResponseChunk(chunkMsg, ActionListener.wrap(ack -> {
+                // Success: clean up and signal completion
+                chunk.decRef();
+                ackListener.onResponse(null);
+                transmitPermits.release();  // Allow next chunk to proceed
+            }, e -> {
+                // Failure: clean up, record error, and release permit
+                chunk.decRef();
+                sendFailure.compareAndSet(null, e);
+                ackListener.onFailure(e);
+                transmitPermits.release();  // Release even on failure
+            }));
         } catch (Exception e) {
             chunk.decRef();
             sendFailure.compareAndSet(null, e);
@@ -429,8 +426,7 @@ abstract class FetchPhaseDocsIterator {
      * Acquires a single permit from the semaphore, polling for task cancellation
      * between acquisition attempts.
      */
-    private void acquirePermitWithCancellationCheck(Semaphore semaphore, Supplier<Boolean> isCancelled)
-        throws InterruptedException {
+    private void acquirePermitWithCancellationCheck(Semaphore semaphore, Supplier<Boolean> isCancelled) throws InterruptedException {
         while (semaphore.tryAcquire(CANCELLATION_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS) == false) {
             if (isCancelled.get()) {
                 throw new TaskCancelledException("cancelled");
@@ -443,8 +439,7 @@ abstract class FetchPhaseDocsIterator {
      * polling for task cancellation between attempts. Permits are re-released after acquisition
      * since we're just checking that all async work has completed.
      */
-    private void waitForAllPermits(Semaphore semaphore, int totalPermits, Supplier<Boolean> isCancelled)
-        throws InterruptedException {
+    private void waitForAllPermits(Semaphore semaphore, int totalPermits, Supplier<Boolean> isCancelled) throws InterruptedException {
         int acquired = 0;
         try {
             while (acquired < totalPermits) {

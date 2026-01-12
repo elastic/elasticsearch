@@ -1098,7 +1098,8 @@ fallback synthetic_source for text field:
 
   - match:
       hits.hits.0._source:
-        text: [ "world", "hello", "world" ]
+        # fallback text fields use binary doc values, which are sorted, so we expect the output to be sorted as well
+        text: [ "hello", "world", "world" ]
 
 ---
 synthetic_source with copy_to and ignored values:

@@ -1,5 +1,5 @@
 pr: 140399
-summary: Use System User To Execute Cross-Cluster Inference Actions
+summary: Make GetInferenceFieldsAction an Indices Action
 area: Search
 type: bug
 issues:

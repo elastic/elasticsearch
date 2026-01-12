@@ -17,9 +17,11 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -75,13 +77,28 @@ public class DesiredClusterTopology implements Writeable {
     }
 
     public static class TierTopology implements Writeable {
+
+        private static final TransportVersion PARSE_DESIRED_TOPOLOGY_TIER_MEMORY = TransportVersion.fromName(
+            "parse_desired_topology_tier_memory"
+        );
+
         private final int replicas;
-        private final String memory;
+        private final ByteSizeValue memory;
         private final float storageRatio;
         private final float cpuRatio;
         private final float cpuLimitRatio;
 
         public TierTopology(int replicas, String memory, float storageRatio, float cpuRatio, float cpuLimitRatio) {
+            this(
+                replicas,
+                ByteSizeValue.parseBytesSizeValue(memory, ByteSizeValue.ZERO, "Tier node memory"),
+                storageRatio,
+                cpuRatio,
+                cpuLimitRatio
+            );
+        }
+
+        public TierTopology(int replicas, ByteSizeValue memory, float storageRatio, float cpuRatio, float cpuLimitRatio) {
             this.replicas = replicas;
             this.memory = memory;
             this.storageRatio = storageRatio;
@@ -91,7 +108,11 @@ public class DesiredClusterTopology implements Writeable {
 
         TierTopology(StreamInput in) throws IOException {
             this.replicas = in.readInt();
-            this.memory = in.readString();
+            if (in.getTransportVersion().supports(PARSE_DESIRED_TOPOLOGY_TIER_MEMORY)) {
+                this.memory = ByteSizeValue.readFrom(in);
+            } else {
+                this.memory = ByteSizeValue.parseBytesSizeValue(in.readString(), ByteSizeValue.ZERO, "Tier node memory");
+            }
             this.storageRatio = in.readFloat();
             this.cpuRatio = in.readFloat();
             this.cpuLimitRatio = in.readFloat();
@@ -101,7 +122,7 @@ public class DesiredClusterTopology implements Writeable {
             return replicas;
         }
 
-        public String getMemory() {
+        public ByteSizeValue getMemory() {
             return memory;
         }
 
@@ -120,7 +141,11 @@ public class DesiredClusterTopology implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(replicas);
-            out.writeString(memory);
+            if (out.getTransportVersion().supports(PARSE_DESIRED_TOPOLOGY_TIER_MEMORY)) {
+                memory.writeTo(out);
+            } else {
+                out.writeString(memory.getStringRep());
+            }
             out.writeFloat(storageRatio);
             out.writeFloat(cpuRatio);
             out.writeFloat(cpuLimitRatio);

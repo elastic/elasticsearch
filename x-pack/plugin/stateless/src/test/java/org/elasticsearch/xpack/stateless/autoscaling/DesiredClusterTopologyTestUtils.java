@@ -17,9 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public class DesiredClusterTopologyTestUtils {
 
@@ -30,7 +30,7 @@ public class DesiredClusterTopologyTestUtils {
     public static DesiredClusterTopology.TierTopology randomTierTopology() {
         return new DesiredClusterTopology.TierTopology(
             randomIntBetween(1, 10),
-            randomAlphaOfLength(10),
+            randomLongBetween(1, 8_589_934_592L) + "b",
             randomFloat(),
             randomFloat(),
             randomFloat()

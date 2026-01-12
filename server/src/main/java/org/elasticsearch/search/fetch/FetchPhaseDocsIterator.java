@@ -269,11 +269,12 @@ abstract class FetchPhaseDocsIterator {
         int currentLeafOrd = -1;
         LeafReaderContext currentCtx = null;
 
-        try {
-            // Fetch all hits in docID order, and place them into an array keyed by score-position.
-            // Guarantees that subsequent chunking/sequence numbers are contiguous and correct.
-            final SearchHit[] hitsByScorePos = new SearchHit[totalDocs];
 
+        // Fetch all hits in docID order, and place them into an array keyed by score-position.
+        // Guarantees that subsequent chunking/sequence numbers are contiguous and correct.
+        final SearchHit[] hitsByScorePos = new SearchHit[totalDocs];
+
+        try {
             for (int i = 0; i < sortedDocs.length; i++) {
                 int docId = sortedDocs[i].docId;
                 int originalIndex = sortedDocs[i].index; // score-position
@@ -307,6 +308,9 @@ abstract class FetchPhaseDocsIterator {
                 SearchHit[] orderedHits = Arrays.copyOfRange(hitsByScorePos, chunkStart, chunkEnd);
                 SearchHits chunk = createSearchHits(Arrays.asList(orderedHits), totalHits, maxScore);
                 long sequenceStart = chunkStart;
+
+                // Transfer ownership of the hits in this chunk to SearchHits to avoid leaks.
+                Arrays.fill(hitsByScorePos, chunkStart, chunkEnd, null);
 
                 if (isLast) {
                     // Hold back last chunk - caller sends it after all ACKs received
@@ -352,6 +356,8 @@ abstract class FetchPhaseDocsIterator {
             if (lastChunk != null) {
                 lastChunk.decRef();
             }
+            // Release any hits that were created but never transferred into a SearchHits owner.
+            purgeSearchHits(hitsByScorePos);
             listener.onFailure(e);
         }
     }

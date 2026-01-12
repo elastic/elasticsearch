@@ -106,15 +106,15 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             for (int i = 0; i < expected.length; i++) {
                 var expectedValue = expected[i];
                 if (Math.abs(expectedValue - actual[i]) > expectedValue * deltaPercent) {
-                   fail(
-                       Strings.format(
-                           "%s: arrays first differed at element [%d]; expected:<%f> but was:<%f>",
-                           message,
-                           i,
-                           expectedValue,
-                           actual[i]
-                       )
-                   );
+                    fail(
+                        Strings.format(
+                            "%s: arrays first differed at element [%d]; expected:<%f> but was:<%f>",
+                            message,
+                            i,
+                            expectedValue,
+                            actual[i]
+                        )
+                    );
                 }
             }
         }

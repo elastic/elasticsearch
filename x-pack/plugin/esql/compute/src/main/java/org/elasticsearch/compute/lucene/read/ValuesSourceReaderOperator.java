@@ -177,7 +177,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
-        this.fields = fields.stream().map(FieldWork::new).toArray(FieldWork[]::new);
+        this.fields = new FieldWork[fields.size()];
+        for (int i = 0; i < this.fields.length; i++) {
+            this.fields[i] = new FieldWork(fields.get(i), i);
+        }
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
     }
@@ -253,6 +256,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     protected class FieldWork {
         final FieldInfo info;
+        private final int fieldIdx;
 
         BlockLoader loader;
         @Nullable
@@ -260,8 +264,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         BlockLoader.ColumnAtATimeReader columnAtATime;
         BlockLoader.RowStrideReader rowStride;
 
-        FieldWork(FieldInfo info) {
+        FieldWork(FieldInfo info, int fieldIdx) {
             this.info = info;
+            this.fieldIdx = fieldIdx;
         }
 
         void sameSegment(int firstDoc) {
@@ -281,7 +286,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         void newShard(int shard) {
             LoaderAndConverter l = info.loaderAndConverter.apply(shard);
             loader = l.loader;
-            converter = l.converter == null ? null : converterEvaluators.get(shard, info.name, l.converter);
+            converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
             columnAtATime = null;
             rowStride = null;
@@ -389,9 +394,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     class ConverterEvaluators implements Releasable {
         private final Map<Key, ConverterAndCount> built = new HashMap<>();
 
-        public ConverterEvaluator get(int shard, String field, ConverterFactory converter) {
+        public ConverterEvaluator get(int shard, int fieldIdx, String field, ConverterFactory converter) {
             ConverterAndCount evaluator = built.computeIfAbsent(
-                new Key(shard, field),
+                new Key(shard, fieldIdx, field),
                 unused -> new ConverterAndCount(converter.build(driverContext))
             );
             evaluator.used++;
@@ -412,7 +417,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
     }
 
-    record Key(int shard, String field) {}
+    record Key(int shard, int fieldIdx, String field) {}
 
     private static class ConverterAndCount implements Releasable {
         private final ConverterEvaluator evaluator;

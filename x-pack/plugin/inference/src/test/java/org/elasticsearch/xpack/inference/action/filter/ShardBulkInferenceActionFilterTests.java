@@ -730,7 +730,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            // Set the max coordinating bytes to a value large enough to record the failure, but smaller than the source size
+            // Set the max coordinating bytes to a value smaller than the source size
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "15kb").build()
         );
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
@@ -777,7 +777,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
                 verify(coordinatingIndexingPressure).increment(1, length(doc1Source));
-                verify(coordinatingIndexingPressure, times(1)).increment(eq(0), anyLong());
+                verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();
@@ -1056,7 +1056,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
                 verify(coordinatingIndexingPressure, times(100)).increment(eq(1), longThat(l -> l > 0));
-                verify(coordinatingIndexingPressure, times(0)).increment(eq(0), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(100)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();

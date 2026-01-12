@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -57,6 +59,11 @@ public class EsqlCapabilities {
          * Do validation check on geo_point and geo_shape fields. Done in #128259.
          */
         GEO_VALIDATION,
+
+        /**
+         * Fold in spatial functions should return null for null input.
+         */
+        GEO_NULL_LITERALS_FOLDING,
 
         /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
@@ -148,10 +155,16 @@ public class EsqlCapabilities {
          * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
          */
         STRING_LITERAL_AUTO_CASTING_EXTENDED,
+
         /**
          * Support for metadata fields.
          */
         METADATA_FIELDS,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings).
+         */
+        OPTIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -806,6 +819,11 @@ public class EsqlCapabilities {
         SOURCE_FIELD_MAPPING,
 
         /**
+         * Support for extended doc values params.
+         */
+        EXTENDED_DOC_VALUES_PARAMS(EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()),
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -916,11 +934,6 @@ public class EsqlCapabilities {
          * Support the "METADATA _score" directive to enable _score column.
          */
         METADATA_SCORE,
-
-        /**
-         * Term function
-         */
-        TERM_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Additional types for match function and operator
@@ -1350,6 +1363,11 @@ public class EsqlCapabilities {
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
         DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in + and - operators.
+         */
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command
@@ -1832,6 +1850,10 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         /**
+         * Support for requesting the "_tier" metadata field.
+         */
+        METADATA_TIER_FIELD,
+        /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887
          */
@@ -1841,6 +1863,16 @@ public class EsqlCapabilities {
          * Exceptions parsing date-times are thrown as IllegalArgumentException
          */
         DATE_TIME_EXCEPTIONS_HANDLED,
+
+        /**
+         * Enrich works with dense_vector fields
+         */
+        ENRICH_DENSE_VECTOR_BUGFIX,
+
+        /**
+         * Dense_vector aggregation functions
+         */
+        DENSE_VECTOR_AGG_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -76,8 +76,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         preview = true,
         description = "Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.",
         detailedDescription = """
-                TopSnippets can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
-                TopSnippets will extract the best snippets for a given query string.
+                `TOP_SNIPPETS` can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                `TOP_SNIPPETS` will extract the best snippets for a given query string.
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
@@ -92,7 +92,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             """) Expression query,
         @MapParam(
             name = "options",
-            description = "(Optional) TopSnippets additional options as "
+            description = "(Optional) `TOP_SNIPPETS` additional options as "
                 + "[function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).",
             optional = true,
             params = {

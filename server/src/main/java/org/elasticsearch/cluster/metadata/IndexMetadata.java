@@ -3128,7 +3128,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
         assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
-        return new ShardId(sourceIndexMetadata.getIndex(), shardId / routingFactor);
+        if (IndexRouting.shouldUseShardCountModRouting(sourceIndexMetadata.getCreationVersion())) {
+            return new ShardId(sourceIndexMetadata.getIndex(), Math.floorMod(shardId, sourceIndexMetadata.getNumberOfShards()));
+        } else {
+            return new ShardId(sourceIndexMetadata.getIndex(), shardId / routingFactor);
+        }
     }
 
     /**
@@ -3218,8 +3222,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
         Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
-        for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
-            shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+        if (IndexRouting.shouldUseShardCountModRouting(sourceIndexMetadata.getCreationVersion())) {
+            for (int i = shardId; i < sourceIndexMetadata.getNumberOfShards(); i += numTargetShards) {
+                assert Math.floorMod(i, numTargetShards) == shardId;
+                shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+            }
+        } else {
+            for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
+                shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+            }
         }
         return shards;
     }

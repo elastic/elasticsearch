@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.persistent.NotPersistentTaskNodeException;
@@ -2041,6 +2042,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             NoMatchingProjectException::new,
             185,
             NO_MATCHING_PROJECT_EXCEPTION_VERSION
+        ),
+        INDEX_LIMIT_EXCEEDED_EXCEPTION(
+            IndexLimitExceededException.class,
+            IndexLimitExceededException::new,
+            186,
+            TransportVersion.minimumCompatible()
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

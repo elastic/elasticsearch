@@ -395,11 +395,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      * For SP >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} all interactive indices get two replicas.
      * For settings between those values, we rank indices and give part of them two replicas.
      */
-    static Map<String, Integer> getRecommendedReplicaChanges(
-        ReplicaRankingContext rankingContext,
-        Set<String> autoExpandReplicaIndices,
-        int numSearchNodes
-    ) {
+    static Map<String, Integer> getRecommendedReplicaChanges(ReplicaRankingContext rankingContext) {
         assert rankingContext.getSearchPowerMin() > 100 : "we should not have to call this method for SP <= 100";
         Map<String, Integer> numReplicaChanges = new HashMap<>(rankingContext.indices().size(), 1);
 
@@ -409,20 +405,11 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 String indexName = properties.indexProperties().name();
                 int replicas = properties.indexProperties().replicas();
                 if (properties.isInteractive()) {
-                    // special handling for auto expand replica indices
-                    if (numSearchNodes > 2 && autoExpandReplicaIndices.contains(indexName)) {
-                        if (replicas != numSearchNodes) {
-                            numReplicaChanges.put(indexName, numSearchNodes);
-                        }
-                    } else {
-                        if (replicas != 2) {
-                            numReplicaChanges.put(indexName, 2);
-                        }
+                    if (replicas != 2) {
+                        numReplicaChanges.put(indexName, 2);
                     }
-                } else {
-                    if (replicas != 1) {
-                        numReplicaChanges.put(indexName, 1);
-                    }
+                } else if (replicas != 1) {
+                    numReplicaChanges.put(indexName, 1);
                 }
             }
         } else {
@@ -587,25 +574,30 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             indicesScaledDown = indicesToScaleDown.size();
         } else {
             int numSearchNodes = this.numSearchNodes;
-            Map<String, Integer> recommendedReplicaChanges = getRecommendedReplicaChanges(
-                rankingContext,
-                autoExpandReplicaIndices,
-                numSearchNodes
-            );
+            Map<String, Integer> recommendedReplicaChanges = getRecommendedReplicaChanges(rankingContext);
 
             Map<Integer, Set<String>> indicesToScaleUp = new HashMap<>(rankingContext.indices().size());
             Map<Integer, Set<String>> indicesToScaleDown = new HashMap<>(rankingContext.indices().size());
-            Map<Integer, Set<String>> autoExpandIndices = new HashMap<>(autoExpandReplicaIndices.size(), 1.0f);
+            // This holds all changes on indices marked for "auto-expand." These must be scaled to the current number of search nodes.
+            Set<String> autoExpandIndices = new HashSet<>();
             for (IndexRankingProperties property : rankingContext.properties()) {
                 String indexName = property.indexProperties().name();
                 int currentReplicas = property.indexProperties().replicas();
+                // Handle all auto-expand functionality separately.
+                if (autoExpandReplicaIndices.contains(indexName)) {
+                    // Auto-expand should only scale up for "full replication" values of SPmin.
+                    // However, no matter the value of SPmin, we should always scale down auto-expanded indices so that replicas never
+                    // exceed the number of search nodes.
+                    if ((rankingContext.getSearchPowerMin() >= SEARCH_POWER_MIN_FULL_REPLICATION
+                        && numSearchNodes > 2
+                        && currentReplicas < numSearchNodes) || currentReplicas > numSearchNodes) {
+                        autoExpandIndices.add(indexName);
+                        continue;
+                    }
+                }
                 Integer recommendedReplicas = recommendedReplicaChanges.get(indexName);
                 if (recommendedReplicas != null) {
-                    // special handling for auto expand replica indices as we want to reduce their replicas regardless of the
-                    // scale down counters
-                    if (numSearchNodes > 2 && autoExpandReplicaIndices.contains(indexName)) {
-                        autoExpandIndices.computeIfAbsent(numSearchNodes, k -> new HashSet<>()).add(indexName);
-                    } else if (recommendedReplicas > currentReplicas) {
+                    if (recommendedReplicas > currentReplicas) {
                         indicesToScaleUp.computeIfAbsent(recommendedReplicas, k -> new HashSet<>()).add(indexName);
                     } else if (recommendedReplicas < currentReplicas) {
                         indicesToScaleDown.computeIfAbsent(recommendedReplicas, k -> new HashSet<>()).add(indexName);
@@ -621,21 +613,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 indicesScaledUp += indices.size();
             }
 
-            for (Map.Entry<Integer, Set<String>> autoExpandEntry : autoExpandIndices.entrySet()) {
-                Integer targetReplicasCount = autoExpandEntry.getKey();
-                assert targetReplicasCount == numSearchNodes : "auto expand target replicas should match number of search nodes";
-                Set<String> indices = autoExpandEntry.getValue();
-                /*
-                 * We enter this block only when all the following conditions are met:
-                 * 1) some indices are configured via override to have their replicas auto-expanded
-                 * 2) SPmin >= 250
-                 * 3) there's more than 2 search nodes available
-                 *
-                 * These events may be scale up or down, depending on how the number of search nodes has changed.
-                 * Either way, these changes can and should be applied straight-away
-                 */
-                publishUpdateReplicaSetting(numSearchNodes, indices);
-            }
+            // apply auto-expand changes immediately
+            publishUpdateReplicaSetting(numSearchNodes, autoExpandIndices);
 
             // Scale down decisions require a certain number of repetitions to be considered stable.
             // We want to avoid flapping up/down scaling decisions because if we scale up again soon

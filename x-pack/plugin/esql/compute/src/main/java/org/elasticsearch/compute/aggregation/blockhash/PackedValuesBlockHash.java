@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
@@ -63,16 +64,33 @@ final class PackedValuesBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final BytesRefHashTable bytesRefHash;
     private final int nullTrackingBytes;
-    private final BytesRefBuilder bytes = new BytesRefBuilder();
+    private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
+        this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
+    }
+
+    /*
+     * This constructor is also used by {@code PackedValuesBlockHashCircuitBreakerTests} to provide different circuit breakers
+     *  to bytesRefHash and bytes. Production code should use the primary constructor above and provide same breaker for both.
+     */
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
         this.nullTrackingBytes = (specs.size() + 7) / 8;
-        bytes.grow(nullTrackingBytes);
+        boolean success = false;
+        try {
+            this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
+            this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", this.nullTrackingBytes);
+            success = true;
+        } finally {
+            // close bytesRefHash and bytes to prevent memory leaks in case of the initialization fails
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -147,14 +165,14 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
         }
 
         private void addMultipleEntries() {
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
             finishMv();
@@ -216,7 +234,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups);
-            long found = bytesRefHash.find(bytes.get());
+            long found = bytesRefHash.find(bytes.bytesRefView());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -233,7 +251,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 fillBytesMv(groups, g);
 
                 // emit ords
-                long found = bytesRefHash.find(bytes.get());
+                long found = bytesRefHash.find(bytes.bytesRefView());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -413,7 +431,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public void close() {
-        bytesRefHash.close();
+        Releasables.close(bytesRefHash, bytes);
     }
 
     @Override

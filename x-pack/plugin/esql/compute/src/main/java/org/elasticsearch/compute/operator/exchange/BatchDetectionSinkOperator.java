@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
@@ -30,29 +31,57 @@ public class BatchDetectionSinkOperator extends SinkOperator {
     private final BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener;
     private final LongConsumer updateCompletedBatchId; // Function to update completedBatchId
     private final AtomicReference<Exception> failureRef; // Reference to the failureRef in the client
+    private final BooleanSupplier hasIncompleteBatches; // Supplier to check if there are incomplete batches
 
     public BatchDetectionSinkOperator(
         ExchangeSourceOperator serverToClientSource,
         Consumer<BatchPage> resultPageCollector,
         BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener,
         LongConsumer updateCompletedBatchId,
-        AtomicReference<Exception> failureRef
+        AtomicReference<Exception> failureRef,
+        BooleanSupplier hasIncompleteBatches
     ) {
         this.serverToClientSource = serverToClientSource;
         this.resultPageCollector = resultPageCollector;
         this.batchDoneListener = batchDoneListener;
         this.updateCompletedBatchId = updateCompletedBatchId;
         this.failureRef = failureRef;
+        this.hasIncompleteBatches = hasIncompleteBatches;
     }
 
     @Override
     public boolean needsInput() {
-        boolean needs = serverToClientSource == null || serverToClientSource.isFinished() == false;
+        if (serverToClientSource == null) {
+            return true;
+        }
+
+        boolean sourceFinished = serverToClientSource.isFinished();
+        boolean canProduceMore = serverToClientSource.canProduceMoreDataWithoutExtraInput();
+        boolean hasFailure = failureRef.get() != null;
+        boolean sourceBlocked = serverToClientSource.isBlocked().listener().isDone() == false;
+        boolean hasIncomplete = hasIncompleteBatches != null && hasIncompleteBatches.getAsBoolean();
+
+        // Keep running if:
+        // - There are buffered pages (canProduceMore), OR
+        // - Source is blocked (waiting for pages) AND no failure, OR
+        // - Source is not finished AND no failure, OR
+        // - There are incomplete batches AND no failure (critical for preventing 30-second hang)
+        boolean needs = canProduceMore
+            || (sourceBlocked && hasFailure == false)
+            || (sourceFinished == false && hasFailure == false)
+            || (hasIncomplete && hasFailure == false);
+
         logger.debug(
-            "[CLIENT] BatchDetectionSinkOperator.needsInput() called: returning={}, sourceFinished={}",
+            "[CLIENT] BatchDetectionSinkOperator.needsInput(): needs={}, sourceFinished={}, canProduceMore={}, "
+                + "sourceBlocked={}, hasIncomplete={}, hasFailure={}",
             needs,
-            serverToClientSource != null ? serverToClientSource.isFinished() : "null"
+            sourceFinished,
+            canProduceMore,
+            sourceBlocked,
+            hasIncomplete,
+            hasFailure
         );
+
         return needs;
     }
 
@@ -65,7 +94,7 @@ public class BatchDetectionSinkOperator extends SinkOperator {
             batchPage.batchId(),
             batchPage.isLastPageInBatch(),
             batchPage.getPositionCount(),
-            batchPage.isBatchMarker()
+            batchPage.isBatchMarkerOnly()
         );
         try {
             // Only collect BatchPage if it has data (positionCount > 0)
@@ -82,13 +111,11 @@ public class BatchDetectionSinkOperator extends SinkOperator {
             // Handle batch completion (even if BatchPage has no data)
             if (batchPage.isLastPageInBatch()) {
                 long batchId = batchPage.batchId();
-                logger.info("[CLIENT] Received batch completion marker for batchId={}, calling batchDoneListener", batchId);
                 if (batchDoneListener != null) {
                     try {
                         batchDoneListener.onBatchDone(batchId);
                         // Track the highest batch ID that has been completed - only after listener callback succeeds
                         updateCompletedBatchId.accept(batchId);
-                        logger.info("[CLIENT] Batch done listener called successfully for batchId={}", batchId);
                     } catch (Exception e) {
                         logger.error("[CLIENT][ERROR] Error in batch done listener for batchId=" + batchId, e);
                         failureRef.compareAndSet(null, e);
@@ -113,11 +140,15 @@ public class BatchDetectionSinkOperator extends SinkOperator {
 
     @Override
     public boolean isFinished() {
-        boolean finished = serverToClientSource != null && serverToClientSource.isFinished();
+        // Finished if source is finished OR if there's a failure (to prevent busy-spin)
+        boolean sourceFinished = serverToClientSource != null && serverToClientSource.isFinished();
+        boolean hasFailure = failureRef.get() != null;
+        boolean finished = sourceFinished || hasFailure;
         logger.debug(
-            "[CLIENT] BatchDetectionSinkOperator.isFinished() called: returning={}, sourceFinished={}",
+            "[CLIENT] BatchDetectionSinkOperator.isFinished() called: returning={}, sourceFinished={}, hasFailure={}",
             finished,
-            serverToClientSource != null ? serverToClientSource.isFinished() : "null"
+            sourceFinished,
+            hasFailure
         );
         return finished;
     }

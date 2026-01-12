@@ -130,10 +130,9 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
         }
 
         // Add 100 instances of GTE (temporary to test failing scenario)
-        for (int i = 0; i < 100; i++) {
-
-            operations.add(new Object[] { EsqlBinaryComparison.BinaryComparisonOperation.GTE });
-        }
+        // for (int i = 0; i < 100; i++) {
+        // operations.add(new Object[] { EsqlBinaryComparison.BinaryComparisonOperation.GTE });
+        // }
         return operations;
     }
 

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -52,7 +53,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private ExchangeSourceHandler serverToClientSourceHandler;
     private ExchangeSourceOperator serverToClientSource;
     private BigArrays bigArrays;
-    private BlockFactory blockFactory;
+    private CircuitBreaker breaker;
     private ThreadContext threadContext;
     private Driver clientDriver;
     private PlainActionFuture<Void> clientDriverFuture; // Future for client driver completion
@@ -91,7 +92,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * @param serverNode       server node for transport connection
      * @param batchExchangeStatusListener listener that will be called when batch exchange status is received (success or failure)
      * @param bigArrays        big arrays needed for the client driver context
-     * @param blockFactory     block factory needed for the client driver context
+     * @param breaker          circuit breaker for the client driver (should be global breaker, not a LocalCircuitBreaker)
      * @param threadContext    thread context needed for the client driver
      * @throws Exception if initialization fails
      */
@@ -106,7 +107,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         DiscoveryNode serverNode,
         ActionListener<Void> batchExchangeStatusListener,
         BigArrays bigArrays,
-        BlockFactory blockFactory,
+        CircuitBreaker breaker,
         ThreadContext threadContext,
         Consumer<BatchPage> resultPageCollector,
         BatchDoneListener batchDoneListener
@@ -116,7 +117,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.serverNode = serverNode;
         this.batchExchangeStatusListener = batchExchangeStatusListener;
         this.bigArrays = bigArrays;
-        this.blockFactory = blockFactory;
+        this.breaker = breaker;
         this.threadContext = threadContext;
         logger.info(
             "[CLIENT] Created BidirectionalBatchExchangeClient: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
@@ -133,8 +134,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     private void initialize(Consumer<BatchPage> resultPageCollector, BatchDoneListener batchDoneListener) throws Exception {
         logger.info("[CLIENT] Initializing BidirectionalBatchExchangeClient");
-        if (bigArrays == null || blockFactory == null || threadContext == null) {
-            throw new IllegalStateException("BigArrays, BlockFactory, and ThreadContext must be provided");
+        if (bigArrays == null || breaker == null || threadContext == null) {
+            throw new IllegalStateException("BigArrays, CircuitBreaker, and ThreadContext must be provided");
+        }
+        if (breaker instanceof LocalCircuitBreaker) {
+            throw new IllegalArgumentException(
+                "BidirectionalBatchExchangeClient requires a global CircuitBreaker, not a LocalCircuitBreaker. "
+                    + "The client driver runs concurrently on a different thread, and LocalCircuitBreaker "
+                    + "has single-thread assertions that would fail."
+            );
         }
 
         // Create sink handler for client-to-server direction
@@ -158,7 +166,12 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             synchronized (BidirectionalBatchExchangeClient.this) {
                 completedBatchId = Math.max(completedBatchId, batchId);
             }
-        }, failureRef);
+        }, failureRef, () -> {
+            // Check if there are incomplete batches - used by needsInput() to keep driver running
+            synchronized (BidirectionalBatchExchangeClient.this) {
+                return startedBatchId >= 0 && completedBatchId < startedBatchId;
+            }
+        });
 
         // Get node name from transport service
         String nodeName = transportService.getLocalNode().getName();
@@ -170,13 +183,17 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // Create a separate DriverContext for the client driver
         // This ensures isolation between the main workflow driver and the exchange client driver
         // Each driver needs its own workingSet for releasables and async action tracking
-        // Use default LocalCircuitBreaker settings for the client driver
+        //
+        // The breaker passed to this client should be the global breaker (not a LocalCircuitBreaker)
+        // because the client driver runs concurrently on a different thread, and LocalCircuitBreaker
+        // has single-thread assertions that would fail if we used the parent driver's LocalCircuitBreaker.
+        BlockFactory parentBlockFactory = new BlockFactory(breaker, bigArrays);
         this.clientLocalBreaker = new LocalCircuitBreaker(
-            blockFactory.breaker(),
+            breaker,
             BlockFactory.LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE.getBytes(),
             BlockFactory.LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE.getBytes()
         );
-        BlockFactory clientBlockFactory = blockFactory.newChildFactory(clientLocalBreaker);
+        BlockFactory clientBlockFactory = parentBlockFactory.newChildFactory(clientLocalBreaker);
         DriverContext clientDriverContext = new DriverContext(bigArrays, clientBlockFactory, "batch-exchange-client");
 
         // Create driver to drive the ExchangeSourceOperator
@@ -200,7 +217,18 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // Start the driver immediately - it will wait for pages if exchange isn't connected yet
         logger.info("[CLIENT] Starting client driver to actively request pages from exchange");
         clientDriverFuture = new PlainActionFuture<>();
-        Driver.start(threadContext, executor, clientDriver, 1000, clientDriverFuture);
+        // Create a listener that completes the future AND handles failures
+        ActionListener<Void> driverListener = ActionListener.wrap(nullValue -> {
+            // Driver completed successfully - complete the future
+            clientDriverFuture.onResponse(nullValue);
+            logger.debug("[CLIENT] Client driver completed successfully");
+        }, failure -> {
+            // Driver failed - complete the future with exception AND propagate to failureRef
+            clientDriverFuture.onFailure(failure);
+            logger.error("[CLIENT][ERROR] Client driver failed", failure);
+            handleFailure("client driver", failure);
+        });
+        Driver.start(threadContext, executor, clientDriver, 1000, driverListener);
         // Don't wait for completion - driver runs in background
         logger.debug("[CLIENT] Client driver started successfully");
     }
@@ -290,13 +318,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
                     try {
                         logger.error(
-                            "[CLIENT][ERROR] Failed to receive batch exchange status response for exchangeId={}",
+                            "[CLIENT][ERROR] Failed to receive batch exchange status response for exchangeId={}: {}",
                             serverToClientId,
-                            failure
+                            failure.getMessage()
                         );
                         handleFailure("batch exchange status response (transport error)", failure);
                     } catch (Exception e) {
-                        logger.error("[CLIENT][ERROR] Exception handling batch exchange status response failure", e);
+                        logger.error("[CLIENT][ERROR] Exception handling batch exchange status response failure: {}", e.getMessage());
                     }
                 })
             );
@@ -374,7 +402,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private void handleFailure(String source, Exception failure) {
         // Use compareAndSet to ensure only the first failure triggers the listener
         if (failureRef.compareAndSet(null, failure)) {
-            logger.error("[CLIENT][ERROR] First failure received from {}: {}", source, failure.getMessage(), failure);
+            logger.error("[CLIENT][ERROR] First failure received from {}: {}", source, failure.getMessage());
             if (batchExchangeStatusListener != null) {
                 logger.info(
                     "[CLIENT] Calling batch exchange status listener onFailure (from {}), failure={}",
@@ -412,7 +440,19 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         finish();
         if (clientToServerSinkHandler != null) {
             logger.debug("[CLIENT] Finishing client-to-server sink handler");
-            exchangeService.finishSinkHandler(clientToServerId, null);
+            // If there's a failure, we need to abort the sink handler with the failure
+            // to avoid assertion errors when the sink handler isn't fully finished
+            Exception failure = failureRef.get();
+            if (failure != null || clientToServerSinkHandler.isFinished() == false) {
+                // Use a failure to abort the sink handler - this ensures isFinished() returns true
+                Exception abortReason = failure != null
+                    ? failure
+                    : new IllegalStateException("Sink handler not finished during close - aborting");
+                logger.debug("[CLIENT] Aborting sink handler due to: {}", abortReason.getMessage());
+                exchangeService.finishSinkHandler(clientToServerId, abortReason);
+            } else {
+                exchangeService.finishSinkHandler(clientToServerId, null);
+            }
         }
 
         // Wait for server response - this ensures the server has finished processing
@@ -442,17 +482,70 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // If there are errors, batches may never complete, so don't wait (fail fast).
         // IMPORTANT: We wait for batch completion BEFORE closing the source, so the client driver
         // can continue processing marker pages from the source while we wait.
+        // Note: Driver exceptions are automatically propagated to failureRef via the listener
+        // added in initializeClientDriver(), so we only need to check failureRef here.
         if (startedBatchId >= 0 && failureRef.get() == null) {
-            logger.debug("[CLIENT] Waiting for all batches to complete: started={}, completed={}", startedBatchId, completedBatchId);
+            logger.info("[CLIENT] Waiting for all batches to complete: started={}, completed={}", startedBatchId, completedBatchId);
             long timeoutMs = 30_000; // 30 seconds
             long startTime = System.currentTimeMillis();
             long pollIntervalMs = 10; // Poll every 10ms
+            long lastLogTime = startTime;
+            long logIntervalMs = 1000; // Log every second during wait
             while (completedBatchId < startedBatchId && (System.currentTimeMillis() - startTime) < timeoutMs) {
                 // Check for errors during wait - if error occurs, stop waiting immediately
+                // Driver exceptions are automatically propagated to failureRef via listener
                 if (failureRef.get() != null) {
                     logger.debug("[CLIENT] Error detected during batch completion wait, stopping wait");
                     break;
                 }
+
+                // Check if the source is finished with no more data - if so, no more batch completions will arrive
+                // This can happen if the server completed before processing all batches (e.g., due to circuit breaker)
+                boolean sourceFinished = serverToClientSource != null && serverToClientSource.isFinished();
+                int bufferSize = serverToClientSource != null ? serverToClientSource.bufferSize() : -1;
+                if (sourceFinished && bufferSize == 0) {
+                    // Source is finished and buffer is empty - no more batch completion markers will arrive
+                    logger.warn(
+                        "[CLIENT] Source finished with empty buffer but batches incomplete: started={}, completed={}. "
+                            + "Server may have completed before processing all batches.",
+                        startedBatchId,
+                        completedBatchId
+                    );
+                    IllegalStateException serverCompletedEarly = new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "Server completed before processing all batches: started=%d, completed=%d",
+                            startedBatchId,
+                            completedBatchId
+                        )
+                    );
+                    failureRef.compareAndSet(null, serverCompletedEarly);
+                    break;
+                }
+
+                // Log periodically during wait to diagnose issues
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastLogTime >= logIntervalMs) {
+                    boolean driverFinished = clientDriver != null && clientDriverFuture.isDone();
+                    boolean hasIncomplete = startedBatchId >= 0 && completedBatchId < startedBatchId;
+                    boolean sourceBlocked = serverToClientSource != null && serverToClientSource.isBlocked().listener().isDone() == false;
+                    boolean canProduceMore = serverToClientSource != null && serverToClientSource.canProduceMoreDataWithoutExtraInput();
+                    logger.info(
+                        "[CLIENT] Still waiting for batches: started={}, completed={}, elapsedMs={}, driverFinished={},"
+                            + " sourceFinished={}, hasIncomplete={}, bufferSize={}, sourceBlocked={}, canProduceMore={}",
+                        startedBatchId,
+                        completedBatchId,
+                        currentTime - startTime,
+                        driverFinished,
+                        sourceFinished,
+                        hasIncomplete,
+                        bufferSize,
+                        sourceBlocked,
+                        canProduceMore
+                    );
+                    lastLogTime = currentTime;
+                }
+
                 try {
                     Thread.sleep(pollIntervalMs);
                 } catch (InterruptedException e) {
@@ -478,10 +571,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         )
                     );
                     logger.error(
-                        "[CLIENT][ERROR] Not all batches completed before timeout: started={}, completed={}",
+                        "[CLIENT][ERROR] Not all batches completed before timeout: started={}, completed={}: {}",
                         startedBatchId,
                         completedBatchId,
-                        timeoutError
+                        timeoutError.getMessage()
                     );
                     // Set the failure so subsequent operations know about the error
                     failureRef.compareAndSet(null, timeoutError);
@@ -497,57 +590,45 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             );
         }
 
-        // Now wait for the source to be finished (no more pages will arrive) before closing it.
-        // All batches have completed, so all marker pages should have been processed.
-        // The server finishes its sink after sending the response, which causes the source to finish.
-        if (serverToClientSource != null) {
-            logger.debug("[CLIENT] Waiting for server-to-client source to finish (no more pages will arrive)");
-            // Poll with timeout to wait for source to finish
-            // The server closes its sink after sending the response, so the source should finish quickly
-            long startTime = System.currentTimeMillis();
-            long timeoutMs = 1000; // 1 second timeout - should be enough for server to close sink
-            while (serverToClientSource.isFinished() == false && (System.currentTimeMillis() - startTime) < timeoutMs) {
-                try {
-                    Thread.sleep(10); // Poll every 10ms
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.debug("[CLIENT] Interrupted while waiting for source to finish");
-                    break;
-                }
-            }
-            if (serverToClientSource.isFinished() == false) {
-                logger.warn(
-                    "[CLIENT] Source did not finish within 1 second timeout,"
-                        + " proceeding with close anyway (server may have already closed sink)"
-                );
-            } else {
-                logger.debug("[CLIENT] Source finished, all pages have been received");
-            }
-        }
-
         // Wait for driver to finish completely before closing the source.
         // The driver will finish the operator when it's done, so we should wait for that
         // to avoid race conditions where we try to finish/close the source while the driver is still using it.
         // The driver will close clientLocalBreaker (passed as releasable) when it finishes
         if (clientDriver != null) {
+            boolean driverFinished = false;
             try {
                 logger.debug("[CLIENT] Waiting for client driver to finish before closing source");
                 clientDriverFuture.actionGet(TimeValue.timeValueSeconds(30));
                 logger.debug("[CLIENT] Client driver completed successfully");
+                driverFinished = true;
             } catch (Exception e) {
-                logger.debug("[CLIENT] Exception waiting for driver completion, canceling driver", e);
-                // If waiting failed, cancel the driver to ensure it closes
-                clientDriver.cancel("BidirectionalBatchExchangeClient closing - timeout waiting for completion");
-                // Driver will close itself via drainAndCloseOperators
+                logger.debug("[CLIENT] Exception waiting for driver completion, will abort driver", e);
             }
+
+            if (driverFinished == false) {
+                // Driver didn't finish - use abort() to properly shut down.
+                // abort() handles both cases:
+                // - If driver hasn't started: calls drainAndCloseOperators() immediately (safe, no CME)
+                // - If driver has started: cancels it and lets it finish naturally
+                // This avoids calling close() on a potentially running driver which causes ConcurrentModificationException
+                Exception abortReason = new RuntimeException("BidirectionalBatchExchangeClient closing");
+                PlainActionFuture<Void> abortFuture = new PlainActionFuture<>();
+                clientDriver.abort(abortReason, abortFuture);
+                // Wait for abort to complete - the driver will finish after checking for cancellation
+                try {
+                    abortFuture.actionGet(TimeValue.timeValueSeconds(10));
+                    logger.debug("[CLIENT] Driver aborted successfully");
+                } catch (Exception e) {
+                    logger.debug("[CLIENT] Driver abort did not complete within timeout, driver will finish eventually", e);
+                }
+            }
+            // If driver finished, no need to abort - it's already done and cleaned up
         }
 
-        // Now close the source - the driver has finished, so it's safe to close
+        // Now close the source - the driver has been aborted
         // The driver will have already finished the operator, so we just need to close it
         if (serverToClientSource != null) {
-            logger.debug("[CLIENT] Closing server-to-client source (driver has finished)");
-            // The driver has already finished the operator, so just close it
-            // close() will call finish() again, but ExchangeSourceImpl.finish() has a guard
+            logger.debug("[CLIENT] Closing server-to-client source (driver has been aborted)");
             serverToClientSource.close();
         }
         if (serverToClientSourceHandler != null) {

@@ -25,7 +25,6 @@ import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -187,7 +186,8 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                             // The batch's listener was already notified of failure/closure,
                             // so we can safely release the page and ignore it
                             logger.debug(
-                                "StreamingLookupFromIndexOperator: Received result page for batch {} but batch state was already removed (operatorClosed={}, exchangeFailed={})",
+                                "StreamingLookupFromIndexOperator: Received result page for batch {} "
+                                    + "but batch state was already removed (operatorClosed={}, exchangeFailed={})",
                                 batchId,
                                 operatorClosed,
                                 exchangeFailed
@@ -199,7 +199,9 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                             // This indicates a bug - throw to catch it
                             AsyncOperator.releasePageOnAnyThread(batchPage);
                             throw new IllegalStateException(
-                                "Received result page for batch " + batchId + " but batch state was already cleaned up "
+                                "Received result page for batch "
+                                    + batchId
+                                    + " but batch state was already cleaned up "
                                     + "and operator is not closed and exchange did not fail - this indicates a bug"
                             );
                         }
@@ -214,14 +216,14 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                 streamingSessionId,
                 lookupService.getClusterService().getClusterName().value(),
                 exchangeService,
-                lookupService.getTransportService().getThreadPool().executor(ThreadPool.Names.SEARCH),
-                1000, // maxBufferSize
+                lookupService.getExecutor(),  // Use same executor as server
+                1, // maxBufferSize
                 lookupService.getTransportService(),
                 parentTask,
                 serverNode,
                 ActionListener.wrap(nullValue -> handleBatchExchangeSuccess(), failure -> handleBatchExchangeFailure(failure)),
                 driverContext.bigArrays(),
-                driverContext.blockFactory(),
+                lookupService.getBreaker(),  // Use global breaker for client driver (not parent's LocalCircuitBreaker)
                 lookupService.getThreadContext(),
                 resultPageCollector,
                 batchDoneListener
@@ -335,9 +337,9 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                     state.listener.onFailure(new IllegalStateException("Operator is closing"));
                 } catch (Exception e) {
                     logger.debug(
-                        "StreamingLookupFromIndexOperator: Exception notifying listener for batch {} (operator closing)",
+                        "StreamingLookupFromIndexOperator: Exception notifying listener for batch {} (operator closing): {}",
                         completedBatchId,
-                        e
+                        e.getMessage()
                     );
                 }
                 return;
@@ -356,7 +358,11 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                     completedBatchId
                 );
             } catch (Exception e) {
-                logger.error("StreamingLookupFromIndexOperator: Batch {} failed during join creation", completedBatchId, e);
+                logger.error(
+                    "StreamingLookupFromIndexOperator: Batch {} failed during join creation: {}",
+                    completedBatchId,
+                    e.getMessage()
+                );
                 // Release pages if OngoingJoin creation fails - they're not owned by OngoingJoin yet
                 // (may be called from different thread)
                 for (Page page : state.results) {
@@ -368,9 +374,9 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                     state.listener.onFailure(e);
                 } catch (Exception e2) {
                     logger.debug(
-                        "StreamingLookupFromIndexOperator: Exception notifying listener for batch {} (join creation failed)",
+                        "StreamingLookupFromIndexOperator: Exception notifying listener for batch {} (join creation failed): {}",
                         completedBatchId,
-                        e2
+                        e2.getMessage()
                     );
                 }
             }
@@ -389,7 +395,8 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                 // The batch's listener was already notified of failure/closure,
                 // so we can safely ignore this completion marker
                 logger.debug(
-                    "StreamingLookupFromIndexOperator: Batch {} completed but state was already removed (operatorClosed={}, exchangeFailed={})",
+                    "StreamingLookupFromIndexOperator: Batch {} completed but state was already removed "
+                        + "(operatorClosed={}, exchangeFailed={})",
                     completedBatchId,
                     operatorClosed,
                     exchangeFailed
@@ -400,7 +407,9 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                 // Unexpected: batch state removed but operator not closed and exchange didn't fail
                 // This indicates a bug - throw to catch it
                 throw new IllegalStateException(
-                    "Batch " + completedBatchId + " completed but batch state was already cleaned up "
+                    "Batch "
+                        + completedBatchId
+                        + " completed but batch state was already cleaned up "
                         + "and operator is not closed and exchange did not fail - this indicates a bug"
                 );
             }
@@ -433,17 +442,40 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
 
     /**
      * Handle batch exchange success. Verifies all batches have been processed.
-     * If batches remain, this indicates a bug and they are cleaned up.
+     * If batches remain after waiting, this indicates a bug and they are cleaned up.
      */
     private void handleBatchExchangeSuccess() {
         logger.debug("Batch exchange completed successfully");
-        // When batch exchange completes successfully, verify all batches have been processed
-        // If there are still active batches, this indicates a bug - batches should complete before exchange closes
+        // When batch exchange completes successfully, verify all batches have been processed.
+        // Due to a potential race condition between the success response and marker page delivery,
+        // we wait briefly for any in-flight batch completion markers to be processed.
+        // The server sends the completion marker before the success response, so it should arrive soon.
+        long waitTimeMs = 5000; // 5 seconds should be plenty
+        long startTime = System.currentTimeMillis();
+        long pollIntervalMs = 10;
+
+        while (System.currentTimeMillis() - startTime < waitTimeMs) {
+            synchronized (stateLock) {
+                if (activeBatches.isEmpty()) {
+                    logger.debug("Batch exchange completed successfully, all batches processed");
+                    return;
+                }
+            }
+            try {
+                Thread.sleep(pollIntervalMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        // After waiting, if batches still remain, this indicates a bug
         synchronized (stateLock) {
             if (activeBatches.isEmpty() == false) {
                 List<Long> remainingBatchIds = new ArrayList<>(activeBatches.keySet());
                 logger.error(
-                    "Batch exchange completed but {} active batches remain (batchIds: {}) - this indicates batches did not complete properly",
+                    "Batch exchange completed but {} active batches remain (batchIds: {}) - "
+                        + "this indicates batches did not complete properly",
                     activeBatches.size(),
                     remainingBatchIds
                 );

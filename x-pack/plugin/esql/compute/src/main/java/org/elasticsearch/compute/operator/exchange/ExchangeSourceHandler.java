@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -30,9 +32,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
+    private static final Logger logger = LogManager.getLogger(ExchangeSourceHandler.class);
 
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
+    private final String name; // Identifies this handler for logging
 
     private final PendingInstances outstandingSinks;
     private final PendingInstances outstandingSources;
@@ -51,9 +55,25 @@ public final class ExchangeSourceHandler {
      * @param fetchExecutor      the executor used to fetch pages.
      */
     public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
+        this(maxBufferSize, fetchExecutor, "source");
+    }
+
+    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor, String name) {
+        this.name = name;
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
-        this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
+        this.outstandingSinks = new PendingInstances(() -> {
+            // Log when all remote sinks finish - this triggers buffer.finish(false)
+            logger.info(
+                "[{}] ExchangeSourceHandler: All remote sinks finished, calling buffer.finish(false): bufferSize={}, "
+                    + "bufferFinished={}, bufferNoMoreInputs={}",
+                name,
+                buffer.size(),
+                buffer.isFinished(),
+                buffer.noMoreInputs()
+            );
+            buffer.finish(false);
+        });
         this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.noop()));
     }
 
@@ -77,13 +97,29 @@ public final class ExchangeSourceHandler {
         @Override
         public Page pollPage() {
             checkFailure();
-            return buffer.pollPage();
+            Page page = buffer.pollPage();
+            return page;
         }
 
         @Override
         public boolean isFinished() {
             checkFailure();
-            return finished || buffer.isFinished();
+            boolean bufferFinished = buffer.isFinished();
+            boolean result = finished || bufferFinished;
+            // Log at INFO level when isFinished() is called to diagnose deadlocks
+            // This helps understand when and why the source reports as finished
+            if (result) {
+                logger.info(
+                    "[{}] ExchangeSourceImpl.isFinished() returning TRUE: finished={}, bufferFinished={}, bufferSize={}, "
+                        + "bufferNoMoreInputs={}",
+                    name,
+                    finished,
+                    bufferFinished,
+                    buffer.size(),
+                    buffer.noMoreInputs()
+                );
+            }
+            return result;
         }
 
         @Override
@@ -138,12 +174,22 @@ public final class ExchangeSourceHandler {
         }
 
         boolean tryResume() {
-            if (startedThread == Thread.currentThread() && status != Status.EXITED) {
+            Thread currentThread = Thread.currentThread();
+            boolean sameThread = (startedThread == currentThread);
+            boolean notExited = (status != Status.EXITED);
+            boolean canResume = sameThread && notExited;
+            if (canResume) {
                 status = Status.RUNNING;
-                return true;
-            } else {
-                return false;
             }
+            logger.debug(
+                "LoopControl.tryResume(): sameThread={}, status={}, canResume={}, startedThread={}, currentThread={}",
+                sameThread,
+                status,
+                canResume,
+                startedThread.getName(),
+                currentThread.getName()
+            );
+            return canResume;
         }
 
         void exiting() {
@@ -182,20 +228,27 @@ public final class ExchangeSourceHandler {
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {
+                        int bufferSizeBefore = buffer.size();
+                        boolean bufferFinishedBefore = buffer.isFinished();
+                        boolean noMoreInputsBefore = buffer.noMoreInputs();
                         onPageFetched.run();
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
+                        logger.info("[{}] Fetcher: Response finished, calling onSinkComplete", name);
                         onSinkComplete();
                     } else {
                         IsBlockedResult future = buffer.waitForWriting();
-                        if (future.listener().isDone()) {
-                            if (loopControl.tryResume() == false) {
+                        boolean futureAlreadyDone = future.listener().isDone();
+                        if (futureAlreadyDone) {
+                            boolean resumed = loopControl.tryResume();
+                            if (resumed == false) {
                                 fetchPage();
                             }
                         } else {
                             future.listener().addListener(ActionListener.wrap(unused -> {
-                                if (loopControl.tryResume() == false) {
+                                boolean resumed = loopControl.tryResume();
+                                if (resumed == false) {
                                     fetchPage();
                                 }
                             }, this::onSinkFailed));

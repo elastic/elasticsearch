@@ -16,7 +16,9 @@ import java.util.Objects;
 
 /**
  * Request sent from client to server to track batch exchange status.
- * Client sends this before page communication starts, and server replies after communication ends.
+ * Client sends this before page streaming starts, and server replies after streaming ends.
+ * Though the order on the receiving end is not guaranteed
+ * as streaming and BatchExchangeStatusRequest use different connections.
  */
 public final class BatchExchangeStatusRequest extends AbstractTransportRequest {
     private final String exchangeId;

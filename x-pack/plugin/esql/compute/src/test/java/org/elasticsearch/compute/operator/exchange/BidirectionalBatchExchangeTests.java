@@ -35,7 +35,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +63,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * Timeout for giant batch processing test
      * This test processes a large amount of batches and needs a longer timeout.
      */
-    private static final long GIANT_BATCH_TEST_TIMEOUT_SECONDS = 120;
+    private static final long GIANT_BATCH_TEST_TIMEOUT_SECONDS = 300;
 
     /**
      * Test with only a single batch.
@@ -184,20 +184,32 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Generate unique session ID for this test
             String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
 
+            // Create client holder and listeners before client construction
+            AtomicReference<BidirectionalBatchExchangeClient> clientHolder = new AtomicReference<>();
+            Consumer<BatchPage> resultPageCollector = createResultPageCollector(allOutputPagesRef);
+            BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener = createBatchDoneListener(
+                clientHolder,
+                processedBatches,
+                callbackBatchIds,
+                numBatches
+            );
+
             // Set up client on main thread
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
+            BidirectionalBatchExchangeClient client = setupClient(
+                infra,
+                threadPool,
+                batchExchangeStatusFuture,
+                sessionId,
+                resultPageCollector,
+                batchDoneListener
+            );
+            clientHolder.set(client);
 
             // Start server thread, wait for initialization, and connect client
             Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
 
             // Log number of batches to send
             logger.info("[TEST] Number of batches to send: {}", numBatches);
-
-            // Set up batch done listener to track batch completions and finish when last batch completes
-            setupBatchDoneListener(client, processedBatches, callbackBatchIds, numBatches);
-
-            // Set up result page collector
-            setupResultPageCollector(client, allOutputPagesRef);
 
             // Client sends all batches upfront
             sendAllBatchesUpfront(client, batches, batchesSent);
@@ -248,21 +260,33 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Generate unique session ID for this test
             String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
 
+            // Create client holder and listeners before client construction
+            int numBatchesForZeroPagesTest = 1; // We'll send one marker batch
+            AtomicReference<BidirectionalBatchExchangeClient> clientHolder = new AtomicReference<>();
+            Consumer<BatchPage> resultPageCollector = createResultPageCollector(allOutputPagesRef);
+            BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener = createBatchDoneListener(
+                clientHolder,
+                processedBatches,
+                callbackBatchIds,
+                numBatchesForZeroPagesTest
+            );
+
             // Set up client on main thread
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
+            BidirectionalBatchExchangeClient client = setupClient(
+                infra,
+                threadPool,
+                batchExchangeStatusFuture,
+                sessionId,
+                resultPageCollector,
+                batchDoneListener
+            );
+            clientHolder.set(client);
 
             // Start server thread, wait for initialization, and connect client
             Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
 
             // Log number of batches to send
             logger.info("[TEST] Number of batches to send: 1 (marker batch)");
-
-            // Set up batch done listener - for zero pages test, we send a marker batch and finish in its callback
-            int numBatchesForZeroPagesTest = 1; // We'll send one marker batch
-            setupBatchDoneListener(client, processedBatches, callbackBatchIds, numBatchesForZeroPagesTest);
-
-            // Set up result page collector
-            setupResultPageCollector(client, allOutputPagesRef);
 
             // Client sends NO pages - send a marker batch to represent "no data", finish will be called in callback
             logger.info("[TEST-CLIENT] Sending no pages, sending marker batch");
@@ -314,31 +338,44 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Generate unique session ID for this test
             String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
 
-            // Set up client on main thread
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
-
-            // Start server thread, wait for initialization, and connect client
-            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
-
-            // Log number of batches to send
-            logger.info("[TEST] Number of batches to send: {}", numBatches);
-
             // Set up batch done listener - batch 0 will complete, batch 1 won't (we don't send last page)
             // Since batch 0 is the last batch that will complete, finish in its callback after all batches are sent
             CountDownLatch batch0CompletedLatch = new CountDownLatch(1);
             AtomicReference<Boolean> allBatchesSent = new AtomicReference<>(false);
             AtomicReference<Boolean> finishCalled = new AtomicReference<>(false);
-            client.setBatchDoneListener(batchId -> {
+            AtomicReference<BidirectionalBatchExchangeClient> clientHolder = new AtomicReference<>();
+
+            BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener = batchId -> {
                 logger.info("[TEST-CLIENT] Batch {} completed", batchId);
                 if (batchId == 0) {
                     batch0CompletedLatch.countDown();
                     // If all batches have been sent (including the problematic batch 2), finish the exchange
                     if (allBatchesSent.get() && finishCalled.compareAndSet(false, true)) {
                         logger.debug("[TEST-CLIENT] Last completing batch {} finished, finishing exchange", batchId);
-                        client.finish();
+                        BidirectionalBatchExchangeClient c = clientHolder.get();
+                        if (c != null) {
+                            c.finish();
+                        }
                     }
                 }
-            });
+            };
+
+            // Set up client on main thread
+            BidirectionalBatchExchangeClient client = setupClient(
+                infra,
+                threadPool,
+                batchExchangeStatusFuture,
+                sessionId,
+                batchPage -> {},  // No result page collector needed for this test
+                batchDoneListener
+            );
+            clientHolder.set(client);
+
+            // Start server thread, wait for initialization, and connect client
+            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
+
+            // Log number of batches to send
+            logger.info("[TEST] Number of batches to send: {}", numBatches);
 
             // Send batch 0 completely
             List<Page> batch0Pages = batches.get(0);
@@ -464,12 +501,11 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * Batches are generated on demand and verified incrementally
      * to avoid the test running out of memory.
      */
-    @Ignore("Giant test - run manually")
     public void testBatchProcessingRandomGiant() throws Exception {
         ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
         try {
-            int numBatches = 100_000;
+            int numBatches = 20_000;
             runBidirectionalBatchTestOnDemand(
                 threadPool,
                 blockFactory,
@@ -511,7 +547,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         TestInfrastructure infra,
         ThreadPool threadPool,
         ActionListener<Void> batchExchangeStatusListener,
-        String sessionId
+        String sessionId,
+        Consumer<BatchPage> resultPageCollector,
+        BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener
     ) throws Exception {
         logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}", sessionId);
         Task mockTask = mock(Task.class);
@@ -528,8 +566,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             infra.serverTransportService().getLocalNode(),
             batchExchangeStatusListener,
             driverContext.bigArrays(),
-            driverContext.blockFactory(),
-            threadPool.getThreadContext()
+            driverContext.blockFactory().breaker(),  // Pass the breaker, not the blockFactory
+            threadPool.getThreadContext(),
+            resultPageCollector,
+            batchDoneListener
         );
         logger.info("[TEST-CLIENT] Client initialized successfully");
 
@@ -583,60 +623,21 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         // Generate unique session ID for this test
         String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
 
-        // Initialize client on main thread
-        BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
+        // Create holders for circular references
+        AtomicReference<BidirectionalBatchExchangeClient> clientHolder = new AtomicReference<>();
+        AtomicReference<Runnable> feedBatchHolder = new AtomicReference<>();
+        AtomicInteger currentBatchIndex = new AtomicInteger(0);
 
-        // Start server thread, wait for initialization, and connect client
-        Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, timeoutSeconds, sessionId);
-
-        // Log number of batches to send
-        logger.info("[TEST] Number of batches to send: {}", numBatches);
-
-        // Set up result page collector - collects pages for current batch
-        client.setResultPageCollector(batchPage -> {
+        // Create result page collector
+        Consumer<BatchPage> resultPageCollector = batchPage -> {
             BatchPage pageCopy = copyBatchPage(batchPage);
             synchronized (currentBatchOutputPages) {
                 currentBatchOutputPages.get().add(pageCopy);
             }
-        });
-
-        // Create feed batch runnable that generates and sends one batch at a time
-        AtomicInteger currentBatchIndex = new AtomicInteger(0);
-        Runnable feedBatch = () -> {
-            int batchId = currentBatchIndex.getAndIncrement();
-
-            if (batchId >= numBatches) {
-                logger.debug("[TEST-CLIENT] feedBatch: All {} batches sent, no more batches to send", numBatches);
-                return;
-            }
-
-            try {
-                // Generate batch on demand and store it for verification
-                List<Page> batchPages = batchGenerator.generateBatch(batchId);
-
-                // Store copied input pages for verification (will be released after verification)
-                // Copy pages to prevent them from being released when sent
-                List<Page> copiedBatchPages = copyPages(batchPages);
-                synchronized (currentBatchInputPages) {
-                    currentBatchInputPages.set(copiedBatchPages);
-                }
-                // Clear output pages collection for this batch (after storing input)
-                synchronized (currentBatchOutputPages) {
-                    currentBatchOutputPages.set(new ArrayList<>());
-                }
-
-                // Send the batch
-                sendBatchFromPages(client, batchPages, batchId, batchesSent);
-
-                logger.debug("[TEST-CLIENT] feedBatch: Finished feeding batch {}", batchId);
-            } catch (Exception e) {
-                logger.error("[TEST-CLIENT] feedBatch: Error feeding batch " + batchId, e);
-                throw new AssertionError("Error feeding batch " + batchId, e);
-            }
         };
 
-        // Set up client batch done listener - verifies batch and triggers next batch
-        client.setBatchDoneListener(batchId -> {
+        // Create batch done listener
+        BidirectionalBatchExchangeClient.BatchDoneListener batchDoneListener = batchId -> {
             int currentProcessed = processedBatches.incrementAndGet();
             callbackBatchIds.add(batchId);
 
@@ -693,15 +694,73 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Check if this was the last batch - if so, finish the exchange
             if (isLastBatch) {
                 logger.debug("[TEST-CLIENT] Last batch {} completed, finishing exchange", batchId);
-                client.finish();
+                BidirectionalBatchExchangeClient c = clientHolder.get();
+                if (c != null) {
+                    c.finish();
+                }
             } else {
                 // Feed the next batch asynchronously in the callback
                 threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                     logger.debug("[TEST-CLIENT] Batch callback: Executing feedBatch for next batch after batch {}", batchId);
-                    feedBatch.run();
+                    Runnable fb = feedBatchHolder.get();
+                    if (fb != null) {
+                        fb.run();
+                    }
                 });
             }
-        });
+        };
+
+        // Initialize client on main thread
+        BidirectionalBatchExchangeClient client = setupClient(
+            infra,
+            threadPool,
+            batchExchangeStatusFuture,
+            sessionId,
+            resultPageCollector,
+            batchDoneListener
+        );
+        clientHolder.set(client);
+
+        // Now create the feedBatch runnable (can reference client directly now)
+        Runnable feedBatch = () -> {
+            int batchId = currentBatchIndex.getAndIncrement();
+
+            if (batchId >= numBatches) {
+                logger.debug("[TEST-CLIENT] feedBatch: All {} batches sent, no more batches to send", numBatches);
+                return;
+            }
+
+            try {
+                // Generate batch on demand and store it for verification
+                List<Page> batchPages = batchGenerator.generateBatch(batchId);
+
+                // Store copied input pages for verification (will be released after verification)
+                // Copy pages to prevent them from being released when sent
+                List<Page> copiedBatchPages = copyPages(batchPages);
+                synchronized (currentBatchInputPages) {
+                    currentBatchInputPages.set(copiedBatchPages);
+                }
+                // Clear output pages collection for this batch (after storing input)
+                synchronized (currentBatchOutputPages) {
+                    currentBatchOutputPages.set(new ArrayList<>());
+                }
+
+                // Send the batch
+                sendBatchFromPages(client, batchPages, batchId, batchesSent);
+
+                logger.debug("[TEST-CLIENT] feedBatch: Finished feeding batch {}", batchId);
+            } catch (Exception e) {
+                logger.error("[TEST-CLIENT] feedBatch: Error feeding batch " + batchId, e);
+                throw new AssertionError("Error feeding batch " + batchId, e);
+            }
+        };
+        feedBatchHolder.set(feedBatch);
+
+        // Start server thread, wait for initialization, and connect client
+        Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, timeoutSeconds, sessionId);
+
+        // Log number of batches to send
+        logger.info("[TEST] Number of batches to send: {}", numBatches);
 
         // Client sends first batch - server driver will start when it receives the batch exchange status request
         feedBatch.run();
@@ -772,15 +831,16 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
-     * Set up batch done listener that finishes the exchange when all batches are processed.
+     * Create a batch done listener that finishes the exchange when all batches are processed.
+     * Uses a client holder to allow the listener to be created before the client.
      */
-    private void setupBatchDoneListener(
-        BidirectionalBatchExchangeClient client,
+    private BidirectionalBatchExchangeClient.BatchDoneListener createBatchDoneListener(
+        AtomicReference<BidirectionalBatchExchangeClient> clientHolder,
         AtomicInteger processedBatches,
         List<Long> callbackBatchIds,
         int numBatches
     ) {
-        client.setBatchDoneListener(batchId -> {
+        return batchId -> {
             logger.debug("[TEST-CLIENT] Batch {} completed", batchId);
             int currentProcessed = processedBatches.incrementAndGet();
             callbackBatchIds.add(batchId);
@@ -788,9 +848,12 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // When all batches have been processed, finish the exchange
             if (currentProcessed >= numBatches) {
                 logger.debug("[TEST-CLIENT] Last batch {} completed, finishing exchange", batchId);
-                client.finish();
+                BidirectionalBatchExchangeClient client = clientHolder.get();
+                if (client != null) {
+                    client.finish();
+                }
             }
-        });
+        };
     }
 
     /**
@@ -806,14 +869,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
-     * Set up result page collector on the client.
+     * Create a result page collector consumer.
      */
-    private void setupResultPageCollector(BidirectionalBatchExchangeClient client, AtomicReference<List<Page>> allOutputPagesRef) {
-        List<Page> allOutputPages = allOutputPagesRef.get();
-        client.setResultPageCollector(batchPage -> {
+    private Consumer<BatchPage> createResultPageCollector(AtomicReference<List<Page>> allOutputPagesRef) {
+        return batchPage -> {
+            List<Page> allOutputPages = allOutputPagesRef.get();
             BatchPage copiedPage = copyBatchPage(batchPage);
             allOutputPages.add(copiedPage);
-        });
+        };
     }
 
     /**

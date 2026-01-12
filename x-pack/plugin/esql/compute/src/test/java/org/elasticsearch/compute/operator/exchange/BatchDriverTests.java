@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -949,7 +950,7 @@ public class BatchDriverTests extends ESTestCase {
                 () -> "test",
                 exchange.sourceOperator,
                 List.of(addOneOperator, filterOperator),
-                sinkOperator,
+                BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator)),
                 TimeValue.timeValueSeconds(1),
                 () -> {}
             );
@@ -1153,7 +1154,7 @@ public class BatchDriverTests extends ESTestCase {
                 () -> "test",
                 exchange.sourceOperator,
                 List.of(mvExpandOperator, addOneOperator),
-                sinkOperator,
+                BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator)),
                 TimeValue.timeValueSeconds(1),
                 () -> {}
             );
@@ -1483,10 +1484,54 @@ public class BatchDriverTests extends ESTestCase {
             () -> "test",
             sourceOperator,
             List.of(addOneOperator),
-            sinkOperator,
+            BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator)),
             TimeValue.timeValueSeconds(1),
             () -> {}
         );
+    }
+
+    /**
+     * A sink operator wrapper that filters out BatchPage markers (empty batch signals).
+     * This is needed because TestResultPageSinkOperator cannot handle pages with 0 blocks,
+     * but PageToBatchPageOperator.flushBatch() sends marker pages for empty batches.
+     */
+    private static class MarkerFilteringSinkOperator extends SinkOperator {
+        private final SinkOperator delegate;
+
+        MarkerFilteringSinkOperator(SinkOperator delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean needsInput() {
+            return delegate.needsInput();
+        }
+
+        @Override
+        protected void doAddInput(Page page) {
+            // Filter out marker pages (BatchPages with isBatchMarkerOnly=true)
+            if (page instanceof BatchPage batchPage && batchPage.isBatchMarkerOnly()) {
+                // Just release the marker page, don't pass to delegate
+                page.releaseBlocks();
+                return;
+            }
+            delegate.addInput(page);
+        }
+
+        @Override
+        public void finish() {
+            delegate.finish();
+        }
+
+        @Override
+        public boolean isFinished() {
+            return delegate.isFinished();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
 }

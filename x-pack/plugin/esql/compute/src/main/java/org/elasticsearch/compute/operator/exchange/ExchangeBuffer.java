@@ -42,20 +42,27 @@ final class ExchangeBuffer {
     }
 
     void addPage(Page page) {
+        int sizeBefore = queueSize.get();
         queue.add(page);
-        if (queueSize.incrementAndGet() == 1) {
+        int sizeAfter = queueSize.incrementAndGet();
+        if (sizeAfter == 1) {
             notifyNotEmpty();
         }
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
-            if (queue.removeIf(p -> p == page)) {
-                page.releaseBlocks();
-                final int size = queueSize.decrementAndGet();
-                if (size == maxSize - 1) {
-                    notifyNotFull();
-                }
-                if (size == 0) {
-                    completionFuture.onResponse(null);
+            // CRITICAL: Don't drop BatchPages (marker pages) even when noMoreInputs=true, as they're needed for
+            // batch completion tracking. Marker pages may arrive after the source is marked finished due to
+            // race conditions with buffer size 1, and dropping them causes deadlocks.
+            if (page instanceof BatchPage == false) {
+                if (queue.removeIf(p -> p == page)) {
+                    page.releaseBlocks();
+                    final int size = queueSize.decrementAndGet();
+                    if (size == maxSize - 1) {
+                        notifyNotFull();
+                    }
+                    if (size == 0) {
+                        completionFuture.onResponse(null);
+                    }
                 }
             }
         }
@@ -63,8 +70,12 @@ final class ExchangeBuffer {
 
     Page pollPage() {
         final var page = queue.poll();
-        if (page != null && queueSize.decrementAndGet() == maxSize - 1) {
-            notifyNotFull();
+        if (page != null) {
+            int sizeAfterDecrement = queueSize.decrementAndGet();
+            boolean willNotify = (sizeAfterDecrement == maxSize - 1);
+            if (willNotify) {
+                notifyNotFull();
+            }
         }
         if (page == null && noMoreInputs && queueSize.get() == 0) {
             completionFuture.onResponse(null);
@@ -95,15 +106,19 @@ final class ExchangeBuffer {
     }
 
     IsBlockedResult waitForWriting() {
+        int currentSize = queueSize.get();
         // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
-        if (queueSize.get() < maxSize || noMoreInputs) {
+        if (currentSize < maxSize || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (notFullLock) {
-            if (queueSize.get() < maxSize || noMoreInputs) {
+            currentSize = queueSize.get();
+            if (currentSize < maxSize || noMoreInputs) {
                 return Operator.NOT_BLOCKED;
             }
-            if (notFullFuture == null) {
+            // Buffer is full, caller is blocked
+            boolean createdNew = (notFullFuture == null);
+            if (createdNew) {
                 notFullFuture = new SubscribableListener<>();
             }
             return new IsBlockedResult(notFullFuture, "exchange full");
@@ -133,12 +148,15 @@ final class ExchangeBuffer {
     }
 
     void finish(boolean drainingPages) {
+        int sizeBefore = queueSize.get();
+        boolean wasFinished = completionFuture.isDone();
         noMoreInputs = true;
         if (drainingPages) {
             discardPages();
         }
         notifyNotEmpty();
-        if (drainingPages || queueSize.get() == 0) {
+        boolean willFinish = drainingPages || queueSize.get() == 0;
+        if (willFinish) {
             completionFuture.onResponse(null);
         }
     }

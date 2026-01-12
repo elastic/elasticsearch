@@ -16,6 +16,10 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -30,9 +34,11 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Objects;
 
 /**
  * Intermediate operator that processes match field pages from ExchangeSourceOperator
@@ -58,6 +64,12 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
     private int queryPosition = -1;
     private Page outputPage;
     private boolean finished = false;
+
+    // Status tracking
+    private int pagesReceived = 0;
+    private int pagesEmitted = 0;
+    private long rowsReceived = 0;
+    private long rowsEmitted = 0;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
@@ -126,6 +138,8 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
         currentInputPage = page;
         queryPosition = -1; // Reset query position for new page
         optimizedInputPage = null; // Reset optimized page
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
     }
 
     @Override
@@ -215,7 +229,18 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
             if (totalMatches > 0) {
                 return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
             } else {
-                // No matches but we've processed all queries
+                // No matches - check if we've finished processing all queries for this input page
+                if (queryPosition >= positionCount - 1) {
+                    // Finished processing this input page with no matches - release it
+                    if (optimizedInputPage != null && optimizedInputPage != currentInputPage) {
+                        optimizedInputPage.allowPassingToDifferentDriver();
+                        Releasables.closeExpectNoException(optimizedInputPage);
+                    }
+                    currentInputPage.releaseBlocks();
+                    currentInputPage = null;
+                    optimizedInputPage = null;
+                    queryPosition = -1;
+                }
                 return null;
             }
         } catch (IOException e) {
@@ -244,6 +269,8 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
                 new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, null).asBlock(),
                 positionsVector.asBlock()
             );
+            pagesEmitted++;
+            rowsEmitted += page.getPositionCount();
         } finally {
             if (page == null) {
                 Releasables.close(positionsBuilder, segmentsVector, docsBuilder, positionsVector, shardsVector, docsVector);
@@ -302,7 +329,7 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return currentInputPage == null && !finished;
+        return currentInputPage == null && finished == false;
     }
 
     @Override
@@ -335,6 +362,117 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
         }
         if (outputPage != null) {
             outputPage.releaseBlocks();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "EnrichQueryFromExchangeOperator[maxPageSize=" + maxPageSize + "]";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "enrich_query_from_exchange",
+            Status::new
+        );
+
+        private final int pagesReceived;
+        private final int pagesEmitted;
+        private final long rowsReceived;
+        private final long rowsEmitted;
+
+        Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted) {
+            this.pagesReceived = pagesReceived;
+            this.pagesEmitted = pagesEmitted;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
+        }
+
+        Status(StreamInput in) throws IOException {
+            pagesReceived = in.readVInt();
+            pagesEmitted = in.readVInt();
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(pagesReceived);
+            out.writeVInt(pagesEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public int pagesReceived() {
+            return pagesReceived;
+        }
+
+        public int pagesEmitted() {
+            return pagesEmitted;
+        }
+
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_emitted", pagesEmitted);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return pagesReceived == status.pagesReceived
+                && pagesEmitted == status.pagesEmitted
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        }
+
+        @Override
+        public String toString() {
+            return "EnrichQueryFromExchangeOperator.Status["
+                + "pagesReceived="
+                + pagesReceived
+                + ", pagesEmitted="
+                + pagesEmitted
+                + ", rowsReceived="
+                + rowsReceived
+                + ", rowsEmitted="
+                + rowsEmitted
+                + "]";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
     }
 }

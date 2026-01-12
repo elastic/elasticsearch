@@ -214,9 +214,9 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     public void testCanProduceMoreDataWithoutExtraInput() throws Exception {
-        // Create a scenario with many queries and a small page size
-        // This ensures that canProduceMoreDataWithoutExtraInput() returns true
-        // when there are more queries to process
+        // Test that EnrichQuerySourceOperator follows the SourceOperator default behavior:
+        // canProduceMoreDataWithoutExtraInput() returns false because source operators
+        // are gated by nextOp.needsInput() in the driver loop.
         int numQueries = 100;
         int maxPageSize = 9; // Small page size to ensure multiple pages
 
@@ -239,10 +239,10 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 warnings()
             );
 
-            // Before getting any output, canProduceMoreDataWithoutExtraInput should return true
-            // (operator is not finished yet)
-            assertTrue(
-                "canProduceMoreDataWithoutExtraInput should return true before processing starts",
+            // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
+            // because source data production is gated by nextOp.needsInput() in the driver loop
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
                 queryOperator.canProduceMoreDataWithoutExtraInput()
             );
 
@@ -257,14 +257,11 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     int positions = page.getPositionCount();
                     totalPositions += positions;
 
-                    // After getting a page but before finishing, canProduceMoreDataWithoutExtraInput
-                    // should return true if there are more queries to process
-                    if (queryOperator.isFinished() == false) {
-                        assertTrue(
-                            "canProduceMoreDataWithoutExtraInput should return true when there are more queries to process",
-                            queryOperator.canProduceMoreDataWithoutExtraInput()
-                        );
-                    }
+                    // canProduceMoreDataWithoutExtraInput always returns false for source operators
+                    assertFalse(
+                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                        queryOperator.canProduceMoreDataWithoutExtraInput()
+                    );
 
                     page.releaseBlocks();
                 }
@@ -274,7 +271,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numQueries / maxPageSize) + 1));
             assertThat("Total positions should match number of queries", totalPositions, equalTo(numQueries));
 
-            // After finishing, canProduceMoreDataWithoutExtraInput should return false
+            // After finishing, canProduceMoreDataWithoutExtraInput should still return false
             assertFalse(
                 "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
                 queryOperator.canProduceMoreDataWithoutExtraInput()
@@ -284,9 +281,10 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     public void testCanProduceMoreDataWithoutExtraInput_WithManyMatches() throws Exception {
-        // Create a scenario where a single query matches many documents
-        // This tests the case where canProduceMoreDataWithoutExtraInput returns true
-        // even when processing a single query with many matches
+        // Test that EnrichQuerySourceOperator follows the SourceOperator default behavior
+        // even when a single query matches many documents.
+        // canProduceMoreDataWithoutExtraInput() returns false because source operators
+        // are gated by nextOp.needsInput() in the driver loop.
 
         // Create directory with many documents matching the same term
         int numMatchingDocs = 50;
@@ -312,9 +310,9 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 warnings()
             );
 
-            // Before getting any output
-            assertTrue(
-                "canProduceMoreDataWithoutExtraInput should return true before processing starts",
+            // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
                 queryOperator.canProduceMoreDataWithoutExtraInput()
             );
 
@@ -329,14 +327,11 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     int positions = page.getPositionCount();
                     totalPositions += positions;
 
-                    // After getting a page but before finishing, canProduceMoreDataWithoutExtraInput
-                    // should return true if there are more matches to process
-                    if (queryOperator.isFinished() == false) {
-                        assertTrue(
-                            "canProduceMoreDataWithoutExtraInput should return true when there are more matches to process",
-                            queryOperator.canProduceMoreDataWithoutExtraInput()
-                        );
-                    }
+                    // canProduceMoreDataWithoutExtraInput always returns false for source operators
+                    assertFalse(
+                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                        queryOperator.canProduceMoreDataWithoutExtraInput()
+                    );
 
                     page.releaseBlocks();
                 }
@@ -346,7 +341,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numMatchingDocs / maxPageSize) + 1));
             assertThat("Total positions should match number of matching documents", totalPositions, equalTo(numMatchingDocs));
 
-            // After finishing, canProduceMoreDataWithoutExtraInput should return false
+            // After finishing, canProduceMoreDataWithoutExtraInput should still return false
             assertFalse(
                 "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
                 queryOperator.canProduceMoreDataWithoutExtraInput()

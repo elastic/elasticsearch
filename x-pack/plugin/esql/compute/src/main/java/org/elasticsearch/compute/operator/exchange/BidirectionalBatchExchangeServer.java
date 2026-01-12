@@ -196,7 +196,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             onClientReady();
         } catch (Exception e) {
             // If starting the driver fails, reply immediately with failure
-            logger.error("[SERVER][ERROR] Failed to start driver after BatchExchangeStatusRequest for exchangeId={}", exchangeId, e);
+            logger.error(
+                "[SERVER][ERROR] Failed to start driver after BatchExchangeStatusRequest for exchangeId={}: {}",
+                exchangeId,
+                e.getMessage()
+            );
             sendBatchExchangeStatusResponse(false, e);
         }
     }
@@ -245,8 +249,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             logger.info(
                 "[SERVER] Driver completion listener onFailure called for exchangeId={}, failure={}",
                 serverToClientId,
-                failure != null ? failure.getMessage() : "unknown",
-                failure
+                failure != null ? failure.getMessage() : "unknown"
             );
             logger.info(
                 "[SERVER] Batch processing completed with failure for exchangeId={}, failure={}",
@@ -290,7 +293,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             } catch (Exception e) {
                 // If sending response fails (e.g., channel closed, node closed), log as error but don't propagate
                 // The client waits for the response, so this indicates an unexpected failure
-                logger.error("[SERVER][ERROR] Failed to send batch exchange status response for exchangeId={}", serverToClientId, e);
+                logger.error(
+                    "[SERVER][ERROR] Failed to send batch exchange status response for exchangeId={}: {}",
+                    serverToClientId,
+                    e.getMessage()
+                );
             }
         } else {
             logger.error(
@@ -418,31 +425,26 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         );
         logger.info("[SERVER] BatchDriver created");
 
-        // Set up batch done callback to send marker page
-        batchDriver.onBatchDone().addListener(new ActionListener<Long>() {
+        // Set up batch done callback listener
+        // Note: The batch marker (last page with isLastPageInBatch=true) is now sent by
+        // PageToBatchPageOperator.flushBatch() which is called by BatchDriver.completeBatch()
+        // before this callback is invoked. This callback is just for logging/monitoring.
+        logger.info("[SERVER] Registering batch done callback listener");
+        ActionListener<Long> batchDoneListener = new ActionListener<Long>() {
             @Override
-            public void onResponse(Long batchId) {
-                try {
-                    // Send empty marker page to signal batch completion
-                    // Send directly to sink (same sink used by ExchangeSinkOperator)
-                    logger.info("[SERVER] Batch {} completed, sending marker page to client", batchId);
-                    BatchPage marker = BatchPage.createMarker(batchId);
-                    serverToClientSink.addPage(marker);
-                    logger.info("[SERVER] Marker page sent for batchId={}", batchId);
-                } catch (Exception e) {
-                    logger.error("[SERVER][ERROR] Failed to send marker page for batchId=" + batchId, e);
-                    throw e;
-                }
-            }
+            public void onResponse(Long batchId) {}
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("[SERVER][ERROR] Batch done callback failed", e);
+                logger.error("[SERVER][ERROR] Batch done callback onFailure() invoked", e);
                 // Propagate failure to exchange
-                serverToClientSinkHandler.onFailure(e);
+                if (serverToClientSinkHandler != null) {
+                    serverToClientSinkHandler.onFailure(e);
+                }
             }
-        });
-        logger.debug("[SERVER] Batch done callback registered");
+        };
+        batchDriver.onBatchDone().addListener(batchDoneListener);
+        logger.info("[SERVER] Batch done callback listener registered successfully");
 
         // Store thread context for later driver startup
         this.threadContext = threadContext;

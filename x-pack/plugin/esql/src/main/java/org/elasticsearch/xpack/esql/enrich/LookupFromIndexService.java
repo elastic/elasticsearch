@@ -506,7 +506,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 request.streamingSessionId,
                 exchangeService,
                 executor,
-                1000, // maxBufferSize
+                1, // maxBufferSize
                 transportService,
                 task,
                 clientNode
@@ -550,9 +550,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     protected DiscoveryNode determineClientNode(TransportRequest request, CancellableTask task) {
-        // Try to get client node from task origin node
-        // For now, return local node as fallback (in production, this should come from task)
-        return clusterService.localNode();
+        // Get the client node from the parent task's node ID
+        // The parent task is running on the client node that initiated this lookup request
+        if (task == null) {
+            throw new IllegalStateException(
+                "Cannot determine client node for streaming lookup: task is null. "
+                    + "This indicates the lookup request was not properly initiated."
+            );
+        }
+        TaskId parentTaskId = task.getParentTaskId();
+        if (parentTaskId == null || parentTaskId.isSet() == false) {
+            throw new IllegalStateException(
+                "Cannot determine client node for streaming lookup: parent task ID is not set. "
+                    + "This indicates the lookup request was not properly initiated from a parent task."
+            );
+        }
+        String nodeId = parentTaskId.getNodeId();
+        DiscoveryNode clientNode = clusterService.state().nodes().get(nodeId);
+        if (clientNode == null) {
+            throw new IllegalStateException(
+                "Cannot determine client node for streaming lookup: node ["
+                    + nodeId
+                    + "] from parent task not found in cluster state. "
+                    + "The client node may have left the cluster."
+            );
+        }
+        return clientNode;
     }
 
     /**

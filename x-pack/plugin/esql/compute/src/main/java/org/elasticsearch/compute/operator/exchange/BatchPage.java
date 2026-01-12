@@ -60,7 +60,7 @@ public class BatchPage extends Page {
      * Check if this is a marker page (empty page with isLastPageInBatch=true).
      * Marker pages are used to signal batch completion for empty batches.
      */
-    public boolean isBatchMarker() {
+    public boolean isBatchMarkerOnly() {
         return getPositionCount() == 0 && isLastPageInBatch;
     }
 

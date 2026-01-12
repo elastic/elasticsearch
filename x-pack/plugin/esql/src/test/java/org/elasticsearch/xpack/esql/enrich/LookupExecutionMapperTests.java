@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -138,6 +140,12 @@ public class LookupExecutionMapperTests extends ESTestCase {
             // Capture the plan instead of starting the server
             this.capturedPlan = lookupQueryPlan;
             // Don't call super - we don't want to actually start the server in tests
+        }
+
+        @Override
+        protected DiscoveryNode determineClientNode(TransportRequest request, CancellableTask task) {
+            // Return a mock client node for testing - we don't actually use it since we override startServerWithOperators
+            return mock(DiscoveryNode.class);
         }
 
         LookupFromIndexService.LookupQueryPlan getCapturedPlan() {
@@ -382,6 +390,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
             EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
             blockFactory
         );
+        releasables.add(exchangeService);  // Ensure ExchangeService is properly closed to stop scheduled tasks
         return new TestLookupService(
             clusterService,
             indicesService,

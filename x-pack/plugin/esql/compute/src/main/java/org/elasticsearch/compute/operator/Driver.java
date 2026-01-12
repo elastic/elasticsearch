@@ -64,7 +64,7 @@ public class Driver implements Releasable, Describable {
      * Description of the driver. This description should be short and meaningful as a grouping identifier.
      * We use the phase of the query right now: "data", "node_reduce", "final".
      */
-    private final String shortDescription;
+    protected final String shortDescription;
 
     /**
      * The wall clock time when this driver was created in milliseconds since epoch.
@@ -191,14 +191,9 @@ public class Driver implements Releasable, Describable {
             try {
                 assert driverContext.assertBeginRunLoop();
                 isBlocked = runSingleLoopIteration();
-            } catch (DriverEarlyTerminationException e) {
+            } catch (DriverEarlyTerminationException unused) {
                 closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
-                if (isFinished() == false) {
-                    // If driver is not finished after early termination, this is an error condition
-                    // Re-throw the exception so it propagates to the caller
-                    throw e;
-                }
-                // Driver finished successfully, continue normally
+                assert isFinished() : "not finished after early termination";
             } catch (TaskCancelledException e) {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
                 throw e;
@@ -283,7 +278,10 @@ public class Driver implements Releasable, Describable {
                 continue;
             }
 
-            if (op.isFinished() == false && nextOp.needsInput()) {
+            boolean opFinished = op.isFinished();
+            boolean nextOpNeedsInput = nextOp.needsInput();
+
+            if (opFinished == false && nextOpNeedsInput) {
                 driverContext.checkForEarlyTermination();
                 assert nextOp.isFinished() == false
                     || nextOp instanceof ExchangeSinkOperator
@@ -321,13 +319,26 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
-            onNoPagesMoved();
-            return oneOf(
+            IsBlockedResult result = oneOf(
                 activeOperators.stream()
                     .map(Operator::isBlocked)
                     .filter(laf -> laf.listener().isDone() == false)
                     .collect(Collectors.toList())
             );
+            onNoPagesMoved();
+
+            // Before blocking, check if any operator can produce more data without extra input.
+            // If so, we should continue looping rather than waiting, because that operator
+            // has buffered data that needs to be processed. This prevents deadlock when an
+            // intermediate operator (like EnrichQueryFromExchangeOperator) has data to process
+            // but the source operator is blocked waiting for more input.
+            for (Operator op : activeOperators) {
+                if (op.canProduceMoreDataWithoutExtraInput()) {
+                    return Operator.NOT_BLOCKED;
+                }
+            }
+
+            return result;
         }
         return Operator.NOT_BLOCKED;
     }
@@ -341,7 +352,7 @@ public class Driver implements Releasable, Describable {
     }
 
     // Returns the index of the last operator that was closed, -1 if no operator was closed.
-    private int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
+    protected int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
         var iterator = activeOperators.listIterator(operators.nextIndex());
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
@@ -427,8 +438,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    // Drains all active operators and closes them.
-    private void drainAndCloseOperators(@Nullable Exception e) {
+    protected void drainAndCloseOperators(@Nullable Exception e) {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
@@ -461,13 +471,13 @@ public class Driver implements Releasable, Describable {
                     onComplete(listener);
                     return;
                 }
-                if (fut.isDone()) {
+                boolean futIsDone = fut.isDone();
+                if (futIsDone) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
-                    ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
-                        this::onFailure
-                    );
+                    ActionListener<Void> readyListener = ActionListener.wrap(ignored -> {
+                        schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
+                    }, this::onFailure);
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
                     driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
                 }

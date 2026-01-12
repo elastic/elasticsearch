@@ -271,7 +271,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
 
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -286,7 +286,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
 
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(5, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(5, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -306,7 +306,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
 
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(6, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(6, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -326,7 +326,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
 
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -361,7 +361,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         Map<String, Double> relativeSearchLoads = Map.of("index1", 0.6, "index2", 0.3, "index3", 0.1);
         Map<String, Integer> immediateScaleDown = Map.of();
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -395,7 +395,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         // even though index1 has high relative load and would normally receive more shards, it must scale down immediately
         Map<String, Integer> immediateScaleDown = Map.of("index1", 4);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -420,7 +420,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         Map<String, Double> relativeSearchLoads = Map.of("index1", 0.8);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -445,7 +445,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         Map<String, Double> relativeSearchLoads = Map.of("index1", 0.2);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -469,7 +469,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         Map<String, Double> relativeSearchLoads = Map.of("index1", 1.0);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(5, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(5, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -493,7 +493,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         Map<String, Double> relativeSearchLoads = Map.of("index1", 0.2);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -532,7 +532,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ClusterState state = ClusterServiceUtils.createClusterService(testThreadPool, createClusterSettings()).state();
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(5, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(5, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -588,7 +588,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ClusterState state = ClusterServiceUtils.createClusterService(testThreadPool, createClusterSettings()).state();
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, shardMetrics, 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(10, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 
@@ -616,7 +616,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         ClusterState state = ClusterServiceUtils.createClusterService(testThreadPool, createClusterSettings()).state();
         ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 100);
         DesiredClusterTopology topology = new DesiredClusterTopology(
-            new DesiredClusterTopology.TierTopology(5, "8Gi", randomFloat(), randomFloat(), randomFloat()),
+            new DesiredClusterTopology.TierTopology(5, "8G", randomFloat(), randomFloat(), randomFloat()),
             randomTierTopology()
         );
 

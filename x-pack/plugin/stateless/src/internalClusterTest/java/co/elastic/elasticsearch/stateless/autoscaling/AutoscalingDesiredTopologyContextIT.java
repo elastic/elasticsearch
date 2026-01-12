@@ -54,14 +54,14 @@ public class AutoscalingDesiredTopologyContextIT extends AbstractServerlessState
                     "tier": {
                         "search": {
                             "replicas": 2,
-                            "memory": "20Gi",
+                            "memory": "20G",
                             "storageRatio": 32.5,
                             "cpuRatio": 0.5,
                             "cpuLimitRatio": 1.5
                         },
                         "index": {
                             "replicas": 1,
-                            "memory": "8Gi",
+                            "memory": "8G",
                             "storageRatio": 15.5,
                             "cpuRatio": 0.2,
                             "cpuLimitRatio": 1.0

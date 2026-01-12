@@ -285,9 +285,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139527
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
@@ -297,12 +294,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
-  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/139826
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139848
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/139974
@@ -321,6 +312,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
+- class: org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests
+  method: testAckListenerReceivesNacksIfPublicationTimesOut
+  issue: https://github.com/elastic/elasticsearch/issues/140509
 
 # Examples:
 #

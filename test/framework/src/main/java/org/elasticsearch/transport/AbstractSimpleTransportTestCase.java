@@ -12,6 +12,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -2758,8 +2759,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(55, transportStats.getTxSize().getBytes());
+                assertEquals(sizeOfHandshakeResponse(), transportStats.getRxSize().getBytes());
+                assertEquals(sizeOfHandshakeRequest(), transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2768,21 +2769,23 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.EMPTY,
                 transportResponseHandler
             );
+            final int sizeOfTestRequest = 59;
+            final int sizeOfTestResponse = 25;
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(114, transportStats.getTxSize().getBytes());
+                assertEquals(sizeOfHandshakeResponse(), transportStats.getRxSize().getBytes());
+                assertEquals(sizeOfHandshakeRequest() + sizeOfTestRequest, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(54, stats.getRxSize().getBytes());
-            assertEquals(114, stats.getTxSize().getBytes());
+            assertEquals(sizeOfHandshakeResponse() + sizeOfTestResponse, stats.getRxSize().getBytes());
+            assertEquals(sizeOfHandshakeRequest() + sizeOfTestRequest, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2873,8 +2876,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(55, transportStats.getTxSize().getBytes());
+                assertEquals(sizeOfHandshakeResponse(), transportStats.getRxSize().getBytes());
+                assertEquals(sizeOfHandshakeRequest(), transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2884,12 +2887,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 transportResponseHandler
             );
             receivedLatch.await();
+            final int sizeOfTestRequest = 59;
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(114, transportStats.getTxSize().getBytes());
+                assertEquals(sizeOfHandshakeResponse(), transportStats.getRxSize().getBytes());
+                assertEquals(sizeOfHandshakeRequest() + sizeOfTestRequest, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2898,17 +2902,61 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getTxCount());
             TransportException exception = receivedException.get();
             assertNotNull(exception);
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setTransportVersion(transportVersion0);
-            exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 57 bytes are the non-exception message bytes that have been received. It should include the initial
-            // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 57 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(114, stats.getTxSize().getBytes());
+            assertEquals(
+                failedMessage,
+                sizeOfHandshakeResponse() + sizeOfExceptionResponse(exception, transportVersion0),
+                stats.getRxSize().getBytes()
+            );
+            assertEquals(sizeOfHandshakeRequest() + sizeOfTestRequest, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
+    }
+
+    /**
+     * TCP transport requests look like:
+     * <code>|header|thread-context|action-name|message-body|</code>
+     * <p>
+     * A handshake request body includes the build version as a string, so its length depends on
+     * the version of the sender.
+     *
+     * @see OutboundHandler#sendRequest
+     * @return The length of a handshake request sent by this version of the software in bytes
+     */
+    private long sizeOfHandshakeRequest() {
+        return Build.current().version().length() + 48;
+    }
+
+    /**
+     * TCP transport responses look like:
+     * <code>|header|thread-context|message-body|</code>
+     * <p>
+     * A handshake response body includes the build version as a string, so its length depends on
+     * the version of the sender.
+     *
+     * @see OutboundHandler#sendResponse
+     * @return The length of a handshake response sent by this version of the software in bytes
+     */
+    private long sizeOfHandshakeResponse() {
+        return Build.current().version().length() + 22;
+    }
+
+    /**
+     * Get the size of an exception response
+     * <p>
+     * Exception responses look like:
+     * <code>|header|thread-context|exception-headers|exception-body|</code>
+     *
+     * @see OutboundHandler#sendErrorResponse
+     * @return The size of an error response containing the specified error for the specified transport version
+     */
+    private int sizeOfExceptionResponse(TransportException exception, TransportVersion transportVersion) throws IOException {
+        final BytesStreamOutput streamOutput = new BytesStreamOutput();
+        streamOutput.setTransportVersion(transportVersion);
+        exception.writeTo(streamOutput);
+        // The 28 bytes are for the header, thread-context and exception headers
+        return 28 + streamOutput.bytes().length();
     }
 
     public void testTransportProfilesWithPortAndHost() {

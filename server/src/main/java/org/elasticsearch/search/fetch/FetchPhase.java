@@ -304,13 +304,12 @@ public final class FetchPhase {
             for (int doc : docIdsToLoad) {
                 try {
                     storedFields.prefetch(doc);
-                } catch (IOException exc) {
-                    // ignore error
+                } catch (IllegalArgumentException | IOException exc) {
+                    // Ignore errors: this is only a hint; invalid document IDs will be caught later.
                     LOGGER.warn("Failed to prefetch stored fields for doc [" + doc + "]", exc);
                 }
             }
         } catch (IOException exc) {
-            // ignore error
             LOGGER.warn("Failed to prefetch stored fields", exc);
         }
     }

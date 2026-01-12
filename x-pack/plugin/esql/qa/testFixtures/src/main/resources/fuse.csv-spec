@@ -824,12 +824,12 @@ fuseWithRowWithNullValues
 required_capability: fuse_v6
 required_capability: fix_agg_on_null_by_replacing_with_eval
 
-ROW x = null, _id = "", _index = "", _score = 1.0, _fork = ""
+ROW x = null, _id = "", _index = "", _score = 1.0, my_fork = ""
 | LIMIT 1
-| FUSE LINEAR
+| FUSE LINEAR GROUP BY my_fork
 ;
 
-_score:double | x:null | _id:keyword | _index:keyword | _fork:keyword
+_score:double | x:null | _id:keyword | _index:keyword | my_fork:keyword
 1             | null   | ""          | ""             | ""
 ;
 
@@ -846,7 +846,6 @@ ROW x = null, _id = "", _index = "", _score = 1.0
 _score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword
 2             | null   | ""          | ""             | [2, 3]    | [fork1,fork2]
 ;
-
 
 fuseWithForkAndFromWithNullValues
 required_capability: fork_v9

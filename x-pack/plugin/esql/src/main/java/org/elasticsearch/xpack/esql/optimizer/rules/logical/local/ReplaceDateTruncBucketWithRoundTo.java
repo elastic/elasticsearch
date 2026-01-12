@@ -162,7 +162,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         }
     }
 
-    private Tuple<Long, Long> minMaxFromPredicates(List<EsqlBinaryComparison> binaryComparisons) {
+    public static Tuple<Long, Long> minMaxFromPredicates(List<EsqlBinaryComparison> binaryComparisons) {
         long[] min = new long[] { Long.MIN_VALUE };
         long[] max = new long[] { Long.MAX_VALUE };
         Holder<Boolean> foundMinValue = new Holder<>(false);
@@ -189,7 +189,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         return new Tuple<>(foundMinValue.get() ? min[0] : null, foundMaxValue.get() ? max[0] : null);
     }
 
-    private Long toLong(Object value) {
+    static Long toLong(Object value) {
         return value instanceof Long l ? l : null;
     }
 }

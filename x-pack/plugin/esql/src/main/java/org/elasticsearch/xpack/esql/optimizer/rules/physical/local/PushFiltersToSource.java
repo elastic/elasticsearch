@@ -119,7 +119,18 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.toQueryBuilder();
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = queryExec.queryBuilderAndTags();
+            if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
+                queryBuilderAndTags = List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()));
+            }
+            queryBuilderAndTags = queryBuilderAndTags.stream()
+                .map(
+                    qt -> new EsQueryExec.QueryBuilderAndTags(
+                        Queries.combine(combiningQueryClauseType, asList(qt.query(), planQuery)),
+                        qt.tags()
+                    )
+                )
+                .toList();
             queryExec = new EsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),
@@ -128,7 +139,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 queryExec.limit(),
                 queryExec.sorts(),
                 queryExec.estimatedRowSize(),
-                List.of(new EsQueryExec.QueryBuilderAndTags(query, List.of()))
+                queryBuilderAndTags
             );
             // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
             PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);

@@ -435,7 +435,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return RoundTo.sortedRoundingPoints(points, dataType);
     }
 
-    private static Expression createRangeExpression(
+    public static Expression createRangeExpression(
         Source source,
         Expression field,
         DataType dataType,
@@ -469,7 +469,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         IsNull isNull = new IsNull(source, field);
         List<Object> nullTags = new ArrayList<>(1);
         nullTags.add(null);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNull, clause, nullTags);
+        return buildCombinedQueryAndTags(queryExec.query(), pushdownPredicates, isNull, clause, nullTags);
     }
 
     private static EsQueryExec.QueryBuilderAndTags rangeBucket(
@@ -485,18 +485,17 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         Queries.Clause clause
     ) {
         Expression range = createRangeExpression(source, field, dataType, lower, upper, zoneId);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, range, clause, List.of(tag));
+        return buildCombinedQueryAndTags(queryExec.query(), pushdownPredicates, range, clause, List.of(tag));
     }
 
-    private static EsQueryExec.QueryBuilderAndTags buildCombinedQueryAndTags(
-        EsQueryExec queryExec,
+    public static EsQueryExec.QueryBuilderAndTags buildCombinedQueryAndTags(
+        QueryBuilder mainQuery,
         LucenePushdownPredicates pushdownPredicates,
         Expression expression,
         Queries.Clause clause,
         List<Object> tags
     ) {
         Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, expression);
-        QueryBuilder mainQuery = queryExec.query();
         QueryBuilder newQuery = queryDSL.toQueryBuilder();
         QueryBuilder combinedQuery = Queries.combine(clause, mainQuery != null ? List.of(mainQuery, newQuery) : List.of(newQuery));
         return new EsQueryExec.QueryBuilderAndTags(combinedQuery, tags);

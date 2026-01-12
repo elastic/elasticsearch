@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PartitionTimeSeriesSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
@@ -67,6 +68,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
+            esSourceRules.add(new PartitionTimeSeriesSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());

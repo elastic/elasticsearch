@@ -193,7 +193,7 @@ public class DeflateCompressor implements Compressor {
                 try {
                     super.close();
                 } finally {
-                    // We are ensured to only call this once since we wrap this stream in a BufferedOutputStream that will only close
+                    // We are ensured to only call this once since we wrap this stream in a BufferedStreamOutput that will only close
                     // its delegate once below
                     releasable.close();
                 }

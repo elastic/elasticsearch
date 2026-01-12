@@ -30,6 +30,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<InferenceStringGroup> {
 
@@ -126,7 +127,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
 
     public void testIndexContainingMultipleInferenceStrings_withSingleInferenceString() {
         var inputs = getInputsList();
-        assertThat(indexContainingMultipleInferenceStrings(inputs), is(null));
+        assertThat(indexContainingMultipleInferenceStrings(inputs), nullValue());
     }
 
     public void testIndexContainingMultipleInferenceStrings_withMultipleInferenceStrings() {

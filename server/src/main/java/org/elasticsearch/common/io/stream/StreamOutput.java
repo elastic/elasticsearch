@@ -152,7 +152,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
+        try (var o = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(tmp)) {
             o.setTransportVersion(version);
             writeable.writeTo(o);
         }

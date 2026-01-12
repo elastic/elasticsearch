@@ -158,7 +158,6 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
 
         CompletionOutputBuilder outputBuilder = new CompletionOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = IntStream.range(0, inputPage.getPositionCount()).mapToObj(currentPos -> {
-            ;
             List<ChatCompletionResults.Result> results = List.of(new ChatCompletionResults.Result("Completion result #" + currentPos));
             InferenceAction.Response response = new InferenceAction.Response(new ChatCompletionResults(results));
             return new BulkInferenceResponseItem(response, new int[] { 1 }, currentPos);

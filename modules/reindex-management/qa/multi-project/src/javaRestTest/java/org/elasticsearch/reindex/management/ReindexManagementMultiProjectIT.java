@@ -27,7 +27,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReindexCancelMultiProjectIT extends ESRestTestCase {
+/** Tests that endpoints in reindex-management module are project-aware and behave as expected in multi-project environments. */
+public class ReindexManagementMultiProjectIT extends ESRestTestCase {
 
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
@@ -77,7 +78,6 @@ public class ReindexCancelMultiProjectIT extends ESRestTestCase {
         createProject(projectWithReindex);
         createProject(projectWithoutReindex);
         createPopulatedIndexInProject(SOURCE_INDEX, projectWithReindex);
-        createEmptyIndexInProject(DEST_INDEX, projectWithReindex);
 
         final TaskId taskId = startAsyncThrottledReindexInProject(projectWithReindex);
 
@@ -148,7 +148,10 @@ public class ReindexCancelMultiProjectIT extends ESRestTestCase {
     }
 
     private static void createPopulatedIndexInProject(final String indexName, final String projectId) throws IOException {
-        createEmptyIndexInProject(indexName, projectId);
+        createIndex(request -> {
+            setRequestProjectId(request, projectId);
+            return assertOK(client().performRequest(request));
+        }, indexName, null, null, null);
 
         final Request bulkRequest = new Request("POST", "/_bulk");
         setRequestProjectId(bulkRequest, projectId);
@@ -166,13 +169,6 @@ public class ReindexCancelMultiProjectIT extends ESRestTestCase {
         final Response bulkResponse = assertOK(client().performRequest(bulkRequest));
         final Map<String, Object> bulkResult = entityAsMap(bulkResponse);
         assertThat("bulk index didn't receive errors", bulkResult.get("errors"), equalTo(false));
-    }
-
-    private static void createEmptyIndexInProject(final String indexName, final String projectId) throws IOException {
-        createIndex(request -> {
-            setRequestProjectId(request, projectId);
-            return assertOK(client().performRequest(request));
-        }, indexName, null, null, null);
     }
 
     private static void setRequestProjectId(final Request request, final String projectId) {

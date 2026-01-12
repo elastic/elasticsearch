@@ -54,7 +54,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 implicit_last_over_time_of_integer_promql
 required_capability: promql_pre_tech_preview_v12
 
-PROMQL index=k8s step=1m clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+PROMQL index=k8s step=1m clients=(avg by (cluster) (network.eth0.currently_connected_clients[1m]))
 | SORT step, cluster | LIMIT 10;
 
 clients:double | step:datetime            | cluster:keyword
@@ -126,7 +126,7 @@ bytes:double | cluster:keyword | time_bucket:datetime
 implicit_last_over_time_of_long_promql
 required_capability: promql_pre_tech_preview_v12
 
-PROMQL index=k8s step=1m bytes=(avg by (cluster) (last_over_time(network.bytes_in[1m])))
+PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in[1m]))
 | SORT step, cluster | LIMIT 10;
 
 bytes:double | step:datetime            | cluster:keyword
@@ -196,7 +196,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 implicit_last_over_time_with_filtering_promql
 required_capability: promql_pre_tech_preview_v12
 
-PROMQL index=k8s step=10m tx=(sum by (cluster) (last_over_time(network.bytes_in{pod="one"}[10m])))
+PROMQL index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}[10m]))
 | SORT step, cluster | LIMIT 10;
 
 tx:double | step:datetime            | cluster:keyword
@@ -230,7 +230,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 implicit_last_over_time_with_inline_filtering_promql
 required_capability: promql_pre_tech_preview_v12
 
-PROMQL index=k8s step=10m tx=(sum by (cluster) (last_over_time(network.bytes_in{pod="one"}[10m])))
+PROMQL index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}[10m]))
 | SORT step, cluster | LIMIT 10;
 
 tx:double | step:datetime            | cluster:keyword

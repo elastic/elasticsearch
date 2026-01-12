@@ -252,7 +252,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             out.writeMap(this.maxHeapSizePerNode, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().supports(NODES_WRITE_LOAD_HOTSPOTTING_IN_CLUSTER_INFO)) {
-            out.writeMap(this.nodeIdsWriteLoadHotspotting, (o, v) -> o.writeBoolean(v == null ? false : v));
+            out.writeMap(this.nodeIdsWriteLoadHotspotting, StreamOutput::writeBoolean);
         }
     }
 

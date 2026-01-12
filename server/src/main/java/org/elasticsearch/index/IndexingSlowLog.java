@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -125,9 +126,14 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings, SlowLogFields slowLogFields) {
-        this.slowLogFields = slowLogFields;
+    IndexingSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldsProvider) {
         this.index = indexSettings.getIndex();
+
+        SlowLogContext logContext = new SlowLogContext(indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING));
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
+
+        this.slowLogFields = slowLogFieldsProvider.create(logContext);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
         this.reformat = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
@@ -177,22 +183,22 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
+            Supplier<ESLogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
+                slowLogFields.logFields(),
+                index,
+                doc,
+                tookInNanos,
+                reformat,
+                maxSourceCharsToLog
+            );
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.warn(messageProducer.get());
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.info(messageProducer.get());
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.debug(messageProducer.get());
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+                indexLogger.trace(messageProducer.get());
             }
         }
     }

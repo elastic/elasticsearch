@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -274,7 +275,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we delegate block loading to the synthetic source delegate
-        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
+        assertThat(blockLoader, Matchers.instanceOf(DelegatingBlockLoader.class));
     }
 
     public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSet() {
@@ -322,7 +323,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(DelegatingBlockLoader.class)));
     }
 
     public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
@@ -370,7 +371,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(DelegatingBlockLoader.class)));
     }
 
     public void testBlockLoaderDelegateToKeywordFieldWhenSyntheticSourceIsDisabled() {
@@ -402,6 +403,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         when(mockedBlockLoaderContext.parentField(childFieldName)).thenReturn(parentFieldName);
         when(mockedBlockLoaderContext.lookup()).thenReturn(mockedSearchLookup);
         BlockLoader blockLoader = ft.blockLoader(mockedBlockLoaderContext);
-        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
+        assertThat(blockLoader, Matchers.instanceOf(DelegatingBlockLoader.class));
     }
 }

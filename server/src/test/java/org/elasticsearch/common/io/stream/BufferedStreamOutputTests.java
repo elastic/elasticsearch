@@ -18,9 +18,12 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -135,5 +138,36 @@ public class BufferedStreamOutputTests extends ESTestCase {
             Arrays.fill(bufferPool, bufferStart, bufferStart + bufferLen, (byte) 0xa5);
         }
         assertArrayEquals("wrote out of bounds", bufferPoolCopy, bufferPool);
+    }
+
+    public void testDoubleClose() throws IOException {
+        var buffered = new BufferedStreamOutput(new AssertClosedOnceOutputStream(), new BytesRef(new byte[10], 0, 10));
+        buffered.close();
+        buffered.close();
+    }
+
+    public void testDoubleCloseInTryWithResources() throws IOException {
+        try (
+            var buffered = new BufferedStreamOutput(new AssertClosedOnceOutputStream(), new BytesRef(new byte[10], 0, 10));
+            var wrapper = new FilterOutputStream(buffered)
+        ) {
+            if (randomBoolean()) {
+                wrapper.write(0);
+            }
+            // {wrapper} is closed first, and propagates the close to {buffered}, but it's a separate resource so {buffered} is then closed
+            // again
+        }
+    }
+
+    private static class AssertClosedOnceOutputStream extends OutputStream {
+        private final AtomicBoolean isClosed = new AtomicBoolean();
+
+        @Override
+        public void write(int b) {}
+
+        @Override
+        public void close() {
+            assertTrue(isClosed.compareAndSet(false, true));
+        }
     }
 }

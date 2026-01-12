@@ -609,7 +609,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        try (InMemoryViewService viewService = new InMemoryViewService()) {
+        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             ProjectId projectId = ProjectId.fromId("dummy");
             for (var viewConfig : VIEW_CONFIGS) {
                 try {
@@ -625,7 +625,7 @@ public class CsvTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }
-            return viewService.replaceViews(parsed, this::parseView);
+            return viewService.getViewResolver().replaceViews(parsed, this::parseView);
         }
     }
 

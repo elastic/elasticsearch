@@ -1,4 +1,4 @@
-countriesAddresses
+countryAddresses
 required_capability: views_with_no_branching
 
 FROM country_addresses
@@ -107,6 +107,30 @@ count:long | country:keyword
 12         | Indonesia
 ;
 
+countryAirportsAddressesWildcard
+required_capability: views_with_branching
+
+FROM country_a*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+;
+ignoreOrder:true
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
 countryAirportsAddressesUS
 required_capability: views_with_branching
 
@@ -163,6 +187,31 @@ countryAirportsAddressesLanguages
 required_capability: views_with_branching
 
 FROM country_addresses, country_airports, country_languages
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+12         | France
+12         | Germany
+12         | Indonesia
+;
+
+countryAirportsAddressesLanguagesWildcard
+required_capability: views_with_branching
+
+FROM country_*
 | STATS count=SUM(count) BY country
 | WHERE count > 11
 | SORT count DESC, country ASC

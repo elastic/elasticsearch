@@ -186,14 +186,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             "",
             new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
         );
-        try (InMemoryViewService viewService = new InMemoryViewService()) {
+        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             planExecutor.esql(
                 request,
                 randomAlphaOfLength(10),
                 TransportVersion.current(),
                 queryClusterSettings(),
                 mockEnrichResolver(),
-                viewService,
+                viewService.getViewResolver(),
                 createEsqlExecutionInfo(randomBoolean()),
                 groupIndicesByCluster,
                 runPhase,

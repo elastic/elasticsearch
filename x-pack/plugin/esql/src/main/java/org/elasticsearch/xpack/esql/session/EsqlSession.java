@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.esql.view.ViewService;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -145,7 +145,7 @@ public class EsqlSession {
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewService viewService;
+    private final ViewResolver viewResolver;
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
@@ -172,7 +172,7 @@ public class EsqlSession {
         AnalyzerSettings analyzerSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
-        ViewService viewService,
+        ViewResolver viewResolver,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
@@ -186,7 +186,7 @@ public class EsqlSession {
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        this.viewService = viewService;
+        this.viewResolver = viewResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
@@ -251,7 +251,7 @@ public class EsqlSession {
         );
         FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = viewService.replaceViews(
+        LogicalPlan plan = viewResolver.replaceViews(
             statement.plan(),
             (query) -> EsqlParser.INSTANCE.parse(
                 query,

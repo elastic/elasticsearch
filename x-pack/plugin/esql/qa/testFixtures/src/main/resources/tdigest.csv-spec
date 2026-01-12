@@ -3,6 +3,7 @@ required_capability: tdigest_tech_preview
 
 FROM tdigest_standard_index 
  | WHERE STARTS_WITH(instance, "hand-rolled")
+ | KEEP @timestamp, instance, responseTime
  | SORT instance
 ;
 
@@ -148,6 +149,19 @@ instance-2       | null       | null       | null       | null       | 0.008197
 ;
 
 
+
+Case return value test (Standard Mode)
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled") 
+ | EVAL result = CASE(instance == "hand-rolled-empty", caseTestPlaceholder, responseTime)
+ | KEEP result
+;
+ignoreOrder:true
+
+result:tdigest
+"{""centroids"":[3, 5],""counts"":[8, 32]}"
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+;
 
 allAggsGroupedEmptyGroups
 required_capability: tdigest_tech_preview

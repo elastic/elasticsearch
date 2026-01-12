@@ -39,6 +39,8 @@
 | boolean | keyword | | keyword |
 | boolean | long | long | long |
 | boolean | long | | long |
+| boolean | tdigest | tdigest | tdigest |
+| boolean | tdigest | | tdigest |
 | boolean | text | keyword | keyword |
 | boolean | text | text | keyword |
 | boolean | text | | keyword |

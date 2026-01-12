@@ -82,6 +82,7 @@ public final class Case extends EsqlScalarFunction {
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version",
             "exponential_histogram" },
@@ -127,6 +128,7 @@ public final class Case extends EsqlScalarFunction {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version",
@@ -213,15 +215,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM && t != DataType.DATE_RANGE,
+                t -> t != AGGREGATE_METRIC_DOUBLE && t != HISTOGRAM && t != DataType.DATE_RANGE,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double, histogram, tdigest, or date_range"
+                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double, histogram, or date_range"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM && t != DataType.DATE_RANGE,
+            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != HISTOGRAM && t != DataType.DATE_RANGE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

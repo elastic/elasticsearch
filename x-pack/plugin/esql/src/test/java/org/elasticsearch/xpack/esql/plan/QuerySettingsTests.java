@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,6 +25,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,14 +44,14 @@ public class QuerySettingsTests extends ESTestCase {
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
 
-        assertInvalid(settingName, Literal.keyword(Source.EMPTY, "12"), "Unknown setting [" + settingName + "]");
+        assertInvalid(settingName, of("12"), "Unknown setting [" + settingName + "]");
     }
 
     public void testValidate_ProjectRouting() {
         var setting = QuerySettings.PROJECT_ROUTING;
 
         assertDefault(setting, nullValue());
-        assertValid(setting, Literal.keyword(Source.EMPTY, "my-project"), equalTo("my-project"));
+        assertValid(setting, of("my-project"), equalTo("my-project"));
 
         assertInvalid(
             setting.name(),
@@ -63,7 +66,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertInvalid(
             setting.name(),
             SNAPSHOT_CTX_WITH_CPS_DISABLED,
-            Literal.keyword(Source.EMPTY, "my-project"),
+            of("my-project"),
             "Error validating setting [project_routing]: cross-project search not enabled"
         );
     }
@@ -73,18 +76,35 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
 
-        assertValid(setting, Literal.keyword(Source.EMPTY, "UTC"), equalTo(ZoneId.of("UTC")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+05:00"), equalTo(ZoneId.of("+05:00")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+05"), equalTo(ZoneId.of("+05")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+07:15"), equalTo(ZoneId.of("+07:15")));
+        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")));
+        assertValid(setting, of("Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
+        assertValid(setting, of("Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
+        assertValid(setting, of("+05:00"), equalTo(ZoneId.of("+05:00")));
+        assertValid(setting, of("+05"), equalTo(ZoneId.of("+05")));
+        assertValid(setting, of("+07:15"), equalTo(ZoneId.of("+07:15")));
 
         assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 12), "Setting [" + setting.name() + "] must be of type KEYWORD");
         assertInvalid(
             setting.name(),
-            Literal.keyword(Source.EMPTY, "Europe/New York"),
+            of("Europe/New York"),
             "Error validating setting [" + setting.name() + "]: Invalid time zone [Europe/New York]"
+        );
+    }
+
+    public void testValidate_UnmappedFields() {
+        var setting = QuerySettings.UNMAPPED_FIELDS;
+
+        assertDefault(setting, equalTo(UnmappedResolution.FAIL));
+
+        assertValid(setting, of(randomizeCase("fail")), equalTo(UnmappedResolution.FAIL));
+        assertValid(setting, of(randomizeCase("nullify")), equalTo(UnmappedResolution.NULLIFY));
+        assertValid(setting, of(randomizeCase("load")), equalTo(UnmappedResolution.LOAD));
+
+        assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
+        assertInvalid(
+            setting.name(),
+            of("UNKNOWN"),
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY, LOAD]"
         );
     }
 
@@ -93,7 +113,17 @@ public class QuerySettingsTests extends ESTestCase {
         assertInvalid(
             setting.name(),
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            Literal.keyword(Source.EMPTY, "UTC"),
+            of("UTC"),
+            "Setting [" + setting.name() + "] is only available in snapshot builds"
+        );
+    }
+
+    public void testValidate_UnmappedFields_nonSnapshot() {
+        var setting = QuerySettings.UNMAPPED_FIELDS;
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("LOAD"),
             "Setting [" + setting.name() + "] is only available in snapshot builds"
         );
     }

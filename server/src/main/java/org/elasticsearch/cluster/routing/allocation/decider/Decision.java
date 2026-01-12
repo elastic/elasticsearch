@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -113,22 +114,52 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     List<Decision> getDecisions();
 
     /**
+     * Determines the minimum of two decisions that are both either <code>THROTTLE</code> or <code>YES</code>.
+     *
+     * @param decision1 the first decision (must have type <code>YES</code> or <code>THROTTLE</code>)
+     * @param decision2 the second decision (must have type <code>YES</code> or <code>THROTTLE</code>)
+     * @return <code>THROTTLE</code> if either decision is a <code>THROTTLE</code>, <code>YES</code> otherwise.
+     */
+    static Decision.Type minimumDecisionTypeThrottleOrYes(Decision decision1, Decision decision2) {
+        assert decision1.type() == Type.YES || decision1.type() == Type.THROTTLE : "We should only see YES/THROTTLE decisions here";
+        assert decision2.type() == Type.YES || decision2.type() == Type.THROTTLE : "We should only see YES/THROTTLE decisions here";
+        return decision1.type() == Type.THROTTLE || decision2.type() == Type.THROTTLE ? Type.THROTTLE : Type.YES;
+    }
+
+    /**
      * This enumeration defines the possible types of decisions
      */
     enum Type implements Writeable {
-        // ordered by positiveness; order matters for serialization and comparison
-        NO,
-        THROTTLE,
-        NOT_PREFERRED,
-        YES;
+        // order matters only for serialization, do NOT use for comparison
+        NO(0, 0),
+        NOT_PREFERRED(1, 2),
+        THROTTLE(2, 1),
+        YES(3, 3);
 
-        private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(
-            "allocation_decision_not_preferred"
-        );
+        // visible for testing
+        static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName("allocation_decision_not_preferred");
+
+        private final int nodeComparisonOrdinal;
+        private final int decisionComparisonOrdinal;
+
+        Type(int nodeComparisonOrdinal, int decisionComparisonOrdinal) {
+            this.nodeComparisonOrdinal = nodeComparisonOrdinal;
+            this.decisionComparisonOrdinal = decisionComparisonOrdinal;
+        }
 
         public static Type readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+            if (in.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
                 return in.readEnum(Type.class);
+            } else if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                int i = in.readVInt();
+                // the order of THROTTLE and NOT_PREFERRED was swapped
+                return switch (i) {
+                    case 0 -> NO;
+                    case 1 -> THROTTLE;
+                    case 2 -> NOT_PREFERRED;
+                    case 3 -> YES;
+                    default -> throw new IllegalArgumentException("No type for integer [" + i + "]");
+                };
             } else {
                 int i = in.readVInt();
                 return switch (i) {
@@ -140,17 +171,17 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             }
         }
 
-        /**
-         * @return lowest decision by natural order
-         */
-        public static Type min(Type a, Type b) {
-            return a.compareTo(b) < 0 ? a : b;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+            if (out.getTransportVersion().supports(AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION)) {
                 out.writeEnum(this);
+            } else if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                // the order of THROTTLE and NOT_PREFERRED was swapped
+                out.writeVInt(switch (this) {
+                    case NOT_PREFERRED -> 2;
+                    case THROTTLE -> 1;
+                    default -> this.ordinal();
+                });
             } else {
                 out.writeVInt(switch (this) {
                     case NO -> 0;
@@ -160,15 +191,37 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
             }
         }
 
-        public boolean higherThan(Type other) {
-            return this.compareTo(other) > 0;
+        /**
+         * Compares this decision against another decision (for choosing a node)
+         * <p>
+         * This comparison is used at the node level when deciding which node to allocate a shard to. We prefer to wait and allocate a shard
+         * to a <code>THROTTLE</code>'d node than to move a shard to a <code>NOT_PREFERRED</code> node immediately.
+         *
+         * @return 0 when this == other, 1 when this &gt; other, -1 when this &lt; other
+         */
+        public int compareToBetweenNodes(Type other) {
+            return Integer.compare(nodeComparisonOrdinal, other.nodeComparisonOrdinal);
+        }
+
+        /**
+         * Compares this decision against another decision (for decision-aggregation)
+         * <p>
+         * This comparison is used when aggregating the results from many deciders. If one decider returns <code>THROTTLE</code> and
+         * another returns <code>NOT_PREFERRED</code>, we want to return <code>THROTTLE</code> to ensure we respect any throttling deciders.
+         * This can only occur in the reconciler or non-desired balancer, in both cases if we see a <code>THROTTLE</code> we want to
+         * respect that until it resolves.
+         *
+         * @return 0 when this == other, 1 when this &gt; other, -1 when this &lt; other
+         */
+        public int compareToBetweenDecisions(Type other) {
+            return Integer.compare(decisionComparisonOrdinal, other.decisionComparisonOrdinal);
         }
 
         /**
          * @return true if Type is one of {NOT_PREFERRED, YES}
          */
-        public boolean allowed() {
-            return this.compareTo(NOT_PREFERRED) >= 0;
+        public boolean assignmentAllowed() {
+            return this == NOT_PREFERRED || this == YES;
         }
 
     }
@@ -268,7 +321,14 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         @Override
         public Type type() {
             // returns most negative decision
-            return decisions.stream().map(Single::type).reduce(Type.YES, Type::min);
+            Decision.Type worst = Type.YES;
+            for (Single decision : decisions) {
+                final var next = decision.type();
+                if (next.compareToBetweenDecisions(worst) < 0) {
+                    worst = next;
+                }
+            }
+            return worst;
         }
 
         @Override

@@ -25,11 +25,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -54,6 +55,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,10 +74,10 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> logical() {
         return List.of(
             Aggregate.ENTRY,
+            Completion.ENTRY,
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
-            EsqlProject.ENTRY,
             Eval.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
@@ -87,6 +90,8 @@ public class PlanWritables {
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
+            Project.V9_ENTRY, // Backward compatibility for reading old "EsqlProject" type
+            Rerank.ENTRY,
             Sample.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
@@ -97,6 +102,7 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> physical() {
         return List.of(
             AggregateExec.ENTRY,
+            CompletionExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
             EsSourceExec.ENTRY,
@@ -113,6 +119,7 @@ public class PlanWritables {
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
+            RerankExec.ENTRY,
             SampleExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

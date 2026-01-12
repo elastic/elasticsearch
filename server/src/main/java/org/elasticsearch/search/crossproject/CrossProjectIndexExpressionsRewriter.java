@@ -11,7 +11,6 @@ package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -55,8 +54,6 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> allProjectAliases,
         @Nullable String projectRouting
     ) {
-        maybeThrowOnUnsupportedResource(indexExpression);
-
         // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
         // projects with qualified index patterns such as "missing-*:index".
         if (originProjectAlias == null && allProjectAliases.isEmpty()) {
@@ -134,8 +131,6 @@ public class CrossProjectIndexExpressionsRewriter {
             throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
         }
 
-        maybeThrowOnUnsupportedResource(indexExpression);
-
         if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
             return new IndexRewriteResult(isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression);
@@ -183,12 +178,6 @@ public class CrossProjectIndexExpressionsRewriter {
     static boolean isExclusionExpression(String expression) {
         assert expression != null && expression.isEmpty() == false : "expression must be a non-empty string";
         return expression.charAt(0) == EXCLUSION_PREFIX;
-    }
-
-    private static void maybeThrowOnUnsupportedResource(String resource) {
-        if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
-            throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
-        }
     }
 
     /**

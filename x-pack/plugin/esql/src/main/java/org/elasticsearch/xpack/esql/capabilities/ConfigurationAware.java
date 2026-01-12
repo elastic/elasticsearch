@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -15,8 +19,19 @@ import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Map;
 
-// See https://github.com/elastic/elasticsearch/issues/138203
-public interface ConfigurationAware {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
+/**
+ * Interface for plan nodes that require the Configuration at parsing time.
+ * <p>
+ *     They should be created with {@link ConfigurationAware#CONFIGURATION_MARKER},
+ *     and it will be resolved in the {@link org.elasticsearch.xpack.esql.analysis.Analyzer}.
+ * </p>
+ * <p>
+ *   See <a href="https://github.com/elastic/elasticsearch/issues/138203">https://github.com/elastic/elasticsearch/issues/138203</a>
+ * </p>
+ */
+public interface ConfigurationAware extends ConfigurationFunction {
 
     // Configuration placeholder used by the Analyzer to replace
     Configuration CONFIGURATION_MARKER = new Configuration(
@@ -39,5 +54,19 @@ public interface ConfigurationAware {
 
     Configuration configuration();
 
-    <T> T withConfiguration(Configuration configuration);
+    Expression withConfiguration(Configuration configuration);
+
+    /**
+     * Used in the verifiers to ensure the marker configuration is not present in the plan.
+     * <p>
+     *     This should never happen, and a failure here means that we're injecting the marker after the Analyzer, where it's being replaced.
+     * </p>
+     */
+    static void verifyNoMarkerConfiguration(QueryPlan<?> plan, Failures failures) {
+        plan.forEachExpressionDown(Expression.class, e -> {
+            if (e instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
+                failures.add(fail(plan, "Configuration marker found in node {} of plan: {}", e.nodeString(), plan));
+            }
+        });
+    }
 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.core.Nullable;
+
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -28,6 +30,21 @@ public class OutputStreamStreamOutput extends StreamOutput {
     @Override
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.write(b, offset, length);
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        StreamOutputHelper.writeString(str, out);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        StreamOutputHelper.writeOptionalString(str, out);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        StreamOutputHelper.writeGenericString(value, out);
     }
 
     @Override

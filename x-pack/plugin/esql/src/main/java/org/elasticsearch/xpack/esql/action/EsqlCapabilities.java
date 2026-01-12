@@ -19,9 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG;
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
-
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -62,6 +59,11 @@ public class EsqlCapabilities {
         GEO_VALIDATION,
 
         /**
+         * Fold in spatial functions should return null for null input.
+         */
+        GEO_NULL_LITERALS_FOLDING,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -80,6 +82,11 @@ public class EsqlCapabilities {
          * Support for spatial aggregation {@code ST_DISJOINT}. Done in #107007.
          */
         ST_DISJOINT,
+
+        /**
+         * Support for spatial simplification {@code ST_SIMPLIFY}
+         */
+        ST_SIMPLIFY,
 
         /**
          * The introduction of the {@code VALUES} agg.
@@ -424,6 +431,16 @@ public class EsqlCapabilities {
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
          */
         ST_ENVELOPE,
+
+        /**
+         * Fix ST_ENVELOPE to support multi-values and doc-values.
+         */
+        ST_ENVELOPE_MV_FIX,
+
+        /**
+         * Support ST_NPOINTS function.
+         */
+        ST_NPOINTS,
 
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
@@ -906,11 +923,6 @@ public class EsqlCapabilities {
         METADATA_SCORE,
 
         /**
-         * Term function
-         */
-        TERM_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Additional types for match function and operator
          */
         MATCH_ADDITIONAL_TYPES,
@@ -959,6 +971,11 @@ public class EsqlCapabilities {
          * Enable aggregate_metric_double in non-snapshot builds
          */
         AGGREGATE_METRIC_DOUBLE_V0,
+
+        /**
+         * Support running all aggregations on aggregate_metric_double using the default metric
+         */
+        AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
 
         /**
          * Support change point detection "CHANGE_POINT".
@@ -1330,6 +1347,16 @@ public class EsqlCapabilities {
         KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
+         * Support timezones in DATE_FORMAT and DATE_PARSE.
+         */
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in + and - operators.
+         */
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1357,7 +1384,7 @@ public class EsqlCapabilities {
         /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        COSINE_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Fixed some profile serialization issues
@@ -1371,17 +1398,17 @@ public class EsqlCapabilities {
         /**
          * Dot product vector similarity function
          */
-        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * l1 norm vector similarity function
          */
-        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * l2 norm vector similarity function
          */
-        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Support for the options field of CATEGORIZE.
@@ -1420,6 +1447,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
+         * Support directIO rescoring and `bfloat16` for `bbq_hnsw` and `bbq_disk`, and `bfloat16` for `hnsw` ans `bbq_flat` index types.
+         */
+        GENERIC_VECTOR_FORMAT,
+
+        /**
          * Support null elements on vector similarity functions
          */
         VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
@@ -1427,7 +1459,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        HAMMING_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Support for tbucket function
@@ -1470,7 +1502,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2,
 
         /**
          * Support for the Present function
@@ -1532,6 +1564,13 @@ public class EsqlCapabilities {
         TS_RATE_DATENANOS,
         TS_RATE_DATENANOS_2,
         TS_DERIV_DATENANOS,
+
+        /**
+         * Rate and increase calculations use interpolation at the boundaries between time buckets
+         */
+        RATE_WITH_INTERPOLATION,
+        RATE_WITH_INTERPOLATION_V2,
+
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1572,6 +1611,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Support for the DATE_RANGE field type.
+         */
+        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),
@@ -1587,21 +1631,26 @@ public class EsqlCapabilities {
         PACK_DIMENSIONS_IN_TS,
 
         /**
-         * Support for exponential_histogram type, before it is released into tech preview.
-         * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * Support for exponential_histogram fields in the state of when it first was released into tech preview.
          */
-        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
-        TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
+        /**
+         * Support for the T-Digest elasticsearch field mapper and ES|QL type when they were released into tech preview.
+         */
+        TDIGEST_TECH_PREVIEW,
 
+        /**
+         * Histogram field integration
+         */
+        HISTOGRAM_RELEASE_VERSION,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
 
         /**
-         * "time_zone" parameter in request body and in {@code SET "time_zone"="x"}
+         * "time_zone" parameter in request body and in {@code SET time_zone="x"}
          */
         GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
 
@@ -1691,7 +1740,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector similarity functtions pushdown
          */
-        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
@@ -1726,7 +1775,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V7(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1740,9 +1789,67 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
         /**
+         * Fix for circular reference in alias chains during PushDownEnrich and aggregate deduplication.
+         * Prevents "Potential cycle detected" errors when aliases reference each other.
+         * https://github.com/elastic/elasticsearch/issues/138346
+         */
+        FIX_ENRICH_ALIAS_CYCLE_IN_DEDUPLICATE_AGGS,
+
+        /**
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * Fix for multi-value constant propagation after GROUP BY.
+         * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
+         * it into single values. Propagating the original multi-value literal after the Aggregate would
+         * incorrectly treat the field as still being multi-valued.
+         * https://github.com/elastic/elasticsearch/issues/135926
+         */
+        FIX_STATS_MV_CONSTANT_FOLD,
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/138283
+         */
+        FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval} replaced a stats
+         * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
+         * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
+         */
+        FIX_PRESENT_AND_ABSENT_ON_STATS_WITH_FALSE_FILTER,
+
+        /**
+         * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
+         */
+        FN_MV_INTERSECTION,
+
+        /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
+
+        /**
+         * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
+         */
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+
+        /**
+         * Support for requesting the "_tier" metadata field.
+         */
+        METADATA_TIER_FIELD,
+        /**
+         * Fix folding of coalesce function
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_FOLD_COALESCE,
+
+        /**
+         * Exceptions parsing date-times are thrown as IllegalArgumentException
+         */
+        DATE_TIME_EXCEPTIONS_HANDLED,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

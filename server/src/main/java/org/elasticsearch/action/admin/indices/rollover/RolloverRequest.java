@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -91,9 +90,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
         lazy = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     RolloverRequest() {
@@ -142,9 +139,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         conditions.writeTo(out);
         createIndexRequest.writeTo(out);
         out.writeBoolean(lazy);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

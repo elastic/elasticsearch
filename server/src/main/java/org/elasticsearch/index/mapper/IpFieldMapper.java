@@ -17,13 +17,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -441,7 +441,7 @@ public class IpFieldMapper extends FieldMapper {
                 lower = parse(lowerTerm);
                 if (includeLower == false) {
                     if (lower.equals(InetAddressPoint.MAX_VALUE)) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     lower = InetAddressPoint.nextUp(lower);
                 }
@@ -454,7 +454,7 @@ public class IpFieldMapper extends FieldMapper {
                 upper = parse(upperTerm);
                 if (includeUpper == false) {
                     if (upper.equals(InetAddressPoint.MIN_VALUE)) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     upper = InetAddressPoint.nextDown(upper);
                 }

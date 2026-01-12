@@ -101,7 +101,6 @@ public class JinaAIEmbeddingsResponseEntity {
         // embeddings type is not specified anywhere in the response so grab it from the request
         JinaAIEmbeddingsRequest embeddingsRequest = (JinaAIEmbeddingsRequest) request;
         var embeddingType = embeddingsRequest.getEmbeddingType().toString();
-        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var embeddingValueParser = EMBEDDING_PARSERS.get(embeddingType);
 
         if (embeddingValueParser == null) {
@@ -113,6 +112,7 @@ public class JinaAIEmbeddingsResponseEntity {
             );
         }
 
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
 

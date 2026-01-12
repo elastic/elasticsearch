@@ -235,6 +235,12 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             project,
             options,
+            System.currentTimeMillis(),
+            false,
+            false,
+            false,
+            false,
+            false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
@@ -299,10 +305,12 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             project,
             options,
+            System.currentTimeMillis(),
             false,
             false,
             true,
             true,
+            false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
@@ -351,6 +359,8 @@ public class IndexNameExpressionResolver {
                             + " indices without one being designated as a write index"
                     );
                 }
+            } else if (ia.getType() == Type.VIEW) {
+                throw new IllegalArgumentException("an ESQL view [" + ia.getName() + "] may not be the target of an index operation");
             }
             SystemResourceAccess.checkSystemIndexAccess(context, threadContext, ia.getWriteIndex());
             return ia;
@@ -417,7 +427,7 @@ public class IndexNameExpressionResolver {
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
 
             // Validate base expression
-            validateResourceExpression(context, baseExpression, expressions);
+            validateResourceExpression(context, isExclusion, baseExpression, expressions);
 
             // Check if it's wildcard
             boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
@@ -449,15 +459,23 @@ public class IndexNameExpressionResolver {
         return resources;
     }
 
+    public static InvalidIndexNameException invalidExpression() {
+        return new InvalidIndexNameException("", "expression cannot be empty");
+    }
+
+    public static InvalidIndexNameException invalidExclusion() {
+        return new InvalidIndexNameException("", "exclusion cannot be empty");
+    }
+
     /**
      * Validates the requested expression by performing the following checks:
      * - Ensure it's not empty
      * - Ensure it doesn't start with `_`
-     * - Ensure it's not a remote expression unless the allow unavailable targets is enabled.
+     * - Ensure it's not a remote expression unless remotes are allowed by the context.
      */
-    private static void validateResourceExpression(Context context, String current, String[] expressions) {
+    private static void validateResourceExpression(Context context, boolean isExclusion, String current, String[] expressions) {
         if (Strings.isEmpty(current)) {
-            throw notFoundException(current);
+            throw isExclusion ? invalidExclusion() : invalidExpression();
         }
         // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
         // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
@@ -466,17 +484,14 @@ public class IndexNameExpressionResolver {
         if (current.charAt(0) == '_') {
             throw new InvalidIndexNameException(current, "must not start with '_'.");
         }
-        ensureRemoteExpressionRequireIgnoreUnavailable(context.getOptions(), current, expressions);
+        checkForRemoteIndexExpression(context, current, expressions);
     }
 
     /**
-     * Throws an exception if the expression is a remote expression and we do not allow unavailable targets
+     * Throws an exception if the expression is a remote expression and we do not allow it.
      */
-    private static void ensureRemoteExpressionRequireIgnoreUnavailable(IndicesOptions options, String current, String[] expressions) {
-        if (options.ignoreUnavailable()) {
-            return;
-        }
-        if (RemoteClusterAware.isRemoteIndexName(current)) {
+    private static void checkForRemoteIndexExpression(Context context, String current, String[] expressions) {
+        if (context.isAllowRemoteIndices() == false && RemoteClusterAware.isRemoteIndexName(current)) {
             List<String> crossClusterIndices = RemoteClusterAware.getRemoteIndexExpressions(expressions);
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
@@ -578,6 +593,7 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             false,
+            false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
@@ -602,6 +618,10 @@ public class IndexNameExpressionResolver {
         for (ResolvedExpression expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
+            if (indexAbstraction.getType() == Type.VIEW) {
+                // A view should not resolve to any concrete indices, go to the next one.
+                continue;
+            }
             if (context.isResolveToWriteIndex()) {
                 if (shouldIncludeRegularIndices(context.getOptions(), expression.selector())) {
                     Index writeIndex = indexAbstraction.getWriteIndex();
@@ -992,8 +1012,8 @@ public class IndexNameExpressionResolver {
     /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
-    public Set<ResolvedExpression> resolveExpressions(ProjectMetadata project, String... expressions) {
-        return resolveExpressions(project, IndicesOptions.lenientExpandOpen(), false, expressions);
+    public Set<ResolvedExpression> resolveExpressionsIgnoringRemotes(ProjectMetadata project, String... expressions) {
+        return resolveExpressions(project, IndicesOptions.lenientExpandOpen(), false, true, expressions);
     }
 
     /**
@@ -1005,15 +1025,18 @@ public class IndexNameExpressionResolver {
         ProjectMetadata project,
         IndicesOptions indicesOptions,
         boolean preserveDataStreams,
+        boolean allowRemoteIndices,
         String... expressions
     ) {
         Context context = new Context(
             project,
             indicesOptions,
+            System.currentTimeMillis(),
             true,
             false,
             true,
             preserveDataStreams,
+            allowRemoteIndices,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
@@ -1212,7 +1235,10 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             project,
             IndicesOptions.lenientExpandOpen(),
+            System.currentTimeMillis(),
             false,
+            false,
+            true,
             false,
             true,
             getSystemIndexAccessLevel(),
@@ -1298,6 +1324,9 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
+            } else if (indexAbstraction != null && indexAbstraction.getType() == Type.VIEW) {
+                // currently there is nothing to resolve for a view in regard to search routing, so skip it
+                continue;
             } else {
                 // Index
                 assert resolvedExpression.selector() == null || IndexComponentSelector.DATA.equals(resolvedExpression.selector())
@@ -1517,28 +1546,24 @@ public class IndexNameExpressionResolver {
         private final boolean resolveToWriteIndex;
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
+        private final boolean allowRemoteIndices;
         private final SystemIndexAccessLevel systemIndexAccessLevel;
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
 
         Context(ProjectMetadata project, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
-            this(project, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
-        }
-
-        Context(
-            ProjectMetadata project,
-            IndicesOptions options,
-            SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate
-        ) {
             this(
                 project,
                 options,
                 System.currentTimeMillis(),
+                false,
+                false,
+                false,
+                false,
+                false,
                 systemIndexAccessLevel,
-                systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                Predicates.always(),
+                Predicates.never()
             );
         }
 
@@ -1559,52 +1584,6 @@ public class IndexNameExpressionResolver {
                 preserveAliases,
                 resolveToWriteIndex,
                 includeDataStreams,
-                false,
-                systemIndexAccessLevel,
-                systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
-            );
-        }
-
-        Context(
-            ProjectMetadata project,
-            IndicesOptions options,
-            boolean preserveAliases,
-            boolean resolveToWriteIndex,
-            boolean includeDataStreams,
-            boolean preserveDataStreams,
-            SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate
-        ) {
-            this(
-                project,
-                options,
-                System.currentTimeMillis(),
-                preserveAliases,
-                resolveToWriteIndex,
-                includeDataStreams,
-                preserveDataStreams,
-                systemIndexAccessLevel,
-                systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
-            );
-        }
-
-        Context(
-            ProjectMetadata project,
-            IndicesOptions options,
-            long startTime,
-            SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate
-        ) {
-            this(
-                project,
-                options,
-                startTime,
-                false,
-                false,
                 false,
                 false,
                 systemIndexAccessLevel,
@@ -1621,6 +1600,7 @@ public class IndexNameExpressionResolver {
             boolean resolveToWriteIndex,
             boolean includeDataStreams,
             boolean preserveDataStreams,
+            boolean allowRemoteIndices,
             SystemIndexAccessLevel systemIndexAccessLevel,
             Predicate<String> systemIndexAccessPredicate,
             Predicate<String> netNewSystemIndexPredicate
@@ -1632,6 +1612,7 @@ public class IndexNameExpressionResolver {
             this.resolveToWriteIndex = resolveToWriteIndex;
             this.includeDataStreams = includeDataStreams;
             this.preserveDataStreams = preserveDataStreams;
+            this.allowRemoteIndices = allowRemoteIndices;
             this.systemIndexAccessLevel = systemIndexAccessLevel;
             this.systemIndexAccessPredicate = systemIndexAccessPredicate;
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
@@ -1674,6 +1655,10 @@ public class IndexNameExpressionResolver {
             return preserveDataStreams;
         }
 
+        public boolean isAllowRemoteIndices() {
+            return allowRemoteIndices;
+        }
+
         /**
          * Used to determine system index access is allowed in this context (e.g. for this request).
          */
@@ -1709,6 +1694,7 @@ public class IndexNameExpressionResolver {
                 .getIndicesLookup()
                 .values()
                 .stream()
+                .filter(ia -> ia.getType() != Type.VIEW)
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
                 .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
                 .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()))
@@ -1802,6 +1788,9 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
+            if (indexAbstraction.getType() == Type.VIEW) {
+                return false;
+            }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
                 return false;
             }
@@ -1853,6 +1842,9 @@ public class IndexNameExpressionResolver {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
+            } else if (indexAbstraction.getType() == Type.VIEW) {
+                // a view cannot expand to any indices, return an empty set
+                return Set.of();
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {

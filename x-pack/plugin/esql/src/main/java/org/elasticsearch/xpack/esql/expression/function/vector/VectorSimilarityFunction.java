@@ -233,7 +233,9 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
             elementType = ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getElementType();
         }
-        if (elementType == null || elementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+        if (elementType == null
+            || elementType == DenseVectorFieldMapper.ElementType.FLOAT
+            || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16) {
             float[] floatVector = new float[vectorList.size()];
             for (int i = 0; i < vectorList.size(); i++) {
                 floatVector[i] = ((Number) vectorList.get(i)).floatValue();

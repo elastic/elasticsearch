@@ -18,7 +18,7 @@ configurations {
   }
 }
 
-var zstdVersion = "1.5.5"
+var zstdVersion = "1.5.7"
 var vecVersion = "1.0.22"
 
 repositories {

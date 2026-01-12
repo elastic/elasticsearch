@@ -1851,6 +1851,11 @@ public class EsqlCapabilities {
          */
         DATE_TIME_EXCEPTIONS_HANDLED,
 
+        /**
+         * Enrich works with dense_vector fields
+         */
+        ENRICH_DENSE_VECTOR_BUGFIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

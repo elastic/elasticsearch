@@ -109,6 +109,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         "logger.org.elasticsearch.compute.operator.ChangePointOperator",
         "DEBUG",
         "logger.org.elasticsearch.xpack.esql.expression.function.scalar.convert",
+        "TRACE",
+        "logger.org.elasticsearch.compute.lucene.read",
         "TRACE"
     );
 

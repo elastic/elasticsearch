@@ -79,6 +79,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

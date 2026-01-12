@@ -27,6 +27,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -43,6 +45,8 @@ import java.util.function.IntFunction;
  * and outputs them to a new column.
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
+    private static final Logger log = LogManager.getLogger(ValuesSourceReaderOperator.class);
+
     /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load
@@ -278,7 +282,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         void newShard(int shard) {
             LoaderAndConverter l = info.loaderAndConverter.apply(shard);
             loader = l.loader;
-            converter = l.converter == null ? null : converterEvaluators.get(info.name, l.converter);
+            converter = l.converter == null ? null : converterEvaluators.get(shard, info.name, l.converter);
+            log.debug("moved to shard {} {} {}", shard, loader, converter);
             columnAtATime = null;
             rowStride = null;
         }
@@ -383,15 +388,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     }
 
     public class ConverterEvaluators implements Releasable {
-        private final Map<ConverterFactory, ConverterEvaluator> built = new HashMap<>();
+        record Key(int shard, String field) {}
+
+        private final Map<Key, ConverterEvaluator> built = new HashMap<>();
 
         @Override
         public void close() {
             Releasables.close(built.values());
         }
 
-        public ConverterEvaluator get(String field, ConverterFactory converter) {
-            ConverterEvaluator evaluator =  built.computeIfAbsent(converter, unused -> converter.build(driverContext));
+        public ConverterEvaluator get(int shard, String field, ConverterFactory converter) {
+            ConverterEvaluator evaluator = built.computeIfAbsent(new Key(shard, field), unused -> converter.build(driverContext));
             convertersUsed.merge(field + ":" + evaluator, 1, Integer::sum);
             return evaluator;
         }

@@ -123,7 +123,7 @@ class ValuesFromManyReader extends ValuesReader {
                 for (Block b : target) {
                     actual += b.ramBytesUsed();
                 }
-                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p, estimated, actual);
+                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p + 1, estimated, actual);
             }
         }
 

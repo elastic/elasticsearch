@@ -129,6 +129,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return readersBuilt;
     }
 
+    public Map<String, Integer> convertersUsed() {
+        return convertersUsed;
+    }
+
     @Override
     public long valuesLoaded() {
         return valuesLoaded;

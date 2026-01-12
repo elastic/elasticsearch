@@ -222,18 +222,16 @@ public class SetParserTests extends AbstractStatementParserTests {
 
         verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
 
-        try {
-            statement("SET unmapped_fields=\"" + randomizeCase(UnmappedResolution.LOAD.name()) + "\"; row a = 1");
-            fail("ParsingException expected");
-        } catch (ParsingException e) {
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [LOAD], "
-                        + "must be one of [FAIL, NULLIFY]"
-                )
-            );
-        }
+        var e = assertThrows(
+            ParsingException.class,
+            () -> statement("SET unmapped_fields=\"" + randomizeCase(UnmappedResolution.LOAD.name()) + "\"; row a = 1")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [LOAD], " + "must be one of [FAIL, NULLIFY]"
+            )
+        );
     }
 
     private void verifySetUnmappedFields(List<String> modes) {

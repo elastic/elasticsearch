@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -93,19 +94,22 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_techPreview() {
-        var setting = QuerySettings.UNMAPPED_FIELDS;
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         assumeFalse("Snapshot", Build.current().isSnapshot());
+
         validateUnmappedFields("FAIL", "NULLIFY");
+        var settingName = QuerySettings.UNMAPPED_FIELDS.name();
         assertInvalid(
-            setting.name(),
+            settingName,
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("UTC"),
-            "Setting [" + setting.name() + "=LOAD] is only available in snapshot builds"
+            "Setting [" + settingName + "=LOAD] is only available in snapshot builds"
         );
     }
 
     public void testValidate_UnmappedFields_snapshot() {
         assumeTrue("Snapshot", Build.current().isSnapshot());
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
     }
 

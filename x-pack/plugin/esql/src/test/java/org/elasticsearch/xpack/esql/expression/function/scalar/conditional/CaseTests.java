@@ -42,6 +42,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     private static final List<DataType> TYPES;
     static {
         List<DataType> t = Stream.of(
+            DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.KEYWORD,
             DataType.TEXT,
             DataType.BOOLEAN,
@@ -69,7 +70,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (Build.current().isSnapshot()) {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .filter(type -> type != DataType.DENSE_VECTOR)
                     .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
                     .toList()
             );

@@ -496,11 +496,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         public static Map<String, Boolean> buildNodeIdsWriteLoadHotspottingTable(
             Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
-            long queueLatencyThreshold) {
+            long queueLatencyThreshold
+        ) {
             final Map<String, Boolean> nodeIdsWriteLoadHotspotting = new HashMap<>(nodeThreadPoolUsageStatsPerNode.size());
             nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
-                NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats
-                    .threadPoolUsageStatsMap()
+                NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats.threadPoolUsageStatsMap()
                     .get(ThreadPool.Names.WRITE);
                 nodeIdsWriteLoadHotspotting.put(nodeId, threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= queueLatencyThreshold);
             });

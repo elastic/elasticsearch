@@ -555,11 +555,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // create a map of hotspots
         var nodeIdsWriteLoadHotspotting = Map.of(
-            exceedingThresholdDiscoveryNode.getId(), false,
-            belowThresholdDiscoveryNode2.getId(), false,
-            nearThresholdDiscoveryNode3.getId(), false,
-            queuingBelowThresholdDiscoveryNode4.getId(), false,
-            queuingAboveThresholdDiscoveryNode5.getId(), true
+            exceedingThresholdDiscoveryNode.getId(),
+            false,
+            belowThresholdDiscoveryNode2.getId(),
+            false,
+            nearThresholdDiscoveryNode3.getId(),
+            false,
+            queuingBelowThresholdDiscoveryNode4.getId(),
+            false,
+            queuingAboveThresholdDiscoveryNode5.getId(),
+            true
         );
 
         // Create a map of usage per shard.

@@ -15,18 +15,20 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-// throughput is more representable metric, it amortizes pages recycling code path and reduces benchmark error
 @BenchmarkMode(Mode.Throughput)
 @Warmup(time = 1)
 @Measurement(time = 1)
@@ -34,57 +36,89 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class RecyclerBytesStreamOutputWriteBenchmark {
-    private static final int PAGE_SIZE = 16384;
 
     // large enough to negate stream reset
-    // and not too large to reach 2GB limit on worst case (5 bytes vint)
+    // and not too large to stay under stream limit of 2GB on worst case (5 bytes vint)
     private static final int WRITES_PER_ITERATION = 400_000;
+    private static final int RANDOM_NUMS_PER_ITERATION = 1000;
+    private static final int PAGE_SIZE = 16384;
 
-    // must not be final - avoid constant fold
-    // see https://github.com/openjdk/jmh/blob/master/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_10_ConstantFold.java
-    private int vint1Byte = 123; // any number between 0 and 127 (7 bit)
-    private int vint2Bytes = (vint1Byte << 7) | vint1Byte;
-    private int vint3Bytes = (vint2Bytes << 7) | vint2Bytes;
-    private int vint4Bytes = (vint3Bytes << 7) | vint3Bytes;
-    private int vint5Bytes = Integer.MIN_VALUE;
+    private ThreadLocalRandom random = ThreadLocalRandom.current();
+    private int[] vint1Byte;
+    private int[] vint2Bytes;
+    private int[] vint3Bytes;
+    private int[] vint4Bytes;
+    private int[] vint5Bytes;
     private RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new SinglePageStream());
 
-    private int writeLoop(int n) throws IOException {
-        for (int i = 0; i < WRITES_PER_ITERATION; i++) {
-            output.writeVInt(n);
+    private int randomVInt(int bytes) {
+        return switch (bytes) {
+            case 1 -> random.nextInt(0, 1 << 7);
+            case 2 -> random.nextInt(1 << 7, 1 << 14);
+            case 3 -> random.nextInt(1 << 14, 1 << 21);
+            case 4 -> random.nextInt(1 << 21, 1 << 28);
+            case 5 -> {
+                final var isNeg = random.nextBoolean() ? -1 : 1;
+                yield random.nextInt(1 << 28, 1 << 30) * isNeg;
+            }
+            default -> throw new IllegalArgumentException("number of bytes must be between 1 and 5");
+        };
+    }
+
+    private int[] randomArray(int vIntByteSize) {
+        final var out = new int[RANDOM_NUMS_PER_ITERATION];
+        for (var i = 0; i < RANDOM_NUMS_PER_ITERATION; i++) {
+            out[i] = randomVInt(vIntByteSize);
+        }
+        return out;
+    }
+
+    @Setup(Level.Iteration)
+    public void resetNums() {
+        vint1Byte = randomArray(1);
+        vint2Bytes = randomArray(2);
+        vint3Bytes = randomArray(3);
+        vint4Bytes = randomArray(4);
+        vint5Bytes = randomArray(5);
+    }
+
+    private void writeLoop(int[] nums) throws IOException {
+        for (int reps = 0; reps < WRITES_PER_ITERATION / nums.length; reps++) {
+            for (var n : nums) {
+                output.writeVInt(n);
+            }
         }
         output.seek(0);
-        return n;
     }
 
     @Benchmark
     @OperationsPerInvocation(WRITES_PER_ITERATION)
-    public int writeVInt1() throws IOException {
-        return writeLoop(vint1Byte);
+    public void writeVInt1() throws IOException {
+        writeLoop(vint1Byte);
     }
 
     @Benchmark
     @OperationsPerInvocation(WRITES_PER_ITERATION)
-    public int writeVInt2() throws IOException {
-        return writeLoop(vint2Bytes);
+    public void writeVInt2() throws IOException {
+        writeLoop(vint2Bytes);
     }
 
     @Benchmark
     @OperationsPerInvocation(WRITES_PER_ITERATION)
-    public int writeVInt3() throws IOException {
-        return writeLoop(vint3Bytes);
+    public void writeVInt3() throws IOException {
+        writeLoop(vint3Bytes);
     }
 
     @Benchmark
     @OperationsPerInvocation(WRITES_PER_ITERATION)
-    public int writeVInt4() throws IOException {
-        return writeLoop(vint4Bytes);
+    public void writeVInt4() throws IOException {
+        writeLoop(vint4Bytes);
     }
 
     @Benchmark
     @OperationsPerInvocation(WRITES_PER_ITERATION)
-    public int writeVInt5() throws IOException {
-        return writeLoop(vint5Bytes);
+    public void writeVInt5() throws IOException {
+        writeLoop(vint5Bytes);
     }
 
     // recycle same page, we never read previous pages

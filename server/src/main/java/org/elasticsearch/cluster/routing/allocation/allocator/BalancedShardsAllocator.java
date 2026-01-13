@@ -873,8 +873,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
                         notPreferredLogger.debug(
-                            "Moving shard [{}] to [{}] from a NOT_PREFERRED allocation: {}",
+                            "Moving shard [{}] from [{}] to [{}] from a NOT_PREFERRED allocation: {}",
                             shardRouting,
+                            getNodeName(shardRouting.currentNodeId()),
                             moveDecision.getTargetNode().getName(),
                             moveDecision.getCanRemainDecision()
                         );
@@ -1602,6 +1603,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         // Visible for testing.
         public RoutingAllocation getAllocation() {
             return this.allocation;
+        }
+
+        private String getNodeName(String nodeId) {
+            DiscoveryNode discoveryNode = allocation.getClusterState().nodes().get(nodeId);
+            return discoveryNode != null ? discoveryNode.getName() : nodeId;
         }
     }
 

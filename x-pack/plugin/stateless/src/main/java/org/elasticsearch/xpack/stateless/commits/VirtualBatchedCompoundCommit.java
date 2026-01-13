@@ -1,29 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.InternalFile;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,6 +33,11 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -84,10 +71,10 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
 import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.common.io.Streams.limitStream;
+import static org.elasticsearch.xpack.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
 /**
  * Represents a collection of non-uploaded compound commits, where multiple commits can be added and read,
@@ -405,39 +392,39 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             reference,
             reference.isHollow()
                 ? StatelessCompoundCommit.newHollowStatelessCompoundCommit(
-                    shardId,
-                    ccTermAndGen,
-                    Collections.unmodifiableMap(commitFiles),
-                    sizeInBytes,
-                    internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
-                    header.length,
-                    replicatedContent.header(),
-                    Collections.unmodifiableMap(extraContent),
-                    timestampFieldValueRange
-                )
+                shardId,
+                ccTermAndGen,
+                Collections.unmodifiableMap(commitFiles),
+                sizeInBytes,
+                internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
+                header.length,
+                replicatedContent.header(),
+                Collections.unmodifiableMap(extraContent),
+                timestampFieldValueRange
+            )
                 : new StatelessCompoundCommit(
-                    shardId,
-                    ccTermAndGen,
-                    reference.getTranslogRecoveryStartFile(),
-                    nodeEphemeralId,
-                    Collections.unmodifiableMap(commitFiles),
-                    sizeInBytes,
-                    internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
-                    header.length,
-                    replicatedContent.header(),
-                    Collections.unmodifiableMap(extraContent),
-                    timestampFieldValueRange
-                ),
+                shardId,
+                ccTermAndGen,
+                reference.getTranslogRecoveryStartFile(),
+                nodeEphemeralId,
+                Collections.unmodifiableMap(commitFiles),
+                sizeInBytes,
+                internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
+                header.length,
+                replicatedContent.header(),
+                Collections.unmodifiableMap(extraContent),
+                timestampFieldValueRange
+            ),
             Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO))
         );
         pendingCompoundCommits.add(pendingCompoundCommit);
         assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
             : "current offset "
-                + currentOffset.get()
-                + " should be equal to header offset "
-                + headerOffset
-                + " plus size of pending compound commit "
-                + pendingCompoundCommit.getSizeInBytes();
+            + currentOffset.get()
+            + " should be equal to header offset "
+            + headerOffset
+            + " plus size of pending compound commit "
+            + pendingCompoundCommit.getSizeInBytes();
         assert assertInternalConsistency();
         return true;
     }
@@ -458,11 +445,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             // Assert that compound commits have padding to be page-aligned, except for the last compound commit
             assert it.hasNext() == false || pendingCompoundCommit.getSizeInBytes() == BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes())
                 : "intermediate statelessCompoundCommit size in bytes "
-                    + cc.sizeInBytes()
-                    + " plus padding length "
-                    + pendingCompoundCommit.padding
-                    + " should be equal to page-aligned size in bytes "
-                    + BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes());
+                + cc.sizeInBytes()
+                + " plus padding length "
+                + pendingCompoundCommit.padding
+                + " should be equal to page-aligned size in bytes "
+                + BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes());
             assert it.hasNext() || pendingCompoundCommit.padding == 0 : "last pending compound commit should not have padding";
 
             // Assert that all generational files are contained in the same VBCC (no reference to a previous VBCC or BCC)
@@ -470,11 +457,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 assert isGenerationalFile(commitFile.getKey()) == false
                     || commitFile.getValue().getBatchedCompoundCommitTermAndGeneration().equals(primaryTermAndGeneration)
                     : "generational file "
-                        + commitFile.getValue()
-                        + " should be located in BCC "
-                        + primaryTermAndGeneration
-                        + " but got "
-                        + commitFile.getValue().getBatchedCompoundCommitTermAndGeneration();
+                    + commitFile.getValue()
+                    + " should be located in BCC "
+                    + primaryTermAndGeneration
+                    + " but got "
+                    + commitFile.getValue().getBatchedCompoundCommitTermAndGeneration();
             }
 
             assert cc.commitFiles().keySet().containsAll(cc.internalFiles())
@@ -486,28 +473,28 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 .stream()
                 .allMatch(filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension()))
                 : "currently only segment info ."
-                    + LuceneFilesExtensions.SI.getExtension()
-                    + " files are expected to be in extra content files, and found "
-                    + cc.extraContent().keySet();
+                + LuceneFilesExtensions.SI.getExtension()
+                + " files are expected to be in extra content files, and found "
+                + cc.extraContent().keySet();
             assert cc.commitFiles().keySet().containsAll(cc.extraContent().keySet())
                 : "extra content files "
-                    + cc.extraContent().keySet()
-                    + " must be part of commit files "
-                    + cc.commitFiles().keySet()
-                    + " as they currently consist of replicated referenced files";
+                + cc.extraContent().keySet()
+                + " must be part of commit files "
+                + cc.commitFiles().keySet()
+                + " as they currently consist of replicated referenced files";
             assert cc.hollow() == false
                 || cc.commitFiles()
-                    .entrySet()
-                    .stream()
-                    .filter(
-                        e -> cc.internalFiles().contains(e.getKey()) == false
-                            && Objects.equals(IndexFileNames.getExtension(e.getKey()), LuceneFilesExtensions.SI.getExtension())
-                    )
-                    .allMatch(e -> cc.extraContent().containsKey(e.getKey()))
+                .entrySet()
+                .stream()
+                .filter(
+                    e -> cc.internalFiles().contains(e.getKey()) == false
+                        && Objects.equals(IndexFileNames.getExtension(e.getKey()), LuceneFilesExtensions.SI.getExtension())
+                )
+                .allMatch(e -> cc.extraContent().containsKey(e.getKey()))
                 : "hollow commit referenced .si files in "
-                    + cc.commitFiles().keySet()
-                    + " must be part of extra content files "
-                    + cc.extraContent().keySet();
+                + cc.commitFiles().keySet()
+                + " must be part of extra content files "
+                + cc.extraContent().keySet();
 
             // a blob location that refers to the whole CC, so that we can check that internal and extra content files are in these bounds
             final var maxBlobLocation = Stream.concat(cc.commitFiles().entrySet().stream(), cc.extraContent().entrySet().stream())
@@ -530,26 +517,26 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
             assert cc.extraContent().values().stream().allMatch(location -> ccLocation.contains(location))
                 : "all extra content files "
-                    + cc.extraContent()
-                    + " must be contained within the compound commit file location "
-                    + ccLocation;
+                + cc.extraContent()
+                + " must be contained within the compound commit file location "
+                + ccLocation;
             assert cc.internalFiles().stream().allMatch(file -> ccLocation.contains(cc.commitFiles().get(file)))
                 : "all internal files "
-                    + cc.internalFiles()
-                    + " of commit files "
-                    + cc.commitFiles()
-                    + " must be contained within the compound commit file location "
-                    + ccLocation;
+                + cc.internalFiles()
+                + " of commit files "
+                + cc.commitFiles()
+                + " must be contained within the compound commit file location "
+                + ccLocation;
             assert Sets.difference(cc.commitFiles().keySet(), cc.internalFiles())
                 .stream()
                 .allMatch(file -> ccLocation.contains(cc.commitFiles().get(file)) == false)
                 : "all referenced files must be located outside the compound commit file location "
-                    + ccLocation
-                    + " but got "
-                    + cc.commitFiles()
-                    + " with "
-                    + cc.internalFiles()
-                    + " internal files";
+                + ccLocation
+                + " but got "
+                + cc.commitFiles()
+                + " with "
+                + cc.internalFiles()
+                + " internal files";
         }
 
         // Group the internal data readers by class
@@ -570,9 +557,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         if (internalDataReaderGroups.containsKey(InternalPaddingReader.class)) {
             assert internalDataReaderGroups.get(InternalPaddingReader.class).size() < pendingCompoundCommits.size()
                 : "paddings "
-                    + internalDataReaderGroups.get(InternalPaddingReader.class).size()
-                    + " are more than pending CCs (excluding the last one) "
-                    + (pendingCompoundCommits.size() - 1);
+                + internalDataReaderGroups.get(InternalPaddingReader.class).size()
+                + " are more than pending CCs (excluding the last one) "
+                + (pendingCompoundCommits.size() - 1);
             internalDataReaderGroups.get(InternalPaddingReader.class).forEach(reader -> {
                 assert reader instanceof InternalPaddingReader;
                 InternalPaddingReader paddingReader = (InternalPaddingReader) reader;
@@ -801,11 +788,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return List.copyOf(pendingCompoundCommits);
     }
 
-    int size() {
+    // TODO: make package-private ES-13786
+    public int size() {
         return pendingCompoundCommits.size();
     }
 
-    Set<PrimaryTermAndGeneration> getPendingCompoundCommitGenerations() {
+    // TODO: make package-private ES-13786
+    public Set<PrimaryTermAndGeneration> getPendingCompoundCommitGenerations() {
         return pendingCompoundCommits.stream()
             .map(PendingCompoundCommit::getStatelessCompoundCommit)
             .map(StatelessCompoundCommit::primaryTermAndGeneration)
@@ -847,7 +836,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    BlobLocation getBlobLocation(String fileName) {
+    // TODO: make package-private ES-13786
+    public BlobLocation getBlobLocation(String fileName) {
         var internalLocation = internalLocations.get(fileName);
         return internalLocation == null ? uploadedBlobLocationsSupplier.apply(fileName) : internalLocation;
     }
@@ -865,10 +855,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert length >= 0 : "invalid length " + length;
         assert offset + length <= currentOffset.get() : "range [" + offset + ", " + length + "] more than " + currentOffset.get();
         assert ThreadPool.assertCurrentThreadPool(
-            ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
-            ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            ServerlessStatelessPlugin.PREWARM_THREAD_POOL,
-            ServerlessStatelessPlugin.UPLOAD_PREWARM_THREAD_POOL
+            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
+            StatelessPlugin.PREWARM_THREAD_POOL,
+            StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL
         );
 
         if (tryIncRef()) {
@@ -902,7 +892,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    boolean assertSameNodeEphemeralId(String id) {
+    // TODO: make package-private ES-13786
+    public boolean assertSameNodeEphemeralId(String id) {
         assert id.equals(nodeEphemeralId) : id + " != " + nodeEphemeralId;
         return true;
     }
@@ -937,17 +928,18 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         final Thread witness = appendingCommitThread.compareAndExchange(current, updated);
         assert witness == current
             : "Unable to set appending commit thread to ["
-                + updated
-                + "]: expected thread ["
-                + current
-                + "] to be the appending commit thread, but thread "
-                + witness
-                + " is already appending a commit to "
-                + getBlobName();
+            + updated
+            + "]: expected thread ["
+            + current
+            + "] to be the appending commit thread, but thread "
+            + witness
+            + " is already appending a commit to "
+            + getBlobName();
         return true;
     }
 
-    static class PendingCompoundCommit implements Closeable, Comparable<PendingCompoundCommit> {
+    // TODO: make package-private ES-13786
+    public static class PendingCompoundCommit implements Closeable, Comparable<PendingCompoundCommit> {
         private final int headerSize;
         private final StatelessCommitRef reference;
         private final StatelessCompoundCommit statelessCompoundCommit;
@@ -975,10 +967,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             this.maxSeqNo = maxSeqNo;
             assert statelessCompoundCommit.hollow() == reference.isHollow()
                 : "stateless compound commit hollow flag ["
-                    + statelessCompoundCommit.hollow()
-                    + "] does not match a hollow reference ["
-                    + reference.isHollow()
-                    + "]";
+                + statelessCompoundCommit.hollow()
+                + "] does not match a hollow reference ["
+                + reference.isHollow()
+                + "]";
         }
 
         void setPadding(int padding) {
@@ -990,11 +982,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return reference.getGeneration();
         }
 
-        long getMaxSeqNo() {
+        // TODO: make package-private ES-13786
+        public long getMaxSeqNo() {
             return maxSeqNo;
         }
 
-        StatelessCommitRef getCommitReference() {
+        // TODO: make package-private ES-13786
+        public StatelessCommitRef getCommitReference() {
             return reference;
         }
 

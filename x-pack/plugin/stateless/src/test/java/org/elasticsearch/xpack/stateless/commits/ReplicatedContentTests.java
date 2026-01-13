@@ -1,26 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.cache.Lucene90CompoundEntriesReader;
-import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
-import co.elastic.elasticsearch.stateless.commits.ReplicatedContent.InternalFileRangeReader;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.InternalFile;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -36,6 +21,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader;
+import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
+import org.elasticsearch.xpack.stateless.commits.ReplicatedContent.InternalFileRangeReader;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -47,9 +36,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
-import static co.elastic.elasticsearch.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
+import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
+import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
+import static org.elasticsearch.xpack.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;

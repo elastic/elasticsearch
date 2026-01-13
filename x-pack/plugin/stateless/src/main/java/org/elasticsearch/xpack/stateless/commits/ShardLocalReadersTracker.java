@@ -1,25 +1,14 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.Collection;
 import java.util.HashMap;

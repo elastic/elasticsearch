@@ -1,23 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.action;
-
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+package org.elasticsearch.xpack.stateless.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * {@link TransportFetchShardCommitsInUseAction} broadcasts a request to a set of search nodes asking what commits are still in use for a
+ * TransportFetchShardCommitsInUseAction broadcasts a request to a set of search nodes asking what commits are still in use for a
  * particular shard.
  *
  * {@link FetchShardCommitsInUseAction.Request} is the request made by the index node to the transport layer, and

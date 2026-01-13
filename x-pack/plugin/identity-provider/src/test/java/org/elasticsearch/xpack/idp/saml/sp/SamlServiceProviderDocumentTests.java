@@ -181,7 +181,6 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
             IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
             TransportVersion.current()
         );

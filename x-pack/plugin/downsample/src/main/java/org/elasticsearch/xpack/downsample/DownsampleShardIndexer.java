@@ -467,13 +467,17 @@ class DownsampleShardIndexer {
                     if (downsampleBucketBuilder.isEmpty() == false) {
                         XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                         indexBucket(doc);
+                        XContentBuilder secondaryDoc = downsampleBucketBuilder.buildSecondaryDownsampleDocument();
+                        if (secondaryDoc != null) {
+                            indexBucket(secondaryDoc);
+                        }
                     }
 
                     // Create new downsample bucket
                     if (tsidChanged) {
-                        downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp);
+                        downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp, lastTimestamp);
                     } else {
-                        downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
+                        downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp, lastTimestamp);
                     }
                     bucketsCreated++;
                 }
@@ -563,6 +567,10 @@ class DownsampleShardIndexer {
             if (downsampleBucketBuilder.isEmpty() == false) {
                 XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                 indexBucket(doc);
+                XContentBuilder secondaryDoc = downsampleBucketBuilder.buildSecondaryDownsampleDocument();
+                if (secondaryDoc != null) {
+                    indexBucket(secondaryDoc);
+                }
             }
 
             // check cancel after the flush all data
@@ -585,7 +593,8 @@ class DownsampleShardIndexer {
     private class DownsampleBucketBuilder {
         private BytesRef tsid;
         private int tsidOrd = -1;
-        private long timestamp;
+        private long bucketTimestamp;
+        private long lastDocTimestamp;
         private int docCount;
         private final AbstractDownsampleFieldProducer<?>[] fieldProducers;
         private final DownsampleFieldSerializer[] groupedProducers;
@@ -617,17 +626,18 @@ class DownsampleShardIndexer {
         /**
          * tsid changed, reset tsid and timestamp
          */
-        public void resetTsid(BytesRef tsid, int tsidOrd, long timestamp) {
+        public void resetTsid(BytesRef tsid, int tsidOrd, long bucketTimestamp, long lastDocTimestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
             this.tsidOrd = tsidOrd;
-            resetTimestamp(timestamp);
+            resetTimestamp(bucketTimestamp, lastDocTimestamp);
         }
 
         /**
          * timestamp change, reset builder
          */
-        public void resetTimestamp(long timestamp) {
-            this.timestamp = timestamp;
+        public void resetTimestamp(long bucketTimestamp, long lastDocTimestamp) {
+            this.bucketTimestamp = bucketTimestamp;
+            this.lastDocTimestamp = lastDocTimestamp;
             this.docCount = 0;
             for (AbstractDownsampleFieldProducer<?> producer : fieldProducers) {
                 producer.reset();
@@ -636,7 +646,7 @@ class DownsampleShardIndexer {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
                     DocValueFormat.TIME_SERIES_ID.format(tsid),
-                    timestampFormat.format(timestamp)
+                    timestampFormat.format(bucketTimestamp)
                 );
             }
         }
@@ -659,7 +669,7 @@ class DownsampleShardIndexer {
                 builder.endObject();
                 return builder;
             }
-            builder.field(timestampField.name(), timestampFormat.format(timestamp));
+            builder.field(timestampField.name(), timestampFormat.format(bucketTimestamp));
             builder.field(DocCountFieldMapper.NAME, docCount);
 
             // Serialize fields
@@ -680,8 +690,36 @@ class DownsampleShardIndexer {
             return builder;
         }
 
+        public XContentBuilder buildSecondaryDownsampleDocument() throws IOException {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
+            builder.startObject();
+            builder.field(timestampField.name(), timestampFormat.format(lastDocTimestamp));
+
+            // Serialize fields
+            boolean hasSecondaryValues = false;
+            for (DownsampleFieldSerializer fieldProducer : groupedProducers) {
+                fieldProducer.writeSecondaryValue(builder);
+                hasSecondaryValues |= fieldProducer.hasSecondaryValue();
+            }
+            if (hasSecondaryValues == false) {
+                return null;
+            }
+
+            if (dimensions.length == 0) {
+                logger.debug("extracting dimensions from legacy tsid");
+                Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
+                for (Map.Entry<?, ?> e : dimensions.entrySet()) {
+                    assert e.getValue() != null;
+                    builder.field((String) e.getKey(), e.getValue());
+                }
+            }
+
+            builder.endObject();
+            return builder;
+        }
+
         public long timestamp() {
-            return timestamp;
+            return bucketTimestamp;
         }
 
         public BytesRef tsid() {

@@ -180,13 +180,20 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
-                builder.field(name(), lastValue);
-                builder.startObject(name() + "_aggregate");
-                builder.field("first_value", firstValue);
-                builder.field("last_value", firstValue + resetOffset);
-                builder.field("reset_offset", resetOffset);
-                builder.endObject();
+                builder.field(name(), firstValue);
             }
+        }
+
+        @Override
+        public void writeSecondaryValue(XContentBuilder builder) throws IOException {
+            if (hasSecondaryValue()) {
+                builder.field(name(), lastValue);
+            }
+        }
+
+        @Override
+        public boolean hasSecondaryValue() {
+            return isEmpty() == false && firstValue != lastValue;
         }
     }
 }

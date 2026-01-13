@@ -116,7 +116,7 @@ public class OperationRouting {
                 );
             }
         }
-        res.sort(SearchShardRouting::compareTo);
+        // res.sort(SearchShardRouting::compareTo);
         return res;
     }
 

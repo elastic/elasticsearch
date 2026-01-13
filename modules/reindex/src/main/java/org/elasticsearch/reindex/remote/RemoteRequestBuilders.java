@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -168,6 +169,17 @@ final class RemoteRequestBuilders {
                         entity.endObject();
                     }
                 }
+            }
+
+            SliceBuilder slice = searchRequest.source().slice();
+            if (slice != null) {
+                entity.startObject("slice");
+                entity.field(SliceBuilder.ID_FIELD.getPreferredName(), slice.getId());
+                entity.field(SliceBuilder.MAX_FIELD.getPreferredName(), slice.getMax());
+                if (slice.getField() != null) {
+                    entity.field(SliceBuilder.FIELD_FIELD.getPreferredName(), slice.getField());
+                }
+                entity.endObject();
             }
 
             entity.endObject();

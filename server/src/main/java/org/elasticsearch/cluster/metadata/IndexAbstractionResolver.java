@@ -167,14 +167,14 @@ public class IndexAbstractionResolver {
                         indexNameExpressionResolver,
                         includeDataStreams
                     )) {
+
                     DataStream dataStream = indexNameToDataStream.get(authorizedIndex);
                     if (dataStream != null) {
                         for (Index index : dataStream.getIndices()) {
                             resolveSelectorsAndCollect(index.getName(), selectorString, indicesOptions, resolvedIndices, projectMetadata);
                         }
-                    } else {
-                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
+                    resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 }
             }
             if (resolvedIndices.isEmpty()) {

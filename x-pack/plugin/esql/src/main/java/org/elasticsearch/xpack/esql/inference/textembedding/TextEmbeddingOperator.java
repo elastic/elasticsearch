@@ -19,32 +19,35 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
  * and emits the dense vector embeddings as output.
  */
 public class TextEmbeddingOperator extends InferenceOperator {
+
+    private final String inferenceId;
+
     /**
      * Constructs a new {@code TextEmbeddingOperator}.
      *
      * @param driverContext                   The driver context.
      * @param inferenceService                The inference service to use for executing inference requests.
-     * @param requestItemIteratorFactory      Factory for creating request iterators from input pages.
-     * @param outputBuilder                   Builder for converting inference responses into output pages.
-     * @param maxOutstandingPages             The maximum number of pages processed in parallel.
-     * @param maxOutstandingInferenceRequests The maximum number of inference requests to be run in parallel.
+     * @param inferenceId                     The ID of the text embedding model to invoke.
+     * @param inputEvaluator                  Evaluator for computing input text from rows.
      */
     TextEmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
-        TextEmbeddingRequestIterator.Factory requestItemIteratorFactory,
-        TextEmbeddingOutputBuilder outputBuilder,
-        int maxOutstandingPages,
-        int maxOutstandingInferenceRequests
+        String inferenceId,
+        ExpressionEvaluator inputEvaluator
     ) {
         super(
             driverContext,
             inferenceService,
-            requestItemIteratorFactory,
-            outputBuilder,
-            maxOutstandingPages,
-            maxOutstandingInferenceRequests
+            new TextEmbeddingRequestIterator.Factory(inferenceId, inputEvaluator),
+            new TextEmbeddingOutputBuilder(driverContext.blockFactory())
         );
+
+        this.inferenceId = inferenceId;
+    }
+
+    public String toString() {
+        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "]]";
     }
 
     /**
@@ -55,19 +58,12 @@ public class TextEmbeddingOperator extends InferenceOperator {
             OperatorFactory {
         @Override
         public String describe() {
-            return "TextEmbeddingOperator[]";
+            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TextEmbeddingOperator(
-                driverContext,
-                inferenceService,
-                new TextEmbeddingRequestIterator.Factory(inferenceId, textEvaluatorFactory.get(driverContext)),
-                new TextEmbeddingOutputBuilder(driverContext.blockFactory()),
-                DEFAULT_MAX_OUTSTANDING_PAGES,
-                DEFAULT_MAX_OUTSTANDING_REQUESTS
-            );
+            return new TextEmbeddingOperator(driverContext, inferenceService, inferenceId, textEvaluatorFactory.get(driverContext));
         }
     }
 

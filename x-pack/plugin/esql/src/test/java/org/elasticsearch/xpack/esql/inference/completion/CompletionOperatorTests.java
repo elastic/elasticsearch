@@ -101,7 +101,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("CompletionOperator[]");
+        return equalTo("CompletionOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
     }
 
     public void testInferenceFailure() {

@@ -22,21 +22,42 @@ public class RerankOperator extends InferenceOperator {
 
     public static final int DEFAULT_BATCH_SIZE = 10;
 
+    private final String queryText;
+
+    private final int scoreChannel;
+
     /**
      * Constructs a new {@code RerankOperator}.
      *
      * @param driverContext                   The driver context.
      * @param inferenceService                The inference service to use for executing inference requests.
-     * @param requestItemIteratorFactory      Factory for creating request iterators from input pages.
-     * @param outputBuilder                   Builder for converting inference responses into output pages.
+     * @param inferenceId                     The ID of the reranking model to invoke.
+     * @param queryText                       The query text to use for reranking.
+     * @param inputEvaluator                  Evaluator for computing reranked text from input rows.
+     * @param scoreChannel                    The output channel where the relevance scores will be written.
+     * @param batchSize                       The number of rows to include in each inference request batch.
      */
     RerankOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
-        RerankRequestIterator.Factory requestItemIteratorFactory,
-        RerankOutputBuilder outputBuilder
+        String inferenceId,
+        String queryText,
+        ExpressionEvaluator inputEvaluator,
+        int scoreChannel,
+        int batchSize
     ) {
-        super(driverContext, inferenceService, requestItemIteratorFactory, outputBuilder);
+        super(
+            driverContext,
+            inferenceService,
+            new RerankRequestIterator.Factory(inferenceId, queryText, inputEvaluator, batchSize),
+            new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel)
+        );
+        this.queryText = queryText;
+        this.scoreChannel = scoreChannel;
+    }
+
+    public String toString() {
+        return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
     }
 
     /**
@@ -52,7 +73,7 @@ public class RerankOperator extends InferenceOperator {
     ) implements OperatorFactory {
         @Override
         public String describe() {
-            return "RerankOperator[]";
+            return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
         }
 
         @Override
@@ -60,8 +81,11 @@ public class RerankOperator extends InferenceOperator {
             return new RerankOperator(
                 driverContext,
                 inferenceService,
-                new RerankRequestIterator.Factory(inferenceId, queryText, rowEncoderFactory.get(driverContext), batchSize),
-                new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel)
+                inferenceId,
+                queryText,
+                rowEncoderFactory().get(driverContext),
+                scoreChannel,
+                batchSize
             );
         }
     }

@@ -116,7 +116,7 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("TextEmbeddingOperator[]");
+        return equalTo("TextEmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
     }
 
     public void testInferenceFailure() {

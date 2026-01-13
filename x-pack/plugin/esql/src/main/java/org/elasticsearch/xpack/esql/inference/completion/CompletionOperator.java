@@ -21,18 +21,28 @@ public class CompletionOperator extends InferenceOperator {
     /**
      * Constructs a new {@code CompletionOperator}.
      *
-     * @param driverContext                   The driver context.
-     * @param inferenceService                The inference service to use for executing inference requests.
-     * @param requestItemIteratorFactory      Factory for creating request iterators from input pages.
-     * @param outputBuilder                   Builder for converting inference responses into output pages.
+     * @param driverContext     The driver context.
+     * @param inferenceService  The inference service to use for executing inference requests.
+     * @param inferenceId       The ID of the inference model to invoke.
+     * @param promptEvaluator   Evaluator for computing prompts from input rows.
      */
     CompletionOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
-        CompletionRequestIterator.Factory requestItemIteratorFactory,
-        CompletionOutputBuilder outputBuilder
+        String inferenceId,
+        ExpressionEvaluator promptEvaluator
     ) {
-        super(driverContext, inferenceService, requestItemIteratorFactory, outputBuilder);
+        super(
+            driverContext,
+            inferenceService,
+            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator),
+            new CompletionOutputBuilder(driverContext.blockFactory())
+        );
+    }
+
+    @Override
+    public String toString() {
+        return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
 
     /**
@@ -41,20 +51,15 @@ public class CompletionOperator extends InferenceOperator {
     public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
         implements
             OperatorFactory {
+
         @Override
         public String describe() {
-            return "CompletionOperator[]";
+            return "CompletionOperator[inference_id=[" + inferenceId + "]]";
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new CompletionOperator(
-                driverContext,
-                inferenceService,
-                new CompletionRequestIterator.Factory(inferenceId, promptEvaluatorFactory.get(driverContext)),
-                new CompletionOutputBuilder(driverContext.blockFactory())
-            );
+            return new CompletionOperator(driverContext, inferenceService, inferenceId, promptEvaluatorFactory.get(driverContext));
         }
     }
-
 }

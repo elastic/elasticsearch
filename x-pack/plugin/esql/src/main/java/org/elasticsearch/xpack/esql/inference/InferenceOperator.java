@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Semaphore;
@@ -142,9 +141,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         Releasables.closeExpectNoException(inferenceRequestsFactory);
     }
 
-    @Override
-    public String toString() {
-        return String.format(Locale.ROOT, "%s[]", this.getClass().getSimpleName());
+    protected String inferenceId() {
+        return inferenceRequestsFactory.inferenceId();
     }
 
     /**
@@ -311,6 +309,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          */
         interface Factory extends Releasable {
             BulkInferenceRequestItemIterator create(Page inputPage);
+
+            String inferenceId();
         }
     }
 

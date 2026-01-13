@@ -26,6 +26,10 @@ and require appropriate field mappings.
 :::{include} ../_snippets/functions/layout/text_embedding.md
 :::
 
+## Vector similarity functions
+
+Vector similarity functions calculate the similarity between two vectors as a double value, that represents how similar the vectors are.
+
 :::{include} ../_snippets/functions/layout/v_cosine.md
 :::
 

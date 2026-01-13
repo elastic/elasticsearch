@@ -645,12 +645,12 @@ stack: preview 9.3
 serverless: ga
 ```
 
-While `KNN` performs approximate nearest neighbor search, {{esql}} also provides [exact similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) for exact vector search. These functions calculate similarity over all the query vectors, guaranteeing accurate results at the cost of slower performance.
+While `KNN` performs approximate nearest neighbor search, {{esql}} also provides [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#vector-similarity-functions) for exact vector search. These functions calculate similarity over all the query vectors, guaranteeing accurate results at the cost of slower performance.
 
 :::{tip}
 **When to use exact search instead of KNN**
 
-Use [exact similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) when:
+Use [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#vector-similarity-functions) when:
 - Accuracy is more important than speed.
 - Your dataset is small enough for exhaustive search, or you are applying restrictive filters. 10,000 documents is a good rule of thumb for using exact search, but your mileage will vary depending on your vector [element type](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) and use of [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization).
 - You want to provide custom scoring using vector similarity.

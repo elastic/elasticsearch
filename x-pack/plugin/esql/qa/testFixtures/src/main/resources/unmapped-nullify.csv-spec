@@ -198,8 +198,7 @@ foo:integer
 2
 ;
 
-# https://github.com/elastic/elasticsearch/pull/139797
-statsAggs-Ignore
+statsAggs
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
@@ -223,8 +222,7 @@ foo:null
 null
 ;
 
-# https://github.com/elastic/elasticsearch/pull/139797
-statsAggs-Ignore
+statsAggs
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;

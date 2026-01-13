@@ -77,6 +77,7 @@ class TopHitsAggregator extends MetricsAggregator {
     private final List<ProfileResult> fetchProfiles;
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
+    private final boolean isNested;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -90,6 +91,7 @@ class TopHitsAggregator extends MetricsAggregator {
         this.subSearchContext = subSearchContext;
         this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
+        this.isNested = isNestedAggregationContext(parent);
     }
 
     @Override
@@ -234,9 +236,11 @@ class TopHitsAggregator extends MetricsAggregator {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
-        // Inheriting inner_hits means get nested documents from already nested documents which is incorrect
+        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
+        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
+        // and fails when extracting nested documents by offset.
         InnerHitsContext innerHitsContext;
-        if (isNestedAggregationContext()) {
+        if (isNested) {
             innerHitsContext = new InnerHitsContext();
         } else {
             // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
@@ -244,12 +248,6 @@ class TopHitsAggregator extends MetricsAggregator {
                 getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
             );
         }
-
-        // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
-        InnerHitsContext innerHitsContext = new InnerHitsContext(
-            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
-        );
-
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
@@ -268,9 +266,8 @@ class TopHitsAggregator extends MetricsAggregator {
 
     /**
      * Check if this top_hits aggregator is a child of a nested aggregator.
-     * If true, we should not inherit inner_hits from parent query context.
      */
-    private boolean isNestedAggregationContext() {
+    private static boolean isNestedAggregationContext(Aggregator parent) {
         Aggregator current = parent;
         while (current != null) {
             if (current instanceof org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator) {

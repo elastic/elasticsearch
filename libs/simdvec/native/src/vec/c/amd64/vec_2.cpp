@@ -17,10 +17,10 @@
 
 // Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
 #ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
+#pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
 #elif __GNUC__
 #pragma GCC push_options
-#pragma GCC target ("arch=skylake-avx512")
+#pragma GCC target ("arch=icelake-client")
 #endif
 
 #include "vec.h"
@@ -455,24 +455,34 @@ EXPORT void vec_sqrf32_bulk_offsets_2(
     sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
+static inline __m512i dot_bit_512(const __m512i a, const int8_t* b) {
+    const __m512i q0 = _mm512_loadu_si512((const __m512i *)b);
+    const __m512i v = _mm512_and_si512(q0, a);
+    return _mm512_popcnt_epi64(v);
+}
+
 EXPORT int64_t vec_dot_int1_int4_2(const int8_t* a, const int8_t* query, const int32_t length) {
-    int64_t subRet0 = 0;
-    int64_t subRet1 = 0;
-    int64_t subRet2 = 0;
-    int64_t subRet3 = 0;
     int r = 0;
-    int upperBound = length & -sizeof(int64_t);
-    for (; r < upperBound; r += sizeof(int64_t)) {
-        int64_t value = *((int64_t*)(a + r));
-        int64_t q0 = *((int64_t*)(query + r));
-        subRet0 += __builtin_popcountll(q0 & value);
-        int64_t q1 = *((int64_t*)(query + r + length));
-        subRet1 += __builtin_popcountll(q1 & value);
-        int64_t q2 = *((int64_t*)(query + r + 2 * length));
-        subRet2 += __builtin_popcountll(q2 & value);
-        int64_t q3 = *((int64_t*)(query + r + 3 * length));
-        subRet3 += __builtin_popcountll(q3 & value);
+    int upperBound = length & -sizeof(__m512i);
+    // Init accumulator(s) with 0
+    __m512i acc0 = _mm512_setzero_si512();
+    __m512i acc1 = _mm512_setzero_si512();
+    __m512i acc2 = _mm512_setzero_si512();
+    __m512i acc3 = _mm512_setzero_si512();
+    for (; r < upperBound; r += sizeof(__m512i)) {
+        const __m512i value = _mm512_loadu_si512((const __m512i *)(a + r));
+
+        acc0 = _mm512_add_epi64(acc0, dot_bit_512(value, query + r));
+        acc1 = _mm512_add_epi64(acc1, dot_bit_512(value, query + r + length));
+        acc2 = _mm512_add_epi64(acc2, dot_bit_512(value, query + r + 2 * length));
+        acc3 = _mm512_add_epi64(acc3, dot_bit_512(value, query + r + 3 * length));
     }
+
+    int64_t subRet0 = _mm512_reduce_add_epi64(acc0);
+    int64_t subRet1 = _mm512_reduce_add_epi64(acc1);
+    int64_t subRet2 = _mm512_reduce_add_epi64(acc2);
+    int64_t subRet3 = _mm512_reduce_add_epi64(acc3);
+
     upperBound = length & -sizeof(int32_t);
     for (; r < upperBound; r += sizeof(int32_t)) {
         int32_t value = *((int32_t*)(a + r));
@@ -509,7 +519,33 @@ static inline void dot_int1_int4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    for (size_t c = 0; c < count; c++) {
+    const int blk = length & ~(STRIDE_BYTES_LEN - 1);
+    const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy.
+    for (; c + 3 < count; c += 2) {
+        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+
+        results[c + 0] = (f32_t)vec_dot_int1_int4_2(a0, query, length);
+        results[c + 1] = (f32_t)vec_dot_int1_int4_2(a1, query, length);
+
+        a0 = next_a0;
+        a1 = next_a1;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_dot_int1_int4_2(a0, query, length);
     }

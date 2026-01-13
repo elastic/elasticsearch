@@ -378,7 +378,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         assert q.length == length * 4;
         // 128 / 8 == 16
         if (length >= 16) {
-
             if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
                 if (NATIVE_SUPPORTED) {
                     nativeQuantizeScoreBulk(q, BULK_SIZE, scores);

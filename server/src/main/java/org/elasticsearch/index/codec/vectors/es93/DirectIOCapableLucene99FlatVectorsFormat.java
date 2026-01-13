@@ -83,36 +83,23 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
                 new Lucene99FlatBulkScoringVectorsReader(
                     directIOState,
                     new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
-                    vectorsScorer,
-                    true
+                    vectorsScorer
                 ),
-                new Lucene99FlatBulkScoringVectorsReader(state, new Lucene99FlatVectorsReader(state, vectorsScorer), vectorsScorer, false)
+                new Lucene99FlatBulkScoringVectorsReader(state, new Lucene99FlatVectorsReader(state, vectorsScorer), vectorsScorer)
             );
         } else {
-            return new Lucene99FlatBulkScoringVectorsReader(
-                state,
-                new Lucene99FlatVectorsReader(state, vectorsScorer),
-                vectorsScorer,
-                false
-            );
+            return new Lucene99FlatBulkScoringVectorsReader(state, new Lucene99FlatVectorsReader(state, vectorsScorer), vectorsScorer);
         }
     }
 
     static class Lucene99FlatBulkScoringVectorsReader extends FlatVectorsReader {
         private final Lucene99FlatVectorsReader inner;
         private final SegmentReadState state;
-        private final boolean forcePreFetching;
 
-        Lucene99FlatBulkScoringVectorsReader(
-            SegmentReadState state,
-            Lucene99FlatVectorsReader inner,
-            FlatVectorsScorer scorer,
-            boolean forcePreFetching
-        ) {
+        Lucene99FlatBulkScoringVectorsReader(SegmentReadState state, Lucene99FlatVectorsReader inner, FlatVectorsScorer scorer) {
             super(scorer);
             this.inner = inner;
             this.state = state;
-            this.forcePreFetching = forcePreFetching;
         }
 
         @Override
@@ -175,7 +162,9 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
                 return vectorValues;
             }
             FieldInfo info = state.fieldInfos.fieldInfo(field);
-            return new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer, forcePreFetching);
+            return vectorValues instanceof HasIndexSlice
+                ? new RescorerOffHeapVectorValuesWithSlice(vectorValues, info.getVectorSimilarityFunction(), vectorScorer)
+                : new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer);
         }
 
         @Override
@@ -190,18 +179,12 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     static class RescorerOffHeapVectorValues extends FloatVectorValues implements BulkScorableFloatVectorValues {
-        private final VectorSimilarityFunction similarityFunction;
-        private final FloatVectorValues inner;
-        private final IndexInput inputSlice;
-        private final FlatVectorsScorer scorer;
-        private final boolean forcePreFetching;
+        final VectorSimilarityFunction similarityFunction;
+        final FloatVectorValues inner;
+        final IndexInput inputSlice;
+        final FlatVectorsScorer scorer;
 
-        RescorerOffHeapVectorValues(
-            FloatVectorValues inner,
-            VectorSimilarityFunction similarityFunction,
-            FlatVectorsScorer scorer,
-            boolean forcePreFetching
-        ) {
+        RescorerOffHeapVectorValues(FloatVectorValues inner, VectorSimilarityFunction similarityFunction, FlatVectorsScorer scorer) {
             this.inner = inner;
             if (inner instanceof HasIndexSlice slice) {
                 this.inputSlice = slice.getSlice();
@@ -210,7 +193,6 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
             }
             this.similarityFunction = similarityFunction;
             this.scorer = scorer;
-            this.forcePreFetching = forcePreFetching;
         }
 
         @Override
@@ -235,21 +217,23 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
 
         @Override
         public RescorerOffHeapVectorValues copy() throws IOException {
-            return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction, scorer, forcePreFetching);
+            return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction, scorer);
         }
 
         @Override
         public BulkVectorScorer bulkRescorer(float[] target) throws IOException {
-            return bulkScorer(target);
+            DocIndexIterator indexIterator = inner.iterator();
+            RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
+            return inputSlice != null
+                ? new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES)
+                : new FloatBulkVectorScorer(randomScorer, indexIterator);
         }
 
         @Override
         public BulkVectorScorer bulkScorer(float[] target) throws IOException {
             DocIndexIterator indexIterator = inner.iterator();
             RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
-            return forcePreFetching && inputSlice != null
-                ? new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES)
-                : new FloatBulkVectorScorer(randomScorer, indexIterator);
+            return new FloatBulkVectorScorer(randomScorer, indexIterator);
         }
 
         @Override
@@ -260,6 +244,33 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         @Override
         public int ordToDoc(int ord) {
             return inner.ordToDoc(ord);
+        }
+    }
+
+    static class RescorerOffHeapVectorValuesWithSlice extends RescorerOffHeapVectorValues implements HasIndexSlice {
+        private final HasIndexSlice slicer;
+
+        RescorerOffHeapVectorValuesWithSlice(
+            FloatVectorValues inner,
+            VectorSimilarityFunction similarityFunction,
+            FlatVectorsScorer scorer
+        ) {
+            super(inner, similarityFunction, scorer);
+            if (inner instanceof HasIndexSlice slicer) {
+                this.slicer = slicer;
+            } else {
+                throw new IllegalArgumentException("Must be of type HasIndexSlice");
+            }
+        }
+
+        @Override
+        public RescorerOffHeapVectorValues copy() throws IOException {
+            return new RescorerOffHeapVectorValuesWithSlice(inner.copy(), similarityFunction, scorer);
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return slicer.getSlice();
         }
     }
 

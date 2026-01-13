@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,6 +47,10 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         assert oldClusterTestFeatureService != null
             : "testFeatureService of old cluster cannot be accessed before initialization is complete";
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
+    }
+
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
     }
 
     @ClassRule
@@ -109,5 +114,19 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
             }
         }
         return firstIndex;
+    }
+
+    static void createTemplate(String dataStreamName, String id, String template) throws IOException {
+        final String INDEX_TEMPLATE = """
+            {
+                "priority": 200,
+                "index_patterns": ["$DATASTREAM"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
+        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
     }
 }

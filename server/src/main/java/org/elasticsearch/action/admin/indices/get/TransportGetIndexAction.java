@@ -56,7 +56,7 @@ public class TransportGetIndexAction extends TransportLocalProjectMetadataAction
      * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetIndexAction(

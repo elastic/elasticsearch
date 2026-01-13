@@ -79,7 +79,7 @@ final class S3ClientSettings {
 
     /** The protocol to use to connect to s3, now only used if {@link #endpoint} is not a proper URI that starts with {@code http://} or
      * {@code https://}. */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
@@ -153,7 +153,7 @@ final class S3ClientSettings {
     );
 
     /** Formerly whether retries should be throttled (ie use backoff), now unused. V2 AWS SDK always uses throttling. */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
@@ -182,7 +182,7 @@ final class S3ClientSettings {
     );
 
     /** Formerly an override for the signer to use, now unused. V2 AWS SDK only supports AWS v4 signatures. */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<String> UNUSED_SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",

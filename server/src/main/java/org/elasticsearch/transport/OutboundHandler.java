@@ -49,7 +49,7 @@ public final class OutboundHandler {
 
     private final String nodeName;
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // only used in assertions, can be dropped in future
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // only used in assertions, can be dropped in future
     private final TransportVersion version;
 
     private final StatsTracker statsTracker;

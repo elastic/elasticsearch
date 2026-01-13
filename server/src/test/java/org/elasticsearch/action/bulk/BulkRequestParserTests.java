@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BulkRequestParserTests extends ESTestCase {
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Replace with just RestApiVersion.values() when V8 no longer exists
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Replace with just RestApiVersion.values() when V8 no longer exists
     public static final List<RestApiVersion> REST_API_VERSIONS_POST_V8 = Stream.of(RestApiVersion.values())
         .filter(v -> v.matches(RestApiVersion.onOrAfter(RestApiVersion.V_9)))
         .toList();

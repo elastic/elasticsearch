@@ -1,25 +1,15 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-package co.elastic.elasticsearch.stateless.utils;
 
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+package org.elasticsearch.xpack.stateless.utils;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 import java.util.Comparator;
 
@@ -52,8 +42,8 @@ public class IndexingShardRecoveryComparator implements Comparator<String> {
         }
 
         // Lucene usually reads generational files when opening the IndexWriter
-        var isGenerationalFile1 = StatelessCommitService.isGenerationalFile(fileName1);
-        var isGenerationalFile2 = StatelessCommitService.isGenerationalFile(fileName2);
+        var isGenerationalFile1 = StatelessCompoundCommit.isGenerationalFile(fileName1);
+        var isGenerationalFile2 = StatelessCompoundCommit.isGenerationalFile(fileName2);
         compare = Boolean.compare(isGenerationalFile2, isGenerationalFile1);
         if (compare != 0) {
             return compare;

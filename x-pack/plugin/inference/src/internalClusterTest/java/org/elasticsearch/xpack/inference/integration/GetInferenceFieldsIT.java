@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.SuiteScopeTestCase
 public class GetInferenceFieldsIT extends ESIntegTestCase {
     private static final Map<String, Object> SPARSE_EMBEDDING_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
     private static final Map<String, Object> TEXT_EMBEDDING_SERVICE_SETTINGS = Map.of(
@@ -106,8 +106,6 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         MlDenseEmbeddingResults.class
     );
 
-    private boolean clusterConfigured = false;
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
@@ -118,13 +116,10 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, FakeMlPlugin.class);
     }
 
-    @Before
-    public void setUpCluster() throws Exception {
-        if (clusterConfigured == false) {
-            createInferenceEndpoints();
-            createTestIndices();
-            clusterConfigured = true;
-        }
+    @Override
+    protected void setupSuiteScopeCluster() throws Exception {
+        createInferenceEndpoints();
+        createTestIndices();
     }
 
     public void testNullQuery() {

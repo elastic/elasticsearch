@@ -312,6 +312,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-last-over-time.Implicit_last_over_time_*}
+  issue: https://github.com/elastic/elasticsearch/issues/140583
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-last-over-time.Implicit_last_over_time_*}
+  issue: https://github.com/elastic/elasticsearch/issues/140583
 
 # Examples:
 #

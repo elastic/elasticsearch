@@ -59,7 +59,8 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         examples = { @Example(file = "vector-cosine-similarity", tag = "vector-cosine-similarity") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }    )
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }
+    )
     public CosineSimilarity(
         Source source,
         @Param(name = "left", type = { "dense_vector" }, description = "first dense_vector to calculate cosine similarity") Expression left,

@@ -49,11 +49,15 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings), new ModelSecrets(secrets));
+    }
+
+    public HuggingFaceEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets
+            modelConfigurations,
+            modelSecrets,
+            (HuggingFaceServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

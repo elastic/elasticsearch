@@ -11,9 +11,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -34,18 +36,15 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
-import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
-import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -80,6 +79,100 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
+    private static final Map<TaskType, HuggingFaceModelCreator> MODEL_CREATORS;
+
+    static {
+        HuggingFaceModelCreator completionModelCreator = new HuggingFaceModelCreator() {
+            @Override
+            public HuggingFaceChatCompletionModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                String service,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ConfigurationParseContext context
+            ) {
+                return new HuggingFaceChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
+            }
+
+            @Override
+            public HuggingFaceChatCompletionModel createFromModelConfigurationsAndSecrets(
+                ModelConfigurations config,
+                ModelSecrets secrets
+            ) {
+                return new HuggingFaceChatCompletionModel(config, secrets);
+            }
+        };
+        MODEL_CREATORS = Map.of(TaskType.TEXT_EMBEDDING, new HuggingFaceModelCreator() {
+            @Override
+            public HuggingFaceEmbeddingsModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                String service,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ConfigurationParseContext context
+            ) {
+                return new HuggingFaceEmbeddingsModel(
+                    inferenceId,
+                    taskType,
+                    service,
+                    serviceSettings,
+                    chunkingSettings,
+                    secretSettings,
+                    context
+                );
+            }
+
+            @Override
+            public HuggingFaceEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+                return new HuggingFaceEmbeddingsModel(config, secrets);
+            }
+        }, TaskType.RERANK, new HuggingFaceModelCreator() {
+            @Override
+            public HuggingFaceRerankModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                String service,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ConfigurationParseContext context
+            ) {
+                return new HuggingFaceRerankModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+            }
+
+            @Override
+            public HuggingFaceRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+                return new HuggingFaceRerankModel(config, secrets);
+            }
+        }, TaskType.SPARSE_EMBEDDING, new HuggingFaceModelCreator() {
+            @Override
+            public HuggingFaceElserModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                String service,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ConfigurationParseContext context
+            ) {
+                return new HuggingFaceElserModel(inferenceId, taskType, service, serviceSettings, secretSettings, context);
+            }
+
+            @Override
+            public HuggingFaceElserModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+                return new HuggingFaceElserModel(config, secrets);
+            }
+        }, TaskType.COMPLETION, completionModelCreator, TaskType.CHAT_COMPLETION, completionModelCreator);
+    }
+
     public HuggingFaceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -94,90 +187,34 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
 
     @Override
     protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
-        return switch (params.taskType()) {
-            case RERANK -> new HuggingFaceRerankModel(
-                params.inferenceEntityId(),
-                params.taskType(),
-                NAME,
-                params.serviceSettings(),
-                params.taskSettings(),
-                params.secretSettings(),
-                params.context()
-            );
-            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
-                params.inferenceEntityId(),
-                params.taskType(),
-                NAME,
-                params.serviceSettings(),
-                params.chunkingSettings(),
-                params.secretSettings(),
-                params.context()
-            );
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                params.inferenceEntityId(),
-                params.taskType(),
-                NAME,
-                params.serviceSettings(),
-                params.secretSettings(),
-                params.context()
-            );
-            case CHAT_COMPLETION, COMPLETION -> new HuggingFaceChatCompletionModel(
-                params.inferenceEntityId(),
-                params.taskType(),
-                NAME,
-                params.serviceSettings(),
-                params.secretSettings(),
-                params.context()
-            );
-            default -> throw createInvalidTaskTypeException(params.inferenceEntityId(), NAME, params.taskType(), params.context());
-        };
+        var creator = MODEL_CREATORS.get(params.taskType());
+        if (creator == null) {
+            throw createInvalidTaskTypeException(params.inferenceEntityId(), NAME, params.taskType(), params.context());
+        }
+        return creator.createFromMaps(
+            params.inferenceEntityId(),
+            params.taskType(),
+            NAME,
+            params.serviceSettings(),
+            params.taskSettings(),
+            params.chunkingSettings(),
+            params.secretSettings(),
+            params.context()
+        );
     }
 
     @Override
-    public HuggingFaceModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var chunkingSettings = config.getChunkingSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case RERANK -> new HuggingFaceRerankModel(
-                inferenceEntityId,
-                taskType,
+    public HuggingFaceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        var creator = MODEL_CREATORS.get(config.getTaskType());
+        if (creator == null) {
+            throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
                 NAME,
-                (HuggingFaceRerankServiceSettings) serviceSettings,
-                (HuggingFaceRerankTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
             );
-            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (HuggingFaceServiceSettings) serviceSettings,
-                chunkingSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (HuggingFaceElserServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            case CHAT_COMPLETION, COMPLETION -> new HuggingFaceChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (HuggingFaceChatCompletionServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
-        };
+        }
+        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -321,5 +358,20 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
                     .build();
             }
         );
+    }
+
+    private interface HuggingFaceModelCreator extends ModelCreator {
+        HuggingFaceModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        );
+
+        HuggingFaceModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

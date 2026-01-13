@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -21,14 +27,55 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.BeforeClass;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOptimizerTests {
+
+    protected static Analyzer analyzerWithoutForkImplicitLimit;
+
+    @BeforeClass
+    public static void initCustomAnalyzer() throws Exception {
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        EsIndex employees = EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD));
+
+        var config = configuration(new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false)
+                .build()
+        ));
+
+        analyzerWithoutForkImplicitLimit = new Analyzer(
+            testAnalyzerContext(
+                config,
+                new EsqlFunctionRegistry(),
+                indexResolutions(test, employees),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+    }
+
+    protected LogicalPlan planWithoutForkImplicitLimit(String query) {
+        var analyzed = analyzerWithoutForkImplicitLimit.analyze(parser.parseQuery(query));
+        return logicalOptimizer.optimize(analyzed);
+    }
 
     /**
      * <pre>{@code
@@ -39,9 +86,8 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
      * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, _fork{r}#4]]
      *     \_TopN[[Order[emp_no{f}#6,ASC,LAST]],10[INTEGER],false]
      *       \_Eval[[fork1[KEYWORD] AS _fork#4]]
-     *         \_Limit[1000[INTEGER],false,false]
-     *           \_Filter[emp_no{f}#6 > 100[INTEGER]]
-     *             \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *         \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *           \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      * }</pre>
      */
     public void testWithASingleBranch() {
@@ -51,7 +97,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no
              | LIMIT 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = planWithoutForkImplicitLimit(query);
         var topN = as(plan, TopN.class);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         assertOrders(List.of("emp_no", "ASC"), topN);
@@ -63,8 +109,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         assertOrders(List.of("emp_no", "ASC"), topN);
         var eval = as(topN.child(), Eval.class);
-        var limit = as(eval.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
+        var filter = as(eval.child(), Filter.class);
         assertThat(filter.child(), instanceOf(EsRelation.class));
     }
 
@@ -77,16 +122,14 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
      * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, _fork{r}#4]]
      *   | \_TopN[[Order[emp_no{f}#7,ASC,LAST]],10[INTEGER],false]
      *   |   \_Eval[[fork1[KEYWORD] AS _fork#4]]
-     *   |     \_Limit[1000[INTEGER],false,false]
-     *   |       \_Filter[emp_no{f}#7 > 100[INTEGER]]
-     *   |         \_EsRelation[employees][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   |     \_Filter[emp_no{f}#7 > 100[INTEGER]]
+     *   |       \_EsRelation[employees][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   \_Project[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27, l
      * anguages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, _fork{r}#4]]
      *     \_TopN[[Order[emp_no{f}#18,ASC,LAST]],10[INTEGER],false]
      *       \_Eval[[fork2[KEYWORD] AS _fork#4]]
-     *         \_Limit[1000[INTEGER],false,false]
-     *           \_Filter[emp_no{f}#18 < 10[INTEGER]]
-     *             \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *         \_Filter[emp_no{f}#18 < 10[INTEGER]]
+     *           \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      * }</pre>
      */
     public void testSimple() {
@@ -97,7 +140,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no ASC
              | LIMIT 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = planWithoutForkImplicitLimit(query);
         var topN = as(plan, TopN.class);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         assertOrders(List.of("emp_no", "ASC"), topN);
@@ -111,23 +154,21 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
             assertThat(((Literal) topN.limit()).value(), equalTo(10));
             assertOrders(List.of("emp_no", "ASC"), topN);
             var eval = as(topN.child(), Eval.class);
-            var limit = as(eval.child(), Limit.class);
-            var filter = as(limit.child(), Filter.class);
+            var filter = as(eval.child(), Filter.class);
             assertThat(filter.child(), instanceOf(EsRelation.class));
         }
     }
 
     /**
      * <pre>{@code
-     * EsqlProject[[_fork{r}#92, emp_no{r}#81, hd{r}#94, x{r}#91, y{r}#93]]
+     * Project[[_fork{r}#92, emp_no{r}#81, hd{r}#94, x{r}#91, y{r}#93]]
      * \_TopN[[Order[_fork{r}#92,DESC,FIRST], Order[emp_no{r}#81,ASC,LAST], Order[hd{r}#94,DESC,FIRST]],10[INTEGER],false]
      *   \_Fork[[emp_no{r}#81, x{r}#91, _fork{r}#92, y{r}#93, hd{r}#94]]
      *     |_Project[[emp_no{f}#30, x{r}#20, _fork{r}#5, y{r}#64, hd{r}#65]]
      *     | \_TopN[[Order[_fork{r}#5,DESC,FIRST], Order[emp_no{f}#30,ASC,LAST], Order[hd{r}#65,DESC,FIRST]],10[INTEGER],false]
      *     |   \_Eval[[1[LONG] AS x#20, fork1[KEYWORD] AS _fork#5, null[INTEGER] AS y#64, null[DATETIME] AS hd#65]]
-     *     |     \_Limit[1000[INTEGER],false,false]
-     *     |       \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#30)]
-     *     |         \_EsRelation[employees][_meta_field{f}#36, emp_no{f}#30, first_name{f}#31, ..]
+     *     |     \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#30)]
+     *     |       \_EsRelation[employees][_meta_field{f}#36, emp_no{f}#30, first_name{f}#31, ..]
      *     |_Project[[emp_no{f}#41, x{r}#66, _fork{r}#5, y{r}#67, hd{r}#68]]
      *     | \_Eval[[fork2[KEYWORD] AS _fork#5, null[LONG] AS x#66, null[INTEGER] AS y#67, null[DATETIME] AS hd#68]]
      *     |   \_TopN[[Order[salary{r}#63,ASC,LAST]],5[INTEGER],false]
@@ -135,13 +176,11 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
      *     |       \_Filter[IN(10081[INTEGER],10087[INTEGER],emp_no{f}#41)]
      *     |         \_EsRelation[employees][_meta_field{f}#47, emp_no{f}#41, first_name{f}#42, ..]
      *     \_Project[[emp_no{r}#70, x{r}#14, _fork{r}#5, y{r}#17, hd{r}#12]]
-     *       \_TopN[[Order[_fork{r}#5,DESC,FIRST], Order[emp_no{r}#70,ASC,LAST], Order[hd{r}#12,DESC,FIRST]],10[INTEGER],false]
-     *         \_Eval[[fork3[KEYWORD] AS _fork#5, null[INTEGER] AS emp_no#70]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_Aggregate[[hd{r}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS x#14,
-     *                MIN(emp_no{f}#52,true[BOOLEAN],PT0S[TIME_DURATION]) AS y#17, hd{r}#12]]
-     *               \_Eval[[DATETRUNC(P2Y[DATE_PERIOD],hire_date{f}#59) AS hd#12]]
-     *                 \_EsRelation[employees][_meta_field{f}#58, emp_no{f}#52, first_name{f}#53, ..]
+     *       \_Eval[[fork3[KEYWORD] AS _fork#5, null[INTEGER] AS emp_no#70]]
+     *         \_Aggregate[[hd{r}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS x#14, MIN(emp_no{f}#52,true[BOOLEAN],PT0S[TI
+     * ME_DURATION]) AS y#17, hd{r}#12]]
+     *           \_Eval[[DATETRUNC(P2Y[DATE_PERIOD],hire_date{f}#59) AS hd#12]]
+     *             \_EsRelation[employees][_meta_field{f}#58, emp_no{f}#52, first_name{f}#53, ..]
      * }</pre>
      */
     public void testWithMixedBranches() {
@@ -154,7 +193,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
             | SORT _fork DESC, emp_no, hd DESC
             | LIMIT 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = planWithoutForkImplicitLimit(query);
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
 
@@ -170,15 +209,13 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
         assertOrders(List.of("_fork", "DESC", "emp_no", "ASC", "hd", "DESC"), topN);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         var eval = as(topN.child(), Eval.class);
-        var limit = as(eval.child(), Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-        var filter = as(limit.child(), Filter.class);
+        var filter = as(eval.child(), Filter.class);
         assertThat(filter.child(), instanceOf(EsRelation.class));
 
         var secondFork = as(fork.children().get(1), Project.class);
         eval = as(secondFork.child(), Eval.class);
         topN = as(eval.child(), TopN.class);
-        // in the second branch we don't push down TopN
+        // in the second branch we don't push down TopN since a SORT + LIMIT is already present
         assertThat(((Literal) topN.limit()).value(), equalTo(5));
         assertOrders(List.of("salary", "ASC"), topN);
         var mvExpand = as(topN.child(), MvExpand.class);
@@ -186,14 +223,8 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
         assertThat(filter.child(), instanceOf(EsRelation.class));
 
         var thirdFork = as(fork.children().get(2), Project.class);
-        topN = as(thirdFork.child(), TopN.class);
-        // in the third branch, we push down TopN
-        assertOrders(List.of("_fork", "DESC", "emp_no", "ASC", "hd", "DESC"), topN);
-        assertThat(((Literal) topN.limit()).value(), equalTo(10));
-        eval = as(topN.child(), Eval.class);
-        limit = as(eval.child(), Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-        var aggregate = as(limit.child(), Aggregate.class);
+        eval = as(thirdFork.child(), Eval.class);
+        var aggregate = as(eval.child(), Aggregate.class);
         eval = as(aggregate.child(), Eval.class);
         assertThat(eval.child(), instanceOf(EsRelation.class));
     }
@@ -217,7 +248,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
      *           \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
      * }</pre>
      */
-    public void testNoPushDownWhenSmallerLimitExists() {
+    public void testNoPushDownWhenLimitExists() {
         var query = """
             from employees
              | fork (where emp_no > 100 | SORT salary | LIMIT 10)
@@ -225,7 +256,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no
              | LIMIT 20
             """;
-        var plan = optimizedPlan(query);
+        var plan = planWithoutForkImplicitLimit(query);
         var topN = as(plan, TopN.class);
         assertOrders(List.of("emp_no", "ASC"), topN);
         assertThat(((Literal) topN.limit()).value(), equalTo(20));

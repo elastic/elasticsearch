@@ -9,15 +9,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
@@ -25,13 +23,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.OptimizerRule<Limit> {
     public PushDownLimitAndOrderByIntoFork() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
     @Override
-    protected LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
+    protected LogicalPlan rule(Limit limit) {
         if (limit.child() instanceof OrderBy == false) {
             return limit;
         }
@@ -42,12 +40,11 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         }
         Fork fork = (Fork) orderBy.child();
 
-        var limitValue = (int) limit.limit().fold(ctx.foldCtx());
         List<LogicalPlan> newForkChildren = new ArrayList<>();
         boolean changed = false;
 
         for (LogicalPlan forkChild : fork.children()) {
-            LogicalPlan newForkChild = maybePushDownLimitAndOrderByToForkBranch(limit, limitValue, fork, orderBy, forkChild, ctx);
+            LogicalPlan newForkChild = maybePushDownLimitAndOrderByToForkBranch(limit, fork, orderBy, forkChild);
             changed = changed || newForkChild != forkChild;
             newForkChildren.add(newForkChild);
         }
@@ -57,13 +54,11 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
 
     private LogicalPlan maybePushDownLimitAndOrderByToForkBranch(
         Limit limit,
-        int limitValue,
         Fork fork,
         OrderBy orderBy,
-        LogicalPlan forkChild,
-        LogicalOptimizerContext ctx
+        LogicalPlan forkChild
     ) {
-        if (shouldPushDownIntoForkBranch(limitValue, forkChild, ctx) == false) {
+        if (shouldPushDownIntoForkBranch(forkChild) == false) {
             return forkChild;
         }
 
@@ -96,27 +91,15 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         return outputMap;
     }
 
-    private boolean shouldPushDownIntoForkBranch(int limitValue, LogicalPlan forkChild, LogicalOptimizerContext ctx) {
-        // figure out how we want to handle Joins/INLINE STATS
-        if (forkChild instanceof UnaryPlan == false) {
-            return false;
-        }
-
-        UnaryPlan plan = (UnaryPlan) forkChild;
-
-        while (plan instanceof Aggregate == false) {
-            if (plan instanceof Limit limit) {
-                int otherLimit = (int) limit.limit().fold(ctx.foldCtx());
-                return otherLimit > limitValue;
-            } else if (plan instanceof MvExpand) {
-                return true;
+    private boolean shouldPushDownIntoForkBranch(LogicalPlan plan) {
+        // We only push down when no pipeline breaker can be found
+        Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
+        plan.forEachDown(p -> {
+            if (p instanceof PipelineBreaker) {
+                hasPipelineBreaker.set(true);
             }
-            if (plan.child() instanceof UnaryPlan unaryPlan) {
-                plan = unaryPlan;
-            } else {
-                break;
-            }
-        }
-        return false;
+        });
+
+        return hasPipelineBreaker.get() == false;
     }
 }

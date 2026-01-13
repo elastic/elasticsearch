@@ -94,6 +94,8 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
 
+    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -214,6 +216,11 @@ public final class QueryPragmas implements Writeable {
     public int roundToPushDownThreshold() {
         return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
     }
+
+    /**
+     * Returns true if we should add the implicit LIMIT to FORK branches
+     */
+    public boolean forkImplicitLimit() { return FORK_IMPLICIT_LIMIT.get(settings); }
 
     public boolean isEmpty() {
         return settings.isEmpty();

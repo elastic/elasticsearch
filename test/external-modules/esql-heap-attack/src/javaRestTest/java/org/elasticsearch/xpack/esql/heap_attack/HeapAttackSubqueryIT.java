@@ -130,6 +130,9 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      * CBE is not triggered here.
      */
     public void testManyRandomTextFieldsInSubqueryIntermediateResults() throws IOException {
+        if (isServerless()) {
+            return;
+        }
         // 500MB random/unique keyword values trigger CBE, should not OOM
         // serverless CI does not OOM or CB with 100 docs.
         int docs = 500;

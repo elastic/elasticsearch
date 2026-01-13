@@ -342,8 +342,27 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 }
 
-                exchange.getResponseHeaders().add("ETag", getEtagFromContents(blob));
+                final String etagFromContents = getEtagFromContents(blob);
+                final String ifMatchHeader = exchange.getRequestHeaders().getFirst("If-Match");
+                if (ifMatchHeader != null && ifMatchHeader.equals("*") == false) {
+                    if (etagFromContents.equals(ifMatchHeader) == false) {
+                        final String response = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                                <Code>PreconditionFailed</Code>
+                                <Message>At least one of the pre-conditions you specified did not hold</Message>
+                                <Condition>If-Match</Condition>
+                                <RequestId>test-request-id</RequestId>
+                                <HostId>test-host-id</HostId>
+                            </Error>""");
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), response.length());
+                        exchange.getResponseBody().write(response.getBytes(StandardCharsets.UTF_8));
+                        return;
+                    }
+                }
 
+                exchange.getResponseHeaders().add("ETag", etagFromContents);
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");

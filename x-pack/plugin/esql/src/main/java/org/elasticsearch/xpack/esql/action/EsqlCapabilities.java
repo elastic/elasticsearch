@@ -12,14 +12,13 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -823,11 +822,6 @@ public class EsqlCapabilities {
          * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
          */
         SOURCE_FIELD_MAPPING,
-
-        /**
-         * Support for extended doc values params.
-         */
-        EXTENDED_DOC_VALUES_PARAMS(EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()),
 
         /**
          * Allow filter per individual aggregation.
@@ -1834,7 +1828,7 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         /**
-         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval} replaced a stats
+         * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
          * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
          */
@@ -1856,6 +1850,14 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         /**
+         * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
+         * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction} with null value with an
+         * {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
+         * https://github.com/elastic/elasticsearch/issues/137544
+         */
+        FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD,
@@ -1874,6 +1876,20 @@ public class EsqlCapabilities {
          * Enrich works with dense_vector fields
          */
         ENRICH_DENSE_VECTOR_BUGFIX,
+
+        /**
+         * Dense_vector aggregation functions
+         */
+        DENSE_VECTOR_AGG_FUNCTIONS,
+        /**
+         * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
+         */
+        ROUTING_FUNCTION_UPDATE,
+
+        /**
+         * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
+         */
+        TS_STATS_BINARY_OPS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

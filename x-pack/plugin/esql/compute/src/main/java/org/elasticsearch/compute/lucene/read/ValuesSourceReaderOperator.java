@@ -11,7 +11,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -21,12 +20,19 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +45,8 @@ import java.util.function.IntFunction;
  * and outputs them to a new column.
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
+    private static final Logger log = LogManager.getLogger(ValuesSourceReaderOperator.class);
+
     /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load
@@ -48,7 +56,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, IndexedByShardId<ShardContext> shardContexts, int docChannel)
         implements
             OperatorFactory {
-        public Factory {
+        public Factory
+
+        {
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
             }
@@ -56,7 +66,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), jumboSize.getBytes(), fields, shardContexts, docChannel);
+            return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, docChannel);
         }
 
         @Override
@@ -89,9 +99,30 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
      *                      without value for field x, all target documents returned from the source operator
      *                      will have a value for field x whether x is dense or sparse in the index.
-     * @param blockLoader   maps shard index to the {@link BlockLoader}s which load the actual blocks.
+     * @param loaderAndConverter   maps shard index to the {@link BlockLoader} which load the actual blocks and an
+     *                             optional type converter.
      */
-    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<BlockLoader> blockLoader) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<LoaderAndConverter> loaderAndConverter) {}
+
+    /**
+     * Singleton to load constant {@code null}s.
+     */
+    public static final LoaderAndConverter LOAD_CONSTANT_NULLS = new LoaderAndConverter(ConstantNull.INSTANCE, null);
+
+    /**
+     * Loads directly from the {@code loader}.
+     */
+    public static LoaderAndConverter load(BlockLoader loader) {
+        return new LoaderAndConverter(loader, null);
+    }
+
+    /**
+     * Loads from the {@code loader} and then converts the values using the {@code converter}.
+     *
+     */
+    public static LoaderAndConverter loadAndConvert(BlockLoader loader, ConverterFactory converter) {
+        return new LoaderAndConverter(loader, converter);
+    }
 
     public record ShardContext(
         IndexReader reader,
@@ -99,7 +130,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         double storedFieldsSequentialProportion
     ) {}
 
-    final BlockFactory blockFactory;
+    final DriverContext driverContext;
+
+    /**
+     * Owns the "evaluators" of type conversions that be performed on load.
+     * Converters are built on first need and kept until the {@link ValuesSourceReaderOperator}
+     * is {@link #close closed}.
+     */
+    private final ConverterEvaluators converterEvaluators = new ConverterEvaluators();
+
     /**
      * When the loaded fields {@link Block}s' estimated size grows larger than this,
      * we finish loading the {@linkplain Page} and return it, even if
@@ -127,7 +166,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
     public ValuesSourceReaderOperator(
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         long jumboBytes,
         List<FieldInfo> fields,
         IndexedByShardId<? extends ShardContext> shardContexts,
@@ -136,9 +175,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
-        this.fields = fields.stream().map(FieldWork::new).toArray(FieldWork[]::new);
+        this.fields = new FieldWork[fields.size()];
+        for (int i = 0; i < this.fields.length; i++) {
+            this.fields[i] = new FieldWork(fields.get(i), i);
+        }
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
     }
@@ -207,15 +249,24 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         );
     }
 
+    @Override
+    public void close() {
+        Releasables.close(super::close, converterEvaluators);
+    }
+
     protected class FieldWork {
         final FieldInfo info;
+        private final int fieldIdx;
 
         BlockLoader loader;
+        @Nullable
+        ConverterEvaluator converter;
         BlockLoader.ColumnAtATimeReader columnAtATime;
         BlockLoader.RowStrideReader rowStride;
 
-        FieldWork(FieldInfo info) {
+        FieldWork(FieldInfo info, int fieldIdx) {
             this.info = info;
+            this.fieldIdx = fieldIdx;
         }
 
         void sameSegment(int firstDoc) {
@@ -233,7 +284,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            loader = info.blockLoader.apply(shard);
+            LoaderAndConverter l = info.loaderAndConverter.apply(shard);
+            loader = l.loader;
+            converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
+            log.debug("moved to shard {} {} {}", shard, loader, converter);
             columnAtATime = null;
             rowStride = null;
         }
@@ -293,6 +347,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     ) {
         return new ValuesSourceReaderOperatorStatus(
             new TreeMap<>(readersBuilt),
+            converterEvaluators.used(),
             processNanos,
             pagesReceived,
             pagesEmitted,
@@ -334,5 +389,78 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     private String sanityCheckBlockErrorPrefix(Object loader, Block block, int field) {
         return fields[field].info.name + "[" + loader + "]: " + block;
+    }
+
+    class ConverterEvaluators implements Releasable {
+        private final Map<Key, ConverterAndCount> built = new HashMap<>();
+
+        public ConverterEvaluator get(int shard, int fieldIdx, String field, ConverterFactory converter) {
+            ConverterAndCount evaluator = built.computeIfAbsent(
+                new Key(shard, fieldIdx, field),
+                unused -> new ConverterAndCount(converter.build(driverContext))
+            );
+            evaluator.used++;
+            return evaluator.evaluator;
+        }
+
+        public Map<String, Integer> used() {
+            Map<String, Integer> used = new TreeMap<>();
+            for (var e : built.entrySet()) {
+                used.merge(e.getKey().field + ":" + e.getValue().evaluator, e.getValue().used, Integer::sum);
+            }
+            return used;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(built.values());
+        }
+    }
+
+    record Key(int shard, int fieldIdx, String field) {}
+
+    private static class ConverterAndCount implements Releasable {
+        private final ConverterEvaluator evaluator;
+        private int used;
+
+        private ConverterAndCount(ConverterEvaluator evaluator) {
+            this.evaluator = evaluator;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(evaluator);
+        }
+    }
+
+    public static class LoaderAndConverter {
+        private final BlockLoader loader;
+        /**
+         * An optional conversion function to apply after loading
+         */
+        @Nullable
+        private final ConverterFactory converter;
+
+        private LoaderAndConverter(BlockLoader loader, @Nullable ConverterFactory converter) {
+            this.loader = loader;
+            this.converter = converter;
+        }
+
+        public BlockLoader loader() {
+            return loader;
+        }
+    }
+
+    public interface ConverterFactory {
+        ConverterEvaluator build(DriverContext context);
+    }
+
+    /**
+     * Evaluator for any type conversions that must be performed on load. These are
+     * built lazily on first need and kept until the {@link ValuesSourceReaderOperator}
+     * is {@link #close closed}.
+     */
+    public interface ConverterEvaluator extends Releasable {
+        Block convert(Block block);
     }
 }

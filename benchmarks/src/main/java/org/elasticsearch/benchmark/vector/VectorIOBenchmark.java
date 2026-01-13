@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.ReadAdvice;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
@@ -49,7 +48,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -79,7 +77,7 @@ public class VectorIOBenchmark {
 
     private float[] queryVector;
 
-    @Param({ "20000000" })
+    @Param({ "200000000" })
     private int numVectors;
 
     @Param({ "1024" })
@@ -88,8 +86,11 @@ public class VectorIOBenchmark {
     @Param({ "100" })
     private int numVectorPerThread;
 
-    @Param({ "1" })
-    private int numThreads;
+    @Param({ "32" })
+    private int writeThreads;
+
+    @Param({ "1", "32" })
+    private int readThreads;
 
     @Param({ "true", "false" })
     private boolean prefetch;
@@ -135,23 +136,43 @@ public class VectorIOBenchmark {
                     return new ES93FlatVectorFormat();
                 }
             });
-            Document doc = new Document();
-            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                writer.deleteAll();
-                for (int i = 0; i < numVectors; i++) {
-                    if (i % 1_000_000 == 0) {
-                        System.out.println("Indexing " + i + " of " + numVectors);
+            try (var exec = Executors.newFixedThreadPool(writeThreads)) {
+                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                    writer.deleteAll();
+                    final int numVectorsPerThread = numVectors / writeThreads;
+                    List<Future<?>> futures = new ArrayList<>();
+                    for (int i = 0; i < writeThreads; i++) {
+                        final int threadNum = i;
+                        futures.add(exec.submit(() -> {
+                            Document doc = new Document();
+                            for (int j = 0; j < numVectorsPerThread; j++) {
+                                if (j % 1_000_000 == 0) {
+                                    System.out.println("[" + threadNum + "] " + j + "/" + numVectors);
+                                }
+                                doc.clear();
+                                doc.add(new KnnFloatVectorField("vector", randomVector(random, dims), VectorSimilarityFunction.COSINE));
+                                try {
+                                    writer.addDocument(doc);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        }));
                     }
-                    doc.clear();
-                    doc.add(new KnnFloatVectorField("vector", randomVector(random, dims), VectorSimilarityFunction.COSINE));
-                    writer.addDocument(doc);
+                    for (Future<?> future : futures) {
+                        try {
+                            future.get();
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
                 }
             }
         }
 
         this.reader = DirectoryReader.open(dir);
 
-        this.executor = Executors.newFixedThreadPool(numThreads);
+        this.executor = Executors.newFixedThreadPool(readThreads);
         this.queryVector = randomVector(random, dims);
     }
 
@@ -178,12 +199,12 @@ public class VectorIOBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public double run() throws IOException, ExecutionException, InterruptedException {
         List<Future<Double>> futures = new ArrayList<>();
-        for (int i = 0; i < numThreads; i++) {
+        for (int i = 0; i < readThreads; i++) {
             futures.add(executor.submit(new ReadThread(reader, numVectorPerThread, dims)));
         }
         double sim = 0;
         for (Future<Double> future : futures) {
-            sim += future.get();;
+            sim += future.get();
         }
         return sim;
     }

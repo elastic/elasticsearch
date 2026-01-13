@@ -370,6 +370,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("dependency_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),

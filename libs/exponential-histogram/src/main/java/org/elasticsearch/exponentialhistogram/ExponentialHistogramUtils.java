@@ -164,12 +164,8 @@ public class ExponentialHistogramUtils {
         if (sumError < 0.01) {
             // if the sum only differs a little (e.g. due to numeric errors), unify it
             double averageSum = (a.sum() + b.sum()) / 2.0;
-            a = ExponentialHistogram.builder(a, ExponentialHistogramCircuitBreaker.noop())
-                .sum(averageSum)
-                .build();
-            b = ExponentialHistogram.builder(b, ExponentialHistogramCircuitBreaker.noop())
-                .sum(averageSum)
-                .build();
+            a = ExponentialHistogram.builder(a, ExponentialHistogramCircuitBreaker.noop()).sum(averageSum).build();
+            b = ExponentialHistogram.builder(b, ExponentialHistogramCircuitBreaker.noop()).sum(averageSum).build();
         }
 
         // if a zero bucket is involved, the zero-threshold will depend on the merge order
@@ -227,6 +223,5 @@ public class ExponentialHistogramUtils {
         }
     }
 
-    public record HistogramPair(ExponentialHistogram first, ExponentialHistogram second) {
-    }
+    public record HistogramPair(ExponentialHistogram first, ExponentialHistogram second) {}
 }

@@ -260,6 +260,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
+    public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
+        return delegateAllocator.explainShardAllocations(shards, allocation);
+    }
+
+    @Override
     public void allocate(RoutingAllocation allocation) {
         throw new UnsupportedOperationException();
     }

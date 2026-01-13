@@ -7,20 +7,25 @@
 
 package org.elasticsearch.xpack.esql.inference.textembedding;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -112,5 +117,26 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo("TextEmbeddingOperator[]");
+    }
+
+    public void testInferenceFailure() {
+        AtomicBoolean shouldFail = new AtomicBoolean(true);
+        Exception expectedException = new ElasticsearchException("Inference service unavailable");
+        InferenceService failingService = mockedInferenceService(shouldFail, expectedException);
+
+        Operator.OperatorFactory factory = new TextEmbeddingOperator.Factory(
+            failingService,
+            SIMPLE_INFERENCE_ID,
+            evaluatorFactory(inputChannel)
+        );
+
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(
+            ElasticsearchException.class,
+            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
+        );
+
+        assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }
 }

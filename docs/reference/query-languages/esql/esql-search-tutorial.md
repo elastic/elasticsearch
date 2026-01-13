@@ -652,10 +652,10 @@ While `KNN` performs approximate nearest neighbor search, {{esql}} also provides
 
 Use [exact similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) when:
 - Accuracy is more important than speed.
-- Your dataset is small enough for exhaustive search, or you are applying restrictive filters. 10,000 documents is a good rule of thumb for using exact search, but your mileage will vary depending on your vector [element type](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) and use of [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization).
+- Your dataset is small enough for exhaustive search, or you are applying restrictive filters. 10,000 documents is a good rule of thumb for using exact search, but results depend on your vector [element type](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) and use of [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization).
 - You want to provide custom scoring using vector similarity.
 
-Check out [how to choose between exact and approximate kNN search in {{es}}](https://www.elastic.co/search-labs/blog/knn-exact-vs-approximate-search) for additional details.
+To learn more, read this blog: [how to choose between exact and approximate kNN search in {{es}}](https://www.elastic.co/search-labs/blog/knn-exact-vs-approximate-search).
 :::
 
 **Example: Cosine similarity with threshold filtering**
@@ -669,7 +669,7 @@ FROM cooking_blog
 ```
 
 This query:
-1. Calculates exact cosine similarity between each document's vector and the query vector (calculated via TEXT_EMBEDDING) using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-v_dot_product)
+1. Calculates exact cosine similarity between each document's vector and the query vector (calculated via TEXT_EMBEDDING) using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-v_cosine)
 2. Filters results to only include results with vector similarity above 0.8
 3. Sorts by similarity (highest first)
 

@@ -359,7 +359,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, AnalyzerContext context) {
-            // TODO implement metadata resolution
+            if (context.projectMetadata() != null) {
+                // TODO implement metadata resolution
+            }
             return List.of(um);
         }
     }

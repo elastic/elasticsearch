@@ -400,9 +400,14 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType(String fullFieldName) {
-            boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName);
-            if (hasDocValuesSkipper) {
+            if (shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName)) {
                 return IndexType.skippers();
+            }
+            if (index.get() == false && docValues.get()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
@@ -1112,8 +1117,7 @@ public final class DateFieldMapper extends FieldMapper {
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
      */
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
-            && indexSettings.useDocValuesSkipper()
+        return indexSettings.useDocValuesSkipper()
             && hasDocValues
             && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
             && indexSettings.getIndexSortConfig() != null

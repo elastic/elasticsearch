@@ -1,0 +1,211 @@
+// scalar-metric tests
+
+multiplication_metric_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+required_capability: metrics_group_by_all
+TS k8s
+| STATS network_in_bits = network.total_bytes_in * 8
+  BY step=TBUCKET(1h)
+| SORT network_in_bits DESC;
+
+network_in_bits:long | _timeseries:keyword                                                   | step:datetime           
+86376                | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+82216                | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+79752                | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+68544                | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+59224                | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+58288                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+53096                | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+41496                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+7576                 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+;
+
+multiplication_within_series_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+required_capability: metrics_group_by_all
+TS k8s
+| STATS network_in_bits = last_over_time(network.total_bytes_in) * 8
+  BY step=TBUCKET(1h)
+| SORT network_in_bits DESC;
+
+network_in_bits:long | _timeseries:keyword                                                   | step:datetime
+86376                | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+82216                | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+79752                | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+68544                | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+59224                | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+58288                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+53096                | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+41496                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+7576                 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+;
+
+across_series_multiplication_metric_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(last_over_time(network.total_bytes_in) * 8) BY step=TBUCKET(1h)
+| SORT max_bits DESC;
+
+max_bits:long | step:datetime
+86376         | 2024-05-10T00:00:00.000Z
+;
+
+multiplication_across_series_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(network.total_bytes_in) * 8 BY step=TBUCKET(1h)
+| SORT max_bits DESC;
+
+max_bits:long | step:datetime           
+86376         | 2024-05-10T00:00:00.000Z
+;
+
+across_series_grouping_multiplication_within_series_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(last_over_time(network.total_bytes_in) * 8) BY TBUCKET(1h), cluster 
+| SORT max_bits DESC;
+
+max_bits:long | TBUCKET(1h):datetime     | cluster:keyword
+86376         | 2024-05-10T00:00:00.000Z | qa
+82216         | 2024-05-10T00:00:00.000Z | prod
+59224         | 2024-05-10T00:00:00.000Z | staging
+;
+
+across_series_grouping_multiplication_metric_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(last_over_time(network.total_bytes_in) * 8) BY TBUCKET(1h), cluster
+| SORT max_bits DESC;
+
+max_bits:long | TBUCKET(1h):date         | cluster:keyword
+86376         | 2024-05-10T00:00:00.000Z | qa
+82216         | 2024-05-10T00:00:00.000Z | prod
+59224         | 2024-05-10T00:00:00.000Z | staging
+;
+
+multiplication_across_series_grouping_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(network.total_bytes_in) * 8 BY step=TBUCKET(1h), cluster
+| SORT max_bits DESC;
+
+max_bits:long | step:datetime            | cluster:keyword
+86376         | 2024-05-10T00:00:00.000Z | qa
+82216         | 2024-05-10T00:00:00.000Z | prod
+59224         | 2024-05-10T00:00:00.000Z | staging
+;
+
+multiplication_across_series_grouping_within_series_scalar_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS max_bits=max(last_over_time(network.total_bytes_in)) * 8 BY step=TBUCKET(1h), cluster
+| SORT max_bits DESC;
+
+max_bits:long | step:datetime            | cluster:keyword
+86376         | 2024-05-10T00:00:00.000Z | qa
+82216         | 2024-05-10T00:00:00.000Z | prod
+59224         | 2024-05-10T00:00:00.000Z | staging
+;
+
+addition_scalar_inner_and_outer_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+TS k8s | STATS max=10 + max(10 + network.total_bytes_in) BY step=TBUCKET(1h) | KEEP max;
+
+max:long
+10817
+;
+
+// metric-metric tests
+
+addition_metric_metric_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: ts_stats_binary_ops
+required_capability: metrics_group_by_all
+TS k8s
+| STATS in_n_out=network.eth0.rx + network.eth0.tx
+  BY step=TBUCKET(1h)
+| SORT in_n_out DESC;
+
+in_n_out:long | _timeseries:keyword                                                   | step:datetime
+2857          | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+2778          | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+2345          | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+2331          | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2237          | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+1971          | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+1730          | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+1702          | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+1251          | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+;
+
+division_metric_metric_grouping_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS div=max(network.total_bytes_in / network.total_bytes_in) BY step=TBUCKET(1h), cluster
+| SORT cluster;
+
+div:long | step:datetime            | cluster:keyword
+1        | 2024-05-10T00:00:00.000Z | prod
+1        | 2024-05-10T00:00:00.000Z | qa
+1        | 2024-05-10T00:00:00.000Z | staging
+;
+
+division_metric_metric_grouping_filtering_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: ts_stats_binary_ops
+TS k8s
+| WHERE cluster != "prod" AND cluster != "staging"
+| STATS div=max(network.total_bytes_in / network.total_bytes_in) BY step=TBUCKET(1h), cluster
+| SORT cluster;
+div:long | step:datetime            | cluster:keyword
+1        | 2024-05-10T00:00:00.000Z | qa
+;
+
+division_within_series_grouping_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS div=max(
+    rate(network.total_bytes_in) /
+    rate(network.total_bytes_in)
+  ) BY step=TBUCKET(1h), cluster
+| SORT cluster;
+
+div:double | step:datetime            | cluster:keyword
+1.0        | 2024-05-10T00:00:00.000Z | prod
+1.0        | 2024-05-10T00:00:00.000Z | qa
+1.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+tx_ratio_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: ts_stats_binary_ops
+TS k8s
+| STATS ratio=max(
+    last_over_time(network.eth0.tx::double) /
+    (last_over_time(network.eth0.tx::double) + last_over_time(network.eth0.rx::double))
+  ) BY step=TBUCKET(1h), cluster
+| EVAL ratio=ROUND(ratio, 6), step, cluster=cluster
+| SORT ratio DESC;
+
+ratio:double | step:datetime            | cluster:keyword
+0.60063      | 2024-05-10T00:00:00.000Z | qa
+0.568155     | 2024-05-10T00:00:00.000Z | prod
+0.518662     | 2024-05-10T00:00:00.000Z | staging
+;

@@ -84,13 +84,6 @@ setup:
       indices.refresh: { }
 ---
 "Test knn search":
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ optimized_scalar_quantization_bbq ]
-      test_runner_features: capabilities
-      reason: "BBQ scoring improved and changed with optimized_scalar_quantization_bbq"
   - do:
       search:
         index: bbq_hnsw
@@ -113,13 +106,6 @@ setup:
   - match: { hits.hits.2._id: "2" }
 ---
 "Vector rescoring has same scoring as exact search for kNN section":
-  - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -241,9 +227,6 @@ setup:
           vector: [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0]
 ---
 "Test index configured rescore vector":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_vector"]
-      reason: Needs rescore_vector feature
   - skip:
       features: "headers"
   - do:
@@ -332,10 +315,6 @@ setup:
   - match: { hits.hits.2._score: $rescore_score2 }
 ---
 "Test index configured rescore vector updateable and settable to 0":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
-      reason: Needs rescore_zero_vector feature
-
   - do:
       indices.create:
         index: bbq_rescore_0_hnsw
@@ -390,9 +369,6 @@ setup:
   - match: { .bbq_rescore_update_hnsw.mappings.properties.vector.index_options.rescore_vector.oversample: 0 }
 ---
 "Test index configured rescore vector score consistency":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
-      reason: Needs rescore_zero_vector feature
   - skip:
       features: "headers"
   - do:
@@ -570,9 +546,6 @@ setup:
 
 ---
 "default oversample value":
-  - requires:
-      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
-      reason: "Needs default_oversample_value_for_bbq feature"
   - do:
       indices.get_mapping:
         index: bbq_hnsw

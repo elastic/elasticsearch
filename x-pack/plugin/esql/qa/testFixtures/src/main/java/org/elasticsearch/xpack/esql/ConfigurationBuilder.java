@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,8 @@ import java.util.Map;
  * </p>
  */
 public class ConfigurationBuilder {
+
+    private Instant now;
 
     private String clusterName;
     private String username;
@@ -43,7 +46,10 @@ public class ConfigurationBuilder {
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
 
+    private String projectRouting;
+
     public ConfigurationBuilder(Configuration configuration) {
+        now = configuration.now();
         clusterName = configuration.clusterName();
         username = configuration.username();
         zoneId = configuration.zoneId();
@@ -58,6 +64,12 @@ public class ConfigurationBuilder {
         allowPartialResults = configuration.allowPartialResults();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
+        projectRouting = configuration.projectRouting();
+    }
+
+    public ConfigurationBuilder now(Instant now) {
+        this.now = now;
+        return this;
     }
 
     public ConfigurationBuilder clusterName(String clusterName) {
@@ -130,9 +142,15 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
+    }
+
     public Configuration build() {
         return new Configuration(
             zoneId,
+            now,
             locale,
             username,
             clusterName,
@@ -145,7 +163,8 @@ public class ConfigurationBuilder {
             queryStartTimeNanos,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting
         );
     }
 }

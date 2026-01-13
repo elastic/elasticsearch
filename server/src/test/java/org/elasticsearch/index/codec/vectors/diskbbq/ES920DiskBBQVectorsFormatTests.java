@@ -41,6 +41,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
@@ -49,7 +51,6 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -61,16 +62,24 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     private KnnVectorsFormat format;
+    private ExecutorService executorService;
 
     @Before
     @Override
     public void setUp() throws Exception {
+        int numMergingThreads = 1;
+        if (random().nextBoolean()) {
+            numMergingThreads = random().nextInt(2, 4);
+            executorService = Executors.newFixedThreadPool(numMergingThreads);
+        }
         if (rarely()) {
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                random().nextBoolean()
+                random().nextBoolean(),
+                executorService,
+                numMergingThreads
             );
         } else {
             // run with low numbers to force many clusters with parents
@@ -78,10 +87,20 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                random().nextBoolean()
+                random().nextBoolean(),
+                executorService,
+                numMergingThreads
             );
         }
         super.setUp();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
+        super.tearDown();
     }
 
     @Override
@@ -122,9 +141,8 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            // IVF doesn't report stats at the moment
-            assertThat(offHeap, anEmptyMap());
-            assertThat(totalByteSize, equalTo(0L));
+            assertThat(offHeap.size(), equalTo(3));
+            assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
         }
@@ -138,7 +156,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     public void testToString() {
         KnnVectorsFormat format = new ES920DiskBBQVectorsFormat(128, 4);
 
-        assertThat(format, hasToString("ES920DiskBBQVectorsFormat(vectorPerCluster=128)"));
+        assertThat(format, hasToString("ES920DiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false)"));
     }
 
     public void testLimits() {
@@ -164,7 +182,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(0, offHeap.size());
+                    assertEquals(3, offHeap.size());
                 }
             }
         }

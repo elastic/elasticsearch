@@ -496,20 +496,28 @@ public class BlockFactory {
         return new ExponentialHistogramBlockBuilder(estimatedSize, this);
     }
 
+    public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
+        return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
     public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
-        try (ExponentialHistogramBlockBuilder builder = newExponentialHistogramBlockBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                builder.append(value);
-            }
-            return builder.build();
-        }
+        return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlock(TDigestHolder value, int positions) {
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlockWith(TDigestHolder value, int positions) {
+        // TODO: how is the "with" variant meant to be different?
+        return TDigestArrayBlock.createConstant(value, positions, this);
     }
 
     public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
-        LongBlock valueCounts,
+        DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
@@ -538,6 +546,28 @@ public class BlockFactory {
         DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
         IntBlock count = newIntArrayVector(countValues, positions).asBlock();
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**

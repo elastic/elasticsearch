@@ -63,7 +63,7 @@ public final class QueryBuilderResolver {
         ClusterState clusterState = services.clusterService().state();
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
-            IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
+            IndexResolver.DEFAULT_OPTIONS,
             services.projectResolver().getProjectMetadata(clusterState),
             services.indexNameExpressionResolver(),
             services.transportService().getRemoteClusterService(),
@@ -85,7 +85,7 @@ public final class QueryBuilderResolver {
 
     private static Set<String> indexNames(LogicalPlan plan) {
         Set<String> indexNames = new HashSet<>();
-        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteIndices()));
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteQualifiedIndices()));
         return indexNames;
     }
 

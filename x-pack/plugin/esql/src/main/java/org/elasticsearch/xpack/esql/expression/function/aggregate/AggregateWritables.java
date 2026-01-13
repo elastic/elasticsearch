@@ -55,7 +55,8 @@ public class AggregateWritables {
             Absent.ENTRY,
             AbsentOverTime.ENTRY,
             DimensionValues.ENTRY,
-            HistogramMerge.ENTRY
+            HistogramMerge.ENTRY,
+            HistogramMergeOverTime.ENTRY
         );
     }
 }

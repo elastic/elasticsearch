@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -110,6 +111,15 @@ class S3BlobStore implements BlobStore {
     private final TimeValue getRegisterRetryDelay;
 
     private final boolean addPurposeCustomQueryParameter;
+
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link S3Repository#UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
+    public boolean supportsConditionalWrites() {
+        return supportsConditionalWrites;
+    }
 
     S3BlobStore(
         @Nullable ProjectId projectId,
@@ -204,7 +214,6 @@ class S3BlobStore implements BlobStore {
 
             long requestCount = 0;
             long responseCount = 0;
-            long awsErrorCount = 0;
             long throttleCount = 0;
             long http416ResponseCount = 0;
             for (final var apiCallAttemptMetrics : metricCollection.children()) {
@@ -214,7 +223,9 @@ class S3BlobStore implements BlobStore {
                 requestCount += 1;
                 final var errorTypes = apiCallAttemptMetrics.metricValues(CoreMetric.ERROR_TYPE);
                 if (errorTypes != null && errorTypes.size() > 0) {
-                    awsErrorCount += 1;
+                    final var attributesWithErrorType = Maps.copyMapWithAddedEntry(attributes, "error_type", errorTypes.getFirst());
+                    s3RepositoriesMetrics.common().exceptionCounter().incrementBy(1, attributesWithErrorType);
+                    s3RepositoriesMetrics.common().exceptionHistogram().record(1, attributesWithErrorType);
                     if (errorTypes.contains("Throttling")) {
                         throttleCount += 1;
                     }
@@ -238,10 +249,6 @@ class S3BlobStore implements BlobStore {
             }
 
             s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
-            if (awsErrorCount > 0) {
-                s3RepositoriesMetrics.common().exceptionCounter().incrementBy(awsErrorCount, attributes);
-                s3RepositoriesMetrics.common().exceptionHistogram().record(awsErrorCount, attributes);
-            }
             if (throttleCount > 0) {
                 s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
                 s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);
@@ -627,13 +634,4 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    /**
-     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
-     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
-     * {@link S3Repository#UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES} setting.
-     */
-    public boolean supportsConditionalWrites(OperationPurpose purpose) {
-        // REPOSITORY_ANALYSIS is a strict check for 100% S3 compatibility, including conditional write support
-        return supportsConditionalWrites || purpose == OperationPurpose.REPOSITORY_ANALYSIS;
-    }
 }

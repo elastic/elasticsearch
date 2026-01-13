@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,7 +82,7 @@ public class HashAggregationOperator implements Operator {
     private boolean finished;
     private Page output;
 
-    private final BlockHash blockHash;
+    final BlockHash blockHash;
 
     protected final List<GroupingAggregator> aggregators;
 
@@ -240,7 +239,7 @@ public class HashAggregationOperator implements Operator {
             var evaluationContext = evaluationContext(blockHash, keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, evaluationContext);
+                evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);
@@ -255,6 +254,16 @@ public class HashAggregationOperator implements Operator {
             }
             emitNanos += System.nanoTime() - startInNanos;
         }
+    }
+
+    protected void evaluateAggregator(
+        GroupingAggregator aggregator,
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evaluationContext
+    ) {
+        aggregator.evaluate(blocks, offset, selected, evaluationContext);
     }
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
@@ -335,12 +344,13 @@ public class HashAggregationOperator implements Operator {
 
         /**
          * Build.
-         * @param hashNanos Nanoseconds this operator has spent hashing grouping keys.
+         *
+         * @param hashNanos        Nanoseconds this operator has spent hashing grouping keys.
          * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
-         * @param pagesProcessed Count of pages this operator has processed.
-         * @param rowsReceived Count of rows this operator has received.
-         * @param rowsEmitted Count of rows this operator has emitted.
-         * @param emitNanos Nanoseconds this operator has spent emitting the output.
+         * @param pagesProcessed   Count of pages this operator has processed.
+         * @param rowsReceived     Count of rows this operator has received.
+         * @param rowsEmitted      Count of rows this operator has emitted.
+         * @param emitNanos        Nanoseconds this operator has spent emitting the output.
          */
         public Status(long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived, long rowsEmitted, long emitNanos) {
             this.hashNanos = hashNanos;
@@ -355,14 +365,8 @@ public class HashAggregationOperator implements Operator {
             hashNanos = in.readVLong();
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
-
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
             if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
                 emitNanos = in.readVLong();
             } else {
@@ -375,11 +379,8 @@ public class HashAggregationOperator implements Operator {
             out.writeVLong(hashNanos);
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
-
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
             if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
                 out.writeVLong(emitNanos);
             }
@@ -479,7 +480,7 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

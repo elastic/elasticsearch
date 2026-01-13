@@ -156,6 +156,7 @@ dependencies {
     hdfs2("org.apache.hadoop:hadoop-annotations:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5")
+    hdfs2("commons-daemon:commons-daemon:1.0.15")
 
     hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1")
     hdfs3("org.apache.hadoop:hadoop-common:3.3.1")
@@ -172,6 +173,11 @@ dependencies {
     hdfs3("commons-io:commons-io:2.8.0")
     hdfs3("org.apache.commons:commons-configuration2:2.1.1")
     hdfs3("org.apache.commons:commons-lang3:3.7")
+    hdfs3("org.eclipse.jetty:jetty-xml:9.4.40.v20210413")
+    hdfs3("commons-daemon:commons-daemon:1.4.0")
+    hdfs3("com.google.protobuf:protobuf-java:4.32.0")
+    hdfs3("com.google.re2j:re2j:1.0")
+    hdfs3("org.apache.commons:commons-math3:3.6.1")
     hdfs3("org.apache.commons:commons-text:1.4")
     hdfs3("com.fasterxml.woodstox:woodstox-core:6.7.0")
     hdfs3("org.codehaus.woodstox:stax2-api:4.2.2")
@@ -206,12 +212,28 @@ def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
   archiveClassifier.set("hdfs2")
   from sourceSets.main.output
   configurations.add(project.configurations.hdfs2)
+
+  // Rename webapps directories for Hadoop 2.x compatibility with Jetty 6
+  // Jetty 6 expects webapps/{name}/{name} structure
+  eachFile { fileCopyDetails ->
+    def pathStr = fileCopyDetails.path
+    if (pathStr.startsWith("webapps/hdfs/") && !pathStr.startsWith("webapps/hdfs/hdfs/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/hdfs/", "webapps/hdfs/hdfs/")
+    } else if (pathStr.startsWith("webapps/datanode/") && !pathStr.startsWith("webapps/datanode/datanode/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/datanode/", "webapps/datanode/datanode/")
+    } else if (pathStr.startsWith("webapps/secondary/") && !pathStr.startsWith("webapps/secondary/secondary/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/secondary/", "webapps/secondary/secondary/")
+    } else if (pathStr.startsWith("webapps/journal/") && !pathStr.startsWith("webapps/journal/journal/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/journal/", "webapps/journal/journal/")
+    }
+  }
 }
 
 tasks.withType(ShadowJar).configureEach {
   dependencies {
     exclude(dependency("com.carrotsearch.randomizedtesting:randomizedtesting-runner:.*"))
     exclude(dependency("junit:junit:.*"))
+    exclude(dependency("org.slf4j:slf4j-api:.*"))
     exclude(dependency("org.apache.httpcomponents:httpcore:.*"))
     exclude(dependency("org.apache.logging.log4j:log4j-1.2-api:.*"))
     exclude(dependency("net.java.dev.jna:jna:.*"))
@@ -232,6 +254,9 @@ tasks.withType(ShadowJar).configureEach {
     resource = "hdfs-default.xml"
     enabled = true
   }
+
+  relocate("org.apache.commons.lang", "fixture.org.apache.commons.lang")
+  relocate("org.apache.commons.io", "fixture.org.apache.commons.io")
 }
 
 artifacts {

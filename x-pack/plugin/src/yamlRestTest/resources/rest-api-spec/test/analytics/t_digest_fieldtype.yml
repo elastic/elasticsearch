@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: [ "mapper.tdigest_type" ]
+      reason: tdigest field type was introduced
   - skip:
       features: headers
   - do:
@@ -276,7 +279,6 @@ TDigest with synthetic source and empty digest:
   - match:
       _source:
         latency:
-          sum: 0.0
           centroids: [ ]
           counts: [ ]
 

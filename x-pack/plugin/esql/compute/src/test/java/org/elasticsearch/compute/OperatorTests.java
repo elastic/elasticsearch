@@ -65,15 +65,11 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -183,7 +179,14 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, false, f -> new LongsBlockLoader("v"))),
+                List.of(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        "v",
+                        ElementType.LONG,
+                        false,
+                        f -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
+                    )
+                ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
@@ -404,9 +407,9 @@ public class OperatorTests extends MapperServiceTestCase {
             try (CannedSourceOperator sourceOperator = new CannedSourceOperator(dataDriverPages.iterator())) {
                 HashAggregationOperator.HashAggregationOperatorFactory aggFactory =
                     new HashAggregationOperator.HashAggregationOperatorFactory(
-                        List.of(new BlockHash.GroupSpec(2, ElementType.LONG)),
-                        AggregatorMode.FINAL,
-                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(0, 1))),
+                        List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+                        AggregatorMode.INTERMEDIATE,
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
                         Integer.MAX_VALUE,
                         null
                     );
@@ -426,7 +429,7 @@ public class OperatorTests extends MapperServiceTestCase {
 
             assertThat(reduceDriverPages, hasSize(1));
             Page result = reduceDriverPages.getFirst();
-            assertThat(result.getBlockCount(), equalTo(2));
+            assertThat(result.getBlockCount(), equalTo(3));
             LongBlock groupsBlock = result.getBlock(0);
             LongVector groups = groupsBlock.asVector();
             LongBlock countsBlock = result.getBlock(1);
@@ -509,44 +512,5 @@ public class OperatorTests extends MapperServiceTestCase {
             tagTypes,
             LuceneOperator.NO_LIMIT
         );
-    }
-
-    private MappedFieldType.BlockLoaderContext mockBlContext() {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                throw new UnsupportedOperationException();
-            }
-        };
     }
 }

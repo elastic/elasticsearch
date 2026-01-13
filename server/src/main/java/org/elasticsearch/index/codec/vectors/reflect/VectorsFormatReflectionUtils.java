@@ -22,11 +22,14 @@ import java.lang.invoke.VarHandle;
 public class VectorsFormatReflectionUtils {
     private static final VarHandle FLOAT_SUPPLIER_HANDLE;
     private static final VarHandle BYTE_SUPPLIER_HANDLE;
-    private static final VarHandle FLOAT_VECTORS_HANDLE;
+    private static final VarHandle L99_FLOAT_VECTORS_HANDLE;
+    private static final VarHandle DEFAULT_FLOAT_VECTORS_HANDLE;
 
     private static final Class<?> FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS;
     private static final Class<?> SCALAR_QUANTIZED_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS;
-    private static final Class<?> FLOAT_SCORING_SUPPLIER_CLASS;
+    private static final Class<?> L99_FLOAT_SCORING_SUPPLIER_CLASS;
+    private static final Class<?> DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS;
+
     static {
         try {
             FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS = Class.forName(
@@ -39,11 +42,17 @@ public class VectorsFormatReflectionUtils {
                 RandomVectorScorerSupplier.class
             );
 
-            FLOAT_SCORING_SUPPLIER_CLASS = Class.forName(
+            L99_FLOAT_SCORING_SUPPLIER_CLASS = Class.forName(
                 "org.apache.lucene.internal.vectorization.Lucene99MemorySegmentFloatVectorScorerSupplier"
             );
-            lookup = MethodHandles.privateLookupIn(FLOAT_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
-            FLOAT_VECTORS_HANDLE = lookup.findVarHandle(FLOAT_SCORING_SUPPLIER_CLASS, "values", FloatVectorValues.class);
+            lookup = MethodHandles.privateLookupIn(L99_FLOAT_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
+            L99_FLOAT_VECTORS_HANDLE = lookup.findVarHandle(L99_FLOAT_SCORING_SUPPLIER_CLASS, "values", FloatVectorValues.class);
+
+            DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS = Class.forName(
+                "org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer$FloatScoringSupplier"
+            );
+            lookup = MethodHandles.privateLookupIn(DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
+            DEFAULT_FLOAT_VECTORS_HANDLE = lookup.findVarHandle(DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS, "vectors", FloatVectorValues.class);
 
             SCALAR_QUANTIZED_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS = Class.forName(
                 Lucene99ScalarQuantizedVectorsWriter.class.getCanonicalName() + "$ScalarQuantizedCloseableRandomVectorScorerSupplier"
@@ -79,8 +88,13 @@ public class VectorsFormatReflectionUtils {
     }
 
     public static HasIndexSlice getFloatScoringSupplierVectorOrNull(RandomVectorScorerSupplier scorerSupplier) {
-        if (FLOAT_SCORING_SUPPLIER_CLASS.isAssignableFrom(scorerSupplier.getClass())) {
-            var vectorValues = FLOAT_VECTORS_HANDLE.get(scorerSupplier);
+        if (L99_FLOAT_SCORING_SUPPLIER_CLASS.isAssignableFrom(scorerSupplier.getClass())) {
+            var vectorValues = L99_FLOAT_VECTORS_HANDLE.get(scorerSupplier);
+            if (vectorValues instanceof HasIndexSlice indexSlice) {
+                return indexSlice;
+            }
+        } else if (DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS.isAssignableFrom(scorerSupplier.getClass())) {
+            var vectorValues = DEFAULT_FLOAT_VECTORS_HANDLE.get(scorerSupplier);
             if (vectorValues instanceof HasIndexSlice indexSlice) {
                 return indexSlice;
             }

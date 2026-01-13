@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -39,6 +40,7 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
         true,
         BUCKET,
         BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN, ANY_REGION, "s3")
     );
 

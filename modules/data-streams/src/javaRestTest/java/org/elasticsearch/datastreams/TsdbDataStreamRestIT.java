@@ -8,12 +8,15 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -25,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
+import static org.elasticsearch.index.IndexSettings.USE_SYNTHETIC_ID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -35,6 +39,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
+
+    static {
+        clusterConfig = config -> config.feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+    }
 
     private static final String COMPONENT_TEMPLATE = """
         {
@@ -53,7 +61,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                         "number_of_replicas": 1,
                         "number_of_shards": 2,
                         "mode": "time_series"
-                        SOURCEMODE
+                        RANDOM_INDEX_SETTINGS
                     }
                 },
                 "mappings":{
@@ -202,9 +210,51 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             """;
 
     private static String getTemplate() {
-        return TEMPLATE.replace("SOURCEMODE", randomFrom("", """
-            , "mapping": { "source": { "mode": "stored" } }""", """
-            , "mapping": { "source": { "mode": "synthetic" } }"""));
+        String sourceMode = switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> """
+                "source": { "mode": "stored" }
+                """;
+            case 2 -> """
+                "source": { "mode": "synthetic" }
+                """;
+            default -> throw new AssertionError("Unknown mode");
+        };
+        String idMode = null;
+        if (Build.current().isSnapshot()) {
+            idMode = switch (randomInt(2)) {
+                case 0 -> null;
+                case 1 -> """
+                    "use_synthetic_id": "false"
+                    """;
+                case 2 -> """
+                    "use_synthetic_id": "true"
+                    """;
+                default -> throw new AssertionError("Unknown mode");
+            };
+        } else {
+            assertFalse(
+                "Setting is enabled by default and must now be tested on non-snapshot build too ",
+                USE_SYNTHETIC_ID.getDefault(Settings.EMPTY)
+            );
+        }
+        if (sourceMode == null && idMode == null) {
+            return TEMPLATE.replace("RANDOM_INDEX_SETTINGS", "");
+        }
+        var mapping = new StringBuilder("""
+            , "mapping": {
+            """);
+        if (sourceMode != null) {
+            mapping.append(sourceMode);
+        }
+        if (idMode != null) {
+            if (sourceMode != null) {
+                mapping.append(',');
+            }
+            mapping.append(idMode);
+        }
+        mapping.append('}');
+        return TEMPLATE.replace("RANDOM_INDEX_SETTINGS", mapping.toString());
     }
 
     private static boolean trialStarted = false;

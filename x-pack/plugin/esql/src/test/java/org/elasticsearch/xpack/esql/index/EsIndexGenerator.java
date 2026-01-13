@@ -13,39 +13,48 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
+import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.test.ESTestCase.randomMap;
 
 public class EsIndexGenerator {
 
     public static EsIndex esIndex(String name) {
-        return new EsIndex(name, Map.of(), Map.of(), Set.of());
+        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping) {
-        return new EsIndex(name, mapping, Map.of(), Set.of());
+        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of(), Set.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
+        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of(), Set.of());
     }
 
     public static EsIndex randomEsIndex() {
-        return new EsIndex(ESTestCase.randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Set.of());
+        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Map.of(), Map.of(), Set.of());
     }
 
     public static Map<String, EsField> randomMapping() {
         int size = ESTestCase.between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(ESTestCase.randomIdentifier(), EsFieldTests.randomAnyEsField(1));
+            result.put(randomIdentifier(), EsFieldTests.randomAnyEsField(1));
         }
         return result;
     }
 
     public static Map<String, IndexMode> randomIndexNameWithModes() {
-        return ESTestCase.randomMap(0, 10, () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomFrom(IndexMode.values())));
+        return randomMap(0, 10, () -> tuple(randomIdentifier(), randomFrom(IndexMode.values())));
+    }
+
+    public static Map<String, List<String>> randomRemotesWithIndices() {
+        return randomMap(0, 10, () -> tuple(randomIdentifier(), randomList(1, 10, ESTestCase::randomIdentifier)));
     }
 }

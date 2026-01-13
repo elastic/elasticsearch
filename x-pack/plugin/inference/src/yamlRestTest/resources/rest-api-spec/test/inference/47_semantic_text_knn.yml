@@ -63,6 +63,9 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id
+              another_dense_inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
 
   - do:
       indices.create:
@@ -75,6 +78,9 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id-2
+              another_dense_inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
 
   - do:
       indices.create:
@@ -109,6 +115,7 @@ setup:
         body:
           keyword_field: "foo"
           inference_field: [ "inference test", "another inference test" ]
+          another_dense_inference_field: "some text"
         refresh: true
 
   - do:
@@ -118,6 +125,7 @@ setup:
         body:
           keyword_field: "bar"
           inference_field: [ "inference test", "another inference test" ]
+          another_dense_inference_field: "some text"
         refresh: true
 
   - do:
@@ -365,7 +373,98 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
 
+---
+"knn query with semantic knn query filter":
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_filters_rewrite_interception_supported"
+      reason: knn query filters were previously not intercepted
 
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                knn:
+                  field: another_dense_inference_field
+                  k: 10
+                  num_candidates: 100
+                  query_vector_builder:
+                    text_embedding:
+                      model_text: some
+
+  # We get zero hits because nested queries as filters to nested knn queries are not supported yet.
+  # See https://github.com/elastic/elasticsearch/issues/138184
+  - match: { hits.total.value: 0 }
+
+---
+"knn query with semantic match query filter":
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_filters_rewrite_interception_supported"
+      reason: knn query filters were previously not intercepted
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                match:
+                  another_dense_inference_field:
+                    query: some
+
+  # We get zero hits because nested queries as filters to nested knn queries are not supported yet.
+  # See https://github.com/elastic/elasticsearch/issues/138184
+  - match: { hits.total.value: 0 }
+
+---
+"knn query with semantic match query filter within bool query":
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_filters_rewrite_interception_supported"
+      reason: knn query filters were previously not intercepted
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                bool:
+                  filter:
+                    match:
+                      another_dense_inference_field:
+                        query: some
+
+  # We get zero hits because nested queries as filters to nested knn queries are not supported yet.
+  # See https://github.com/elastic/elasticsearch/issues/138184
+  - match: { hits.total.value: 0 }
 
 ---
 "knn query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields with smaller k returns k for each index":

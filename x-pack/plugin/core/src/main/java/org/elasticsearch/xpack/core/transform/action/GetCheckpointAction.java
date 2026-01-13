@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -59,15 +58,9 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super(in);
             indices = in.readStringArray();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                query = in.readOptionalNamedWriteable(QueryBuilder.class);
-                cluster = in.readOptionalString();
-                timeout = in.readOptionalTimeValue();
-            } else {
-                query = null;
-                cluster = null;
-                timeout = null;
-            }
+            query = in.readOptionalNamedWriteable(QueryBuilder.class);
+            cluster = in.readOptionalString();
+            timeout = in.readOptionalTimeValue();
         }
 
         public Request(String[] indices, IndicesOptions indicesOptions, QueryBuilder query, String cluster, TimeValue timeout) {
@@ -132,11 +125,9 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super.writeTo(out);
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeOptionalNamedWriteable(query);
-                out.writeOptionalString(cluster);
-                out.writeOptionalTimeValue(timeout);
-            }
+            out.writeOptionalNamedWriteable(query);
+            out.writeOptionalString(cluster);
+            out.writeOptionalTimeValue(timeout);
         }
 
         @Override

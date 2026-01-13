@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -163,7 +162,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

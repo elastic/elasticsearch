@@ -84,6 +84,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
@@ -891,6 +892,29 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
         var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, createRandomChunkingSettings(), apiKey, getUrl(webServer));
 
         testChunkedInfer(modelId, apiKey, model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel("modelId", createRandomChunkingSettings(), "apiKey", getUrl(webServer));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer(String modelId, String apiKey, GoogleAiStudioEmbeddingsModel model) throws IOException {

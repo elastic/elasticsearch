@@ -174,15 +174,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
         final Settings settings = env.settings();
-        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
-        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        return MatcherWatchdog.newInstance(
-            intervalMillis,
-            maxExecutionTimeMillis,
-            threadPool.relativeTimeInMillisSupplier(),
-            scheduler::apply
-        );
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(maxExecutionTimeMillis);
     }
 
     /**
@@ -992,7 +985,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        final IngestDocument ingestDocument;
+                        try {
+                            ingestDocument = newIngestDocument(indexRequest);
+                        } catch (Exception e) {
+                            // Document parsing failed (e.g. invalid JSON). Handle this gracefully
+                            // by marking this document as failed and continuing with other documents.
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            totalMetrics.ingestFailed();
+                            ref.close();
+                            i++;
+                            onFailure.apply(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                            continue;
+                        }
                         final Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).

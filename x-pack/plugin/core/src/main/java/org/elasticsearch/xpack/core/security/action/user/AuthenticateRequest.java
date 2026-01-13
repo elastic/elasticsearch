@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,10 +19,6 @@ public class AuthenticateRequest extends LegacyActionRequest {
 
     public AuthenticateRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_5_0)) {
-            // Older versions included the username as a field
-            in.readString();
-        }
     }
 
     private AuthenticateRequest() {}
@@ -37,8 +32,5 @@ public class AuthenticateRequest extends LegacyActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_5_0)) {
-            throw new IllegalStateException("cannot send authenticate request to a node of earlier version");
-        }
     }
 }

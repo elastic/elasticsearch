@@ -867,8 +867,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     return StoredFieldsSpec.NEEDS_SOURCE;
                 }
             }));
-            fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
-            assertThat(breakerCalledCount.get(), is(4));
+            fetchPhase.execute(
+                searchContext,
+                IntStream.range(0, 100).toArray(),
+                null,
+                i -> breakingCircuitBreaker.addEstimateBytesAndMaybeBreak(i, "test")
+            );
+            assertThat(breakerCalledCount.get(), is(100));
         } finally {
             r.close();
             dir.close();

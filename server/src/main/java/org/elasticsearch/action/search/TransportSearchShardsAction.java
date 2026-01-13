@@ -144,7 +144,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             ),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
-                final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+                final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                     project.metadata(),
                     searchRequest.indices()
                 );
@@ -211,12 +211,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         List<SearchShardsGroup> groups = new ArrayList<>(shardIts.size());
         for (SearchShardIterator shardIt : shardIts) {
             groups.add(
-                new SearchShardsGroup(
-                    shardIt.shardId(),
-                    shardIt.getTargetNodeIds(),
-                    shardIt.skip(),
-                    shardIt.getReshardSplitShardCountSummary()
-                )
+                new SearchShardsGroup(shardIt.shardId(), shardIt.getTargetNodeIds(), shardIt.skip(), shardIt.getSplitShardCountSummary())
             );
         }
         return groups;

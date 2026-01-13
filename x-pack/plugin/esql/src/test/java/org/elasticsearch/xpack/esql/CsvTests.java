@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -642,16 +643,19 @@ public class CsvTests extends ESTestCase {
         if (shouldLoadViews() == false) {
             return parsed;
         }
+
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             for (var viewConfig : VIEW_CONFIGS) {
                 loadView(viewService, viewConfig);
             }
-            return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
+            PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+            viewService.getViewResolver().replaceViews(parsed, this::parseView, future);
+            return future.actionGet().plan();
         }
     }
 
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
-        ProjectId projectId = ProjectId.fromId("dummy");
+        ProjectId projectId = ProjectId.DEFAULT;
         PutViewAction.Request request = new PutViewAction.Request(
             TimeValue.ONE_MINUTE,
             TimeValue.ONE_MINUTE,

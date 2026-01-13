@@ -430,8 +430,8 @@ class IndicesAndAliasesResolver {
                     }
                     var resolved = resolvedExpressionsBuilder.build();
 
-                    if (crossProjectModeDecider.crossProjectEnabled()) {
-                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
+                        replaceable.setResolvedIndexExpressions(resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
@@ -449,8 +449,9 @@ class IndicesAndAliasesResolver {
                             replaceable.getProjectRouting()
                         );
                     }
-                    if (crossProjectModeDecider.crossProjectEnabled()) {
-                        setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
+                    var resolved = ResolvedIndexExpressions.builder().build();
+                    if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
+                        replaceable.setResolvedIndexExpressions(resolved);
                     }
                 }
 
@@ -481,7 +482,9 @@ class IndicesAndAliasesResolver {
                         indicesRequest.includeDataStreams(),
                         replaceable.getProjectRouting()
                     );
-                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
+                        replaceable.setResolvedIndexExpressions(resolved);
+                    }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {
@@ -499,11 +502,8 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::check,
                         indicesRequest.includeDataStreams()
                     );
-                    // only store resolved expressions if configured, to avoid unnecessary memory usage
-                    // once we've migrated from `indices()` to using resolved expressions holistically,
-                    // we will always store them
-                    if (crossProjectModeDecider.crossProjectEnabled()) {
-                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
+                        replaceable.setResolvedIndexExpressions(resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -576,10 +576,15 @@ class IndicesAndAliasesResolver {
         return resolvedIndicesBuilder.build();
     }
 
-    private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
-        if (replaceable.getResolvedIndexExpressions() == null) {
-            replaceable.setResolvedIndexExpressions(resolved);
-        } else {
+    private boolean shouldSetResolvedIndexExpressions(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+        // Only store resolved expressions if cross-project mode or if views should be resolved, to avoid unnecessary memory usage. Once
+        // we've migrated from `indices()` to using resolved expressions holistically, we will always store them
+        if (crossProjectModeDecider.crossProjectEnabled() == false
+            && replaceable.indicesOptions().wildcardOptions().resolveViews() == false) {
+            return false;
+        }
+
+        if (replaceable.getResolvedIndexExpressions() != null) {
             // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
             String message = "resolved index expressions are already set to ["
                 + replaceable.getResolvedIndexExpressions()
@@ -598,7 +603,9 @@ class IndicesAndAliasesResolver {
             // As a result, the resolved indices from the second resolution must be identical (most likely) or a subset of the
             // resolved indices from the first resolution if the user's role changes in between the two authorizations.
             assert replaceable.getResolvedIndexExpressions().getLocalIndicesList().containsAll(resolved.getLocalIndicesList()) : message;
+            return false;
         }
+        return true;
     }
 
     /**

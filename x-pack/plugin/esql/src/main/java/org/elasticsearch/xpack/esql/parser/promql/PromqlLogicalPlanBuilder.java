@@ -442,7 +442,17 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         // child plan is always the first parameter
         LogicalPlan child = (LogicalPlan) params.get(0);
 
-        // PromQl expects early validation of the tree so let's do it here
+        // PromQL expects early validation of the tree so let's do it here
+        if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
+            if (returnsRangeVector(child)) {
+                throw new ParsingException(source, "expected type instant vector in call to function [{}], got range vector", name);
+            }
+        } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
+            if (returnsRangeVector(child) == false) {
+                throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
+            }
+        }
+
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
 
         LogicalPlan plan = null;
@@ -472,15 +482,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
         } else {
             if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
-                if (returnsRangeVector(child)) {
-                    throw new ParsingException(source, "expected type instant vector in call to function [{}], got range vector", name);
-                }
                 plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
             } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
-                if (returnsRangeVector(child) == false) {
-                    throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
-                }
-
                 plan = new WithinSeriesAggregate(source, child, name, List.of());
                 // instant selector function - definitely no grouping
             }

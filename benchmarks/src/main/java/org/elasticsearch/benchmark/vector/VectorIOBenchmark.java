@@ -147,7 +147,7 @@ public class VectorIOBenchmark {
                             Document doc = new Document();
                             for (int j = 0; j < numVectorsPerThread; j++) {
                                 if (j % 1_000_000 == 0) {
-                                    System.out.println("[" + threadNum + "] " + j + "/" + numVectors);
+                                    System.out.println("[" + threadNum + "] " + j + "/" + numVectorsPerThread);
                                 }
                                 doc.clear();
                                 doc.add(new KnnFloatVectorField("vector", randomVector(random, dims), VectorSimilarityFunction.COSINE));

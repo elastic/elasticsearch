@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -86,7 +86,7 @@ public final class IndexPrivilege extends Privilege {
         "indices:data/read/*",
         ResolveIndexAction.NAME,
         TransportResolveClusterAction.NAME,
-        GetInferenceFieldsAction.NAME  // cross-cluster inference for semantic search
+        GetInferenceFieldsInternalAction.NAME  // cross-cluster inference for semantic search
     );
     private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(

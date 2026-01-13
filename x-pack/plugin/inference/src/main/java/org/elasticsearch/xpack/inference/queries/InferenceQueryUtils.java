@@ -33,7 +33,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public final class InferenceQueryUtils {
     /**
@@ -163,7 +163,8 @@ public final class InferenceQueryUtils {
         }
 
         SetOnce<InferenceInfo> localInferenceInfoSupplier = new SetOnce<>();
-        SetOnce<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoSupplier = new SetOnce<>();
+        SetOnce<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> remoteInferenceInfoSupplier =
+            new SetOnce<>();
 
         try (var refs = new RefCountingListener(inferenceInfoListener.delegateFailureAndWrap((l, v) -> {
             l.onResponse(combineLocalAndRemoteInferenceInfo(localInferenceInfoSupplier.get(), remoteInferenceInfoSupplier.get()));
@@ -172,8 +173,9 @@ public final class InferenceQueryUtils {
             getLocalInferenceInfo(queryRewriteContext, inferenceInfoRequest, localInferenceInfoListener);
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
-                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
-                    .acquire(remoteInferenceInfoSupplier::set);
+                ActionListener<
+                    Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
+                        .acquire(remoteInferenceInfoSupplier::set);
 
                 if (inferenceInfoRequest.alwaysSkipRemotes() == false) {
                     getRemoteInferenceInfo(queryRewriteContext, inferenceInfoRequest, remoteInferenceInfoListener);
@@ -297,10 +299,10 @@ public final class InferenceQueryUtils {
     private static void getRemoteInferenceInfo(
         QueryRewriteContext queryRewriteContext,
         InferenceInfoRequest inferenceInfoRequest,
-        ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener
+        ActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> remoteInferenceInfoListener
     ) {
         var remoteIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
-        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal =
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> gal =
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         // When an inference ID override is set, inference is only performed on the local cluster. Set the query to null in this case
@@ -310,7 +312,7 @@ public final class InferenceQueryUtils {
             String clusterAlias = entry.getKey();
             OriginalIndices originalIndices = entry.getValue();
 
-            GetInferenceFieldsAction.Request request = new GetInferenceFieldsAction.Request(
+            GetInferenceFieldsInternalAction.Request request = new GetInferenceFieldsInternalAction.Request(
                 originalIndices.indices(),
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
@@ -325,10 +327,10 @@ public final class InferenceQueryUtils {
 
     private static void getRemoteTransportVersion(
         QueryRewriteContext queryRewriteContext,
-        ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener
+        ActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> remoteInferenceInfoListener
     ) {
         var remoteIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
-        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal =
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> gal =
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         for (var entry : remoteIndices.entrySet()) {
@@ -339,7 +341,7 @@ public final class InferenceQueryUtils {
 
     private static InferenceInfo combineLocalAndRemoteInferenceInfo(
         InferenceInfo localInferenceInfo,
-        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfo
+        Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>> remoteInferenceInfo
     ) {
         int totalInferenceFieldCount = localInferenceInfo.inferenceFieldCount;
         int totalIndexCount = localInferenceInfo.indexCount;
@@ -461,14 +463,16 @@ public final class InferenceQueryUtils {
     }
 
     private static
-        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>>
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>>
         createRemoteInferenceInfoGroupedActionListener(
             int remoteClusterCount,
-            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener
+            ActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> remoteInferenceInfoListener
         ) {
 
         return new GroupedActionListener<>(remoteClusterCount, remoteInferenceInfoListener.delegateFailureAndWrap((l, c) -> {
-            Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfoMap = new HashMap<>(c.size());
+            Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>> remoteInferenceInfoMap = new HashMap<>(
+                c.size()
+            );
             c.forEach(remoteInferenceInfoMap::putAll);
             l.onResponse(remoteInferenceInfoMap);
         }));
@@ -658,12 +662,12 @@ public final class InferenceQueryUtils {
     }
 
     private static final class RemoteInferenceInfoAsyncAction extends QueryRewriteRemoteAsyncAction<
-        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>,
+        Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>,
         RemoteInferenceInfoAsyncAction> {
 
-        private final GetInferenceFieldsAction.Request request;
+        private final GetInferenceFieldsInternalAction.Request request;
 
-        private RemoteInferenceInfoAsyncAction(String clusterAlias, GetInferenceFieldsAction.Request request) {
+        private RemoteInferenceInfoAsyncAction(String clusterAlias, GetInferenceFieldsInternalAction.Request request) {
             super(clusterAlias);
             this.request = request;
         }
@@ -672,7 +676,7 @@ public final class InferenceQueryUtils {
         protected void execute(
             RemoteClusterClient client,
             ThreadContext threadContext,
-            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
+            ActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> listener
         ) {
             final String clusterAlias = getClusterAlias();
             client.getConnection(request, listener.delegateFailureAndWrap((l1, connection) -> {
@@ -683,12 +687,20 @@ public final class InferenceQueryUtils {
                     // intercepted. We track the transport version in the response so that more thorough error checking can be
                     // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
                     l1.onResponse(
-                        Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
+                        Map.of(
+                            clusterAlias,
+                            Tuple.tuple(new GetInferenceFieldsInternalAction.Response(Map.of(), Map.of()), transportVersion)
+                        )
                     );
                 } else {
-                    client.execute(connection, GetInferenceFieldsAction.REMOTE_TYPE, request, l1.delegateFailureAndWrap((l2, resp) -> {
-                        l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                    }));
+                    client.execute(
+                        connection,
+                        GetInferenceFieldsInternalAction.REMOTE_TYPE,
+                        request,
+                        l1.delegateFailureAndWrap((l2, resp) -> {
+                            l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                        })
+                    );
                 }
             }));
         }
@@ -705,7 +717,7 @@ public final class InferenceQueryUtils {
     }
 
     private static final class RemoteTransportVersionAsyncAction extends QueryRewriteRemoteAsyncAction<
-        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>,
+        Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>,
         RemoteTransportVersionAsyncAction> {
 
         private RemoteTransportVersionAsyncAction(String clusterAlias) {
@@ -716,12 +728,15 @@ public final class InferenceQueryUtils {
         protected void execute(
             RemoteClusterClient client,
             ThreadContext threadContext,
-            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
+            ActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> listener
         ) {
             final String clusterAlias = getClusterAlias();
             client.getConnection(null, listener.delegateFailureAndWrap((l, c) -> {
                 l.onResponse(
-                    Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), c.getTransportVersion()))
+                    Map.of(
+                        clusterAlias,
+                        Tuple.tuple(new GetInferenceFieldsInternalAction.Response(Map.of(), Map.of()), c.getTransportVersion())
+                    )
                 );
             }));
         }

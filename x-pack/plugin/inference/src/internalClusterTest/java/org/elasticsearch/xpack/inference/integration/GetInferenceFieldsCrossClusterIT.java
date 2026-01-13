@@ -18,7 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -78,15 +78,15 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
     }
 
     public void testRemoteIndex() {
-        Consumer<GetInferenceFieldsAction.Request> assertFailedRequest = r -> {
+        Consumer<GetInferenceFieldsInternalAction.Request> assertFailedRequest = r -> {
             IllegalArgumentException e = assertThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(GetInferenceFieldsAction.INSTANCE, r).actionGet(TEST_REQUEST_TIMEOUT)
+                () -> client().execute(GetInferenceFieldsInternalAction.INSTANCE, r).actionGet(TEST_REQUEST_TIMEOUT)
             );
-            assertThat(e.getMessage(), containsString("GetInferenceFieldsAction does not support remote indices"));
+            assertThat(e.getMessage(), containsString("GetInferenceFieldsInternalAction does not support remote indices"));
         };
 
-        var concreteIndexRequest = new GetInferenceFieldsAction.Request(
+        var concreteIndexRequest = new GetInferenceFieldsInternalAction.Request(
             new String[] { REMOTE_CLUSTER + ":test-index" },
             Map.of(),
             false,
@@ -95,7 +95,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         );
         assertFailedRequest.accept(concreteIndexRequest);
 
-        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(
+        var wildcardIndexRequest = new GetInferenceFieldsInternalAction.Request(
             new String[] { REMOTE_CLUSTER + ":*" },
             Map.of(),
             false,
@@ -104,7 +104,13 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         );
         assertFailedRequest.accept(wildcardIndexRequest);
 
-        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(new String[] { "*:*" }, Map.of(), false, false, "foo");
+        var wildcardClusterAndIndexRequest = new GetInferenceFieldsInternalAction.Request(
+            new String[] { "*:*" },
+            Map.of(),
+            false,
+            false,
+            "foo"
+        );
         assertFailedRequest.accept(wildcardClusterAndIndexRequest);
     }
 
@@ -115,15 +121,15 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
             RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
         );
 
-        var request = new GetInferenceFieldsAction.Request(
+        var request = new GetInferenceFieldsInternalAction.Request(
             new String[] { INDEX_NAME },
             generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD)),
             false,
             false,
             "foo"
         );
-        PlainActionFuture<GetInferenceFieldsAction.Response> future = new PlainActionFuture<>();
-        remoteClusterClient.execute(GetInferenceFieldsAction.REMOTE_TYPE, request, future);
+        PlainActionFuture<GetInferenceFieldsInternalAction.Response> future = new PlainActionFuture<>();
+        remoteClusterClient.execute(GetInferenceFieldsInternalAction.REMOTE_TYPE, request, future);
 
         var response = future.actionGet(TEST_REQUEST_TIMEOUT);
         assertInferenceFieldsMap(

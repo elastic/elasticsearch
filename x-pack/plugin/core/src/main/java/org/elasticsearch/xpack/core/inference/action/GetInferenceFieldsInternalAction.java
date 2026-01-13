@@ -43,13 +43,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * fields can be gathered more directly using {@link IndexMetadata#getMatchingInferenceFields}.
  * </p>
  */
-public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsAction.Response> {
-    public static final GetInferenceFieldsAction INSTANCE = new GetInferenceFieldsAction();
+public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFieldsInternalAction.Response> {
+    public static final GetInferenceFieldsInternalAction INSTANCE = new GetInferenceFieldsInternalAction();
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
-    // This is a defunct transport version for when GetInferenceFieldsAction was an internal cluster action. This was the case only for
-    // 9.3.0 development builds, so there should be no real-world deployments using GetInferenceFieldsAction as an internal cluster action.
-    // Therefore, this transport version can be disregarded.
+    // This is a defunct transport version for when GetInferenceFieldsInternalAction was an internal cluster action. This was the case only
+    // for 9.3.0 development builds, so there should be no real-world deployments using GetInferenceFieldsInternalAction as an internal
+    // cluster action. Therefore, this transport version can be disregarded.
     public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_TV = TransportVersion.fromName("get_inference_fields_action");
 
     public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV = TransportVersion.fromName(
@@ -58,7 +58,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
     public static final String NAME = "indices:admin/inference/fields/get";
 
-    public GetInferenceFieldsAction() {
+    public GetInferenceFieldsInternalAction() {
         super(NAME);
     }
 

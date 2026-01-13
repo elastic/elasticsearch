@@ -521,6 +521,7 @@ TS k8s
     null_literal = rate(null),
     null_propagated = rate(null_col)
 | EVAL rate=ROUND(rate, 4)
+| KEEP null_literal, null_propagated, rate
 | SORT rate DESC
 | LIMIT 2;
 

@@ -138,8 +138,8 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
      *       \_TopN[[Order[_fork{r}#5,DESC,FIRST], Order[emp_no{r}#70,ASC,LAST], Order[hd{r}#12,DESC,FIRST]],10[INTEGER],false]
      *         \_Eval[[fork3[KEYWORD] AS _fork#5, null[INTEGER] AS emp_no#70]]
      *           \_Limit[1000[INTEGER],false,false]
-     *             \_Aggregate[[hd{r}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS x#14, MIN(emp_no{f}#52,true[BOOLEAN],PT0S[TI
-     * ME_DURATION]) AS y#17, hd{r}#12]]
+     *             \_Aggregate[[hd{r}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS x#14,
+     *                MIN(emp_no{f}#52,true[BOOLEAN],PT0S[TIME_DURATION]) AS y#17, hd{r}#12]]
      *               \_Eval[[DATETRUNC(P2Y[DATE_PERIOD],hire_date{f}#59) AS hd#12]]
      *                 \_EsRelation[employees][_meta_field{f}#58, emp_no{f}#52, first_name{f}#53, ..]
      * }</pre>

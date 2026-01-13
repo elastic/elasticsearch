@@ -1,0 +1,6 @@
+pr: 140394
+summary: Limit heap used tracking `IndexMetadata` deletions
+area: Snapshot/Restore
+type: bug
+issues:
+ - 140018

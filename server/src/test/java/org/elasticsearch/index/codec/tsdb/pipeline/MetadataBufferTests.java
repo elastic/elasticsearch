@@ -232,7 +232,7 @@ public class MetadataBufferTests extends ESTestCase {
         final int capacityAfterGrow = buffer.capacity();
         assertTrue(capacityAfterGrow >= numBytes);
 
-        buffer.reset();
+        buffer.clear();
         assertEquals(0, buffer.size());
         assertEquals(0, buffer.position());
         assertEquals(capacityAfterGrow, buffer.capacity());
@@ -270,7 +270,7 @@ public class MetadataBufferTests extends ESTestCase {
         }
     }
 
-    public void testResetAndReuse() {
+    public void testClearAndReuse() {
         final MetadataBuffer buffer = new MetadataBuffer();
 
         final int firstValue = randomIntBetween(0, Integer.MAX_VALUE);
@@ -282,7 +282,7 @@ public class MetadataBufferTests extends ESTestCase {
         assertTrue(buffer.size() > 0);
         assertTrue(buffer.position() > 0);
 
-        buffer.reset();
+        buffer.clear();
 
         assertEquals(0, buffer.size());
         assertEquals(0, buffer.position());
@@ -424,12 +424,12 @@ public class MetadataBufferTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> buffer.setPosition(numBytes + 1));
     }
 
-    public void testMultipleResetCyclesRandom() {
+    public void testMultipleClearCyclesRandom() {
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numCycles = randomIntBetween(5, 20);
 
         for (int cycle = 0; cycle < numCycles; cycle++) {
-            buffer.reset();
+            buffer.clear();
             final int numValues = randomIntBetween(10, 100);
             final int[] values = new int[numValues];
 

@@ -45,9 +45,9 @@ public interface MetadataWriter {
     void writeZLong(long value);
 
     /**
-     * Resets the buffer for reuse.
+     * Clears the buffer for reuse, resetting position and size to zero.
      */
-    void reset();
+    void clear();
 
     /**
      * Returns the number of bytes written.

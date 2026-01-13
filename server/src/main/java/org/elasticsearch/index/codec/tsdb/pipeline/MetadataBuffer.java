@@ -290,11 +290,11 @@ public final class MetadataBuffer implements MetadataWriter, MetadataReader {
     }
 
     /**
-     * Resets the buffer position and size for reuse.
+     * Clears the buffer for reuse, resetting position and size to zero.
      * The underlying buffer capacity is retained to avoid reallocation.
      */
     @Override
-    public void reset() {
+    public void clear() {
         position = 0;
         size = 0;
     }

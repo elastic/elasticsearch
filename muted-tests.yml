@@ -336,6 +336,9 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testSyntheticId
   issue: https://github.com/elastic/elasticsearch/issues/140624
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
+  method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/137911
 
 # Examples:
 #

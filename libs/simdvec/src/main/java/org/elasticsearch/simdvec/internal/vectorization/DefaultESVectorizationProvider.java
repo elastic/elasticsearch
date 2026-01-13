@@ -28,8 +28,8 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int bulkSize, int dimension) {
-        return new ES91OSQVectorsScorer(input, bulkSize, dimension);
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) {
+        return new ES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
@@ -41,7 +41,7 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
         int dataLength,
         int bulkSize
     ) {
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
     @Override

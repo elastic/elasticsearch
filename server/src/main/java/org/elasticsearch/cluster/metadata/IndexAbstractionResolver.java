@@ -25,6 +25,7 @@ import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -153,6 +154,7 @@ public class IndexAbstractionResolver {
         indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
         if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
+            Map<String, DataStream> indexNameToDataStream = projectMetadata.dataStreams();
             final HashSet<String> resolvedIndices = new HashSet<>();
             for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                 if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
@@ -165,7 +167,14 @@ public class IndexAbstractionResolver {
                         indexNameExpressionResolver,
                         includeDataStreams
                     )) {
-                    resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+                    DataStream dataStream = indexNameToDataStream.get(authorizedIndex);
+                    if (dataStream != null) {
+                        for (Index index : dataStream.getIndices()) {
+                            resolveSelectorsAndCollect(index.getName(), selectorString, indicesOptions, resolvedIndices, projectMetadata);
+                        }
+                    } else {
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+                    }
                 }
             }
             if (resolvedIndices.isEmpty()) {

@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.nativeaccess.jdk.JdkPosixCLibraryAccess;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +49,9 @@ public class PosixCLibraryTests extends ESTestCase {
                 out.writeBytes(randomBytes((int) size), 0, (int) size);
             }
         }
-        try (var fc = FileChannel.open(tmp.resolve("foo.dat"), StandardOpenOption.READ)) {
+        // we need to unwrap our test-only file system layers
+        var file = Unwrappable.unwrapAll(tmp.resolve("foo.dat"));
+        try (var fc = FileChannel.open(file, StandardOpenOption.READ)) {
             var map = nativeAccess.map(fc, MapMode.READ_ONLY, 0, fc.size());
             map.prefetch(0, randomIntBetween(1, 4096));
         }

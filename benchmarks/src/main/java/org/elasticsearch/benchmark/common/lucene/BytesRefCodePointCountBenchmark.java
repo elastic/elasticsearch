@@ -9,7 +9,6 @@
 
 package org.elasticsearch.benchmark.common.lucene;
 
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.benchmark.common.util.UTF8StringBytesBenchmark;
@@ -36,10 +35,10 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class BytesRefCodePointCountBenchmark {
 
-    @Param({"1", "10", "100", "1000"})
+    @Param({ "1", "10", "100", "1000" })
     public int numCodePoints;
 
-    @Param({"ascii", "unicode"})
+    @Param({ "ascii", "unicode" })
     public String type;
 
     private BytesRef bytesRef;

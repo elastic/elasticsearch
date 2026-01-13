@@ -7,6 +7,7 @@
  * License v 3.0 only", or the "Server Side Public License, v 1".
  */
 
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
@@ -19,6 +20,7 @@ esplugin {
 
 dependencies {
   compileOnly project(path: ':modules:reindex')
+  internalClusterTestImplementation project(path: ':modules:reindex')
 
   testImplementation project(':modules:rest-root')
 

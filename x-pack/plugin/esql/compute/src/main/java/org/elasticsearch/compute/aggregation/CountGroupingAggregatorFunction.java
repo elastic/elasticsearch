@@ -42,7 +42,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
+    protected CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
         this.channels = channels;
         this.state = state;
         this.driverContext = driverContext;
@@ -116,8 +116,18 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupId = groups.getInt(groupPosition);
-            state.increment(groupId, values.getValueCount(position));
+            state.increment(groupId, getBlockValueCountAtPosition(values, position));
         }
+    }
+
+    /**
+     * Returns the number of values at a given position in a block
+     * @param values block
+     * @param position position to get the number of values
+     * @return
+     */
+    protected int getBlockValueCountAtPosition(Block values, int position) {
+        return values.getValueCount(position);
     }
 
     private void addRawInput(int positionOffset, IntArrayBlock groups, Block values) {
@@ -130,7 +140,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, values.getValueCount(position));
+                state.increment(groupId, getBlockValueCountAtPosition(values, position));
             }
         }
     }
@@ -145,7 +155,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, values.getValueCount(position));
+                state.increment(groupId, getBlockValueCountAtPosition(values, position));
             }
         }
     }

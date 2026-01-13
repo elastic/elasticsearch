@@ -32,6 +32,11 @@ public final class SyntheticIdField extends Field {
         public boolean incrementToken() {
             return false;
         }
+
+        @Override
+        public void end() {
+            // The underlying attributes are null, hence we just do a no-op
+        }
     };
 
     private static final FieldType TYPE;

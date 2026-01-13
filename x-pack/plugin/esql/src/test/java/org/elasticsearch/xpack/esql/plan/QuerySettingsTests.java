@@ -24,6 +24,7 @@ import org.junit.AfterClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -94,7 +95,6 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_techPreview() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         assumeFalse("Snapshot", Build.current().isSnapshot());
 
         validateUnmappedFields("FAIL", "NULLIFY");
@@ -102,13 +102,12 @@ public class QuerySettingsTests extends ESTestCase {
         assertInvalid(
             settingName,
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("UTC"),
-            "Setting [" + settingName + "=LOAD] is only available in snapshot builds"
+            of("UNKNOWN"),
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY]"
         );
     }
 
-    public void testValidate_UnmappedFields_snapshot() {
-        assumeTrue("Snapshot", Build.current().isSnapshot());
+    public void testValidate_UnmappedFields_allValues() {
         assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
     }
@@ -126,7 +125,8 @@ public class QuerySettingsTests extends ESTestCase {
         assertInvalid(
             setting.name(),
             of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY, LOAD]"
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                + Arrays.toString(values)
         );
     }
 

@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -89,22 +88,17 @@ public class QuerySettings {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
                 UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
-                if (res == UnmappedResolution.LOAD && Build.current().isSnapshot() == false) {
-                    throw new ParsingException(
-                        Strings.format(
-                            "Setting [unmapped_fields] to [%s] is only supported in snapshot builds. Supported values are [%s] and [%s]",
-                            res,
-                            UnmappedResolution.FAIL + " (default)",
-                            UnmappedResolution.NULLIFY
-                        )
-                    );
+                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled() == false) {
+                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
                 }
                 return res;
-            } catch (ParsingException pe) {
-                throw pe;
             } catch (Exception exc) {
+                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+                    ? UnmappedResolution.values()
+                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
+
                 throw new IllegalArgumentException(
-                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
                 );
             }
         },

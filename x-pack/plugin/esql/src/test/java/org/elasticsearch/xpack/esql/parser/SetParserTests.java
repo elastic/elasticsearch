@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.is;
 public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSet() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement("SET foo = \"bar\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
@@ -52,7 +51,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetWithTripleQuotes() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
@@ -70,7 +68,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleSet() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement(
             "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
             new QueryParams()
@@ -87,7 +84,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetArrays() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(2));
@@ -97,7 +93,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetWithNamedParams() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement(
             "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
             new QueryParams(
@@ -117,7 +112,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetWithPositionalParams() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement(
             "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
             new QueryParams(
@@ -140,8 +134,6 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     @SuppressWarnings("unchecked")
     public void testSetWithMap() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-
         // non-constant map
         try {
             unvalidatedStatement("""
@@ -207,7 +199,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFields_snapshot() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         assumeTrue("OPTIONAL_FIELDS option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
 
         var modes = List.of("FAIL", "NULLIFY", "LOAD");
@@ -216,9 +207,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFields_nonSnapshot() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         assumeTrue("Non-snapshot mode required", Build.current().isSnapshot() == false);
-        assumeTrue("Requires optional fields tech preview", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
 
         verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
 
@@ -229,7 +218,7 @@ public class SetParserTests extends AbstractStatementParserTests {
         assertThat(
             e.getMessage(),
             containsString(
-                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [LOAD], " + "must be one of [FAIL, NULLIFY]"
+                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [LOAD], must be one of [FAIL, NULLIFY]"
             )
         );
     }
@@ -243,7 +232,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFieldsWrongValue() {
-        assumeTrue("SET command required", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         var mode = randomValueOtherThanMany(
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)

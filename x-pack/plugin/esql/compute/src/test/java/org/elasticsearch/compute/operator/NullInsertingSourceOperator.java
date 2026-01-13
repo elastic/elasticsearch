@@ -21,8 +21,6 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.data.TDigestBlockBuilder;
 
 import java.util.Arrays;
 

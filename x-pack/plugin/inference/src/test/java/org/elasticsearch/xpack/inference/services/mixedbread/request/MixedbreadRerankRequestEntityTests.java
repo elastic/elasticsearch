@@ -54,7 +54,8 @@ public class MixedbreadRerankRequestEntityTests extends ESTestCase {
             List.of("abc"),
             null,
             null,
-            new MixedbreadRerankTaskSettings(null, null));
+            new MixedbreadRerankTaskSettings(null, null)
+        );
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
@@ -93,7 +94,13 @@ public class MixedbreadRerankRequestEntityTests extends ESTestCase {
 
     public void testXContent_MultipleRequests_WritesMinimalFields() throws IOException {
         var entity = new MixedbreadRerankRequestEntity(
-            MODEL, QUERY, List.of("abc", "def"), null, null, new MixedbreadRerankTaskSettings(null, null));
+            MODEL,
+            QUERY,
+            List.of("abc", "def"),
+            null,
+            null,
+            new MixedbreadRerankTaskSettings(null, null)
+        );
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {

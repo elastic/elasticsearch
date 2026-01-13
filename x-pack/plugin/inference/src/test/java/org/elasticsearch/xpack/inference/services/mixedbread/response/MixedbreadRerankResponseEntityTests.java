@@ -61,67 +61,67 @@ public class MixedbreadRerankResponseEntityTests extends ESTestCase {
     }
 
     private static final String RESPONSE_LITERAL = """
-            {
-                "usage": {
-                        "prompt_tokens": 162,
-                        "total_tokens": 162,
-                        "completion_tokens": 0
+        {
+            "usage": {
+                    "prompt_tokens": 162,
+                    "total_tokens": 162,
+                    "completion_tokens": 0
+            },
+            "model": "mixedbread-ai/mxbai-rerank-xsmall-v1",
+            "data": [
+                {
+                    "index": 0,
+                    "score": 0.98291015625,
+                    "object": "rank_result"
                 },
-                "model": "mixedbread-ai/mxbai-rerank-xsmall-v1",
-                "data": [
-                    {
-                        "index": 0,
-                        "score": 0.98291015625,
-                        "object": "rank_result"
-                    },
-                    {
-                        "index": 2,
-                        "score": 0.61962890625,
-                        "object": "rank_result"
-                    },
-                    {
-                        "index": 3,
-                        "score": 0.3642578125,
-                        "object": "rank_result"
-                    }
-                ],
-                "object": "list",
-                "top_k": 3,
-                "return_input": false
-            }
-            """;
+                {
+                    "index": 2,
+                    "score": 0.61962890625,
+                    "object": "rank_result"
+                },
+                {
+                    "index": 3,
+                    "score": 0.3642578125,
+                    "object": "rank_result"
+                }
+            ],
+            "object": "list",
+            "top_k": 3,
+            "return_input": false
+        }
+        """;
 
     private static final String RESPONSE_LITERAL_WITH_INPUT = Strings.format("""
-            {
-                "usage": {
-                        "prompt_tokens": 162,
-                        "total_tokens": 162,
-                        "completion_tokens": 0
+        {
+            "usage": {
+                    "prompt_tokens": 162,
+                    "total_tokens": 162,
+                    "completion_tokens": 0
+            },
+            "model": "mixedbread-ai/mxbai-rerank-xsmall-v1",
+            "data": [
+                {
+                    "index": 0,
+                    "score": 0.98291015625,
+                    "input": "%s",
+                    "object": "rank_result"
                 },
-                "model": "mixedbread-ai/mxbai-rerank-xsmall-v1",
-                "data": [
-                    {
-                        "index": 0,
-                        "score": 0.98291015625,
-                        "input": "%s",
-                        "object": "rank_result"
-                    },
-                    {
-                        "index": 2,
-                        "score": 0.61962890625,
-                        "input": "%s",
-                        "object": "rank_result"
-                    },
-                    {
-                        "index": 3,
-                        "score": 0.3642578125,
-                        "input": "%s",
-                        "object": "rank_result"
-                    }
-                ],
-                "object": "list",
-                "top_k": 3,
-                "return_input": false
-            }
-            """, HARPER_LEE, NOVEL_BY_HARPER_LEE, JANE_AUSTEN);
+                {
+                    "index": 2,
+                    "score": 0.61962890625,
+                    "input": "%s",
+                    "object": "rank_result"
+                },
+                {
+                    "index": 3,
+                    "score": 0.3642578125,
+                    "input": "%s",
+                    "object": "rank_result"
+                }
+            ],
+            "object": "list",
+            "top_k": 3,
+            "return_input": false
+        }
+        """, HARPER_LEE, NOVEL_BY_HARPER_LEE, JANE_AUSTEN);
 }

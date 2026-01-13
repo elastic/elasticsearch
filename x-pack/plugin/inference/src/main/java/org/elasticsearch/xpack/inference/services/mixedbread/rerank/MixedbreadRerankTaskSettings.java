@@ -29,8 +29,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
 
-    static final MixedbreadRerankTaskSettings EMPTY_SETTINGS = new MixedbreadRerankTaskSettings(
-        null, null);
+    static final MixedbreadRerankTaskSettings EMPTY_SETTINGS = new MixedbreadRerankTaskSettings(null, null);
 
     public static MixedbreadRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -62,7 +61,9 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
      * @return a constructed {@link MixedbreadRerankTaskSettings}
      */
     public static MixedbreadRerankTaskSettings of(
-        MixedbreadRerankTaskSettings originalSettings, MixedbreadRerankTaskSettings requestTaskSettings) {
+        MixedbreadRerankTaskSettings originalSettings,
+        MixedbreadRerankTaskSettings requestTaskSettings
+    ) {
         return new MixedbreadRerankTaskSettings(
             requestTaskSettings.getTopNDocumentsOnly() != null
                 ? requestTaskSettings.getTopNDocumentsOnly()
@@ -84,10 +85,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
         this(in.readOptionalInt(), in.readOptionalBoolean());
     }
 
-    public MixedbreadRerankTaskSettings(
-        @Nullable Integer topNDocumentsOnly,
-        @Nullable Boolean doReturnDocuments
-    ) {
+    public MixedbreadRerankTaskSettings(@Nullable Integer topNDocumentsOnly, @Nullable Boolean doReturnDocuments) {
         this.topNDocumentsOnly = topNDocumentsOnly;
         this.returnDocuments = doReturnDocuments;
     }
@@ -131,8 +129,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MixedbreadRerankTaskSettings that = (MixedbreadRerankTaskSettings) o;
-        return Objects.equals(returnDocuments, that.returnDocuments)
-            && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly);
+        return Objects.equals(returnDocuments, that.returnDocuments) && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly);
     }
 
     @Override

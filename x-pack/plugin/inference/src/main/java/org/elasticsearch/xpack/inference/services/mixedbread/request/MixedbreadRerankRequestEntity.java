@@ -17,10 +17,10 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants.INPUT_FIELD;
+import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants.QUERY_FIELD;
 import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants.RETURN_DOCUMENTS_FIELD;
 import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants.TOP_K_FIELD;
-import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants.MODEL_FIELD;
 
 public record MixedbreadRerankRequestEntity(
     String model,

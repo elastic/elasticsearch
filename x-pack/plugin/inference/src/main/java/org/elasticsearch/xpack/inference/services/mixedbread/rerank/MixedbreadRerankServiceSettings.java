@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -30,10 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
-public class MixedbreadRerankServiceSettings extends FilteredXContentObject
-    implements
-    ServiceSettings,
-    MixedbreadRateLimitServiceSettings {
+public class MixedbreadRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, MixedbreadRateLimitServiceSettings {
 
     public static final String NAME = "mixedbread_ai_rerank_service_settings";
 
@@ -141,8 +137,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         MixedbreadRerankServiceSettings that = (MixedbreadRerankServiceSettings) object;
-        return Objects.equals(model, that.modelId())
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings());
+        return Objects.equals(model, that.modelId()) && Objects.equals(rateLimitSettings, that.rateLimitSettings());
     }
 
     @Override

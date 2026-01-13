@@ -31,10 +31,7 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializin
     }
 
     public static MixedbreadRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
-        return new MixedbreadRerankServiceSettings(
-            randomAlphaOfLengthOrNull(10),
-            rateLimitSettings
-        );
+        return new MixedbreadRerankServiceSettings(randomAlphaOfLengthOrNull(10), rateLimitSettings);
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

@@ -93,7 +93,7 @@ public class MappedByteBufferTests extends ESTestCase {
 
     static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
-    private void assertOutOfBounds(CloseableMappedByteBuffer mappedByteBuffer, int size) {
+    static void assertOutOfBounds(CloseableMappedByteBuffer mappedByteBuffer, int size) {
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(-2, size));
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(-1, size));
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(1, size));
@@ -105,19 +105,20 @@ public class MappedByteBufferTests extends ESTestCase {
 
     static void assertSliceOfBuffer(CloseableMappedByteBuffer mappedByteBuffer, int offset, int length) {
         var buffer = mappedByteBuffer.buffer();
-        var slice = mappedByteBuffer.slice(offset, length);
-        slice.prefetch(0, length);
+        try (var slice = mappedByteBuffer.slice(offset, length)) {
+            slice.prefetch(0, length);
 
-        // sanitize backing data
-        var sliceBuffer = slice.buffer();
-        assertThat(sliceBuffer.position(), equalTo(0));
-        assertThat(sliceBuffer.limit(), equalTo(length));
-        assertThat(sliceBuffer.get(), equalTo((byte) offset));
-        byte expectedLastByte = buffer.get(buffer.limit() - 1);
-        byte sliceLastByte = sliceBuffer.get(sliceBuffer.limit() - 1);
-        assertThat(sliceLastByte, equalTo(expectedLastByte));
+            // sanitize backing data
+            var sliceBuffer = slice.buffer();
+            assertThat(sliceBuffer.position(), equalTo(0));
+            assertThat(sliceBuffer.limit(), equalTo(length));
+            assertThat(sliceBuffer.get(), equalTo((byte) offset));
+            byte expectedLastByte = buffer.get(buffer.limit() - 1);
+            byte sliceLastByte = sliceBuffer.get(sliceBuffer.limit() - 1);
+            assertThat(sliceLastByte, equalTo(expectedLastByte));
 
-        slice.close(); // should have no effect on later operations on the parent
+            assertOutOfBounds(slice, length);
+        }
     }
 
     private byte[] newByteArray(int size) {

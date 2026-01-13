@@ -469,7 +469,7 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     __m512i acc2 = _mm512_setzero_si512();
     __m512i acc3 = _mm512_setzero_si512();
 
-    int upperBound = length & -sizeof(__m512i);
+    int upperBound = length & ~(sizeof(__m512i) - 1);
     for (; r < upperBound; r += sizeof(__m512i)) {
         const __m512i value = _mm512_loadu_si512((const __m512i *)(a + r));
 
@@ -479,26 +479,22 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
         acc3 = _mm512_add_epi64(acc3, dot_bit_512(value, query + r + 3 * length));
     }
 
-    // use masked instructions for the tail
-    if (upperBound < length) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, length - upperBound);
-        const __m512i v = _mm512_maskz_loadu_epi64(mask, (const __m512i *)(a + r));
-
-        const __m512i q0 = _mm512_maskz_loadu_epi64(mask, (const __m512i *)query + r);
-        const __m512i q1 = _mm512_maskz_loadu_epi64(mask, (const __m512i *)query + r + length);
-        const __m512i q2 = _mm512_maskz_loadu_epi64(mask, (const __m512i *)query + r + 2 * length);
-        const __m512i q3 = _mm512_maskz_loadu_epi64(mask, (const __m512i *)query + r + 3 * length);
-
-        acc0 = _mm512_add_epi64(acc0, _mm512_popcnt_epi64(_mm512_and_si512(q0, v)));
-        acc1 = _mm512_add_epi64(acc1, _mm512_popcnt_epi64(_mm512_and_si512(q1, v)));
-        acc2 = _mm512_add_epi64(acc2, _mm512_popcnt_epi64(_mm512_and_si512(q2, v)));
-        acc3 = _mm512_add_epi64(acc3, _mm512_popcnt_epi64(_mm512_and_si512(q3, v)));
-    }
-
     int64_t subRet0 = _mm512_reduce_add_epi64(acc0);
     int64_t subRet1 = _mm512_reduce_add_epi64(acc1);
     int64_t subRet2 = _mm512_reduce_add_epi64(acc2);
     int64_t subRet3 = _mm512_reduce_add_epi64(acc3);
+
+    for (; r < length; r++) {
+        int8_t value = *(a + r);
+        int8_t q0 = *(query + r);
+        subRet0 += __builtin_popcount(q0 & value & 0xFF);
+        int8_t q1 = *(query + r + length);
+        subRet1 += __builtin_popcount(q1 & value & 0xFF);
+        int8_t q2 = *(query + r + 2 * length);
+        subRet2 += __builtin_popcount(q2 & value & 0xFF);
+        int8_t q3 = *(query + r + 3 * length);
+        subRet3 += __builtin_popcount(q3 & value & 0xFF);
+    }
 
     return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
 }

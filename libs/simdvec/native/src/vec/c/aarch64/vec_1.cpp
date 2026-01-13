@@ -442,7 +442,7 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
     int64_t subRet2 = 0;
     int64_t subRet3 = 0;
     int r = 0;
-    int upperBound = length & -sizeof(int64_t);
+    int upperBound = length & ~(sizeof(int64_t) - 1);
     for (; r < upperBound; r += sizeof(int64_t)) {
         int64_t value = *((int64_t*)(a + r));
         int64_t q0 = *((int64_t*)(query + r));
@@ -454,7 +454,7 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
         int64_t q3 = *((int64_t*)(query + r + 3 * length));
         subRet3 += __builtin_popcountll(q3 & value);
     }
-    upperBound = length & -sizeof(int32_t);
+    upperBound = length & ~(sizeof(int32_t) - 1);
     for (; r < upperBound; r += sizeof(int32_t)) {
         int32_t value = *((int32_t*)(a + r));
         int32_t q0 = *((int32_t*)(query + r));

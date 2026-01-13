@@ -486,11 +486,13 @@ static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {
 
 static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     int r = 0;
-    int upperBound = length & -sizeof(__m256i);
+
     __m256i acc0 = _mm256_setzero_si256();
     __m256i acc1 = _mm256_setzero_si256();
     __m256i acc2 = _mm256_setzero_si256();
     __m256i acc3 = _mm256_setzero_si256();
+
+    int upperBound = length & ~(sizeof(__m256i) - 1);
     for (; r < upperBound; r += sizeof(__m256i)) {
         __m256i value = _mm256_loadu_si256((const __m256i_u *)(a + r));
 
@@ -512,7 +514,7 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     int64_t subRet2 = hsum_i64_4(acc2);
     int64_t subRet3 = hsum_i64_4(acc3);
 
-    upperBound = length & -sizeof(int32_t);
+    upperBound = length & ~(sizeof(int32_t) - 1);
     for (; r < upperBound; r += sizeof(int32_t)) {
         int32_t value = *((int32_t*)(a + r));
         int32_t q0 = *((int32_t*)(query + r));

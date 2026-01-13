@@ -77,6 +77,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
@@ -2420,14 +2421,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore
+                    onDiskRescore,
+                    mergingExecutorService,
+                    numMergeWorkers
                 );
             }
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
-                onDiskRescore
+                onDiskRescore,
+                mergingExecutorService,
+                numMergeWorkers
             );
         }
 
@@ -2991,7 +2996,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             if (dims == null) {
                 // No data has been indexed yet
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
 
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
@@ -3314,7 +3319,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    elementType
+                    elementType,
+                    mergingExecutorService,
+                    maxMergingWorkers
                 );
                 if (extraKnnFormat != null) {
                     break;

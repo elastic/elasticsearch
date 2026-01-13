@@ -257,7 +257,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
-        private final Map<Integer, Exception> deduplicatedFailures;
+        private final Map<FailureSignature, Exception> deduplicatedFailures;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
@@ -747,7 +747,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
             for (Exception failure : failures) {
                 // Generate a signature for the failure to deduplicate on the most important properties
-                int failureSignature = Objects.hash(failure.getClass(), failure.getMessage(), failure.getCause());
+                FailureSignature failureSignature = new FailureSignature(failure);
 
                 Exception deduplicatedFailure = deduplicatedFailures.computeIfAbsent(failureSignature, k -> failure);
                 item.abort(item.index(), deduplicatedFailure);
@@ -837,6 +837,77 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         @Override
         public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
+        }
+    }
+
+    private static class FailureSignature {
+        private final Throwable failure;
+
+        private FailureSignature(Throwable failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FailureSignature that = (FailureSignature) o;
+
+            return throwablesEqual(failure, that.failure);
+        }
+
+        @Override
+        public int hashCode() {
+            return throwableHashCode(failure);
+        }
+
+        private static boolean throwablesEqual(Throwable a, Throwable b) {
+            if (a == b) {
+                return true;
+            }
+
+            FailureArgs aFailureArgs = new FailureArgs(a);
+            FailureArgs bFailureArgs = new FailureArgs(b);
+            return Objects.equals(aFailureArgs.getFailureClass(), bFailureArgs.getFailureClass())
+                && Objects.equals(aFailureArgs.getFailureMessage(), bFailureArgs.getFailureMessage())
+                && throwablesEqual(aFailureArgs.getFailureCause(), bFailureArgs.getFailureCause());
+        }
+
+        private static int throwableHashCode(Throwable throwable) {
+            if (throwable == null) {
+                return Objects.hashCode(throwable);
+            }
+
+            FailureArgs failureArgs = new FailureArgs(throwable);
+            return Objects.hash(
+                failureArgs.getFailureClass(),
+                failureArgs.getFailureMessage(),
+                throwableHashCode(failureArgs.getFailureCause())
+            );
+        }
+
+        private static class FailureArgs {
+            private final Class<? extends Throwable> failureClass;
+            private final String failureMessage;
+            private final Throwable failureCause;
+
+            private FailureArgs(@Nullable Throwable failure) {
+                failureClass = failure != null ? failure.getClass() : null;
+                failureMessage = failure != null ? failure.getMessage() : null;
+                failureCause = failure != null ? failure.getCause() : null;
+            }
+
+            public Class<? extends Throwable> getFailureClass() {
+                return failureClass;
+            }
+
+            public String getFailureMessage() {
+                return failureMessage;
+            }
+
+            public Throwable getFailureCause() {
+                return failureCause;
+            }
         }
     }
 }

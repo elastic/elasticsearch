@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 import java.io.IOException;
@@ -23,6 +24,8 @@ public final class GetUserPrivilegesRequest extends LegacyActionRequest implemen
     private static final TransportVersion TV_UNWRAP_ROLE = TransportVersion.fromName("get_user_priv_unwrap_role");
 
     private String username;
+
+    @Nullable
     private RoleReference.ApiKeyRoleType unwrapInnerRole;
 
     /**
@@ -34,7 +37,7 @@ public final class GetUserPrivilegesRequest extends LegacyActionRequest implemen
         super(in);
         this.username = in.readString();
         if (in.getTransportVersion().supports(TV_UNWRAP_ROLE)) {
-            this.unwrapInnerRole = in.readEnum(RoleReference.ApiKeyRoleType.class);
+            this.unwrapInnerRole = in.readOptionalEnum(RoleReference.ApiKeyRoleType.class);
         } else {
             this.unwrapInnerRole = null;
         }
@@ -77,7 +80,7 @@ public final class GetUserPrivilegesRequest extends LegacyActionRequest implemen
         super.writeTo(out);
         out.writeString(username);
         if (out.getTransportVersion().supports(TV_UNWRAP_ROLE)) {
-            out.writeEnum(unwrapInnerRole);
+            out.writeOptionalEnum(unwrapInnerRole);
         }
     }
 

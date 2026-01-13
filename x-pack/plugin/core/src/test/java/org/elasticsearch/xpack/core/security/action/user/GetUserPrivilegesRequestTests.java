@@ -29,6 +29,9 @@ public class GetUserPrivilegesRequestTests extends ESTestCase {
 
         final GetUserPrivilegesRequest original = new GetUserPrivilegesRequest();
         original.username(user);
+        if (randomBoolean()) {
+            original.unwrapLimitedRole(randomFrom(RoleReference.ApiKeyRoleType.values()));
+        }
 
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -39,6 +42,7 @@ public class GetUserPrivilegesRequestTests extends ESTestCase {
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.usernames(), equalTo(original.usernames()));
+        assertThat(copy.unwrapLimitedRole(), equalTo(original.unwrapLimitedRole()));
     }
 
     public void testEnumSerialization() {

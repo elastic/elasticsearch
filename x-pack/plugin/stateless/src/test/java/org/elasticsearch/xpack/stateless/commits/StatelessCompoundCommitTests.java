@@ -94,17 +94,17 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.timestampFieldValueRange()
                 ) : randomBoolean() ?
                 // hollowed commit
-                StatelessCompoundCommit.newHollowStatelessCompoundCommit(
-                    instance.shardId(),
-                    instance.primaryTermAndGeneration(),
-                    instance.commitFiles(),
-                    instance.sizeInBytes(),
-                    instance.internalFiles(),
-                    instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges(),
-                    instance.extraContent(),
-                    instance.timestampFieldValueRange()
-                ) :
+                    StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                        instance.shardId(),
+                        instance.primaryTermAndGeneration(),
+                        instance.commitFiles(),
+                        instance.sizeInBytes(),
+                        instance.internalFiles(),
+                        instance.headerSizeInBytes(),
+                        instance.internalFilesReplicatedRanges(),
+                        instance.extraContent(),
+                        instance.timestampFieldValueRange()
+                    ) :
                 // different unhollowed commit
                 new StatelessCompoundCommit(
                     instance.shardId(),
@@ -135,17 +135,17 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.timestampFieldValueRange()
                 ) : randomBoolean() ?
                 // hollowed commit
-                StatelessCompoundCommit.newHollowStatelessCompoundCommit(
-                    instance.shardId(),
-                    instance.primaryTermAndGeneration(),
-                    instance.commitFiles(),
-                    instance.sizeInBytes(),
-                    instance.internalFiles(),
-                    instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges(),
-                    instance.extraContent(),
-                    instance.timestampFieldValueRange()
-                ) :
+                    StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                        instance.shardId(),
+                        instance.primaryTermAndGeneration(),
+                        instance.commitFiles(),
+                        instance.sizeInBytes(),
+                        instance.internalFiles(),
+                        instance.headerSizeInBytes(),
+                        instance.internalFilesReplicatedRanges(),
+                        instance.extraContent(),
+                        instance.timestampFieldValueRange()
+                    ) :
                 // different unhollowed commit
                 new StatelessCompoundCommit(
                     instance.shardId(),

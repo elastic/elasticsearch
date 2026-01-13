@@ -38,7 +38,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> replicatedRanges, long dataSizeInBytes)
     implements
-    ToXContentFragment {
+        ToXContentFragment {
 
     public static final short REPLICATED_CONTENT_HEADER_SIZE = BlobCacheBufferedIndexInput.BUFFER_SIZE;
     public static final short REPLICATED_CONTENT_FOOTER_SIZE = (short) CodecUtil.footerLength();
@@ -92,9 +92,9 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
 
     public record InternalFileReplicatedRange(long position, short length)
         implements
-        Writeable,
-        ToXContentObject,
-        Comparable<InternalFileReplicatedRange> {
+            Writeable,
+            ToXContentObject,
+            Comparable<InternalFileReplicatedRange> {
 
         public static final ConstructingObjectParser<InternalFileReplicatedRange, Void> PARSER = new ConstructingObjectParser<>(
             "internal_file_replicated_range",

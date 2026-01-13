@@ -87,14 +87,14 @@ public record StatelessCompoundCommit(
             ? (nodeEphemeralId.isEmpty() == (translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE))
             : (nodeEphemeralId.isEmpty() == false && translogRecoveryStartFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE)
             : "a hollow (currently "
-            + hollow
-            + ") commit must have an empty node ephemeral id (currently "
-            + nodeEphemeralId
-            + ") and a translog recovery start file with value "
-            + HOLLOW_TRANSLOG_RECOVERY_START_FILE
-            + " (currently "
-            + translogRecoveryStartFile
-            + ")";
+                + hollow
+                + ") commit must have an empty node ephemeral id (currently "
+                + nodeEphemeralId
+                + ") and a translog recovery start file with value "
+                + HOLLOW_TRANSLOG_RECOVERY_START_FILE
+                + " (currently "
+                + translogRecoveryStartFile
+                + ")";
         assert extraContent != null;
         assert extraContent.isEmpty() || hollow : "only hollow commits can currently have extra content (currently " + extraContent + ")";
     }

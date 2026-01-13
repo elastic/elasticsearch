@@ -583,11 +583,14 @@ public class SparseFileTrackerTests extends ESTestCase {
         final long checkStart = randomLongBetween(0, fileContents.length - 1);
         final long checkEnd = randomLongBetween(checkStart, fileContents.length);
 
-        final ByteRange freeRange = sparseFileTracker.getAbsentRangeWithin(ByteRange.of(checkStart, checkEnd));
+        ByteRange checkRange = ByteRange.of(checkStart, checkEnd);
+        final ByteRange freeRange = sparseFileTracker.getAbsentRangeWithin(checkRange);
+        final long bytes = sparseFileTracker.getAbsentBytesWithin(checkRange);
         if (freeRange == null) {
             for (long i = checkStart; i < checkEnd; i++) {
                 assertThat(fileContents[toIntBytes(i)], equalTo(AVAILABLE));
             }
+            assertThat(bytes, equalTo(0L));
         } else {
             assertThat(freeRange.start(), greaterThanOrEqualTo(checkStart));
             assertTrue(freeRange.toString(), freeRange.start() < freeRange.end());
@@ -602,7 +605,9 @@ public class SparseFileTrackerTests extends ESTestCase {
                 // without concurrent activity, the returned range is as small as possible
                 assertThat(fileContents[toIntBytes(freeRange.start())], equalTo(UNAVAILABLE));
                 assertThat(fileContents[toIntBytes(freeRange.end() - 1)], equalTo(UNAVAILABLE));
+                assertThat(bytes, greaterThanOrEqualTo(1L));
             }
+            assertThat(bytes, lessThanOrEqualTo(freeRange.end() - freeRange.start()));
         }
     }
 
@@ -642,6 +647,12 @@ public class SparseFileTrackerTests extends ESTestCase {
                 ByteRange.of(rangeStart, rangeEnd),
                 ByteRange.of(subRangeStart, subRangeEnd),
                 actionListener
+            );
+
+            long gapSum = gaps.stream().mapToLong(g -> g.end() - g.start()).sum();
+            assertThat(sparseFileTracker.getAbsentBytesWithin(ByteRange.of(rangeStart, rangeEnd)), greaterThanOrEqualTo(gapSum));
+            gaps.forEach(
+                g -> { assertThat(sparseFileTracker.getAbsentBytesWithin(ByteRange.of(g.start(), g.end())), equalTo(g.end() - g.start())); }
             );
 
             for (final SparseFileTracker.Gap gap : gaps) {

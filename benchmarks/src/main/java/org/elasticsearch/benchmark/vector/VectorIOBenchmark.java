@@ -70,7 +70,7 @@ public class VectorIOBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    private static final String TEST_DIR = "/Users/jimczi/test";
+    private static final String TEST_DIR = "/home/esbench/.rally/benchmarks/races/test";
 
     private final Random random = new Random();
     private Directory dir;
@@ -94,7 +94,7 @@ public class VectorIOBenchmark {
     @Param({ "true", "false" })
     private boolean prefetch;
 
-    @Param({ "MMAP_RANDOM" })
+    @Param({ "MMAP" })
     private String readMethod;
 
     @Param({ "true", "false" })
@@ -109,18 +109,10 @@ public class VectorIOBenchmark {
                 var delegate = new MMapDirectory(Path.of(TEST_DIR));
                 dir = new FsDirectoryFactory.AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, 0);
                 break;
-            case "MMAP_RANDOM":
+            case "MMAP":
                 var mmapDir = new MMapDirectory(Path.of(TEST_DIR));
-                mmapDir.setReadAdvice((s, c) -> Optional.of(ReadAdvice.RANDOM));
+                mmapDir.setReadAdvice(FsDirectoryFactory.getReadAdviceFunc());
                 dir = mmapDir;
-                break;
-            case "MMAP_NORMAL":
-                var mmapDir2 = new MMapDirectory(Path.of(TEST_DIR));
-                mmapDir2.setReadAdvice((s, c) -> Optional.of(ReadAdvice.NORMAL));
-                dir = mmapDir2;
-                break;
-            case "NIOFS":
-                dir = new PrefetchNIOFSDirectory(Path.of(TEST_DIR));
                 break;
             default:
                 throw new IllegalArgumentException("Unknown read method [" + readMethod + "]");

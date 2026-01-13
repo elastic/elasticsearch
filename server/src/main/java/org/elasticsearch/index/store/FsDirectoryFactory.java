@@ -152,7 +152,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return MMapDirectory.NO_FILES;
     }
 
-    private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
+    public static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);

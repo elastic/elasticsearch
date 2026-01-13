@@ -107,8 +107,8 @@ public interface NativeAccess {
     CloseableByteBuffer newConfinedBuffer(int len);
 
     /**
-     * Creates a new {@link CloseableMappedByteBuffer} using an auto arena. The buffer can be used
-     * across multiple threads.
+     * Creates a new {@link CloseableMappedByteBuffer} using a shared arena. The buffer can be used
+     * across multiple threads, and should be closed.
      * @return the buffer
      */
     CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;

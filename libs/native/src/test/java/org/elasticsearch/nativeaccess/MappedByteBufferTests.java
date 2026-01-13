@@ -41,8 +41,10 @@ public class MappedByteBufferTests extends ESTestCase {
         Files.write(file, newByteArray(size), CREATE, WRITE);
         // we need to unwrap our test-only file system layers
         file = Unwrappable.unwrapAll(file);
-        try (FileChannel fileChannel = FileChannel.open(file, READ)) {
-            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
             mappedByteBuffer.prefetch(0, size);
 
             var buffer = mappedByteBuffer.buffer();
@@ -69,8 +71,10 @@ public class MappedByteBufferTests extends ESTestCase {
         Files.write(file, newByteArray(size), CREATE, WRITE);
         // we need to unwrap our test-only file system layers
         file = Unwrappable.unwrapAll(file);
-        try (FileChannel fileChannel = FileChannel.open(file, READ)) {
-            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
             mappedByteBuffer.prefetch(0, size);
             mappedByteBuffer.prefetch(0, 0);
             mappedByteBuffer.prefetch(0, size - 1);

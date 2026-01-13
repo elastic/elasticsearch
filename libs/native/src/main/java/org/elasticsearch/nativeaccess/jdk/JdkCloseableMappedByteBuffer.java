@@ -37,10 +37,6 @@ class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
     }
 
     static JdkCloseableMappedByteBuffer ofAuto(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
-
-        // Work around for JDK-8259028: we need to unwrap our test-only file system layers
-        // path = Unwrappable.unwrapAll(path);
-
         var seg = fileChannel.map(mode, position, size, Arena.ofAuto());
         return new JdkCloseableMappedByteBuffer(seg, null);
     }

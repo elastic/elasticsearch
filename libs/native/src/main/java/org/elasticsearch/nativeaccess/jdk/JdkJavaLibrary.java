@@ -30,7 +30,6 @@ class JdkJavaLibrary implements JavaLibrary {
 
     @Override
     public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
-        return JdkCloseableMappedByteBuffer.ofAuto(fileChannel, mode, position, size);
+        return JdkCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
     }
-
 }

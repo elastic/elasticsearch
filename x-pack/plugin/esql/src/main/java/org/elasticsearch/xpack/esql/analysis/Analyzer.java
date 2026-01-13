@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -284,10 +285,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             IndexResolution indexResolution = plan.indexMode().equals(IndexMode.LOOKUP)
                 ? context.lookupResolution().get(plan.indexPattern().indexPattern())
                 : context.indexResolution().get(plan.indexPattern());
-            return resolveIndex(plan, indexResolution);
+            return resolveIndex(plan, indexResolution, context);
         }
 
-        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution, AnalyzerContext context) {
+            List<NamedExpression> metadata = resolveMetadata(plan.metadataFields(), context);
             if (indexResolution == null || indexResolution.isValid() == false) {
                 String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
                 return plan.unresolvedMessage().equals(indexResolutionMessage)
@@ -296,7 +298,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.source(),
                         plan.indexPattern(),
                         plan.frozen(),
-                        plan.metadataFields(),
+                        metadata,
                         plan.indexMode(),
                         indexResolutionMessage,
                         plan.telemetryLabel()
@@ -310,9 +312,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.source(),
                     plan.indexPattern(),
                     plan.frozen(),
-                    plan.metadataFields(),
+                    metadata,
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + indexResolution + "]",
+                    plan.telemetryLabel()
+                );
+            }
+
+            if (metadata.stream().anyMatch(x -> x.resolved() == false)) {
+                return new UnresolvedRelation(
+                    plan.source(),
+                    plan.indexPattern(),
+                    plan.frozen(),
+                    metadata,
+                    plan.indexMode(),
+                    "unresolved metadata fields: " + metadata.stream().filter(x -> x.resolved() == false).toList(),
                     plan.telemetryLabel()
                 );
             }
@@ -320,7 +334,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = indexResolution.get();
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
-            attributes.addAll(plan.metadataFields());
+            attributes.addAll(plan.metadataFields().stream().map(NamedExpression::toAttribute).toList());
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),
@@ -330,6 +344,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
+        }
+
+        private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
+            List<NamedExpression> resolved = new ArrayList<>();
+            for (NamedExpression item : metadata) {
+                switch (item) {
+                    case MetadataAttribute ma -> resolved.add(ma);
+                    case UnresolvedMetadataAttributeExpression um -> resolved.addAll(tryResolveMetadata(um, context));
+                    default -> throw new IllegalStateException("Unexpected metadata type: " + item.getClass().getName());
+                }
+            }
+            return resolved;
+        }
+
+        private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, AnalyzerContext context) {
+            // TODO implement metadata resolution
+            return List.of(um);
         }
     }
 
@@ -1010,7 +1041,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute resolved = resolveAttribute(ua, childrenOutput);
                 if (resolved.resolved() == false || resolved.dataType() != DOUBLE) {
                     if (ua.name().equals(MetadataAttribute.SCORE)) {
-                        resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                        resolved = (Attribute) MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
                     } else {
                         resolved = new ReferenceAttribute(resolved.source(), null, resolved.name(), DOUBLE);
                     }

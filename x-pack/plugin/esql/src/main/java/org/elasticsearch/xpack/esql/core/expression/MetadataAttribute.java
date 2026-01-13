@@ -33,10 +33,16 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
 
+    public static final String PROJECT_PREFIX = "_project.";
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "MetadataAttribute",
         MetadataAttribute::readFrom
+    );
+
+    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTE_PREFIXES_MAP = Map.ofEntries(
+        Map.entry(PROJECT_PREFIX, new MetadataAttributeConfiguration(DataType.KEYWORD, true))
     );
 
     private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
@@ -146,9 +152,23 @@ public class MetadataAttribute extends TypedAttribute {
         return searchable;
     }
 
-    public static MetadataAttribute create(Source source, String name) {
+    public static NamedExpression create(Source source, String name) {
         var t = ATTRIBUTES_MAP.get(name);
-        return t != null ? new MetadataAttribute(source, name, t.dataType(), t.searchable()) : null;
+        if (t != null) {
+            return new MetadataAttribute(source, name, t.dataType(), t.searchable());
+        }
+
+        t = ATTRIBUTE_PREFIXES_MAP.get(prefix(name));
+        if (t != null) {
+            return new UnresolvedMetadataAttributeExpression(source, name, t.dataType());
+        }
+
+        return null;
+
+    }
+
+    private static String prefix(String name) {
+        return name.split("\\.")[0] + ".";
     }
 
     public static DataType dataType(String name) {
@@ -157,7 +177,7 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     public static boolean isSupported(String name) {
-        return ATTRIBUTES_MAP.containsKey(name);
+        return ATTRIBUTES_MAP.containsKey(name) || name.contains(".") && ATTRIBUTE_PREFIXES_MAP.containsKey(prefix(name));
     }
 
     public static boolean isScoreAttribute(Expression a) {

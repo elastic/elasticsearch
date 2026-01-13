@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.hamcrest.BaseMatcher;
@@ -28,11 +28,15 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -271,11 +275,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(2));
         for (LogicalPlan child : subqueries) {
+            child = (child instanceof Subquery subquery) ? subquery.child() : child;
             assertThat(child, instanceOf(UnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
-            assertThat(subchildren.get(0), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
-            assertThat(subchildren.get(1), instanceOf(Filter.class));
+            assertThat(
+                subchildren,
+                matchesAnyXOf(
+                    2,
+                    query("FROM emp1 | WHERE emp.age > 30"),
+                    query("FROM emp2 | WHERE emp.age < 40"),
+                    query("FROM emp3 | WHERE emp.salary > 50000")
+                )
+            );
         }
     }
 
@@ -294,11 +306,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(subqueries.size(), equalTo(3));
         assertThat(subqueries.getFirst(), matchesPlan(query("FROM view_1_*")));
         for (LogicalPlan child : subqueries.subList(1, 3)) {
+            child = (child instanceof Subquery subquery) ? subquery.child() : child;
             assertThat(child, instanceOf(UnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
-            assertThat(subchildren.get(0), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
-            assertThat(subchildren.get(1), instanceOf(Filter.class));
+            assertThat(
+                subchildren,
+                matchesAnyXOf(
+                    2,
+                    query("FROM emp1 | WHERE emp.age > 30"),
+                    query("FROM emp2 | WHERE emp.age < 40"),
+                    query("FROM emp3 | WHERE emp.salary > 50000")
+                )
+            );
         }
     }
 
@@ -319,12 +339,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(6));
         for (LogicalPlan child : subqueries) {
+            child = (child instanceof Subquery subquery) ? subquery.child() : child;
             assertThat(child, instanceOf(UnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
-            // Each sub-plan has different filters and index names, but the structure is the same
-            assertThat(subchildren.get(0), instanceOf(Filter.class));
-            assertThat(subchildren.get(1), instanceOf(Filter.class));
+            assertThat(
+                subchildren,
+                matchesAnyXOf(
+                    2,
+                    query("FROM emp1 | WHERE emp.age > 30"),
+                    query("FROM emp2 | WHERE emp.age < 40"),
+                    query("FROM emp3 | WHERE emp.salary > 50000")
+                )
+            );
         }
     }
 
@@ -470,13 +497,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         private final LogicalPlan plan;
 
         private LogicalPlanEqualTo(LogicalPlan plan) {
-            this.plan = plan;
+            this.plan = (plan instanceof Subquery subquery) ? subquery.child() : plan;
         }
 
         @Override
         public boolean matches(Object o) {
             if (o instanceof LogicalPlan other) {
-                return plan.toString().equals(other.toString());
+                LogicalPlan otherPlan = (other instanceof Subquery subquery) ? subquery.child() : other;
+                return plan.toString().equals(otherPlan.toString());
             }
             return false;
         }
@@ -488,6 +516,47 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             } else {
                 description.appendText("null");
             }
+        }
+    }
+
+    /**
+     * Matches if the iterable contains exactly {@code x} items from {@code plans} in any order.
+     * For example, {@code matchesAnyXOf(2, a, b, c)} is equivalent to:
+     * {@code anyOf(containsInAnyOrder(a, b), containsInAnyOrder(a, c), containsInAnyOrder(b, c))}
+     */
+    private static Matcher<Iterable<? extends LogicalPlan>> matchesAnyXOf(int x, LogicalPlan... plans) {
+        if (x < 1) {
+            throw new IllegalArgumentException("x must be >= 1");
+        }
+        List<Matcher<? super LogicalPlan>> matchers = Arrays.stream(plans)
+            .<Matcher<? super LogicalPlan>>map(InMemoryViewServiceTests::matchesPlan)
+            .toList();
+        if (x >= matchers.size()) {
+            return containsInAnyOrder(matchers);
+        }
+        List<Matcher<Iterable<? extends LogicalPlan>>> combinations = new ArrayList<>();
+        generateCombinations(matchers, x, 0, new ArrayList<>(), combinations);
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        Matcher<Iterable<? extends LogicalPlan>>[] combinationsArray = combinations.toArray(new Matcher[0]);
+        return anyOf(combinationsArray);
+    }
+
+    private static void generateCombinations(
+        List<Matcher<? super LogicalPlan>> matchers,
+        int size,
+        int start,
+        List<Matcher<? super LogicalPlan>> current,
+        List<Matcher<Iterable<? extends LogicalPlan>>> result
+    ) {
+        if (current.size() == size) {
+            Collection<Matcher<? super LogicalPlan>> combination = new ArrayList<>(current);
+            result.add(containsInAnyOrder(combination));
+            return;
+        }
+        for (int i = start; i < matchers.size(); i++) {
+            current.add(matchers.get(i));
+            generateCombinations(matchers, size, i + 1, current, result);
+            current.remove(current.size() - 1);
         }
     }
 }

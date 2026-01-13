@@ -55,6 +55,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -183,7 +184,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected static boolean testClustersOk = true;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
@@ -205,12 +206,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query
-        VIEWS.protectedBlock(() -> {
-            if (supportsViews()) {
-                loadViewsIntoEs(adminClient());
-            }
-            return null;
-        });
+        if (shouldRemoveViews(testName)) {
+            deleteViews(adminClient());
+            VIEWS.reset();
+        } else {
+            VIEWS.protectedBlock(() -> {
+                if (supportsViews()) {
+                    loadViewsIntoEs(adminClient());
+                }
+                return null;
+            });
+        }
     }
 
     @AfterClass
@@ -256,6 +262,25 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             testClustersOk = false;
             failure.addSuppressed(inner);
         }
+    }
+
+    private static final Set<String> FROM_STAR_TESTS = Set.of(
+        "QueryThatWillNotBeDeterministicWithViews",
+        "FieldsInOtherIndicesBug",
+        "MultipleBatchesWithSort",
+        "MultipleBatchesWithMvExpand",
+        "EnrichLookupStatsBug",
+        "MultipleBatchesWithAggregate1",
+        "MultipleBatchesWithAggregate2",
+        "MultipleBatchesWithAggregate3",
+        "InlineStatsAfterPruningAggregate6"
+    );
+
+    private static final Set<String> AIRPORTS_STAR_TESTS = Set.of("LucenePushdownMixOrAnd", "LucenePushdownMultipleIndices");
+
+    // Some tests will fail if views are defined (notably tests with `FROM *` which are non-deterministic)
+    protected boolean shouldRemoveViews(String testName) {
+        return FROM_STAR_TESTS.stream().anyMatch(testName::contains) || AIRPORTS_STAR_TESTS.stream().anyMatch(testName::contains);
     }
 
     protected void shouldSkipTest(String testName) throws IOException {

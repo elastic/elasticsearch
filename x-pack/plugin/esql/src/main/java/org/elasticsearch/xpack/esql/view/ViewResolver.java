@@ -14,10 +14,13 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
@@ -36,6 +39,7 @@ import static org.elasticsearch.xpack.esql.view.ViewService.MAX_VIEW_DEPTH_SETTI
 
 public class ViewResolver {
 
+    protected Logger log = LogManager.getLogger(getClass());
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private volatile int maxViewDepth;
@@ -74,7 +78,13 @@ public class ViewResolver {
             .filter(e -> e.getValue() == null || e.getValue().getType() != IndexAbstraction.Type.VIEW)
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
-        return replaceViewsInSubplan(plan, parser, views, nonViewNames, new LinkedHashSet<>(), new HashSet<>(), 0);
+        LogicalPlan rewritten = replaceViewsInSubplan(plan, parser, views, nonViewNames, new LinkedHashSet<>(), new HashSet<>(), 0);
+        if (rewritten.equals(plan)) {
+            log.debug("No views resolved");
+            return plan;
+        }
+        log.debug("Views resolved:\n" + rewritten);
+        return rewritten;
     }
 
     /**
@@ -95,7 +105,12 @@ public class ViewResolver {
         // Do not modify the outer seen set, copy it for this subplan, allowing multiple subplans to refer to the same view
         LinkedHashSet<String> seen = new LinkedHashSet<>(outerSeen);
         HashSet<String> seenWildcards = new HashSet<>(outerSeenWildcards);
-        return plan.transformDown(LogicalPlan.class, p -> {
+        String tab = "    ".repeat(depth);
+        String pt = "    " + tab;
+        log.trace(
+            tab + "replaceViewsInSubplan depth=" + depth + " seen=" + seen + " plan=\n" + pt + plan.toString().replace("\n", "\n" + pt)
+        );
+        LogicalPlan rewritten = plan.transformDown(LogicalPlan.class, p -> {
             switch (p) {
                 case UnionAll union -> {
                     // UnionAll is the result of this re-writing, so we assume rewriting is completed
@@ -133,6 +148,7 @@ public class ViewResolver {
                         // No views found, return the original plan node
                         return ur;
                     }
+                    log.trace(tab + "  found UnresolvedRelation with views: " + patterns.views().stream().map(View::name).toList());
                     for (View view : patterns.views()) {
                         if (seen.add(view.name()) == false) {
                             throw viewError("circular view reference '" + view.name() + "': ", new ArrayList<>(seen));
@@ -174,6 +190,10 @@ public class ViewResolver {
             // TODO: determine if we need to modify source fields to resolve deserialization issues
             return p;
         });
+        log.trace(
+            tab + "rewritten plan at depth=" + depth + " seen=" + seen + " is\n" + pt + rewritten.toString().replace("\n", "\n" + pt)
+        );
+        return rewritten;
     }
 
     private record IndexPatterns(List<View> views, List<String> indexNames, List<String> wildCards) {}
@@ -232,7 +252,7 @@ public class ViewResolver {
             if (lp instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 unresolvedRelations.add(urp);
             } else {
-                otherPlans.add(lp);
+                otherPlans.add(new Subquery(ur.source(), lp));
             }
         }
         if (unresolvedRelations.isEmpty() == false) {
@@ -252,6 +272,12 @@ public class ViewResolver {
         }
         if (otherPlans.size() == 1) {
             return otherPlans.getFirst();
+        }
+        String tab = "    ".repeat(depth);
+        log.trace(tab + "  creating UnionAll with " + otherPlans.size() + " branches:");
+        String pt = "      " + tab;
+        for (LogicalPlan p : otherPlans) {
+            log.trace(tab + "    branch plan=\n" + pt + p.toString().replace("\n", "\n" + pt));
         }
         return new UnionAll(ur.source(), otherPlans, List.of());
     }

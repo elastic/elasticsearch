@@ -608,7 +608,17 @@ public class CsvTests extends ESTestCase {
         return plan;
     }
 
+    private static final Set<String> AIRPORTS_STAR_TESTS = Set.of("LucenePushdownMixOrAnd", "LucenePushdownMultipleIndices");
+
+    // Some tests will fail if views are defined (notably tests with wildcards, which can be non-deterministic)
+    protected boolean shouldRemoveViews(String testName) {
+        return AIRPORTS_STAR_TESTS.stream().anyMatch(testName::contains);
+    }
+
     private LogicalPlan resolveViews(LogicalPlan parsed) {
+        if (shouldRemoveViews(testName)) {
+            return parsed;
+        }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             ProjectId projectId = ProjectId.fromId("dummy");
             for (var viewConfig : VIEW_CONFIGS) {

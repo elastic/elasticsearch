@@ -327,3 +327,24 @@ duplications:long | abbrev:keyword | indexes:keyword
 2                 | HOD            | [airports, view]
 2                 | PZU            | [airports]
 ;
+
+// When a wildcard matches many indexes including views, several factors can contribute to non-deterministic results:
+// - The order in which indexes are processed may vary
+// - the fact that many fields will be null, since they only exist in some of the indexes
+// - implicit limits on subqueries can effectively remove some documents
+// The simplest query that demonstrates this is a wildcard over views and a regular index with a stats aggregation.
+// But any query in the existing csv-spec set that uses `FROM *` will also be non-deterministic if views are present.
+
+queryThatWillNotBeDeterministicWithViews
+required_capability: views_with_branching
+
+FROM *
+| EVAL country=TO_STRING(country)
+| STATS foo = MAX(num), count = COUNT(num) BY country
+| WHERE country IS NULL
+;
+
+foo:long            | count:long | country:keyword
+1698069301543123456 | 22         | null
+// If views are loaded, the above result will sporadically change to 'null,0,null'
+;

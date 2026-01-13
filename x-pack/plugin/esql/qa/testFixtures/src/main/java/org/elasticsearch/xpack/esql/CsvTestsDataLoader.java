@@ -341,6 +341,8 @@ public class CsvTestsDataLoader {
         boolean indexes = false;
         boolean policies = false;
         boolean views = false;
+        boolean delete = false;
+        boolean load = false;
 
         RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
         for (String arg : args) {
@@ -355,9 +357,15 @@ public class CsvTestsDataLoader {
                     case "views":
                         views = true;
                         break;
+                    case "delete":
+                        delete = true;
+                        break;
+                    case "load":
+                        load = true;
+                        break;
                     default:
                         throw new IllegalArgumentException(
-                            "unknown option: " + arg + " (valid options are: --indexes, --policies, --views)"
+                            "unknown option: " + arg + " (valid options are: --indexes, --policies, --views, --delete, --load)"
                         );
                 }
             } else {
@@ -385,56 +393,66 @@ public class CsvTestsDataLoader {
                 }
             }
         }
+        // Choose all if none specified
         if (indexes == false && policies == false && views == false) {
             indexes = true;
             policies = true;
             views = true;
         }
+        // Delete and re-load if none specified
+        if (delete == false && load == false) {
+            delete = true;
+            load = true;
+        }
 
         try (RestClient client = builder.build()) {
-            if (views) {
-                deleteViews(client);
+            if (delete) {
+                if (views) {
+                    deleteViews(client);
+                }
+                if (policies) {
+                    deleteEnrichPolicies(client);
+                }
+                if (indexes) {
+                    deleteIndexes(client, true, true, false, false, true, true, true, true);
+                }
             }
-            if (policies) {
-                deleteEnrichPolicies(client);
-            }
-            if (indexes) {
-                deleteIndexes(client, true, true, false, false, true, true, true, true);
-            }
-            if (indexes) {
-                loadDataSets(
-                    client,
-                    true,
-                    true,
-                    false,
-                    false,
-                    true,
-                    true,
-                    true,
-                    true,
-                    (restClient, indexName, indexMapping, indexSettings) -> {
-                        // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                        StringBuilder jsonBody = new StringBuilder("{");
-                        if (indexSettings != null && indexSettings.isEmpty() == false) {
-                            jsonBody.append("\"settings\":");
-                            jsonBody.append(Strings.toString(indexSettings));
-                            jsonBody.append(",");
-                        }
-                        jsonBody.append("\"mappings\":");
-                        jsonBody.append(indexMapping);
-                        jsonBody.append("}");
+            if (load) {
+                if (indexes) {
+                    loadDataSets(
+                        client,
+                        true,
+                        true,
+                        false,
+                        false,
+                        true,
+                        true,
+                        true,
+                        true,
+                        (restClient, indexName, indexMapping, indexSettings) -> {
+                            // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                            StringBuilder jsonBody = new StringBuilder("{");
+                            if (indexSettings != null && indexSettings.isEmpty() == false) {
+                                jsonBody.append("\"settings\":");
+                                jsonBody.append(Strings.toString(indexSettings));
+                                jsonBody.append(",");
+                            }
+                            jsonBody.append("\"mappings\":");
+                            jsonBody.append(indexMapping);
+                            jsonBody.append("}");
 
-                        Request request = new Request("PUT", "/" + indexName);
-                        request.setJsonEntity(jsonBody.toString());
-                        restClient.performRequest(request);
-                    }
-                );
-            }
-            if (policies) {
-                loadEnrichPolicies(client);
-            }
-            if (views) {
-                loadViewsIntoEs(client);
+                            Request request = new Request("PUT", "/" + indexName);
+                            request.setJsonEntity(jsonBody.toString());
+                            restClient.performRequest(request);
+                        }
+                    );
+                }
+                if (policies) {
+                    loadEnrichPolicies(client);
+                }
+                if (views) {
+                    loadViewsIntoEs(client);
+                }
             }
         }
     }

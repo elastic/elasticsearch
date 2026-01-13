@@ -15,11 +15,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.BaseMatcher;
@@ -31,7 +29,6 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
@@ -151,42 +148,10 @@ public class BlockLoaderTestRunner {
     }
 
     private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
-        SearchLookup searchLookup = new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
-
-        return mapperService.fieldType(fieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return mapperService.getIndexSettings().getIndex().getName();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                return mapperService.getIndexSettings();
-            }
-
+        return mapperService.fieldType(fieldName).blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
                 return params.preference();
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return searchLookup;
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapperService.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return mapperService.mappingLookup().parentField(field);
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
     }

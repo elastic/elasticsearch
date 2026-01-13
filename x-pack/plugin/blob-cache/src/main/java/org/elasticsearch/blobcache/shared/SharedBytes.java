@@ -228,7 +228,7 @@ public class SharedBytes extends AbstractRefCounted {
         assert tempBuffer.limit() >= PAGE_SIZE : "undersized temp buffer";
         int pageSizedLimit = tempBuffer.limit() - tempBuffer.limit() % PAGE_SIZE;
         while (true) {
-            if (Streams.read(input, tempBuffer, pageSizedLimit) <= 0) {
+            if (Streams.read(input, tempBuffer, pageSizedLimit - tempBuffer.position()) <= 0) {
                 break;
             }
         }

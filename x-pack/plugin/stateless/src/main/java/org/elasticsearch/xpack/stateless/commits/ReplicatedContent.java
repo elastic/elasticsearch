@@ -1,26 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.cache.Lucene90CompoundEntriesReader;
-import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.InternalFile;
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit.InternalDataReader;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,6 +16,10 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader;
+import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit.InternalDataReader;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,12 +31,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.LongPredicate;
 
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
+import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
+import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
+import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 
 /**
- * This class creates a replicated content section that can be later added to the BVCC.
+ * This class creates a replicated content section that can be later added to the VBCC.
  * Captured data includes both:
  * - internal file replicated ranges (using corresponding readers)
  * - header required to interpret them

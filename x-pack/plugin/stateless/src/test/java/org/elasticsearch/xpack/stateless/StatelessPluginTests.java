@@ -1,178 +1,162 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
+package org.elasticsearch.xpack.stateless;
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ENABLED;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ROLES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
-public class ServerlessStatelessPluginSettingsTests extends ESTestCase {
+public class StatelessPluginTests extends ESTestCase {
 
-    public void testDisabledByDefault() {
-        assertThat(ServerlessStatelessPlugin.STATELESS_ENABLED.get(Settings.EMPTY), is(false));
+    private static StatelessPlugin createStatelessPlugin(Settings settings, License.OperationMode mode, boolean active) {
+        final var plugin = new StatelessPlugin(settings) {
+            protected XPackLicenseState getLicenseState() {
+                return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(mode, active, null));
+            }
+        };
+        plugin.createComponents(mock(Plugin.PluginServices.class));
+        return plugin;
     }
 
-    public void testStatelessNotEnabled() {
-        var settings = Settings.builder();
-        if (randomBoolean()) {
-            settings.put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), false);
-        }
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ServerlessStatelessPlugin(settings.build())
+    private static StatelessPlugin createStatelessPlugin(Settings settings) {
+        return createStatelessPlugin(settings, randomBoolean() ? License.OperationMode.ENTERPRISE : License.OperationMode.TRIAL, true);
+    }
+
+    public void testValidLicense() throws Exception {
+        final var enabled = randomBoolean();
+        final var settings = enabled ? Settings.builder().put(STATELESS_ENABLED.getKey(), true).build() : Settings.EMPTY;
+        final var licenseActive = randomBoolean();
+        final Runnable runnable = () -> createStatelessPlugin(
+            settings,
+            randomBoolean() ? License.OperationMode.ENTERPRISE : License.OperationMode.TRIAL,
+            licenseActive
         );
-        assertThat(exception.getMessage(), containsString("stateless is not enabled"));
+        if (enabled && licenseActive == false) {
+            expectThrows(IllegalStateException.class, runnable::run);
+        } else {
+            runnable.run();
+        }
     }
 
-    public void testNonStatelessDataRolesNotAllowed() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ServerlessStatelessPlugin(
-                statelessSettings(
-                    List.of(
-                        randomFrom(
-                            DiscoveryNodeRole.roles()
-                                .stream()
-                                .filter(r -> r.canContainData() && ServerlessStatelessPlugin.STATELESS_ROLES.contains(r) == false)
-                                .toList()
-                        )
-                    )
-                )
+    public void testInvalidLicense() throws Exception {
+        final var enabled = randomBoolean();
+        final var settings = enabled ? Settings.builder().put(STATELESS_ENABLED.getKey(), true).build() : Settings.EMPTY;
+        final var licenseActive = randomBoolean();
+        final License.OperationMode invalidMode = randomFrom(
+            License.OperationMode.PLATINUM,
+            License.OperationMode.GOLD,
+            License.OperationMode.STANDARD,
+            License.OperationMode.BASIC
+        );
+        final Runnable runnable = () -> createStatelessPlugin(settings, invalidMode, licenseActive);
+        if (enabled) {
+            expectThrows(IllegalStateException.class, runnable::run);
+        } else {
+            runnable.run();
+        }
+    }
+
+    public void testSettingsWithValidStatelessRole() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(STATELESS_ROLES).roleName()))
+            .build();
+        createStatelessPlugin(nodeSettings);
+    }
+
+    public void testSettingsWithBothIndexAndSearchRolesFail() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                List.of(DiscoveryNodeRole.INDEX_ROLE.roleName(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             )
-        );
-        assertThat(exception.getMessage(), containsString("stateless does not support roles ["));
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
+        assertThat(ex.getMessage(), containsString("does not support a node with more than 1 role of"));
     }
 
-    public void testStatelessDefaultSharedCachedSize() {
-        ServerlessStatelessPlugin searchNodeStateless = new ServerlessStatelessPlugin(
-            Settings.builder()
-                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-                .build()
-        );
-        Settings searchNodeSettings = searchNodeStateless.additionalSettings();
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("90%"));
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("250GB"));
-
-        ServerlessStatelessPlugin searchNodeStatelessWithManualSetting = new ServerlessStatelessPlugin(
-            Settings.builder()
-                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "65%")
-                .build()
-        );
-        Settings searchNodeWithManualSettingSettings = searchNodeStatelessWithManualSetting.additionalSettings();
-        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(searchNodeWithManualSettingSettings));
-        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.exists(searchNodeWithManualSettingSettings));
-
-        ServerlessStatelessPlugin indexNodeStateless = new ServerlessStatelessPlugin(
-            Settings.builder()
-                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-                .build()
-        );
-        Settings indexNodeSettings = indexNodeStateless.additionalSettings();
-        assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("50%"));
-        assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
+    public void testSettingsWithStatelessRoleAndStatelessDisabledFail() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), false)
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(STATELESS_ROLES).roleName()))
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
+        assertThat(ex.getMessage(), containsString("but stateless-only node roles are configured"));
     }
 
-    public void testDefaultDiskThresholdEnabledSetting() {
-        {
-            var statelessNode = new ServerlessStatelessPlugin(
-                Settings.builder()
-                    .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                    .put(
-                        NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                        randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-                    )
-                    .build()
-            );
-            assertThat(
-                statelessNode.additionalSettings()
-                    .get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
-                equalTo("false")
-            );
-        }
-        {
-            var exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> new ServerlessStatelessPlugin(
-                    Settings.builder()
-                        .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                        .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
-                        .build()
-                )
-            );
-            assertThat(exception.getMessage(), equalTo("cluster.routing.allocation.disk.threshold_enabled cannot be enabled"));
-        }
+    public void testSettingsWithNonStatelessRoleAndStatelessEnabledFail() throws Exception {
+        final var nonStatelessRoles = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
+            .collect(Collectors.toSet());
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(nonStatelessRoles).roleName()))
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
+        assertThat(ex.getMessage(), containsString("does not support node roles"));
     }
 
-    public void testDiskUsageBalanceFactorSettingIsZeroForStateless() {
-        var statelessNode = new ServerlessStatelessPlugin(
-            Settings.builder()
-                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-                )
-                .build()
-        );
+    public void testSettingsWithDefaultDiskThresholdEnabled() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+            )
+            .build();
+        final var plugin = createStatelessPlugin(nodeSettings);
         assertThat(
-            statelessNode.additionalSettings().get(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()),
-            equalTo("0")
-        );
-    }
-
-    public void testOfflineWarmingDisabledByDefault() {
-        var statelessNode = new ServerlessStatelessPlugin(
-            Settings.builder()
-                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-                )
-                .build()
-        );
-        assertThat(
-            statelessNode.additionalSettings().get(SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING.getKey()),
+            plugin.additionalSettings().get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
             equalTo("false")
         );
+
+        final var nodeInvalidSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeInvalidSettings));
+        assertThat(ex.getMessage(), containsString("does not support cluster.routing.allocation.disk.threshold_enabled"));
     }
 
-    private static Settings statelessSettings(Collection<DiscoveryNodeRole> roles) {
-        final Settings.Builder builder = Settings.builder();
-        builder.put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true);
-        if (roles != null) {
-            builder.putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList());
-        }
-        return builder.build();
+    public void testDataStreamLSettings() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+            )
+            .build();
+        final var plugin = createStatelessPlugin(nodeSettings);
+        assertThat(plugin.additionalSettings().get(StatelessPlugin.DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey()), equalTo("true"));
+        assertThat(plugin.additionalSettings().get(StatelessPlugin.FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey()), equalTo("30s"));
+
+        final var nodeInvalidSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .put(StatelessPlugin.DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), false)
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeInvalidSettings));
+        assertThat(ex.getMessage(), containsString("does not support setting data_streams.lifecycle_only.mode to false"));
     }
+
 }

@@ -1,23 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.engine.Engine;
@@ -31,7 +19,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
 /**
  * StatelessCommitRef is a wrapper around a Lucene commit that contains additional information, like the new files introduced by this commit
@@ -39,6 +27,8 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
  * underlying Lucene commit.
  */
 public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
+
+    public static final String TRANSLOG_CARRY_OVER = "translog_carry_over";
 
     private final ShardId shardId;
     private final Engine.IndexCommitRef indexCommitRef;
@@ -49,7 +39,7 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     // translog compound file number to start scanning from for recovering operations indexed after the commit. It takes a special value
     // of {@link #HOLLOW_TRANSLOG_RECOVERY_START_FILE} to indicate that the commit is hollow and has no translog to recover from.
     private final long translogRecoveryStartFile;
-    // The translog release end file is used so that the {@link TranslogReplicator} can release any translog files before this one.
+    // The translog release end file is used so that the TranslogReplicator can release any translog files before this one.
     private final long translogReleaseEndFile;
     private final boolean carryOverTranslog;
 
@@ -69,18 +59,20 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         this.translogRecoveryStartFile = translogRecoveryStartFile;
         this.translogReleaseEndFile = translogReleaseEndFile;
         try {
-            this.carryOverTranslog = indexCommitRef.getIndexCommit().getUserData().containsKey(IndexEngine.TRANSLOG_CARRY_OVER);
+            this.carryOverTranslog = indexCommitRef.getIndexCommit().getUserData().containsKey(TRANSLOG_CARRY_OVER);
         } catch (IOException e) {
             assert false : e; // should never happen, none of the Lucene implementations throw this.
             throw new UncheckedIOException(e);
         }
         this.released = new AtomicBoolean();
-        assert translogReleaseEndFile < 0 || translogRecoveryStartFile == translogReleaseEndFile || isHollow()
+        assert translogReleaseEndFile < 0
+            || translogRecoveryStartFile == translogReleaseEndFile
+            || translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE
             : "translog start file for cleaning ("
-                + translogReleaseEndFile
-                + ") must be the same as translog recovery start file ("
-                + translogRecoveryStartFile
-                + ") for non-hollow commits or negative (ineffective)";
+            + translogReleaseEndFile
+            + ") must be the same as translog recovery start file ("
+            + translogRecoveryStartFile
+            + ") for non-hollow commits or negative (ineffective)";
         assert translogReleaseEndFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE
             : translogReleaseEndFile + " == " + HOLLOW_TRANSLOG_RECOVERY_START_FILE;
     }

@@ -1,41 +1,35 @@
-setup:
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            number_of_shards: 2
-            number_of_replicas: 1
-          mappings:
-            properties:
-              text:
-                type: text
-              keyword:
-                type: keyword
-
-  - do:
-      index:
-        index: test
-        id: "1"
-        body:
-          text: "term term"
-          keyword: "other"
-
-  # flush to force upload so that the refresh comes after uses cache on indexing node
-  - do:
-      indices.flush: {}
-
-  - do:
-      indices.refresh: {}
-
 ---
-"Test post clear blob cache":
-  - do:
-      _internal.post_clear_blob_cache: {}
+"Check failure store index refresh interval":
+  - skip:
+      features: ["allowed_warnings", "headers"]
 
-  - is_true: "cluster_name"
-  - is_true: "nodes.0.timestamp"
-  - gte: { "nodes.0.evictions" : 1 }
-  - gte: { "_nodes.total" : 1 }
-  - gte: { "_nodes.successful" : 1 }
-  - match: { "_nodes.failed" : 0 }
+  - do:
+      indices.put_index_template:
+        name: ds-template
+        body:
+          index_patterns: failure-data-stream
+          template:
+            settings:
+              number_of_replicas: 0
+          data_stream:
+            failure_store: true
+      allowed_warnings:
+        - "index template [ds-template] has index patterns [failure-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ds-template] will take precedence during new index creation"
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream
+  - do:
+      cluster.health:
+        wait_for_status: green
+  # Initialize failure store
+  - do:
+      indices.rollover:
+        alias: failure-data-stream::failures
+  - do:
+      indices.get_data_stream:
+        name: failure-data-stream
+  - set: { data_streams.0.failure_store.indices.0.index_name: failure_index }
+  - do:
+      indices.get_settings:
+        index: $failure_index
+  - match: { $body.$failure_index.settings.index.refresh_interval: '30s' }

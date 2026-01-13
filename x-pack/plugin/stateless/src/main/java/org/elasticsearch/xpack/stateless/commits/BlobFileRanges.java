@@ -1,30 +1,16 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
+package org.elasticsearch.xpack.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-
-import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -124,39 +110,9 @@ public class BlobFileRanges {
     }
 
     /**
-     * Computes the {@link BlobFileRanges} for a given set of internal files of a {@link BatchedCompoundCommit}
-     *
-     * @param commitIterator        the batched compound commit iterator that provides the stored compound commit headers
-     * @param files                 the set of files for which the blob file ranges must be computed
-     * @param useReplicatedRanges   if the replication of ranges feature is enabled
-     * @return map of all the commit files of the last commit of the batched compound commit associated to their {@link BlobFileRanges}
+     * Computes the {@link BlobFileRanges} for a given set of internal files of a {@link StatelessCompoundCommit}
      */
     public static Map<String, BlobFileRanges> computeBlobFileRanges(
-        Iterator<StatelessCompoundCommit> commitIterator,
-        Set<String> files,
-        boolean useReplicatedRanges
-    ) {
-        long blobOffset = 0L;
-        var blobFileRanges = HashMap.<String, BlobFileRanges>newHashMap(files.size());
-        while (commitIterator.hasNext()) {
-            var compoundCommit = commitIterator.next();
-            assert blobOffset == BlobCacheUtils.toPageAlignedSize(blobOffset);
-            var internalFiles = Sets.intersection(compoundCommit.internalFiles(), files);
-            if (internalFiles.isEmpty() == false) {
-                assert internalFiles.stream().noneMatch(blobFileRanges::containsKey);
-                blobFileRanges.putAll(computeBlobFileRanges(useReplicatedRanges, compoundCommit, blobOffset, internalFiles));
-            }
-            blobOffset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
-        }
-        assert files.stream().allMatch(blobFileRanges::containsKey);
-        return blobFileRanges;
-    }
-
-    /**
-     * Computes the {@link BlobFileRanges} for a given set of internal files of a {@link StatelessCompoundCommit}
-     * Currently only used by the tests.
-     */
-    static Map<String, BlobFileRanges> computeBlobFileRanges(
         boolean useReplicatedRanges,
         StatelessCompoundCommit compoundCommit,
         long blobOffset,

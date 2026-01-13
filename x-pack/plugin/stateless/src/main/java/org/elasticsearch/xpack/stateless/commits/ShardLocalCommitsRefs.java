@@ -1,21 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.core.Assertions;
@@ -44,11 +34,13 @@ public class ShardLocalCommitsRefs {
         this.acquiredGenerations = new ConcurrentHashMap<>();
     }
 
-    SoftDeleteIndexCommit incRef(IndexCommit indexCommit) {
+    // TODO: make package-private ES-13786
+    public SoftDeleteIndexCommit incRef(IndexCommit indexCommit) {
         return incRef(indexCommit, false);
     }
 
-    SoftDeleteIndexCommit incRef(IndexCommit indexCommit, boolean acquiredForCommitListener) {
+    // TODO: make package-private ES-13786
+    public SoftDeleteIndexCommit incRef(IndexCommit indexCommit, boolean acquiredForCommitListener) {
         if (Assertions.ENABLED && acquiredForCommitListener) {
             incRefGeneration(acquiredCommitGenerationsForCommitsListener, indexCommit.getGeneration());
         }
@@ -66,7 +58,8 @@ public class ShardLocalCommitsRefs {
      * @param indexCommit the IndexCommit to decrement
      * @return {@code true} if the IndexCommit can be safely deleted, {@code false} otherwise
      */
-    boolean decRef(IndexCommit indexCommit) {
+    // TODO: make package-private ES-13786
+    public boolean decRef(IndexCommit indexCommit) {
         assert indexCommit instanceof SoftDeleteIndexCommit;
         if (Assertions.ENABLED && ((SoftDeleteIndexCommit) indexCommit).isAcquiredForCommitListener()) {
             decRefGeneration(acquiredCommitGenerationsForCommitsListener, indexCommit.getGeneration());
@@ -87,7 +80,8 @@ public class ShardLocalCommitsRefs {
         return refCount == null;
     }
 
-    boolean hasAcquiredIndexCommitsForTesting() {
+    // TODO: make package-private ES-13786
+    public boolean hasAcquiredIndexCommitsForTesting() {
         // We explicitly check only external commits and disregard internal commits acquired by the commits listener
         for (var e : acquiredGenerations.entrySet()) {
             var commitListenerCount = acquiredCommitGenerationsForCommitsListener.get(e.getKey());

@@ -1,24 +1,11 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
@@ -33,8 +20,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,16 +30,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomNodeEphemeralId;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomShardId;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomTimestampFieldValueRange;
-import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNodeEphemeralId;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomShardId;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomTimestampFieldValueRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCase<StatelessCompoundCommit> {
 
@@ -109,17 +94,17 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.timestampFieldValueRange()
                 ) : randomBoolean() ?
                 // hollowed commit
-                    StatelessCompoundCommit.newHollowStatelessCompoundCommit(
-                        instance.shardId(),
-                        instance.primaryTermAndGeneration(),
-                        instance.commitFiles(),
-                        instance.sizeInBytes(),
-                        instance.internalFiles(),
-                        instance.headerSizeInBytes(),
-                        instance.internalFilesReplicatedRanges(),
-                        instance.extraContent(),
-                        instance.timestampFieldValueRange()
-                    ) :
+                StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges(),
+                    instance.extraContent(),
+                    instance.timestampFieldValueRange()
+                ) :
                 // different unhollowed commit
                 new StatelessCompoundCommit(
                     instance.shardId(),
@@ -150,17 +135,17 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.timestampFieldValueRange()
                 ) : randomBoolean() ?
                 // hollowed commit
-                    StatelessCompoundCommit.newHollowStatelessCompoundCommit(
-                        instance.shardId(),
-                        instance.primaryTermAndGeneration(),
-                        instance.commitFiles(),
-                        instance.sizeInBytes(),
-                        instance.internalFiles(),
-                        instance.headerSizeInBytes(),
-                        instance.internalFilesReplicatedRanges(),
-                        instance.extraContent(),
-                        instance.timestampFieldValueRange()
-                    ) :
+                StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges(),
+                    instance.extraContent(),
+                    instance.timestampFieldValueRange()
+                ) :
                 // different unhollowed commit
                 new StatelessCompoundCommit(
                     instance.shardId(),
@@ -481,11 +466,11 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
     }
 
     public void testGetInternalFilesBoundaryOffsetInCurrentTermWithMixedFiles() {
-        PrimaryTermAndGeneration previosGeneration = new PrimaryTermAndGeneration(4L, 4L);
+        PrimaryTermAndGeneration previousGeneration = new PrimaryTermAndGeneration(4L, 4L);
         PrimaryTermAndGeneration currentGeneration = new PrimaryTermAndGeneration(5L, 5L);
 
-        BlobLocation previousMin = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "4", previosGeneration), 50L, 25L);
-        BlobLocation previousMax = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "4", previosGeneration), 400L, 25L);
+        BlobLocation previousMin = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "4", previousGeneration), 50L, 25L);
+        BlobLocation previousMax = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "4", previousGeneration), 400L, 25L);
         BlobLocation currentMin = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "5", currentGeneration), 100L, 50L);
         BlobLocation currentMax = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "5", currentGeneration), 300L, 50L);
 
@@ -518,16 +503,5 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
         assertThat(commit.getMaxInternalFilesOffsetInCurrentGeneration(), equalTo(currentMax));
         assertThat(commit.getMinInternalFilesOffsetInCurrentGeneration(), equalTo(currentMin));
-    }
-
-    public void testTransportBwcVersionBeforeTimestampFieldValueRange() throws IOException {
-        TransportVersion transportVersion = randomVersionBetween(
-            ESTestCase.random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersionUtils.getPreviousVersion(StatelessCompoundCommit.COMPOUND_COMMITS_WITH_TIMESTAMP_VALUE_RANGE)
-        );
-        StatelessCompoundCommit testInstance = createTestInstance();
-        StatelessCompoundCommit copyInstance = copyInstance(testInstance, transportVersion);
-        assertThat(copyInstance.timestampFieldValueRange(), nullValue());
     }
 }

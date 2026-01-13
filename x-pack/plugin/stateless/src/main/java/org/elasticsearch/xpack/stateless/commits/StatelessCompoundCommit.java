@@ -1,29 +1,17 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.TransportVersion;
@@ -48,6 +36,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -89,14 +78,7 @@ public record StatelessCompoundCommit(
     @Nullable TimestampFieldValueRange timestampFieldValueRange // nullable because not all indices/commits have a @timestamp field
 ) implements Writeable {
 
-    public static final TransportVersion COMPOUND_COMMITS_WITH_EXTRA_CONTENT = TransportVersion.fromName(
-        "compound_commits_with_extra_content"
-    );
-    // CC header stores the min and max values for the @timestamp field (when it exists), for all the segments included in the commit
-    public static final TransportVersion COMPOUND_COMMITS_WITH_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
-        "compound_commits_with_timestamp_value_range"
-    );
-
+    public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
     public static long HOLLOW_TRANSLOG_RECOVERY_START_FILE = Long.MAX_VALUE;
 
     public StatelessCompoundCommit {
@@ -105,14 +87,14 @@ public record StatelessCompoundCommit(
             ? (nodeEphemeralId.isEmpty() == (translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE))
             : (nodeEphemeralId.isEmpty() == false && translogRecoveryStartFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE)
             : "a hollow (currently "
-                + hollow
-                + ") commit must have an empty node ephemeral id (currently "
-                + nodeEphemeralId
-                + ") and a translog recovery start file with value "
-                + HOLLOW_TRANSLOG_RECOVERY_START_FILE
-                + " (currently "
-                + translogRecoveryStartFile
-                + ")";
+            + hollow
+            + ") commit must have an empty node ephemeral id (currently "
+            + nodeEphemeralId
+            + ") and a translog recovery start file with value "
+            + HOLLOW_TRANSLOG_RECOVERY_START_FILE
+            + " (currently "
+            + translogRecoveryStartFile
+            + ")";
         assert extraContent != null;
         assert extraContent.isEmpty() || hollow : "only hollow commits can currently have extra content (currently " + extraContent + ")";
     }
@@ -180,6 +162,10 @@ public record StatelessCompoundCommit(
     }
 
     public static final String PREFIX = "stateless_commit_";
+
+    public static boolean isGenerationalFile(String file) {
+        return file.startsWith("_") && (file.endsWith(".tmp") == false) && IndexFileNames.parseGeneration(file) > 0L;
+    }
 
     public PrimaryTermAndGeneration primaryTermAndGeneration() {
         return primaryTermAndGeneration;
@@ -250,12 +236,8 @@ public record StatelessCompoundCommit(
         out.writeStringCollection(internalFiles);
         out.writeVLong(headerSizeInBytes);
         out.writeCollection(internalFilesReplicatedRanges.replicatedRanges());
-        if (out.getTransportVersion().supports(COMPOUND_COMMITS_WITH_EXTRA_CONTENT)) {
-            out.writeMap(extraContent, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        }
-        if (out.getTransportVersion().supports(COMPOUND_COMMITS_WITH_TIMESTAMP_VALUE_RANGE)) {
-            out.writeOptionalWriteable(timestampFieldValueRange);
-        }
+        out.writeMap(extraContent, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeOptionalWriteable(timestampFieldValueRange);
     }
 
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
@@ -272,14 +254,8 @@ public record StatelessCompoundCommit(
         replicatedRanges = InternalFilesReplicatedRanges.from(
             in.readCollectionAsImmutableList(InternalFilesReplicatedRanges.InternalFileReplicatedRange::fromStream)
         );
-        Map<String, BlobLocation> extraContent = Map.of();
-        if (in.getTransportVersion().supports(COMPOUND_COMMITS_WITH_EXTRA_CONTENT)) {
-            extraContent = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
-        }
-        TimestampFieldValueRange timestampFieldValueRange = null;
-        if (in.getTransportVersion().supports(COMPOUND_COMMITS_WITH_TIMESTAMP_VALUE_RANGE)) {
-            timestampFieldValueRange = in.readOptionalWriteable(TimestampFieldValueRange::new);
-        }
+        Map<String, BlobLocation> extraContent = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        TimestampFieldValueRange timestampFieldValueRange = in.readOptionalWriteable(TimestampFieldValueRange::new);
         return new StatelessCompoundCommit(
             shardId,
             primaryTermAndGeneration,
@@ -394,7 +370,7 @@ public record StatelessCompoundCommit(
                 b.field("generation", generation);
                 b.field("primary_term", primaryTerm);
                 b.field("node_ephemeral_id", nodeEphemeralId);
-                b.field(IndexEngine.TRANSLOG_RECOVERY_START_FILE, translogRecoveryStartFile);
+                b.field(TRANSLOG_RECOVERY_START_FILE, translogRecoveryStartFile);
                 if (timestampFieldValueRange != null) {
                     // the CC XContentHeader is always serialized under the last version,
                     // so the timestamp field value range always has the right to be present
@@ -597,7 +573,7 @@ public record StatelessCompoundCommit(
                 PARSER.declareObject(constructorArg(), SHARD_ID_PARSER, new ParseField("shard_id"));
                 PARSER.declareLong(constructorArg(), new ParseField("generation"));
                 PARSER.declareLong(constructorArg(), new ParseField("primary_term"));
-                PARSER.declareLong(optionalConstructorArg(), new ParseField(IndexEngine.TRANSLOG_RECOVERY_START_FILE));
+                PARSER.declareLong(optionalConstructorArg(), new ParseField(TRANSLOG_RECOVERY_START_FILE));
                 PARSER.declareString(constructorArg(), new ParseField("node_ephemeral_id"));
                 PARSER.declareObject(
                     constructorArg(),
@@ -708,12 +684,10 @@ public record StatelessCompoundCommit(
 
         public TimestampFieldValueRange(StreamInput in) throws IOException {
             this(in.readLong(), in.readLong());
-            assert in.getTransportVersion().supports(COMPOUND_COMMITS_WITH_TIMESTAMP_VALUE_RANGE);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().supports(COMPOUND_COMMITS_WITH_TIMESTAMP_VALUE_RANGE);
             out.writeLong(minMillis);
             out.writeLong(maxMillis);
         }

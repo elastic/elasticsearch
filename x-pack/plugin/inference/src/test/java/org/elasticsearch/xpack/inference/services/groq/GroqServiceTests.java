@@ -114,7 +114,12 @@ public class GroqServiceTests extends ESTestCase {
             Map<String, Object> secrets = new HashMap<>();
             secrets.put(ModelSecrets.SECRET_SETTINGS, new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "persisted-secret")));
 
-            GroqChatCompletionModel model = service.parsePersistedConfigWithSecrets("groq-test", TaskType.CHAT_COMPLETION, config, secrets);
+            GroqChatCompletionModel model = (GroqChatCompletionModel) service.parsePersistedConfigWithSecrets(
+                "groq-test",
+                TaskType.CHAT_COMPLETION,
+                config,
+                secrets
+            );
             assertTrue(model.getSecretSettings().apiKey().equals("persisted-secret"));
             assertThat(model.getServiceSettings().modelId(), equalTo("persisted-model"));
         }

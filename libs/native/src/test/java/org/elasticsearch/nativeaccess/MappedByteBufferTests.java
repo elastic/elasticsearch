@@ -74,6 +74,7 @@ public class MappedByteBufferTests extends ESTestCase {
             mappedByteBuffer.prefetch(0, size - 1);
             mappedByteBuffer.prefetch(0, size - 2);
             mappedByteBuffer.prefetch(0, size - 3);
+            mappedByteBuffer.prefetch(0, randomIntBetween(1, size));
             expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(-2, size));
             expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(-1, size));
             expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(1, size));

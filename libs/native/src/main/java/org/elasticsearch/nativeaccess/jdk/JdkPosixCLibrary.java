@@ -24,6 +24,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.ref.Reference;
+import java.util.Objects;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -200,6 +201,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         if (segment.isNative() == false) {
             throw new IllegalArgumentException("unexpected non-native segment: " + segment);
         }
+        Objects.checkFromIndexSize(offset, length, segment.byteSize());
         long base = segment.address() + offset;
         try {
             return (int) madvise$mh.invokeExact(errnoState, base, length, advice);

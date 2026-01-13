@@ -69,7 +69,8 @@ public class L1Norm extends VectorSimilarityFunction {
         examples = { @Example(file = "vector-l1-norm", tag = "vector-l1-norm") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }    )
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }
+    )
     public L1Norm(
         Source source,
         @Param(

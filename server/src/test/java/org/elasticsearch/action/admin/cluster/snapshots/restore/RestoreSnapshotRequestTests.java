@@ -89,7 +89,8 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                             randomBoolean(),
                             randomBoolean(),
                             instance.indicesOptions().ignoreAliases() == false,
-                            randomBoolean()
+                            randomBoolean(),
+                            false
                         )
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())

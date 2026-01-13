@@ -86,6 +86,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                             randomBoolean(),
                             randomBoolean(),
                             defaultResolveAliasForThisRequest,
+                            randomBoolean(),
                             randomBoolean()
                         )
                     )

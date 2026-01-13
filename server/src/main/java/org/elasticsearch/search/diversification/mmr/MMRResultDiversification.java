@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +39,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             return docs;
         }
 
-        Map<Integer, Integer> docIdIndexMapping = new HashMap<>();
+        // keep the original ranking so we can output in the same order
+        Map<Integer, Integer> docIdIndexMapping = new LinkedHashMap<>();
         for (int i = 0; i < docs.length; i++) {
             docIdIndexMapping.put(docs[i].rank, i);
         }
@@ -193,6 +195,9 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     highestDocRank = doc.rank;
                     highestDocScore = querySimilarityScore;
                 }
+            }
+            if (similarityScore != null && similarityScore > highestScore) {
+                highestScore = similarityScore;
             }
         }
 

@@ -394,3 +394,24 @@ TS k8s
 max_rate:double 
 13.173725
 ;
+
+rateOnNulls
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| EVAL null_col = null
+| STATS
+    rate = rate(network.total_bytes_in),
+    null_literal = rate(null),
+    null_propagated = rate(null_col)
+| EVAL rate=ROUND(rate, 4)
+| SORT rate DESC
+| LIMIT 2;
+
+null_literal:double | null_propagated:double | rate:double
+null                | null                   | 13.1737
+null                | null                   | 10.6491
+;

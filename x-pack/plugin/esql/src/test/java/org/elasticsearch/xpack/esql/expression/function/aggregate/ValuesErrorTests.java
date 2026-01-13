@@ -53,7 +53,8 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     List.of(DataType.EXPONENTIAL_HISTOGRAM),
                     List.of(DataType.AGGREGATE_METRIC_DOUBLE),
                     List.of(DataType.TDIGEST),
-                    List.of(DataType.HISTOGRAM)
+                    List.of(DataType.HISTOGRAM),
+                    List.of(DataType.NULL)
                 )
             )
         );

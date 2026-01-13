@@ -617,7 +617,8 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 exception.getMessage(),
                 containsString(
                     Strings.format(
-                        "The task type for the inference entity is chat_completion, please use the _inference/chat_completion/%s/_stream URL",
+                        "The task type for the inference entity is chat_completion, "
+                            + "please use the _inference/chat_completion/%s/_stream URL",
                         endpointId
                     )
                 )

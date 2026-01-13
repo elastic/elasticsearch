@@ -67,7 +67,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -281,8 +280,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("transform_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("reindex_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("reindex_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("beats_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved(UsernamesField.LOGSTASH_ROLE), is(true));
         assertThat(ReservedRolesStore.isReserved(UsernamesField.BEATS_ROLE), is(true));
@@ -3797,50 +3794,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertOnlyReadAllowed(role, index);
         }
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
-        assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
-    }
-
-    public void testReindexAdminRole() {
-        final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
-
-        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reindex_admin");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-
-        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
-        // TODO: Add assertions for the other reindex actions here DO NOT MERGE
-        assertThat(role.cluster().check(ReindexPlugin.RETHROTTLE_ACTION.name(), request, authentication), is(true));
-
-        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME)),
-            is(false)
-        );
-        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
-        assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
-    }
-
-    public void testReindexUserRole() {
-        final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
-
-        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reindex_user");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-
-        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
-        // TODO: Add assertions for the other reindex actions here DO NOT MERGE
-        assertThat(role.cluster().check(ReindexPlugin.RETHROTTLE_ACTION.name(), request, authentication), is(false));
-
-        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME)),
-            is(false)
-        );
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }

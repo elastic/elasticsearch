@@ -24,10 +24,10 @@ import static org.elasticsearch.rest.Scope.INTERNAL;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 @ServerlessScope(INTERNAL)
-public class RestRethrottleAction extends BaseRestHandler {
+public class RestUpdateAndDeleteByQueryRethrottleAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
+    public RestUpdateAndDeleteByQueryRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
     }
 

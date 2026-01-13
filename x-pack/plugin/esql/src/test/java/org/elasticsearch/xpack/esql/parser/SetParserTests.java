@@ -210,15 +210,15 @@ public class SetParserTests extends AbstractStatementParserTests {
 
         verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
 
-        var e = assertThrows(
+        String name = randomizeCase(UnmappedResolution.LOAD.name());
+        expectThrows(
             ParsingException.class,
-            () -> statement("SET unmapped_fields=\"" + randomizeCase(UnmappedResolution.LOAD.name()) + "\"; row a = 1")
-        );
-        assertThat(
-            e.getMessage(),
             containsString(
-                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [LOAD], must be one of [FAIL, NULLIFY]"
-            )
+                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
+                    + name
+                    + "], must be one of [FAIL, NULLIFY]"
+            ),
+            () -> statement("SET unmapped_fields=\"" + name + "\"; row a = 1")
         );
     }
 
@@ -235,11 +235,15 @@ public class SetParserTests extends AbstractStatementParserTests {
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
+        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+            ? UnmappedResolution.values()
+            : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
         expectValidationError(
             "SET unmapped_fields=\"" + mode + "\"; row a = 1",
             "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
                 + mode
-                + "], must be one of [FAIL, NULLIFY, LOAD]"
+                + "], must be one of "
+                + Arrays.toString(values)
         );
     }
 }

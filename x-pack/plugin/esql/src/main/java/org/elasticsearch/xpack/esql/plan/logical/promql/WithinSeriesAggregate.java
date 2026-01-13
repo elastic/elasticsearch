@@ -62,4 +62,9 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
         }
         return output;
     }
+
+    @Override
+    public PromqlReturnType returnType() {
+        return PromqlReturnType.INSTANT_VECTOR;
+    }
 }

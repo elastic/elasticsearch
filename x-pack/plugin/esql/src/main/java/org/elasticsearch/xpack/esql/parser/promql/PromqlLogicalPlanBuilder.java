@@ -67,6 +67,8 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType.isRangeVector;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType.isScalar;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
@@ -86,18 +88,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitSingleStatement(PromqlBaseParser.SingleStatementContext ctx) {
         return plan(ctx.expression());
-    }
-
-    static boolean isRangeVector(LogicalPlan plan) {
-        return switch (plan) {
-            case RangeSelector r -> true;
-            case Subquery s -> true;
-            default -> false;
-        };
-    }
-
-    static boolean isScalar(LogicalPlan plan) {
-        return plan instanceof LiteralSelector;
     }
 
     private LogicalPlan wrapLiteral(ParseTree ctx) {
@@ -482,6 +472,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
         } else {
             if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
+                if (isRangeVector(child)) {
+                    throw new ParsingException(source, "expected type instant vector in call to function [{}], got range vector", name);
+                }
                 plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
             } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
                 if (isRangeVector(child) == false) {

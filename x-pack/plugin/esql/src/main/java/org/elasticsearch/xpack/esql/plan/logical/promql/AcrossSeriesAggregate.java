@@ -107,4 +107,9 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     public int hashCode() {
         return Objects.hash(super.hashCode(), grouping, groupings);
     }
+
+    @Override
+    public PromqlReturnType returnType() {
+        return PromqlReturnType.INSTANT_VECTOR;
+    }
 }

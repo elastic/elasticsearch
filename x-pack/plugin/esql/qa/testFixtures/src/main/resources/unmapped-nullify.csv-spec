@@ -200,6 +200,7 @@ foo:integer
 
 statsAggs
 required_capability: optional_fields
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -224,6 +225,7 @@ null
 
 statsAggsGrouped
 required_capability: optional_fields
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1

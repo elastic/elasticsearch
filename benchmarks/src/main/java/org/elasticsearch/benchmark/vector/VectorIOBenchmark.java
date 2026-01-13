@@ -128,7 +128,6 @@ public class VectorIOBenchmark {
 
         if (currentVectors < numVectors) {
             IndexWriterConfig iwc = new IndexWriterConfig();
-            iwc.setUseCompoundFile(false);
             iwc.setCodec(new Elasticsearch92Lucene103Codec() {
                 @Override
                 public KnnVectorsFormat getKnnVectorsFormatForField(String field) {

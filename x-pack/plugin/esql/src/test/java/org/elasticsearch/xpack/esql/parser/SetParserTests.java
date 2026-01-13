@@ -179,7 +179,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFieldsWrongValue() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        assumeTrue("Requires the unmapped_fields setting", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         var mode = randomValueOtherThanMany(
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)

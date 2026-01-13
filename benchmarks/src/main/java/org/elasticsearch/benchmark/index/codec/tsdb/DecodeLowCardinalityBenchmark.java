@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class DecodeLowCardinalityBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "5", "10" })
     private int distinctValues;
@@ -66,12 +65,14 @@ public class DecodeLowCardinalityBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(LowCardinalitySupplier.builder(SEED, BLOCK_SIZE).withDistinctValues(distinctValues).withSkew(skew).build());
+        decode.setupTrial(
+            LowCardinalitySupplier.builder(SEED, decode.getBlockSize()).withDistinctValues(distinctValues).withSkew(skew).build()
+        );
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
     }
 }

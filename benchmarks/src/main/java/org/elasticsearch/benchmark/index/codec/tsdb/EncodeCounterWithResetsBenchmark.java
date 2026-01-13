@@ -46,7 +46,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class EncodeCounterWithResetsBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.01", "0.02", "0.05" })
     private double resetProbability;
@@ -65,7 +64,7 @@ public class EncodeCounterWithResetsBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        supplier = CounterWithResetsSupplier.builder(SEED, BLOCK_SIZE).withResetProbability(resetProbability).build();
+        supplier = CounterWithResetsSupplier.builder(SEED, encode.getBlockSize()).withResetProbability(resetProbability).build();
         encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
@@ -74,7 +73,7 @@ public class EncodeCounterWithResetsBenchmark {
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
     }
 
     /**
@@ -89,6 +88,6 @@ public class EncodeCounterWithResetsBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), supplier.getNominalBitsPerValue());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

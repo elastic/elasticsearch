@@ -46,7 +46,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class EncodeNearConstantBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.0", "0.01", "0.05", "0.1", "0.2" })
     private double outlierProbability;
@@ -65,7 +64,7 @@ public class EncodeNearConstantBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        supplier = NearConstantWithOutliersSupplier.builder(SEED, BLOCK_SIZE).withOutlierProbability(outlierProbability).build();
+        supplier = NearConstantWithOutliersSupplier.builder(SEED, encode.getBlockSize()).withOutlierProbability(outlierProbability).build();
         encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
@@ -74,7 +73,7 @@ public class EncodeNearConstantBenchmark {
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
     }
 
     /**
@@ -89,6 +88,6 @@ public class EncodeNearConstantBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), supplier.getNominalBitsPerValue());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

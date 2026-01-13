@@ -46,7 +46,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class EncodeGcdFriendlyBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "1", "7", "64", "100", "127", "1000", "1024" })
     private long gcd;
@@ -65,7 +64,7 @@ public class EncodeGcdFriendlyBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        supplier = GcdFriendlySupplier.builder(SEED, BLOCK_SIZE).withGcd(gcd).build();
+        supplier = GcdFriendlySupplier.builder(SEED, encode.getBlockSize()).withGcd(gcd).build();
         encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
@@ -74,7 +73,7 @@ public class EncodeGcdFriendlyBenchmark {
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
     }
 
     /**
@@ -89,6 +88,6 @@ public class EncodeGcdFriendlyBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), supplier.getNominalBitsPerValue());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

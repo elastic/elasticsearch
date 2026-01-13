@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class DecodeCounterWithResetsBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.01", "0.02", "0.05" })
     private double resetProbability;
@@ -63,12 +62,12 @@ public class DecodeCounterWithResetsBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(CounterWithResetsSupplier.builder(SEED, BLOCK_SIZE).withResetProbability(resetProbability).build());
+        decode.setupTrial(CounterWithResetsSupplier.builder(SEED, decode.getBlockSize()).withResetProbability(resetProbability).build());
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
     }
 }

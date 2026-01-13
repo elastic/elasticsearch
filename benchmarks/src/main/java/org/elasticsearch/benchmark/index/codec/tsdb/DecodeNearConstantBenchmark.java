@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class DecodeNearConstantBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.0", "0.01", "0.05", "0.1", "0.2" })
     private double outlierProbability;
@@ -63,12 +62,14 @@ public class DecodeNearConstantBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(NearConstantWithOutliersSupplier.builder(SEED, BLOCK_SIZE).withOutlierProbability(outlierProbability).build());
+        decode.setupTrial(
+            NearConstantWithOutliersSupplier.builder(SEED, decode.getBlockSize()).withOutlierProbability(outlierProbability).build()
+        );
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
     }
 }

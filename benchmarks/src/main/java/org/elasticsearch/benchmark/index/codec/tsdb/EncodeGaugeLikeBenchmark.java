@@ -46,7 +46,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class EncodeGaugeLikeBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.05", "0.1", "0.2" })
     private double varianceRatio;
@@ -65,7 +64,7 @@ public class EncodeGaugeLikeBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        supplier = GaugeLikeSupplier.builder(SEED, BLOCK_SIZE).withVarianceRatio(varianceRatio).build();
+        supplier = GaugeLikeSupplier.builder(SEED, encode.getBlockSize()).withVarianceRatio(varianceRatio).build();
         encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
@@ -74,7 +73,7 @@ public class EncodeGaugeLikeBenchmark {
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
     }
 
     /**
@@ -89,6 +88,6 @@ public class EncodeGaugeLikeBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), supplier.getNominalBitsPerValue());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

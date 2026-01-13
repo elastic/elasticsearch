@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class DecodeTimestampLikeBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.0", "0.1", "0.2", "0.5" })
     private double jitterProbability;
@@ -63,12 +62,12 @@ public class DecodeTimestampLikeBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(TimestampLikeSupplier.builder(SEED, BLOCK_SIZE).withJitterProbability(jitterProbability).build());
+        decode.setupTrial(TimestampLikeSupplier.builder(SEED, decode.getBlockSize()).withJitterProbability(jitterProbability).build());
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
     }
 }

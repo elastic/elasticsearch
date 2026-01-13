@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class DecodeGaugeLikeBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "0.05", "0.1", "0.2" })
     private double varianceRatio;
@@ -63,12 +62,12 @@ public class DecodeGaugeLikeBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(GaugeLikeSupplier.builder(SEED, BLOCK_SIZE).withVarianceRatio(varianceRatio).build());
+        decode.setupTrial(GaugeLikeSupplier.builder(SEED, decode.getBlockSize()).withVarianceRatio(varianceRatio).build());
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
     }
 }

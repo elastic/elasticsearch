@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.ai21.completion;
+package org.elasticsearch.xpack.inference.services.ai21;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -13,8 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ai21.Ai21Model;
-import org.elasticsearch.xpack.inference.services.ai21.Ai21ModelCreator;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelCreator;
 
 import java.util.Map;
 

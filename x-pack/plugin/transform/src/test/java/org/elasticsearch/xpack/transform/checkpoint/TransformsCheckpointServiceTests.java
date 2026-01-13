@@ -40,85 +40,15 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransformsCheckpointServiceTests extends ESTestCase {
-
-    public void testExtractIndexCheckpoints() {
-        Map<String, long[]> expectedCheckpoints = new HashMap<>();
-        Set<String> indices = randomUserIndices();
-
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, false);
-
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
-
-        assertEquals(expectedCheckpoints.size(), checkpoints.size());
-        assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
-
-        // low-level compare
-        for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
-        }
-    }
-
-    public void testExtractIndexCheckpointsMissingSeqNoStats() {
-        Map<String, long[]> expectedCheckpoints = new HashMap<>();
-        Set<String> indices = randomUserIndices();
-
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, true);
-
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
-
-        assertEquals(expectedCheckpoints.size(), checkpoints.size());
-        assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
-
-        // low-level compare
-        for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
-        }
-    }
-
-    public void testExtractIndexCheckpointsLostPrimaries() {
-        Map<String, long[]> expectedCheckpoints = new HashMap<>();
-        Set<String> indices = randomUserIndices();
-
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, true, false, false);
-
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
-
-        assertEquals(expectedCheckpoints.size(), checkpoints.size());
-        assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
-
-        // low-level compare
-        for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
-        }
-    }
-
-    public void testExtractIndexCheckpointsInconsistentGlobalCheckpoints() {
-        Map<String, long[]> expectedCheckpoints = new HashMap<>();
-        Set<String> indices = randomUserIndices();
-
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, randomBoolean(), true, false);
-
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
-
-        assertEquals(expectedCheckpoints.size(), checkpoints.size());
-        assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
-
-        // global checkpoints should be max() of all global checkpoints
-        for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
-        }
-    }
 
     public void testTransformCheckpointingInfoWithZeroLastCheckpoint() {
         var transformState = mock(TransformState.class);

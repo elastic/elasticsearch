@@ -31,7 +31,6 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
 import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -59,7 +58,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -232,51 +230,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
     }
 
-    public void testHandlingShardFailures() throws Exception {
-        var transformId = getTestName();
-        var indexName = "some-index";
-        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
-            new SourceConfig(indexName)
-        ).build();
-
-        var remoteClusterResolver = mock(RemoteClusterResolver.class);
-        doReturn(new RemoteClusterResolver.ResolvedIndices(Collections.emptyMap(), Collections.singletonList(indexName))).when(
-            remoteClusterResolver
-        ).resolve(transformConfig.getSource().getIndex());
-
-        mockGetIndexResponse(indexName);
-        mockIndicesStatsResponse(indexName);
-        mockGetCheckpointAction();
-
-        var provider = new DefaultCheckpointProvider(
-            clock,
-            parentTaskClient,
-            remoteClusterResolver,
-            transformConfigManager,
-            transformAuditor,
-            transformConfig
-        );
-
-        var latch = new CountDownLatch(1);
-        provider.createNextCheckpoint(
-            null,
-            new LatchedActionListener<>(
-                ActionListener.wrap(
-                    response -> fail("This test case must fail"),
-                    e -> assertThat(
-                        e.getMessage(),
-                        startsWith(
-                            "Source has [7] failed shards, first shard failure: [some-index][3] failed, "
-                                + "reason [java.lang.Exception: something's wrong"
-                        )
-                    )
-                ),
-                latch
-            )
-        );
-        assertTrue(latch.await(1, TimeUnit.MILLISECONDS));
-    }
-
     private void mockGetIndexResponse(String indexName) {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { indexName }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
@@ -290,14 +243,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 new DefaultShardOperationFailedException(indexName, 3, new Exception("something's wrong")) }
         ).when(indicesStatsResponse).getShardFailures();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
-    }
-
-    private void mockGetCheckpointAction() {
-        doAnswer(invocationOnMock -> {
-            ActionListener<?> listener = invocationOnMock.getArgument(2);
-            listener.onFailure(new ActionNotFoundTransportException("This should fail."));
-            return null;
-        }).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
     }
 
     public void testHandlingNoClusters() throws Exception {

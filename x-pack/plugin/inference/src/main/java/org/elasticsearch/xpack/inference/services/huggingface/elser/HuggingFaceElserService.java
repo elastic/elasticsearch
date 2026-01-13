@@ -59,7 +59,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
 
     private static final String SERVICE_NAME = "Hugging Face ELSER";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public HuggingFaceElserService(
         HttpRequestSender.Factory factory,
@@ -79,31 +79,23 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    public HuggingFaceModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                inferenceEntityId,
-                taskType,
+    public HuggingFaceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType())) {
+            return new HuggingFaceElserModel(config, secrets);
+        } else {
+            throw createInvalidTaskTypeException(
+                config.getInferenceEntityId(),
                 NAME,
-                (HuggingFaceElserServiceSettings) serviceSettings,
-                (DefaultSecretSettings) secretSettings
+                config.getTaskType(),
+                ConfigurationParseContext.PERSISTENT
             );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
-        };
+        }
     }
 
     @Override
     protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
-        return switch (input.taskType()) {
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+        if (SUPPORTED_TASK_TYPES.contains(input.taskType())) {
+            return new HuggingFaceElserModel(
                 input.inferenceEntityId(),
                 input.taskType(),
                 NAME,
@@ -111,8 +103,9 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                 input.secretSettings(),
                 input.context()
             );
-            default -> throw createInvalidTaskTypeException(input.inferenceEntityId(), NAME, input.taskType(), input.context());
-        };
+        } else {
+            throw createInvalidTaskTypeException(input.inferenceEntityId(), NAME, input.taskType(), input.context());
+        }
     }
 
     @Override
@@ -197,7 +190,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -216,7 +209,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The URL endpoint to use for the requests.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)
@@ -225,12 +218,12 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

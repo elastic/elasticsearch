@@ -34,6 +34,7 @@ import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
 import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
@@ -109,7 +110,11 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         for (int i = 0; i < quantized.length; i++) {
             quantized[i] = (byte) scratch[i];
         }
-        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
+        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(
+            centroids,
+            fieldInfo.getVectorDimension(),
+            fieldEntry.bulkSize
+        );
         centroids.seek(0L);
         int numParents = centroids.readVInt();
 
@@ -442,7 +447,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             quantizedByteLength = discretizedDimensions / 8 + (Float.BYTES * 3) + Short.BYTES;
             quantizedVectorByteSize = (discretizedDimensions / 8);
             quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
-            osqVectorsScorer = ESVectorUtil.getES91OSQVectorsScorer(indexInput, fieldInfo.getVectorDimension());
+            osqVectorsScorer = ESVectorUtil.getES91OSQVectorsScorer(indexInput, fieldInfo.getVectorDimension(), BULK_SIZE);
         }
 
         @Override

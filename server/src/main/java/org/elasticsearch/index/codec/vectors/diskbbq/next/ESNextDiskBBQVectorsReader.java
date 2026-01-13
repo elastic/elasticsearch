@@ -157,7 +157,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         for (int i = 0; i < quantized.length; i++) {
             quantized[i] = (byte) scratch[i];
         }
-        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
+        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension(), bulkSize);
         centroids.seek(fp + sizeLookup);
         int numParents = centroids.readVInt();
 
@@ -209,8 +209,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float[] globalCentroid,
         float globalCentroidDp
     ) throws IOException {
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         int bulkSize = input.readInt();
+        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,

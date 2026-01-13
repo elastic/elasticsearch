@@ -37,7 +37,7 @@ public class ES91OSQVectorsScorer {
     protected final int bulkSize;
 
     /** Sole constructor, called by sub-classes. */
-    public ES91OSQVectorsScorer(IndexInput in, int bulkSize, int dimensions) {
+    public ES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         this.in = in;
         this.dimensions = dimensions;
         this.length = OptimizedScalarQuantizer.discretize(dimensions, 64) / 8;

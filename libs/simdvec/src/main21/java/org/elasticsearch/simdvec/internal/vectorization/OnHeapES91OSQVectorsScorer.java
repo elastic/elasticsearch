@@ -43,8 +43,8 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
 
     private final byte[] bytes;
 
-    public OnHeapES91OSQVectorsScorer(IndexInput in, int bulkSize, int dimensions) {
-        super(in, bulkSize, dimensions);
+    public OnHeapES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        super(in, dimensions, bulkSize);
         bytes = new byte[bulkSize * length];
     }
 

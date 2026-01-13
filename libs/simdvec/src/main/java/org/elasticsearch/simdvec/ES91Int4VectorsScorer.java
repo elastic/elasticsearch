@@ -36,7 +36,7 @@ public class ES91Int4VectorsScorer {
     protected final float[] upperIntervals;
     protected final int[] targetComponentSums;
     protected final float[] additionalCorrections;
-    private final int bulkSize;
+    protected final int bulkSize;
 
     /** Sole constructor, called by sub-classes. */
     public ES91Int4VectorsScorer(IndexInput in, int dimensions, int bulkSize) {

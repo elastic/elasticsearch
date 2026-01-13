@@ -45,12 +45,12 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) {
-        return new ES91Int4VectorsScorer(input, dimension);
+    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) {
+        return new ES91Int4VectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
-    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension) {
-        return new ES92Int7VectorsScorer(input, dimension, 16);
+    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
+        return new ES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 }

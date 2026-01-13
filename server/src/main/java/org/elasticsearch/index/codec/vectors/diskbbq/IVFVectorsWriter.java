@@ -304,7 +304,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
             ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
-        ivfMeta.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
         doWriteMeta(ivfMeta, field, numCentroids);
     }
 

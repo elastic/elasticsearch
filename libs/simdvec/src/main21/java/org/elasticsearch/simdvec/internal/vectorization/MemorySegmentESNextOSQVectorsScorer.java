@@ -34,16 +34,17 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         byte indexBits,
         int dimensions,
         int dataLength,
+        int bulkSize,
         MemorySegment memorySegment
     ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
         this.memorySegment = memorySegment;
         if (queryBits == 4 && indexBits == 1) {
-            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, memorySegment);
+            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
         } else if (queryBits == 4 && indexBits == 4) {
-            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, memorySegment);
+            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
         } else if (queryBits == 4 && indexBits == 2) {
-            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, memorySegment);
+            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
         } else {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
         }
@@ -105,7 +106,6 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
     abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
         MSInt4SymmetricESNextOSQVectorsScorer {
 
-        static final int BULK_SIZE = MemorySegmentESNextOSQVectorsScorer.BULK_SIZE;
         static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
 
@@ -125,12 +125,14 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
+        protected final int bulkSize;
 
-        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, MemorySegment segment) {
+        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment segment) {
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;
             this.memorySegment = segment;
+            this.bulkSize = bulkSize;
         }
 
         abstract long quantizeScore(byte[] q) throws IOException;

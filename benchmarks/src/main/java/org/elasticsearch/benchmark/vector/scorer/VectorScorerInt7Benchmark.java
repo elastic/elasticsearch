@@ -56,8 +56,7 @@ public class VectorScorerInt7Benchmark {
     @Param({ "384", "782", "1024" })
     int dims;
 
-    @Param({ "16", "32", "64" })
-    int bulkSize;
+    int bulkSize = 16;
 
     int numVectors;
     int numQueries = 5;
@@ -110,7 +109,7 @@ public class VectorScorerInt7Benchmark {
         }
 
         scratch = new byte[dims];
-        scorer = ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(in, dims);
+        scorer = ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(in, dims, bulkSize);
     }
 
     @TearDown

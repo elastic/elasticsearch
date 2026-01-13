@@ -48,8 +48,8 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private final MemorySegment memorySegment;
 
-    public MemorySegmentES91OSQVectorsScorer(IndexInput in, int bulkSize, int dimensions, MemorySegment memorySegment) {
-        super(in, bulkSize, dimensions);
+    public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize);
         this.memorySegment = memorySegment;
     }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -369,6 +370,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
+        metaOutput.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());
     }
 

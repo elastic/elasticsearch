@@ -60,8 +60,8 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
     protected final MemorySegment memorySegment;
 
-    protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions);
+    protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize);
         this.memorySegment = memorySegment;
     }
 

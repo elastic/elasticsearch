@@ -675,8 +675,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
-        ActionLogger.SEARCH_ACTION_LOGGER_ENABLED,
-        ActionLogger.SEARCH_ACTION_LOGGER_THRESHOLD,
-        ActionLogger.SEARCH_ACTION_LOGGER_LEVEL
+        ActionLogger.ACTION_LOGGER_ENABLED,
+        ActionLogger.ACTION_LOGGER_THRESHOLD,
+        ActionLogger.ACTION_LOGGER_LEVEL,
+        ActionLogger.ACTION_LOGGER_INCLUDE_USER
     );
 }

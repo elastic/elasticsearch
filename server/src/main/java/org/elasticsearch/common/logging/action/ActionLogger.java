@@ -39,25 +39,25 @@ public class ActionLogger<Context extends ActionLoggerContext> {
     private Level logLevel = Level.INFO;
 
     public static final String ACTION_LOGGER_SETTINGS_PREFIX = "elasticsearch.actionlog.";
-    public static final Setting.AffixSetting<Boolean> SEARCH_ACTION_LOGGER_ENABLED = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<Boolean> ACTION_LOGGER_ENABLED = Setting.affixKeySetting(
         ACTION_LOGGER_SETTINGS_PREFIX,
         "enabled",
         key -> boolSetting(key, false, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<TimeValue> SEARCH_ACTION_LOGGER_THRESHOLD = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<TimeValue> ACTION_LOGGER_THRESHOLD = Setting.affixKeySetting(
         ACTION_LOGGER_SETTINGS_PREFIX,
         "threshold",
         key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<Level> SEARCH_ACTION_LOGGER_LEVEL = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<Level> ACTION_LOGGER_LEVEL = Setting.affixKeySetting(
         ACTION_LOGGER_SETTINGS_PREFIX,
         "log_level",
         key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<Boolean> SEARCH_ACTION_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<Boolean> ACTION_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
         ACTION_LOGGER_SETTINGS_PREFIX,
         // Named to match slowlog, we may reconsider this naming
         "include.user",
@@ -75,14 +75,14 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         this.writer = writer;
         var context = new SlowLogContext();
         this.additionalFields = slowLogFieldProvider.create(context);
-        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
-        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
-        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {
+        settings.addAffixUpdateConsumer(ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
+        settings.addAffixUpdateConsumer(ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
+        settings.addAffixUpdateConsumer(ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {
             if (v.isMoreSpecificThan(Level.ERROR)) {
                 throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
             }
         });
-        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
+        settings.addAffixUpdateConsumer(ACTION_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
     }
 
     private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {

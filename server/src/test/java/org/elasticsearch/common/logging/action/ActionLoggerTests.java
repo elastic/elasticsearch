@@ -133,9 +133,7 @@ public class ActionLoggerTests extends ESTestCase {
 
     private void enableLogger() {
         clusterSettings.applySettings(
-            Settings.builder()
-                .put(ActionLogger.SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true)
-                .build()
+            Settings.builder().put(ActionLogger.ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true).build()
         );
     }
 
@@ -143,8 +141,8 @@ public class ActionLoggerTests extends ESTestCase {
     private void setThreshold(TimeValue threshold) {
         clusterSettings.applySettings(
             Settings.builder()
-                .put(ActionLogger.SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true)
-                .put(ActionLogger.SEARCH_ACTION_LOGGER_THRESHOLD.getConcreteSettingForNamespace(loggerName).getKey(), threshold)
+                .put(ActionLogger.ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true)
+                .put(ActionLogger.ACTION_LOGGER_THRESHOLD.getConcreteSettingForNamespace(loggerName).getKey(), threshold)
                 .build()
         );
     }

@@ -56,7 +56,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
 
     private static SlowLogFields makeFields() {
         SlowLogFields fields = mock(SlowLogFields.class);
-        when(fields.queryFields()).thenReturn(Map.of("foo", "bar"));
+        when(fields.logFields()).thenReturn(Map.of("foo", "bar"));
         return fields;
     }
 

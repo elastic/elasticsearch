@@ -15,6 +15,7 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 
@@ -56,6 +57,13 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<Boolean> SEARCH_ACTION_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
+        ACTION_LOGGER_SETTINGS_PREFIX,
+        // Named to match slowlog, we may reconsider this naming
+        "include.user",
+        key -> boolSetting(key, false, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
+
     public ActionLogger(
         String name,
         ClusterSettings settings,
@@ -65,7 +73,8 @@ public class ActionLogger<Context extends ActionLoggerContext> {
     ) {
         this.producer = producer;
         this.writer = writer;
-        this.additionalFields = slowLogFieldProvider.create();
+        var context = new SlowLogContext();
+        this.additionalFields = slowLogFieldProvider.create(context);
         settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
         settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
         settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {
@@ -73,6 +82,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
                 throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
             }
         });
+        settings.addAffixUpdateConsumer(SEARCH_ACTION_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
     }
 
     private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {

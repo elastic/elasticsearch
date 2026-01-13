@@ -24,6 +24,7 @@ import org.junit.Before;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -47,7 +48,7 @@ public class ActionLoggerTests extends ESTestCase {
         SlowLogFieldProvider fieldProvider = mock(SlowLogFieldProvider.class);
         slowLogFields = mock(SlowLogFields.class);
 
-        when(fieldProvider.create()).thenReturn(slowLogFields);
+        when(fieldProvider.create(any())).thenReturn(slowLogFields);
 
         actionLogger = new ActionLogger<>(loggerName, clusterSettings, producer, writer, fieldProvider);
     }

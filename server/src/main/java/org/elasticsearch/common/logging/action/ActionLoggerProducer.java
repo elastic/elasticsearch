@@ -33,7 +33,7 @@ public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
      * Produces a {@link ESLogMessage} with common fields.
      */
     default ESLogMessage produceCommon(Context context, SlowLogFields additionalFields) {
-        var fields = new HashMap<String, Object>(additionalFields.queryFields());
+        var fields = new HashMap<String, Object>(additionalFields.logFields());
         fields.put("x_opaque_id", context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
         fields.put("took", tookInNanos);

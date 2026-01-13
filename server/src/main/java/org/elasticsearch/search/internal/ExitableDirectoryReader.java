@@ -595,13 +595,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public BulkVectorScorer bulkScorer(float[] target) throws IOException {
-            return bsfvv.bulkScorer(target);
+        public BulkVectorScorer bulkScorer(float[] target, boolean prefetch) throws IOException {
+            return bsfvv.bulkScorer(target, prefetch);
         }
 
         @Override
-        public BulkVectorScorer bulkRescorer(float[] target) throws IOException {
-            return bsfvv.bulkRescorer(target);
+        public BulkVectorScorer bulkRescorer(float[] target, boolean prefetch) throws IOException {
+            return bsfvv.bulkRescorer(target, prefetch);
         }
     }
 

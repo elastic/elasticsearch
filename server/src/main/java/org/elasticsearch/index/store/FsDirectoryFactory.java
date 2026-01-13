@@ -313,11 +313,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    static final class AlwaysDirectIODirectory extends DirectIODirectory {
+    public static final class AlwaysDirectIODirectory extends DirectIODirectory {
         private final int blockSize;
         private final int asyncPrefetchLimit;
 
-        AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit) throws IOException {
+        public AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit) throws IOException {
             super(delegate, mergeBufferSize, minBytesDirect);
             blockSize = getBlockSize(delegate.getDirectory());
             this.asyncPrefetchLimit = asyncPrefetchLimit;

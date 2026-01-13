@@ -189,7 +189,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
     }
 
-    static class RescorerOffHeapVectorValues extends FloatVectorValues implements BulkScorableFloatVectorValues {
+    static class RescorerOffHeapVectorValues extends FloatVectorValues implements BulkScorableFloatVectorValues, HasIndexSlice {
         private final VectorSimilarityFunction similarityFunction;
         private final FloatVectorValues inner;
         private final IndexInput inputSlice;
@@ -239,15 +239,15 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
-        public BulkVectorScorer bulkRescorer(float[] target) throws IOException {
-            return bulkScorer(target);
+        public BulkVectorScorer bulkRescorer(float[] target, boolean prefetch) throws IOException {
+            return bulkScorer(target, prefetch);
         }
 
         @Override
-        public BulkVectorScorer bulkScorer(float[] target) throws IOException {
+        public BulkVectorScorer bulkScorer(float[] target, boolean prefetch) throws IOException {
             DocIndexIterator indexIterator = inner.iterator();
             RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
-            return forcePreFetching && inputSlice != null
+            return prefetch && inputSlice != null
                 ? new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES)
                 : new FloatBulkVectorScorer(randomScorer, indexIterator);
         }
@@ -260,6 +260,11 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         @Override
         public int ordToDoc(int ord) {
             return inner.ordToDoc(ord);
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return inner instanceof HasIndexSlice slice ? slice.getSlice() : null;
         }
     }
 

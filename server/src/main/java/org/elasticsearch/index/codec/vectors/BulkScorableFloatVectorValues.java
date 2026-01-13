@@ -19,11 +19,11 @@ public interface BulkScorableFloatVectorValues extends BulkScorableVectorValues 
      * Returns a {@link BulkVectorScorer} that can score against the provided {@code target} vector.
      * It will score to the fastest speed possible, potentially sacrificing some fidelity.
      */
-    BulkVectorScorer bulkScorer(float[] target) throws IOException;
+    BulkVectorScorer bulkScorer(float[] target, boolean prefetch) throws IOException;
 
     /**
      * Returns a {@link BulkVectorScorer} that can rescore against the provided {@code target} vector.
      * It will score to the highest fidelity possible, potentially sacrificing some speed.
      */
-    BulkVectorScorer bulkRescorer(float[] target) throws IOException;
+    BulkVectorScorer bulkRescorer(float[] target, boolean prefetch) throws IOException;
 }

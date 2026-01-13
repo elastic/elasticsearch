@@ -318,7 +318,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            BulkScorableVectorValues.BulkVectorScorer vectorReScorer = rescorableVectorValues.bulkRescorer(floatTarget);
+            BulkScorableVectorValues.BulkVectorScorer vectorReScorer = rescorableVectorValues.bulkRescorer(floatTarget, true);
             var iterator = vectorReScorer.iterator();
             BulkScorableVectorValues.BulkVectorScorer.BulkScorer bulkScorer = vectorReScorer.bulkScore(filterIterator);
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();

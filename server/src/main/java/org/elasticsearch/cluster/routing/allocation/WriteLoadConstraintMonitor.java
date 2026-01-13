@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Monitors the node-level write thread pool usage across the cluster and initiates a rebalancing round (via
@@ -142,7 +143,7 @@ public class WriteLoadConstraintMonitor {
         if (haveWriteNodesBelowQueueLatencyThreshold == false) {
             logger.debug("""
                 Nodes [{}] are above the queue latency threshold, but there are no write nodes below the threshold. \
-                Cannot rebalance shards.""", nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold));
+                Cannot rebalance shards.""", nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold, state));
             return;
         }
 
@@ -160,12 +161,12 @@ public class WriteLoadConstraintMonitor {
                         Nodes [{}] are hot-spotting, of {} total ingest nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
-                    nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold),
+                    nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold, state),
                     totalIngestNodes,
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
-                    nodeSummary(lastHotspotNodes),
+                    nodeSummary(lastHotspotNodes, state),
                     writeLoadConstraintSettings.getQueueLatencyThreshold()
                 );
             }
@@ -227,9 +228,15 @@ public class WriteLoadConstraintMonitor {
         }
     }
 
-    private static String nodeSummary(Set<String> nodeIds) {
+    private static String nodeSummary(Set<String> nodeIds, ClusterState state) {
+        final var nodes = state.nodes();
         if (nodeIds.isEmpty() == false && nodeIds.size() <= MAX_NODE_IDS_IN_MESSAGE) {
-            return "[" + String.join(", ", nodeIds) + "]";
+            final var commaSeparatedNodeNames = nodeIds.stream().map(nodeId -> {
+                final var discoveryNode = nodes.get(nodeId);
+                // It's possible a node might have left the cluster since the ClusterInfo was published
+                return discoveryNode != null ? discoveryNode.getName() : nodeId;
+            }).collect(Collectors.joining(", "));
+            return "[" + commaSeparatedNodeNames + "]";
         } else {
             return nodeIds.size() + " nodes";
         }

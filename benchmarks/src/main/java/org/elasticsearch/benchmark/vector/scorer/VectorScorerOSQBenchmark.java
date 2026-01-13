@@ -123,9 +123,9 @@ public class VectorScorerOSQBenchmark {
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            byte[] correctionBytes = new byte[14 * ES91OSQVectorsScorer.BULK_SIZE];
-            for (int i = 0; i < numVectors; i += ES91OSQVectorsScorer.BULK_SIZE) {
-                for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
+            byte[] correctionBytes = new byte[14 * bulkSize];
+            for (int i = 0; i < numVectors; i += bulkSize) {
+                for (int j = 0; j < bulkSize; j++) {
                     output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
                 }
                 random.nextBytes(correctionBytes);
@@ -174,7 +174,7 @@ public class VectorScorerOSQBenchmark {
             case VECTORIZED -> ESVectorizationProvider.getInstance()
                 .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
         };
-        scratchScores = new float[ESNextOSQVectorsScorer.BULK_SIZE];
+        scratchScores = new float[bulkSize];
         corrections = new float[3];
     }
 

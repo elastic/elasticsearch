@@ -206,7 +206,7 @@ ROW x = 1
 | STATS s = SUM(foo)
 ;
 
-s:long
+s:double
 null
 ;
 
@@ -222,7 +222,7 @@ foo:null
 null
 ;
 
-statsAggs
+statsAggsGrouped
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
@@ -230,8 +230,8 @@ ROW x = 1
 | STATS s = SUM(foo) BY bar
 ;
 
-s:long | bar:null
-null   | null
+s:double | bar:null
+null     | null
 ;
 
 statsExpressions

@@ -1,0 +1,5 @@
+pr: 140536
+summary: Support `LimitedRole` in idp role resolution
+area: IdentityProvider
+type: enhancement
+issues: []

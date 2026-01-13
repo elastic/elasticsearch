@@ -56,7 +56,6 @@ public class DotProduct extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
-        preview = true,
         description = "Calculates the dot product between two dense_vectors.",
         examples = { @Example(file = "vector-dot-product", tag = "vector-dot-product") },
         appliesTo = {

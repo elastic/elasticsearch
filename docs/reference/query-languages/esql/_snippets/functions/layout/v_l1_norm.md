@@ -3,7 +3,6 @@
 ## `V_L1_NORM` [esql-v_l1_norm]
 ```{applies_to}
 stack: preview 9.3.0, ga 9.4.0
-serverless: preview
 ```
 
 **Syntax**

@@ -14,7 +14,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 import java.io.IOException;
 
@@ -37,6 +39,14 @@ public class GetUserPrivilegesRequestTests extends ESTestCase {
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.usernames(), equalTo(original.usernames()));
+    }
+
+    public void testEnumSerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            RoleReference.ApiKeyRoleType.class,
+            RoleReference.ApiKeyRoleType.ASSIGNED,
+            RoleReference.ApiKeyRoleType.LIMITED_BY
+        );
     }
 
 }

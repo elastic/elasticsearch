@@ -37,7 +37,7 @@ label_to_type:
   # "type:known": known-issue
   ">regression": regression
   # "type:security": security
-  # "type:other": other
+  ">upgrade": other
 
 # Available subtypes for breaking changes (optional - if not specified, all valid subtypes are allowed)
 # available_subtypes:

@@ -484,7 +484,7 @@ static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {
    return local;
 }
 
-EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int32_t length) {
+static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     int r = 0;
     int upperBound = length & -sizeof(__m256i);
     __m256i acc0 = _mm256_setzero_si256();
@@ -538,6 +538,18 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
     return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
 }
 
+EXPORT int64_t vec_dot_int1_int4(
+    const int8_t* a_ptr,
+    const int8_t* query_ptr,
+//    const int8_t* a_address,
+//    const int8_t* query_address,
+    const int32_t length
+) {
+    //const int8_t* a = a_ptr != NULL ? a_ptr : a_address;
+    //const int8_t* query = query_ptr != NULL ? query_ptr : query_address;
+    return dot_int1_int4_inner(a_ptr, query_ptr, length);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot_int1_int4_inner_bulk(
     const int8_t* a,
@@ -568,8 +580,8 @@ static inline void dot_int1_int4_inner_bulk(
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a1, lines_to_fetch);
 
-        results[c + 0] = (f32_t)vec_dot_int1_int4(a0, query, length);
-        results[c + 1] = (f32_t)vec_dot_int1_int4(a1, query, length);
+        results[c + 0] = (f32_t)dot_int1_int4_inner(a0, query, length);
+        results[c + 1] = (f32_t)dot_int1_int4_inner(a1, query, length);
 
         a0 = next_a0;
         a1 = next_a1;
@@ -578,7 +590,7 @@ static inline void dot_int1_int4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_dot_int1_int4(a0, query, length);
+        results[c] = (f32_t)dot_int1_int4_inner(a0, query, length);
     }
 }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -70,7 +71,7 @@ public class GoogleAiStudioService extends SenderService {
     public static final String NAME = "googleaistudio";
 
     private static final String SERVICE_NAME = "Google AI Studio";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     private static final String MODEL_ID_WITH_TASK_TYPE = "embedding-001";
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
@@ -80,6 +81,67 @@ public class GoogleAiStudioService extends SenderService {
         InputType.CLUSTERING,
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
+    );
+    private static final Map<TaskType, GoogleAiStudioModelCreator> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new GoogleAiStudioModelCreator() {
+            @Override
+            public GoogleAiStudioEmbeddingsModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                String service,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ConfigurationParseContext context
+            ) {
+                return new GoogleAiStudioEmbeddingsModel(
+                    inferenceId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    chunkingSettings,
+                    secretSettings,
+                    context
+                );
+            }
+
+            @Override
+            public GoogleAiStudioEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+                return new GoogleAiStudioEmbeddingsModel(config, secrets);
+            }
+        },
+        TaskType.COMPLETION,
+        new GoogleAiStudioModelCreator() {
+            @Override
+            public GoogleAiStudioCompletionModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                String service,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ConfigurationParseContext context
+            ) {
+                return new GoogleAiStudioCompletionModel(
+                    inferenceId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    secretSettings,
+                    context
+                );
+            }
+
+            @Override
+            public GoogleAiStudioCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+                return new GoogleAiStudioCompletionModel(config, secrets);
+            }
+        }
     );
 
     public GoogleAiStudioService(
@@ -147,28 +209,20 @@ public class GoogleAiStudioService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case COMPLETION -> new GoogleAiStudioCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        var creator = MODEL_CREATORS.get(taskType);
+        if (creator == null) {
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        }
+        return creator.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -199,16 +253,16 @@ public class GoogleAiStudioService extends SenderService {
 
     @Override
     public GoogleAiStudioModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return switch (config.getTaskType()) {
-            case COMPLETION -> new GoogleAiStudioCompletionModel(config, secrets);
-            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(config, secrets);
-            default -> throw createInvalidTaskTypeException(
+        var creator = MODEL_CREATORS.get(config.getTaskType());
+        if (creator == null) {
+            throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
                 NAME,
                 config.getTaskType(),
                 ConfigurationParseContext.PERSISTENT
             );
-        };
+        }
+        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private static GoogleAiStudioModel createModelFromPersistent(
@@ -250,7 +304,7 @@ public class GoogleAiStudioService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -379,7 +433,7 @@ public class GoogleAiStudioService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -388,15 +442,30 @@ public class GoogleAiStudioService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }
         );
+    }
+
+    private interface GoogleAiStudioModelCreator extends ModelCreator {
+        GoogleAiStudioModel createFromMaps(
+            String inferenceId,
+            TaskType taskType,
+            String service,
+            Map<String, Object> serviceSettings,
+            Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
+            @Nullable Map<String, Object> secretSettings,
+            ConfigurationParseContext context
+        );
+
+        GoogleAiStudioModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

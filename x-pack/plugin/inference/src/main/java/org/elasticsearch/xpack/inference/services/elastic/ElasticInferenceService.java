@@ -137,42 +137,40 @@ public class ElasticInferenceService extends SenderService {
                 return new ElasticInferenceServiceCompletionModel(config, secrets, elasticInferenceServiceComponents);
             }
         };
-        MODEL_CREATORS = Map.of(
-            TaskType.SPARSE_EMBEDDING,
-            new ElasticInferenceServiceModelCreator() {
-                @Override
-                public ElasticInferenceServiceSparseEmbeddingsModel createFromMaps(
-                    String inferenceId,
-                    TaskType taskType,
-                    Map<String, Object> serviceSettings,
-                    Map<String, Object> taskSettings,
-                    ChunkingSettings chunkingSettings,
-                    Map<String, Object> secretSettings,
-                    ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-                    ConfigurationParseContext context
-                ) {
-                    return new ElasticInferenceServiceSparseEmbeddingsModel(
-                        inferenceId,
-                        taskType,
-                        NAME,
-                        serviceSettings,
-                        taskSettings,
-                        secretSettings,
-                        elasticInferenceServiceComponents,
-                        context,
-                        chunkingSettings
-                    );
-                }
+        MODEL_CREATORS = Map.of(TaskType.SPARSE_EMBEDDING, new ElasticInferenceServiceModelCreator() {
+            @Override
+            public ElasticInferenceServiceSparseEmbeddingsModel createFromMaps(
+                String inferenceId,
+                TaskType taskType,
+                Map<String, Object> serviceSettings,
+                Map<String, Object> taskSettings,
+                ChunkingSettings chunkingSettings,
+                Map<String, Object> secretSettings,
+                ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+                ConfigurationParseContext context
+            ) {
+                return new ElasticInferenceServiceSparseEmbeddingsModel(
+                    inferenceId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    secretSettings,
+                    elasticInferenceServiceComponents,
+                    context,
+                    chunkingSettings
+                );
+            }
 
-                @Override
-                public ElasticInferenceServiceSparseEmbeddingsModel createFromModelConfigurationsAndSecrets(
-                    ModelConfigurations config,
-                    ModelSecrets secrets,
-                    ElasticInferenceServiceComponents elasticInferenceServiceComponents
-                ) {
-                    return new ElasticInferenceServiceSparseEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
-                }
-            },
+            @Override
+            public ElasticInferenceServiceSparseEmbeddingsModel createFromModelConfigurationsAndSecrets(
+                ModelConfigurations config,
+                ModelSecrets secrets,
+                ElasticInferenceServiceComponents elasticInferenceServiceComponents
+            ) {
+                return new ElasticInferenceServiceSparseEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
+            }
+        },
             TaskType.CHAT_COMPLETION,
             completionModelCreator,
             TaskType.COMPLETION,

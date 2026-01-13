@@ -841,6 +841,7 @@ required_capability: fix_agg_on_null_by_replacing_with_eval
 ROW x = null, _id = "", _index = "", _score = 1.0
 | FORK (EVAl y = 2) (EVAl y = 3)
 | FUSE LINEAR
+| EVAL y = mv_sort(y), _fork = mv_sort(_fork)
 ;
 
 _score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword

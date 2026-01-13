@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.ALLOCATION_DECISION_NOT_PREFERRED;
@@ -24,6 +25,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.NOT_PREFERRED;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.THROTTLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.YES;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * A class for unit testing the {@link Decision} class.
@@ -53,8 +55,15 @@ public class DecisionTests extends ESTestCase {
         EnumSerializationTestUtils.assertEnumSerialization(Type.class, NO, NOT_PREFERRED, THROTTLE, YES);
     }
 
-    public void testTypeHigherThan() {
-        assertTrue(YES.higherThan(THROTTLE) && THROTTLE.higherThan(NOT_PREFERRED) && NOT_PREFERRED.higherThan(NO));
+    public void testTypeComparisonOrder() {
+        assertThat(
+            shuffledList(Arrays.asList(Type.values())).stream().sorted(Type::compareToBetweenDecisions).toList(),
+            equalTo(List.of(NO, THROTTLE, NOT_PREFERRED, YES))
+        );
+        assertThat(
+            shuffledList(Arrays.asList(Type.values())).stream().sorted(Type::compareToBetweenNodes).toList(),
+            equalTo(List.of(NO, NOT_PREFERRED, THROTTLE, YES))
+        );
     }
 
     public void testTypeAllowed() {
@@ -96,6 +105,26 @@ public class DecisionTests extends ESTestCase {
         // THROTTLE and NO are unchanged
         testReadWriteEnum(THROTTLE, OriginalType.class, OriginalType.THROTTLE, TransportVersion.minimumCompatible());
         testReadWriteEnum(NO, OriginalType.class, OriginalType.NO, TransportVersion.minimumCompatible());
+    }
+
+    public void testMultiPrioritisation() {
+        assertEffectiveDecision(NO, Decision.NO, Decision.THROTTLE, Decision.NOT_PREFERRED, Decision.YES);
+        assertEffectiveDecision(THROTTLE, Decision.THROTTLE, Decision.NOT_PREFERRED, Decision.YES);
+        assertEffectiveDecision(NOT_PREFERRED, Decision.NOT_PREFERRED, Decision.YES);
+        assertEffectiveDecision(YES, Decision.YES);
+        assertEffectiveDecision(YES);
+    }
+
+    public void testMinimumDecisionTypeThrottleOrYes() {
+        assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.THROTTLE, Decision.YES));
+        assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.YES, Decision.THROTTLE));
+        assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.THROTTLE, Decision.THROTTLE));
+        assertEquals(Decision.Type.YES, Decision.minimumDecisionTypeThrottleOrYes(Decision.YES, Decision.YES));
+    }
+
+    private void assertEffectiveDecision(Decision.Type effectiveDecision, Decision.Single... decisions) {
+        final var multi = new Decision.Multi(shuffledList(List.of(decisions)));
+        assertEquals(effectiveDecision, multi.type());
     }
 
     /**

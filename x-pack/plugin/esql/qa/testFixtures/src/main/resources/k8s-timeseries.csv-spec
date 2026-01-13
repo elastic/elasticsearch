@@ -751,18 +751,6 @@ maxRate:double | tbucket:datetime
 0.05898        | 2024-05-10T00:00:00.000Z
 ;
 
-Rename timestamp when aggs don't require timestamp
-required_capability: ts_command_v0
-
-TS k8s 
-| RENAME @timestamp AS newTs 
-| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
-;
-
-mx:integer | tbucket:datetime
-1716       | 2024-05-10T00:00:00.000Z
-;
-
 instant_selector_dimensions_promql
 required_capability: promql_pre_tech_preview_v12
 
@@ -827,6 +815,30 @@ count:long | _timeseries:keyword                                                
 24         | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
 29         | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
 29         | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+;
+
+bare_metric_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: ts_stats_binary_ops
+
+TS k8s
+| STATS network.cost BY tbucket = TBUCKET(1 hour)
+| SORT network.cost DESC
+;
+ignoreOrder:true
+
+network.cost:double | _timeseries:keyword                                                   | tbucket:datetime
+0.0                 | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+1.75                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+4.625               | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+6.25                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+7.875               | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+9.375               | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+9.5                 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+10.75               | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+10.875              | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
 ;
 
 bare_count_over_time_with_tbucket_outputs_dimensions_promql

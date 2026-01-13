@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -71,15 +72,19 @@ public abstract class IndexRouting {
     }
 
     protected final String indexName;
+    private final int numberOfShards;
     private final int routingNumShards;
     private final int routingFactor;
+    protected final IndexVersion creationVersion;
     @Nullable
     private final IndexReshardingMetadata indexReshardingMetadata;
 
     private IndexRouting(IndexMetadata metadata) {
         this.indexName = metadata.getIndex().getName();
+        this.numberOfShards = metadata.getNumberOfShards();
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
+        this.creationVersion = metadata.getCreationVersion();
         this.indexReshardingMetadata = metadata.getReshardingMetadata();
     }
 
@@ -138,11 +143,27 @@ public abstract class IndexRouting {
      */
     public abstract void collectSearchShards(String routing, IntConsumer consumer);
 
+    public static boolean shouldUseShardCountModRouting(final IndexVersion creationVersion) {
+        return creationVersion.onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION);
+    }
+
     /**
      * Convert a hash generated from an {@code (id, routing}) pair into a
      * shard id.
      */
     protected final int hashToShardId(int hash) {
+        if (shouldUseShardCountModRouting(creationVersion)) {
+            return Math.floorMod(hash, numberOfShards);
+        } else {
+            return hashToShardIdOld(hash);
+        }
+    }
+
+    /**
+     * Convert a hash generated from an {@code (id, routing}) pair into a
+     * shard id using the old routingNumShards mechanism.
+     */
+    protected final int hashToShardIdOld(int hash) {
         return Math.floorMod(hash, routingNumShards) / routingFactor;
     }
 
@@ -185,12 +206,10 @@ public abstract class IndexRouting {
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
-        private final IndexVersion creationVersion;
         private final IndexMode indexMode;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
-            this.creationVersion = metadata.getCreationVersion();
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
@@ -426,8 +445,10 @@ public abstract class IndexRouting {
                 // see IndexRequest#autoGenerateTimeBasedId.
                 hash = ByteUtils.readIntLE(idBytes, idBytes.length - 9);
             } else if (useTimeSeriesSyntheticId) {
+                var uid = new BytesRef(idBytes);
+                assert Uid.encodeId(id).equals(uid);
                 // For TSDB with synthetic ids, the hash is stored as the id suffix.
-                hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(new BytesRef(idBytes));
+                hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
             } else {
                 // For TSDB, the hash is stored as the id prefix.
                 hash = ByteUtils.readIntLE(idBytes, 0);

@@ -10,6 +10,7 @@
 | cartesian_shape | long |
 | date | long |
 | date_nanos | long |
+| dense_vector | long |
 | double | long |
 | geo_point | long |
 | geo_shape | long |

@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
-import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -320,19 +319,15 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private BlockResult extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
-        return switch (columnName) {
-            case MetadataAttribute.INDEX -> new BlockResultSuccess(
+        if (MetadataAttribute.INDEX.equals(columnName)) {
+            return new BlockResultSuccess(
                 docBlock.blockFactory()
                     .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount())
             );
-            case DataTierFieldMapper.NAME -> new BlockResultSuccess(
-                docBlock.blockFactory()
-                    .newConstantBytesRefBlockWith(new BytesRef("data_content"), blockCopier.docIndices.getPositionCount())
-            );
-            default -> indexPage.columnIndex(columnName)
-                .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
-                .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
-        };
+        }
+        return indexPage.columnIndex(columnName)
+            .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
+            .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
     }
 
     private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {

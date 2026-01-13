@@ -192,11 +192,3 @@ FROM employees METADATA _index | KEEP _index | LIMIT 1;
 _index:keyword
 employees
 ;
-
-tierMetadata
-required_capability: metadata_tier_field
-FROM employees METADATA _tier | KEEP _tier | LIMIT 1;
-
-_tier:keyword
-data_content
-;

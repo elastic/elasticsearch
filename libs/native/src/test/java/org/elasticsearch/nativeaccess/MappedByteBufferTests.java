@@ -55,6 +55,8 @@ public class MappedByteBufferTests extends ESTestCase {
             assertSliceOfBuffer(mappedByteBuffer, 1, size - 1);
             assertSliceOfBuffer(mappedByteBuffer, 2, size - 2);
             assertSliceOfBuffer(mappedByteBuffer, 3, size - 3);
+
+            assertOutOfBounds(mappedByteBuffer, size);
         }
     }
 
@@ -75,12 +77,26 @@ public class MappedByteBufferTests extends ESTestCase {
             mappedByteBuffer.prefetch(0, size - 2);
             mappedByteBuffer.prefetch(0, size - 3);
             mappedByteBuffer.prefetch(0, randomIntBetween(1, size));
-            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(-2, size));
-            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(-1, size));
-            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(1, size));
-            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(2, size));
-            expectThrows(IndexOutOfBoundsException.class, () -> mappedByteBuffer.prefetch(3, size));
+            mappedByteBuffer.prefetch(1, size - 1);
+            mappedByteBuffer.prefetch(2, size - 2);
+            mappedByteBuffer.prefetch(3, size - 3);
+            mappedByteBuffer.prefetch(4, size - 4);
+            mappedByteBuffer.prefetch(1, randomIntBetween(2, size - 1));
+
+            assertOutOfBounds(mappedByteBuffer, size);
         }
+    }
+
+    static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
+
+    private void assertOutOfBounds(CloseableMappedByteBuffer mappedByteBuffer, int size) {
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(-2, size));
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(-1, size));
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(1, size));
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(2, size));
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(3, size));
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(0, size + 1));
+        expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(0, size + 2));
     }
 
     static void assertSliceOfBuffer(CloseableMappedByteBuffer mappedByteBuffer, int offset, int length) {

@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,8 +24,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -47,15 +57,25 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The pre-optimizer then evaluates this function using {@code InferenceFunctionEvaluator} and
  * replaces it with a literal result.
  */
-public class CompletionFunction extends InferenceFunction<CompletionFunction> {
+public class CompletionFunction extends InferenceFunction<CompletionFunction> implements PostAnalysisVerificationAware {
+
+    private static final MapExpression DEFAULT_TASK_SETTINGS = new MapExpression(Source.EMPTY, List.of());
+
+    private static final Set<String> FORBIDDEN_TASK_SETTINGS_KEYS = Set.of("top_n", "return_docs", "return_documents");
 
     private final Expression inferenceId;
     private final Expression prompt;
+    private final MapExpression taskSettings;
 
     public CompletionFunction(Source source, Expression prompt, Expression inferenceId) {
-        super(source, List.of(prompt, inferenceId));
+        this(source, prompt, inferenceId, DEFAULT_TASK_SETTINGS);
+    }
+
+    public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings) {
+        super(source, List.of(prompt, inferenceId, taskSettings));
         this.inferenceId = inferenceId;
         this.prompt = prompt;
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -72,6 +92,10 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
         return prompt;
     }
 
+    public MapExpression taskSettings() {
+        return taskSettings;
+    }
+
     @Override
     public Expression inferenceId() {
         return inferenceId;
@@ -79,7 +103,18 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public boolean foldable() {
-        return inferenceId.foldable() && prompt.foldable();
+        if (inferenceId.foldable() == false || prompt.foldable() == false) {
+            return false;
+        }
+        if (taskSettings.resolved() == false) {
+            return false;
+        }
+        for (Expression e : taskSettings.children()) {
+            if (e.foldable() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -118,22 +153,44 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public CompletionFunction withInferenceResolutionError(String inferenceId, String error) {
-        return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+        return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), taskSettings);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (taskSettings != null && taskSettings.resolved() == false) {
+            failures.add(fail(taskSettings, "task_settings must be fully resolved"));
+            return;
+        }
+        if (taskSettings != null) {
+            for (EntryExpression entry : taskSettings.entryExpressions()) {
+                Expression keyExpression = entry.key();
+                if (keyExpression.foldable()) {
+                    Object keyValue = keyExpression.fold(FoldContext.small());
+                    String key = keyValue == null
+                        ? "null"
+                        : (keyValue instanceof BytesRef bytesRef ? BytesRefs.toString(bytesRef) : keyValue.toString());
+                    if (FORBIDDEN_TASK_SETTINGS_KEYS.contains(key.toLowerCase(Locale.ROOT))) {
+                        failures.add(fail(entry.key(), "task_settings cannot contain [{}]", key));
+                    }
+                }
+            }
+        }
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1));
+        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1), (MapExpression) newChildren.get(2));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId);
+        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId, taskSettings);
     }
 
     @Override
     public String toString() {
-        return "COMPLETION(" + prompt + ", " + inferenceId + ")";
+        return "COMPLETION(" + prompt + ", " + inferenceId + ", " + taskSettings + ")";
     }
 
     @Override
@@ -141,11 +198,13 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         CompletionFunction completionFunction = (CompletionFunction) o;
-        return Objects.equals(inferenceId, completionFunction.inferenceId) && Objects.equals(prompt, completionFunction.prompt);
+        return Objects.equals(inferenceId, completionFunction.inferenceId)
+            && Objects.equals(prompt, completionFunction.prompt)
+            && Objects.equals(taskSettings, completionFunction.taskSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId, prompt);
+        return Objects.hash(super.hashCode(), inferenceId, prompt, taskSettings);
     }
 }

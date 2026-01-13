@@ -3808,6 +3808,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
     }
 
+    public void testCompletionWithTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"temperature\": 0.5 } }"
+            ),
+            Completion.class
+        );
+
+        assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+
+        MapExpression taskSettings = plan.taskSettings();
+        assertThat(taskSettings.get("temperature"), equalTo(Literal.fromDouble(null, 0.5)));
+    }
+
+    public void testCompletionInvalidTaskSettingsType() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": 3 }",
+            "Option [task_settings] must be a map, found [3]"
+        );
+    }
+
     public void testRerankCommandDisabled() {
         Settings settings = Settings.builder().put(InferenceSettings.RERANK_ENABLED_SETTING.getKey(), false).build();
 
@@ -3936,7 +3960,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:31: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
+            "line 1:31: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");

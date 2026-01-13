@@ -1661,7 +1661,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan child = plan.child();
 
             if (plan instanceof Completion completion) {
-                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                CompletionFunction completionFunction = new CompletionFunction(
+                    source,
+                    completion.prompt(),
+                    inferenceIdLiteral,
+                    completion.taskSettings()
+                );
                 Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
                 return new Eval(source, child, List.of(alias));
             }

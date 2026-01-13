@@ -1176,6 +1176,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             completion = applyInferenceId(completion, inferenceId);
         }
 
+        Expression taskSettings = optionsMap.remove(Completion.TASK_SETTINGS_OPTION_NAME);
+        if (taskSettings != null) {
+            if (taskSettings instanceof MapExpression == false) {
+                throw new ParsingException(
+                    taskSettings.source(),
+                    "Option [{}] must be a map, found [{}]",
+                    Completion.TASK_SETTINGS_OPTION_NAME,
+                    taskSettings.source().text()
+                );
+            }
+            completion = completion.withTaskSettings((MapExpression) taskSettings);
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),

@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
@@ -27,13 +29,17 @@ public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
     private void assertIterate(int size) throws Exception {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(size);
+        final Map<String, Object> taskSettings = Map.of("temperature", 0.5);
 
-        try (CompletionOperatorRequestIterator requestIterator = new CompletionOperatorRequestIterator(inputBlock, inferenceId)) {
+        try (
+            CompletionOperatorRequestIterator requestIterator = new CompletionOperatorRequestIterator(inputBlock, inferenceId, taskSettings)
+        ) {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {
                 InferenceAction.Request request = requestIterator.next();
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
+                assertThat(request.getTaskSettings(), equalTo(taskSettings));
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(currentPos), scratch);
                 assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));
             }

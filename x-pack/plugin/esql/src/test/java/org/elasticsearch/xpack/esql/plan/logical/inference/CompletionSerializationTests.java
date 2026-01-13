@@ -39,7 +39,7 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
         }
-        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField);
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, instance.taskSettings());
     }
 
     private Literal randomInferenceId() {

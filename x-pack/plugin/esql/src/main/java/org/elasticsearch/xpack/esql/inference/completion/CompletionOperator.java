@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
+import java.util.Map;
+
 /**
  * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using prompt-based model (e.g., text completion).
  * It evaluates a prompt expression for each input row, constructs inference requests, and emits the model responses as output.
@@ -26,16 +28,19 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 public class CompletionOperator extends InferenceOperator {
 
     private final ExpressionEvaluator promptEvaluator;
+    private final Map<String, Object> taskSettings;
 
     public CompletionOperator(
         DriverContext driverContext,
         BulkInferenceRunner bulkInferenceRunner,
         String inferenceId,
         ExpressionEvaluator promptEvaluator,
+        Map<String, Object> taskSettings,
         int maxOutstandingPages
     ) {
         super(driverContext, bulkInferenceRunner, inferenceId, maxOutstandingPages);
         this.promptEvaluator = promptEvaluator;
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -55,7 +60,7 @@ public class CompletionOperator extends InferenceOperator {
      */
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
+        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId(), taskSettings);
     }
 
     /**
@@ -72,9 +77,12 @@ public class CompletionOperator extends InferenceOperator {
     /**
      * Factory for creating {@link CompletionOperator} instances.
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator.Factory promptEvaluatorFactory,
+        Map<String, Object> taskSettings
+    ) implements OperatorFactory {
         @Override
         public String describe() {
             return "CompletionOperator[inference_id=[" + inferenceId + "]]";
@@ -87,6 +95,7 @@ public class CompletionOperator extends InferenceOperator {
                 inferenceService.bulkInferenceRunner(),
                 inferenceId,
                 promptEvaluatorFactory.get(driverContext),
+                taskSettings,
                 BulkInferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()
             );
         }

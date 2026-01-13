@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.inference.InputTextReader;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
@@ -25,6 +26,7 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
 
     private final InputTextReader textReader;
     private final String inferenceId;
+    private final Map<String, Object> taskSettings;
     private final int size;
     private int currentPos = 0;
 
@@ -34,10 +36,11 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
      * @param promptBlock The input block containing prompts.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
+    CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId, Map<String, Object> taskSettings) {
         this.textReader = new InputTextReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -62,7 +65,10 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
+        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
+            .setInput(List.of(prompt))
+            .setTaskSettings(taskSettings)
+            .build();
     }
 
     @Override

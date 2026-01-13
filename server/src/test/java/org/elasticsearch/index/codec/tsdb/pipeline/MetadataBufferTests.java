@@ -9,95 +9,124 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
+/**
+ * Tests for {@link MetadataBuffer}.
+ * <p>
+ * Since MetadataBuffer is write-only, these tests verify encoding correctness
+ * by using Lucene's ByteArrayDataInput to read back written values.
+ */
 public class MetadataBufferTests extends ESTestCase {
 
-    public void testWriteReadRandomBytes() {
+    public void testWriteRandomBytes() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numBytes = randomIntBetween(1, 500);
         final byte[] expected = new byte[numBytes];
 
+        // WHEN
         for (int i = 0; i < numBytes; i++) {
             expected[i] = randomByte();
             buffer.writeByte(expected[i]);
         }
 
+        // THEN
         assertEquals(numBytes, buffer.size());
-        assertEquals(numBytes, buffer.position());
-
-        buffer.setPosition(0);
+        final byte[] bytes = buffer.toByteArray();
         for (int i = 0; i < numBytes; i++) {
-            assertEquals(expected[i], buffer.readByte());
+            assertEquals(expected[i], bytes[i]);
         }
     }
 
-    public void testWriteReadRandomVInts() {
+    public void testWriteByteGrowsBuffer() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int numBytes = 200; // Exceeds default capacity of 64
+
+        // WHEN
+        for (int i = 0; i < numBytes; i++) {
+            buffer.writeByte((byte) i);
+        }
+
+        // THEN
+        assertEquals(numBytes, buffer.size());
+        final byte[] bytes = buffer.toByteArray();
+        for (int i = 0; i < numBytes; i++) {
+            assertEquals((byte) i, bytes[i]);
+        }
+    }
+
+    public void testWriteRandomVInts() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numValues = randomIntBetween(100, 1000);
         final int[] values = new int[numValues];
 
+        // WHEN
         for (int i = 0; i < numValues; i++) {
             values[i] = randomIntBetween(0, Integer.MAX_VALUE);
             buffer.writeVInt(values[i]);
         }
 
-        buffer.setPosition(0);
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
         for (int i = 0; i < numValues; i++) {
-            assertEquals(values[i], buffer.readVInt());
+            assertEquals(values[i], input.readVInt());
         }
     }
 
-    public void testWriteReadRandomVLongs() {
+    public void testVIntBoundaryValues() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int[] boundaryValues = { 0, 1, 0x7F, 0x80, 0x3FFF, 0x4000, 0x1FFFFF, 0x200000, 0x0FFFFFFF, 0x10000000, Integer.MAX_VALUE };
+
+        // WHEN
+        for (final int value : boundaryValues) {
+            buffer.writeVInt(value);
+        }
+
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
+        for (final int expected : boundaryValues) {
+            assertEquals(expected, input.readVInt());
+        }
+    }
+
+    public void testVIntNegativeThrows() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int negativeValue = randomIntBetween(Integer.MIN_VALUE, -1);
+
+        // WHEN/THEN
+        expectThrows(IllegalArgumentException.class, () -> buffer.writeVInt(negativeValue));
+    }
+
+    public void testWriteRandomVLongs() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numValues = randomIntBetween(100, 1000);
         final long[] values = new long[numValues];
 
+        // WHEN
         for (int i = 0; i < numValues; i++) {
             values[i] = randomLongBetween(0, Long.MAX_VALUE);
             buffer.writeVLong(values[i]);
         }
 
-        buffer.setPosition(0);
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
         for (int i = 0; i < numValues; i++) {
-            assertEquals(values[i], buffer.readVLong());
-        }
-    }
-
-    public void testWriteReadRandomZLongs() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int numValues = randomIntBetween(100, 1000);
-        final long[] values = new long[numValues];
-
-        for (int i = 0; i < numValues; i++) {
-            values[i] = randomLong();
-            buffer.writeZLong(values[i]);
-        }
-
-        buffer.setPosition(0);
-        for (int i = 0; i < numValues; i++) {
-            assertEquals(values[i], buffer.readZLong());
-        }
-    }
-
-    public void testVIntBoundaryValues() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-
-        final int[] boundaryValues = { 0, 1, 0x7F, 0x80, 0x3FFF, 0x4000, 0x1FFFFF, 0x200000, 0x0FFFFFFF, 0x10000000, Integer.MAX_VALUE };
-
-        for (final int value : boundaryValues) {
-            buffer.writeVInt(value);
-        }
-
-        buffer.setPosition(0);
-        for (final int expected : boundaryValues) {
-            assertEquals(expected, buffer.readVInt());
+            assertEquals(values[i], input.readVLong());
         }
     }
 
     public void testVLongBoundaryValues() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
-
         final long[] boundaryValues = {
             0L,
             1L,
@@ -118,50 +147,71 @@ public class MetadataBufferTests extends ESTestCase {
             0x0FFFFFFFFFFFFFFL,
             Long.MAX_VALUE };
 
+        // WHEN
         for (final long value : boundaryValues) {
             buffer.writeVLong(value);
         }
 
-        buffer.setPosition(0);
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
         for (final long expected : boundaryValues) {
-            assertEquals(expected, buffer.readVLong());
+            assertEquals(expected, input.readVLong());
         }
     }
 
-    public void testZLongBoundaryValues() {
+    public void testVLongNegativeThrows() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
+        final long negativeValue = randomLongBetween(Long.MIN_VALUE, -1);
 
+        // WHEN/THEN
+        expectThrows(IllegalArgumentException.class, () -> buffer.writeVLong(negativeValue));
+    }
+
+    public void testWriteRandomZLongs() throws IOException {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int numValues = randomIntBetween(100, 1000);
+        final long[] values = new long[numValues];
+
+        // WHEN
+        for (int i = 0; i < numValues; i++) {
+            values[i] = randomLong();
+            buffer.writeZLong(values[i]);
+        }
+
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
+        for (int i = 0; i < numValues; i++) {
+            assertEquals(values[i], input.readZLong());
+        }
+    }
+
+    public void testZLongBoundaryValues() throws IOException {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
         final long[] boundaryValues = { 0L, 1L, -1L, 63L, -64L, 64L, -65L, 8191L, -8192L, Long.MAX_VALUE, Long.MIN_VALUE };
 
+        // WHEN
         for (final long value : boundaryValues) {
             buffer.writeZLong(value);
         }
 
-        buffer.setPosition(0);
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
         for (final long expected : boundaryValues) {
-            assertEquals(expected, buffer.readZLong());
+            assertEquals(expected, input.readZLong());
         }
     }
 
-    public void testVIntNegativeThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int negativeValue = randomIntBetween(Integer.MIN_VALUE, -1);
-        expectThrows(IllegalArgumentException.class, () -> buffer.writeVInt(negativeValue));
-    }
-
-    public void testVLongNegativeThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final long negativeValue = randomLongBetween(Long.MIN_VALUE, -1);
-        expectThrows(IllegalArgumentException.class, () -> buffer.writeVLong(negativeValue));
-    }
-
-    public void testRandomMixedTypes() {
+    public void testRandomMixedTypes() throws IOException {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numOperations = randomIntBetween(50, 200);
-
         final Object[] expected = new Object[numOperations];
         final int[] types = new int[numOperations];
 
+        // WHEN
         for (int i = 0; i < numOperations; i++) {
             final int type = randomIntBetween(0, 3);
             types[i] = type;
@@ -189,328 +239,232 @@ public class MetadataBufferTests extends ESTestCase {
             }
         }
 
-        buffer.setPosition(0);
-
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
         for (int i = 0; i < numOperations; i++) {
             switch (types[i]) {
-                case 0 -> assertEquals((byte) expected[i], buffer.readByte());
-                case 1 -> assertEquals((int) expected[i], buffer.readVInt());
-                case 2 -> assertEquals((long) expected[i], buffer.readVLong());
-                case 3 -> assertEquals((long) expected[i], buffer.readZLong());
+                case 0 -> assertEquals((byte) expected[i], input.readByte());
+                case 1 -> assertEquals((int) expected[i], input.readVInt());
+                case 2 -> assertEquals((long) expected[i], input.readVLong());
+                case 3 -> assertEquals((long) expected[i], input.readZLong());
             }
         }
     }
 
-    public void testAutoGrowWithRandomData() {
+    public void testAutoGrowWithLargeData() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
-        final int numBytes = randomIntBetween(200, 1000);
-        final byte[] expected = new byte[numBytes];
-
-        for (int i = 0; i < numBytes; i++) {
-            expected[i] = randomByte();
-            buffer.writeByte(expected[i]);
-        }
-
-        assertEquals(numBytes, buffer.size());
-        assertEquals(numBytes, buffer.position());
-        assertTrue(buffer.capacity() >= numBytes);
-
-        buffer.setPosition(0);
-        for (int i = 0; i < numBytes; i++) {
-            assertEquals(expected[i], buffer.readByte());
-        }
-    }
-
-    public void testAutoGrowRetainsCapacity() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int numBytes = randomIntBetween(100, 500);
-
-        for (int i = 0; i < numBytes; i++) {
-            buffer.writeByte(randomByte());
-        }
-
-        final int capacityAfterGrow = buffer.capacity();
-        assertTrue(capacityAfterGrow >= numBytes);
-
-        buffer.clear();
-        assertEquals(0, buffer.size());
-        assertEquals(0, buffer.position());
-        assertEquals(capacityAfterGrow, buffer.capacity());
-    }
-
-    public void testMultipleGrowthCycles() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int initialCapacity = buffer.capacity();
-
-        // Force multiple growth cycles: 64 -> 128 -> 256 -> 512 -> 1024
-        final int targetSize = initialCapacity * 16;
+        final int targetSize = 1024;
         final byte[] expected = new byte[targetSize];
 
-        int previousCapacity = initialCapacity;
-        int growthCount = 0;
-
+        // WHEN
         for (int i = 0; i < targetSize; i++) {
             expected[i] = randomByte();
             buffer.writeByte(expected[i]);
-
-            final int currentCapacity = buffer.capacity();
-            if (currentCapacity > previousCapacity) {
-                growthCount++;
-                assertTrue("Capacity should at least double", currentCapacity >= previousCapacity * 2);
-                previousCapacity = currentCapacity;
-            }
         }
 
-        assertTrue("Buffer should have grown multiple times", growthCount >= 4);
+        // THEN
         assertEquals(targetSize, buffer.size());
-
-        buffer.setPosition(0);
+        final byte[] bytes = buffer.toByteArray();
         for (int i = 0; i < targetSize; i++) {
-            assertEquals(expected[i], buffer.readByte());
+            assertEquals(expected[i], bytes[i]);
         }
     }
 
-    public void testClearAndReuse() {
+    public void testLargeZLongSequence() throws IOException {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
+        final int numValues = randomIntBetween(1000, 5000);
+        final long[] values = new long[numValues];
 
-        final int firstValue = randomIntBetween(0, Integer.MAX_VALUE);
-        final long secondValue = randomLongBetween(0, Long.MAX_VALUE);
+        // WHEN
+        for (int i = 0; i < numValues; i++) {
+            values[i] = randomLong();
+            buffer.writeZLong(values[i]);
+        }
 
-        buffer.writeVInt(firstValue);
-        buffer.writeVLong(secondValue);
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
+        for (int i = 0; i < numValues; i++) {
+            assertEquals(values[i], input.readZLong());
+        }
+    }
 
+    public void testClearResetsSize() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeVInt(randomIntBetween(0, Integer.MAX_VALUE));
+        buffer.writeVLong(randomLongBetween(0, Long.MAX_VALUE));
         assertTrue(buffer.size() > 0);
-        assertTrue(buffer.position() > 0);
 
+        // WHEN
         buffer.clear();
 
+        // THEN
         assertEquals(0, buffer.size());
-        assertEquals(0, buffer.position());
-
-        final int newValue = randomIntBetween(0, Integer.MAX_VALUE);
-        buffer.writeVInt(newValue);
-        final int writtenBytes = buffer.size();
-        assertTrue(writtenBytes > 0);
-        assertEquals(writtenBytes, buffer.position());
-
-        buffer.setPosition(0);
-        assertEquals(newValue, buffer.readVInt());
-        assertEquals(writtenBytes, buffer.size());
-        assertEquals(writtenBytes, buffer.position());
+        assertEquals(0, buffer.toByteArray().length);
     }
 
-    public void testReadPastEndThrows() {
+    public void testClearRetainsCapacityForReuse() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
-        final int numBytes = randomIntBetween(1, 10);
-        for (int i = 0; i < numBytes; i++) {
-            buffer.writeByte(randomByte());
-        }
-
-        buffer.setPosition(0);
-        for (int i = 0; i < numBytes; i++) {
-            buffer.readByte();
-        }
-
-        expectThrows(IllegalStateException.class, buffer::readByte);
-    }
-
-    public void testEmptyBufferReadThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        assertEquals(0, buffer.size());
-        expectThrows(IllegalStateException.class, buffer::readByte);
-    }
-
-    public void testEmptyBufferReadVIntThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        expectThrows(IllegalStateException.class, buffer::readVInt);
-    }
-
-    public void testEmptyBufferReadVLongThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        expectThrows(IllegalStateException.class, buffer::readVLong);
-    }
-
-    public void testEmptyBufferReadZLongThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        expectThrows(IllegalStateException.class, buffer::readZLong);
-    }
-
-    public void testInvalidVIntEncodingThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        buffer.writeByte((byte) 0x80);
-        buffer.writeByte((byte) 0x80);
-        buffer.writeByte((byte) 0x80);
-        buffer.writeByte((byte) 0x80);
-        buffer.writeByte((byte) 0x70);
-
-        buffer.setPosition(0);
-        expectThrows(IllegalStateException.class, buffer::readVInt);
-    }
-
-    public void testInvalidVLongEncodingThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        // Write 9 bytes all with continuation bit set (invalid for VLong)
-        for (int i = 0; i < 9; i++) {
-            buffer.writeByte((byte) 0x80);
-        }
-
-        buffer.setPosition(0);
-        expectThrows(IllegalStateException.class, buffer::readVLong);
-    }
-
-    public void testInvalidZLongEncodingThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        // Write 9 bytes with continuation bits, then 10th byte with invalid bits (bits 1-7 should be 0)
-        for (int i = 0; i < 9; i++) {
-            buffer.writeByte((byte) 0x80);
-        }
-        buffer.writeByte((byte) 0x02);  // Invalid: bit 1 is set, only bit 0 is allowed
-
-        buffer.setPosition(0);
-        expectThrows(IllegalStateException.class, buffer::readZLong);
-    }
-
-    public void testReadVIntPastEndThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        buffer.writeByte((byte) 0x80);
-
-        buffer.setPosition(0);
-        expectThrows(IllegalStateException.class, buffer::readVInt);
-    }
-
-    public void testReadVLongPastEndThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        buffer.writeByte((byte) 0x80);
-        buffer.writeByte((byte) 0x80);
-
-        buffer.setPosition(0);
-        expectThrows(IllegalStateException.class, buffer::readVLong);
-    }
-
-    public void testReadZLongPastEndThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        buffer.writeByte((byte) 0x80);
-        buffer.writeByte((byte) 0x80);
-
-        buffer.setPosition(0);
-        expectThrows(IllegalStateException.class, buffer::readZLong);
-    }
-
-    public void testRandomPositionAccess() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int numBytes = randomIntBetween(10, 100);
+        final int numBytes = randomIntBetween(100, 500);
         final byte[] expected = new byte[numBytes];
-
         for (int i = 0; i < numBytes; i++) {
             expected[i] = randomByte();
             buffer.writeByte(expected[i]);
         }
 
-        for (int i = 0; i < 20; i++) {
-            final int pos = randomIntBetween(0, numBytes - 1);
-            buffer.setPosition(pos);
-            assertEquals(expected[pos], buffer.readByte());
-        }
-    }
-
-    public void testSetPositionInvalidThrows() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int numBytes = randomIntBetween(1, 10);
+        // WHEN
+        buffer.clear();
         for (int i = 0; i < numBytes; i++) {
-            buffer.writeByte(randomByte());
+            buffer.writeByte(expected[i]);
         }
 
-        expectThrows(IllegalArgumentException.class, () -> buffer.setPosition(-1));
-        expectThrows(IllegalArgumentException.class, () -> buffer.setPosition(numBytes + 1));
+        // THEN
+        assertEquals(numBytes, buffer.size());
+        final byte[] bytes = buffer.toByteArray();
+        for (int i = 0; i < numBytes; i++) {
+            assertEquals(expected[i], bytes[i]);
+        }
     }
 
-    public void testMultipleClearCyclesRandom() {
+    public void testClearAndReuseWithDifferentData() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeVInt(randomIntBetween(0, Integer.MAX_VALUE));
+        buffer.writeVLong(randomLongBetween(0, Long.MAX_VALUE));
+
+        // WHEN
+        buffer.clear();
+        final int newValue = randomIntBetween(0, Integer.MAX_VALUE);
+        buffer.writeVInt(newValue);
+
+        // THEN
+        assertTrue(buffer.size() > 0);
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
+        assertEquals(newValue, input.readVInt());
+    }
+
+    public void testMultipleClearCycles() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numCycles = randomIntBetween(5, 20);
 
+        // WHEN/THEN
         for (int cycle = 0; cycle < numCycles; cycle++) {
             buffer.clear();
             final int numValues = randomIntBetween(10, 100);
             final int[] values = new int[numValues];
-
             for (int i = 0; i < numValues; i++) {
                 values[i] = randomIntBetween(0, Integer.MAX_VALUE);
                 buffer.writeVInt(values[i]);
             }
-
-            buffer.setPosition(0);
+            final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
             for (int i = 0; i < numValues; i++) {
-                assertEquals(values[i], buffer.readVInt());
+                assertEquals(values[i], input.readVInt());
             }
         }
     }
 
-    public void testPositionAdvancesCorrectlyRandom() {
+    public void testToByteArrayReturnsCopy() {
+        // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
-        int expectedPosition;
+        final int numBytes = randomIntBetween(10, 100);
+        final byte[] expected = new byte[numBytes];
+        for (int i = 0; i < numBytes; i++) {
+            expected[i] = randomByte();
+            buffer.writeByte(expected[i]);
+        }
 
+        // WHEN
+        final byte[] copy1 = buffer.toByteArray();
+        final byte[] copy2 = buffer.toByteArray();
+        copy1[0] = (byte) (copy1[0] + 1);
+
+        // THEN
+        assertEquals(numBytes, copy1.length);
+        assertEquals(numBytes, copy2.length);
+        assertNotEquals(copy1[0], copy2[0]);
+        assertEquals(expected[0], copy2[0]);
+    }
+
+    public void testToByteArrayEmptyBuffer() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+
+        // WHEN
+        final byte[] copy = buffer.toByteArray();
+
+        // THEN
+        assertEquals(0, copy.length);
+    }
+
+    public void testWriteToDestinationArray() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int numBytes = randomIntBetween(10, 100);
+        final byte[] expected = new byte[numBytes];
+        for (int i = 0; i < numBytes; i++) {
+            expected[i] = randomByte();
+            buffer.writeByte(expected[i]);
+        }
+        final byte[] dest = new byte[numBytes + 20];
+        final int offset = randomIntBetween(0, 10);
+
+        // WHEN
+        int bytesWritten = buffer.writeTo(dest, offset);
+
+        // THEN
+        assertEquals(numBytes, bytesWritten);
+        for (int i = 0; i < numBytes; i++) {
+            assertEquals(expected[i], dest[offset + i]);
+        }
+    }
+
+    public void testWriteToEmptyBuffer() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final byte[] dest = new byte[10];
+
+        // WHEN
+        int bytesWritten = buffer.writeTo(dest, 0);
+
+        // THEN
+        assertEquals(0, bytesWritten);
+    }
+
+    public void testSizeAfterWrites() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+
+        // WHEN/THEN
+        assertEquals(0, buffer.size());
+        buffer.writeByte((byte) 1);
+        assertEquals(1, buffer.size());
+        buffer.writeVInt(127);
+        assertEquals(2, buffer.size()); // 1 byte for value <= 127
+        buffer.writeVInt(128);
+        assertEquals(4, buffer.size()); // 2 more bytes for value 128
+    }
+
+    public void testSizeMatchesToByteArrayLength() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
         final int numOperations = randomIntBetween(20, 50);
 
+        // WHEN
         for (int i = 0; i < numOperations; i++) {
             final int type = randomIntBetween(0, 3);
-
             switch (type) {
                 case 0 -> buffer.writeByte(randomByte());
                 case 1 -> buffer.writeVInt(randomIntBetween(0, Integer.MAX_VALUE));
                 case 2 -> buffer.writeVLong(randomLongBetween(0, Long.MAX_VALUE));
                 case 3 -> buffer.writeZLong(randomLong());
             }
-
-            expectedPosition = buffer.size();
-            assertEquals(expectedPosition, buffer.position());
-        }
-    }
-
-    public void testLargeRandomSequence() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int numValues = randomIntBetween(1000, 5000);
-        final long[] values = new long[numValues];
-
-        for (int i = 0; i < numValues; i++) {
-            values[i] = randomLong();
-            buffer.writeZLong(values[i]);
         }
 
-        buffer.setPosition(0);
-        for (int i = 0; i < numValues; i++) {
-            assertEquals("Value at index " + i + " should match", values[i], buffer.readZLong());
-        }
-    }
-
-    public void testToByteArrayReturnsCopy() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final int numBytes = randomIntBetween(10, 100);
-        final byte[] expected = new byte[numBytes];
-
-        for (int i = 0; i < numBytes; i++) {
-            expected[i] = randomByte();
-            buffer.writeByte(expected[i]);
-        }
-
-        final byte[] copy = buffer.toByteArray();
-
-        // Verify length matches size, not internal capacity
-        assertEquals(numBytes, copy.length);
-
-        // Verify contents match
-        for (int i = 0; i < numBytes; i++) {
-            assertEquals(expected[i], copy[i]);
-        }
-
-        // Verify it's a copy - modifying it doesn't affect original
-        copy[0] = (byte) (copy[0] + 1);
-        buffer.setPosition(0);
-        assertEquals(expected[0], buffer.readByte());
-    }
-
-    public void testToByteArrayEmptyBuffer() {
-        final MetadataBuffer buffer = new MetadataBuffer();
-        final byte[] copy = buffer.toByteArray();
-        assertEquals(0, copy.length);
+        // THEN
+        assertEquals(buffer.size(), buffer.toByteArray().length);
     }
 }

@@ -339,6 +339,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
+- class: org.elasticsearch.repositories.blobstore.testkit.rest.SnapshotRepoTestKitClientYamlTestSuiteIT
+  method: test {p0=/10_analyze/Analysis without details}
+  issue: https://github.com/elastic/elasticsearch/issues/140627
 
 # Examples:
 #

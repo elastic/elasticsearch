@@ -18,7 +18,7 @@ import java.util.Arrays;
  * <p>
  * This buffer supports variable-length encoding of integers and longs using the same
  * conventions as Lucene's DataOutput/DataInput. The buffer automatically grows when
- * capacity is exceeded and retains its grown size after reset for zero-allocation
+ * capacity is exceeded and retains its grown size after clear for zero-allocation
  * steady-state operation.
  * <p>
  * This class is NOT thread-safe and should be used by a single thread.

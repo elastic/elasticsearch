@@ -256,7 +256,7 @@ public class MetadataBufferTests extends ESTestCase {
             final int currentCapacity = buffer.capacity();
             if (currentCapacity > previousCapacity) {
                 growthCount++;
-                assertTrue(currentCapacity > previousCapacity);
+                assertTrue("Capacity should at least double", currentCapacity >= previousCapacity * 2);
                 previousCapacity = currentCapacity;
             }
         }

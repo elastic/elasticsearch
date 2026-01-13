@@ -2034,6 +2034,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailAfterUnionAllOfStats() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
         var query = """
             FROM
                 (FROM employees

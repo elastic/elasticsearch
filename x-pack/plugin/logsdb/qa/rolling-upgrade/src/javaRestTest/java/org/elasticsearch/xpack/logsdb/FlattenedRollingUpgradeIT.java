@@ -247,9 +247,11 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
     }
 
     public void testIndexing() throws IOException {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
+        Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+
+        if (oldClusterHasFeature("gte_v9.3.0")) {
+            settings = settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
+        }
 
         createIndex(settings.build());
 

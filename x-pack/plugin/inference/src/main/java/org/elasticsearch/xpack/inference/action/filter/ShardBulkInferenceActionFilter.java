@@ -840,12 +840,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
     }
 
-    private static class FailureSignature {
+    static class FailureSignature {
         private final Class<? extends Throwable> failureClass;
         private final String failureMessage;
         private final FailureSignature failureCauseSignature;
 
-        private FailureSignature(Throwable failure) {
+        FailureSignature(Throwable failure) {
             failureClass = failure.getClass();
             failureMessage = failure.getMessage();
             failureCauseSignature = failure.getCause() != null ? new FailureSignature(failure.getCause()) : null;

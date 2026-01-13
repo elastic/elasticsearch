@@ -88,6 +88,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -109,6 +110,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -1093,6 +1095,68 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());
         verify(coordinatingIndexingPressure).close();
+    }
+
+    public void testEqualFailureSignatures() {
+        for (int i = 0; i < 10; i++) {
+            final int causeCount = randomIntBetween(0, 5);
+
+            Exception aCause = null;
+            Exception bCause = null;
+            for (int j = 0; j < causeCount; j++) {
+                String message = randomAlphaOfLengthBetween(5, 10);
+                aCause = new RuntimeException(message, aCause);
+                bCause = new RuntimeException(message, bCause);
+            }
+
+            String message = randomAlphaOfLengthBetween(5, 10);
+            ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
+                new RuntimeException(message, aCause)
+            );
+            ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
+                new RuntimeException(message, bCause)
+            );
+
+            assertThat(aSignature, equalTo(bSignature));
+        }
+    }
+
+    public void testUnequalFailureSignatures() {
+        final BiFunction<String, Exception, Exception> randomDifference = (m, c) -> switch (randomIntBetween(0, 2)) {
+            case 0 -> new IOException(m, c);
+            case 1 -> {
+                String message = randomValueOtherThan(m, () -> randomAlphaOfLengthBetween(5, 10));
+                yield new RuntimeException(message, c);
+            }
+            case 2 -> {
+                Exception cause = c == null ? new RuntimeException(randomAlphaOfLengthBetween(5, 10)) : null;
+                yield new RuntimeException(m, cause);
+            }
+            default -> throw new IllegalStateException("Unhandled value");
+        };
+
+        for (int i = 0; i < 10; i++) {
+            final int causeCount = randomIntBetween(0, 5);
+            final int inequalityLevel = randomIntBetween(0, causeCount);
+
+            Exception aCause = null;
+            Exception bCause = null;
+            for (int j = causeCount; j > 0; j--) {
+                String message = randomAlphaOfLengthBetween(5, 10);
+                aCause = new RuntimeException(message, aCause);
+                bCause = inequalityLevel == j ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause);
+            }
+
+            String message = randomAlphaOfLengthBetween(5, 10);
+            ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
+                new RuntimeException(message, aCause)
+            );
+            ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
+                inequalityLevel == 0 ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause)
+            );
+
+            assertThat(aSignature, not(equalTo(bSignature)));
+        }
     }
 
     private static ShardBulkInferenceActionFilter createFilter(

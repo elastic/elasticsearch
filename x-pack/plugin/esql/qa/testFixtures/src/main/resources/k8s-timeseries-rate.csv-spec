@@ -572,7 +572,7 @@ null                | "{""cluster"":""qa"",""pod"":""one""}"
 null                | "{""cluster"":""qa"",""pod"":""two""}"
 ;
 
-rateOnNullsWithTimeseriesColumn
+rateOnNullsSecondStats
 required_capability: ts_command_v0
 required_capability: metrics_group_by_all
 required_capability: metrics_group_by_all_with_ts_dimensions

@@ -626,7 +626,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(assignableNodes),
             createAssignmentRequest,
-            allocatedProcessorsScale
+            allocatedProcessorsScale,
+            useAuto
         );
 
         Set<String> shuttingDownNodeIds = nodesShuttingDown(currentState);
@@ -817,6 +818,16 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             if (numberOfAllocations != null && numberOfAllocations > 1) {
                 ValidationException validationException = new ValidationException();
                 validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low");
+                listener.onFailure(validationException);
+                return;
+            }
+            if (adaptiveAllocationsSettings != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() > 1) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError(
+                    "[" + AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low"
+                );
                 listener.onFailure(validationException);
                 return;
             }

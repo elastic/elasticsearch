@@ -67,8 +67,8 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType.isRangeVector;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType.isScalar;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsRangeVector;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsScalar;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
@@ -247,7 +247,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
         }
         // forbid range selectors
-        else if (isRangeVector(unary)) {
+        else if (returnsRangeVector(unary)) {
             throw new ParsingException(
                 source,
                 "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
@@ -275,8 +275,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         String opText = ctx.op.getText();
 
         // validate operation against expression types
-        boolean leftIsScalar = isScalar(le);
-        boolean rightIsScalar = isScalar(re);
+        boolean leftIsScalar = returnsScalar(le);
+        boolean rightIsScalar = returnsScalar(re);
 
         // comparisons against scalars require bool
         if (bool == false && leftIsScalar && rightIsScalar) {
@@ -332,7 +332,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
         if (modifierCtx != null) {
             // modifiers work only on vectors
-            if (isRangeVector(le) || isRangeVector(re) || isScalar(le) || isScalar(re)) {
+            if (returnsRangeVector(le) || returnsRangeVector(re) || returnsScalar(le) || returnsScalar(re)) {
                 throw new ParsingException(source, "Vector matching allowed only between instant vectors");
             }
 
@@ -472,12 +472,12 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
         } else {
             if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
-                if (isRangeVector(child)) {
+                if (returnsRangeVector(child)) {
                     throw new ParsingException(source, "expected type instant vector in call to function [{}], got range vector", name);
                 }
                 plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
             } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
-                if (isRangeVector(child) == false) {
+                if (returnsRangeVector(child) == false) {
                     throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
                 }
 
@@ -494,7 +494,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         LogicalPlan plan = plan(ctx.expression());
 
-        if (isRangeVector(plan)) {
+        if (returnsRangeVector(plan)) {
             throw new ParsingException(source, "Subquery is only allowed on instant vector, got {}", plan.nodeName());
         }
 

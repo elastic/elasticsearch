@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -28,8 +28,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract sealed class VectorBinaryOperator extends BinaryPlan implements PromqlPlan permits VectorBinarySet,
-    VectorBinaryComparison, VectorBinaryArithmetic {
+public abstract sealed class VectorBinaryOperator extends BinaryPlan implements PromqlPlan permits VectorBinarySet, VectorBinaryComparison,
+    VectorBinaryArithmetic {
 
     private final VectorMatch match;
     private final boolean dropMetricName;
@@ -186,7 +186,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     @Override
-    public PromqlReturnType returnType() {
-        return PromqlReturnType.INSTANT_VECTOR;
+    public PromqlDataType returnType() {
+        return PromqlDataType.INSTANT_VECTOR;
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.List;
 
@@ -98,7 +98,7 @@ public final class InstantSelector extends Selector {
     }
 
     @Override
-    public PromqlReturnType returnType() {
-        return PromqlReturnType.INSTANT_VECTOR;
+    public PromqlDataType returnType() {
+        return PromqlDataType.INSTANT_VECTOR;
     }
 }

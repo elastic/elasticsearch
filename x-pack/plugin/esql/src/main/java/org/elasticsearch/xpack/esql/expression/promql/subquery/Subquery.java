@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlReturnType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class Subquery extends UnaryPlan implements PromqlPlan {
     }
 
     @Override
-    public PromqlReturnType returnType() {
-        return PromqlReturnType.RANGE_VECTOR;
+    public PromqlDataType returnType() {
+        return PromqlDataType.RANGE_VECTOR;
     }
 }

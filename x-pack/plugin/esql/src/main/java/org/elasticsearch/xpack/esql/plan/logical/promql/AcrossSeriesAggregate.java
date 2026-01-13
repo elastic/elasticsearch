@@ -109,7 +109,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     @Override
-    public PromqlReturnType returnType() {
-        return PromqlReturnType.INSTANT_VECTOR;
+    public PromqlDataType returnType() {
+        return PromqlDataType.INSTANT_VECTOR;
     }
 }

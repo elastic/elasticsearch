@@ -841,10 +841,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private static class FailureSignature {
-        private final Throwable failure;
+        private final Class<? extends Throwable> failureClass;
+        private final String failureMessage;
+        private final FailureSignature failureCauseSignature;
 
         private FailureSignature(Throwable failure) {
-            this.failure = failure;
+            failureClass = failure.getClass();
+            failureMessage = failure.getMessage();
+            failureCauseSignature = failure.getCause() != null ? new FailureSignature(failure.getCause()) : null;
         }
 
         @Override
@@ -853,61 +857,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (o == null || getClass() != o.getClass()) return false;
             FailureSignature that = (FailureSignature) o;
 
-            return throwablesEqual(failure, that.failure);
+            return Objects.equals(failureClass, that.failureClass)
+                && Objects.equals(failureMessage, that.failureMessage)
+                && Objects.equals(failureCauseSignature, that.failureCauseSignature);
         }
 
         @Override
         public int hashCode() {
-            return throwableHashCode(failure);
-        }
-
-        private static boolean throwablesEqual(Throwable a, Throwable b) {
-            if (a == b) {
-                return true;
-            }
-
-            FailureArgs aFailureArgs = new FailureArgs(a);
-            FailureArgs bFailureArgs = new FailureArgs(b);
-            return Objects.equals(aFailureArgs.getFailureClass(), bFailureArgs.getFailureClass())
-                && Objects.equals(aFailureArgs.getFailureMessage(), bFailureArgs.getFailureMessage())
-                && throwablesEqual(aFailureArgs.getFailureCause(), bFailureArgs.getFailureCause());
-        }
-
-        private static int throwableHashCode(Throwable throwable) {
-            if (throwable == null) {
-                return Objects.hashCode(throwable);
-            }
-
-            FailureArgs failureArgs = new FailureArgs(throwable);
-            return Objects.hash(
-                failureArgs.getFailureClass(),
-                failureArgs.getFailureMessage(),
-                throwableHashCode(failureArgs.getFailureCause())
-            );
-        }
-
-        private static class FailureArgs {
-            private final Class<? extends Throwable> failureClass;
-            private final String failureMessage;
-            private final Throwable failureCause;
-
-            private FailureArgs(@Nullable Throwable failure) {
-                failureClass = failure != null ? failure.getClass() : null;
-                failureMessage = failure != null ? failure.getMessage() : null;
-                failureCause = failure != null ? failure.getCause() : null;
-            }
-
-            public Class<? extends Throwable> getFailureClass() {
-                return failureClass;
-            }
-
-            public String getFailureMessage() {
-                return failureMessage;
-            }
-
-            public Throwable getFailureCause() {
-                return failureCause;
-            }
+            return Objects.hash(failureClass, failureMessage, failureCauseSignature);
         }
     }
 }

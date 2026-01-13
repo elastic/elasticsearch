@@ -86,9 +86,6 @@ public class VectorIOBenchmark {
     @Param({ "100" })
     private int numVectorPerThread;
 
-    @Param({ "32" })
-    private int writeThreads;
-
     @Param({ "1", "32" })
     private int readThreads;
 
@@ -136,36 +133,18 @@ public class VectorIOBenchmark {
                     return new ES93FlatVectorFormat();
                 }
             });
-            try (var exec = Executors.newFixedThreadPool(writeThreads)) {
-                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                    writer.deleteAll();
-                    final int numVectorsPerThread = numVectors / writeThreads;
-                    List<Future<?>> futures = new ArrayList<>();
-                    for (int i = 0; i < writeThreads; i++) {
-                        final int threadNum = i;
-                        futures.add(exec.submit(() -> {
-                            Document doc = new Document();
-                            for (int j = 0; j < numVectorsPerThread; j++) {
-                                if (j % 1_000_000 == 0) {
-                                    System.out.println("[" + threadNum + "] " + j + "/" + numVectorsPerThread);
-                                }
-                                doc.clear();
-                                doc.add(new KnnFloatVectorField("vector", randomVector(random, dims), VectorSimilarityFunction.COSINE));
-                                try {
-                                    writer.addDocument(doc);
-                                } catch (IOException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        }));
+            iwc.setMaxBufferedDocs(1000000);
+            iwc.setRAMBufferSizeMB(4096);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                writer.deleteAll();
+                Document doc = new Document();
+                for (int docID = 0; docID < numVectors; docID++) {
+                    if (docID % 1_000_000 == 0) {
+                        System.out.println("Indexing " + docID + "/" + numVectors);
                     }
-                    for (Future<?> future : futures) {
-                        try {
-                            future.get();
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
+                    doc.clear();
+                    doc.add(new KnnFloatVectorField("vector", randomVector(random, dims), VectorSimilarityFunction.COSINE));
+                    writer.addDocument(doc);
                 }
             }
         }

@@ -23,7 +23,7 @@ BBQ currently supports two vector search algorithms, each suited to different sc
 
 ### `bbq_hnsw` [bbq-hnsw]
 
-When you set a dense vector field’s `index_options` parameter to `type: bbq_hnsw`, {{es}} uses the HNSW algorithm for fast [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. With the default [oversampling](#bbq-oversampling) applied, it delivers better cost efficiency, lower latency, and improved relevance ranking, making it the best choice for large-scale similarity search.
+When you set a dense vector field’s `index_options` parameter to `type: bbq_hnsw`, {{es}} uses the HNSW algorithm for fast [kNN search](https://www.elastic.co/docs/solutions/search/vector/knn) on compressed vectors. With the default [oversampling](#bbq-oversampling) applied, it delivers better cost efficiency, lower latency, and improved relevance ranking, making it the best choice for large-scale similarity search.
 
 :::{note}
 Starting in version 9.1, `bbq_hnsw` is the default indexing method for new `dense_vector` fields with greater than 384 dimensions, so you typically don’t need to specify it explicitly when creating an index.  
@@ -140,7 +140,7 @@ stack: ga 9.2
 This feature requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 :::
 
-When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.
+When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](https://www.elastic.co/docs/solutions/search/vector/knn) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.
 
 DiskBBQ groups similar vectors into small clusters using [hierarchical K-means](https://www.elastic.co/search-labs/blog/k-means-for-vector-indices). When processing a query, it finds the centroids closest to the query vector and only compares the vectors within those clusters. This targeted approach reduces the number of in-memory operations, making it ideal for large-scale or memory-constrained environments.
 

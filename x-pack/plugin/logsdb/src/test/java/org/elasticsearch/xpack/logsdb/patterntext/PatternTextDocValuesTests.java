@@ -11,7 +11,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.test.ESTestCase;
 
@@ -103,8 +102,11 @@ public class PatternTextDocValuesTests extends ESTestCase {
         String storedFieldName = "message.stored";
         var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
         var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
-        var rawDocValues = messages.stream().map(m -> m.storage == Storage.RAW_DOC_VALUE ? new BytesRef(m.message) : null).toList();
-        var rawBinaryDocValues = new SimpleSortedBinaryDocValues(rawDocValues);
+        var rawDocValues = messages.stream()
+            .map(m -> m.storage == Storage.RAW_DOC_VALUE ? m.message : null)
+            .toList()
+            .toArray(new String[0]);
+        var rawBinaryDocValues = new SimpleBinaryDocValues(rawDocValues);
         return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId, rawBinaryDocValues);
     }
 
@@ -327,32 +329,6 @@ public class PatternTextDocValuesTests extends ESTestCase {
         @Override
         public long cost() {
             return 1;
-        }
-    }
-
-    static class SimpleSortedBinaryDocValues extends SortedBinaryDocValues {
-
-        private final List<BytesRef> values;
-        private BytesRef currentValue;
-
-        SimpleSortedBinaryDocValues(List<BytesRef> docIdToValue) {
-            values = docIdToValue;
-        }
-
-        @Override
-        public boolean advanceExact(int target) {
-            currentValue = values.get(target);
-            return currentValue != null;
-        }
-
-        @Override
-        public int docValueCount() {
-            return 1;
-        }
-
-        @Override
-        public BytesRef nextValue() {
-            return currentValue;
         }
     }
 

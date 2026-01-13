@@ -12,8 +12,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 
@@ -31,7 +29,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
     private final String storedMessageFieldName;
     private final BinaryDocValues patternTextDocValues;
     private final SortedSetDocValues templateIdDocValues;
-    private final SortedBinaryDocValues rawTextDocValues;
+    private final BinaryDocValues rawTextDocValues;
     private boolean hasDocValue = false;
     private boolean hasRawTextDocValue = false;
 
@@ -40,7 +38,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         String storedMessageFieldName,
         BinaryDocValues patternTextDocValues,
         SortedSetDocValues templateIdDocValues,
-        SortedBinaryDocValues rawTextDocValues
+        BinaryDocValues rawTextDocValues
     ) {
         this.storedTemplateLoader = storedTemplateLoader;
         this.storedMessageFieldName = storedMessageFieldName;
@@ -64,11 +62,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         );
 
         // load binary doc values (for newer indices that store raw values in binary doc values)
-        SortedBinaryDocValues rawBinaryDocValues = null;
-        var rawDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
-        if (rawDocValues != null) {
-            rawBinaryDocValues = MultiValuedSortedBinaryDocValues.from(leafReader, fieldType.storedNamed());
-        }
+        BinaryDocValues rawBinaryDocValues = DocValues.getBinary(leafReader, fieldType.storedNamed());
 
         // load stored field loader (for older indices that store raw values in stored fields)
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
@@ -92,9 +86,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
 
         // for newer indices, the value is stored in binary doc values
         if (hasRawTextDocValue) {
-            // there should only be one value since pattern text does not support multi-valued fields
-            assert rawTextDocValues.docValueCount() == 1;
-            return rawTextDocValues.nextValue();
+            return rawTextDocValues.binaryValue();
         }
 
         // for older indices, it's stored in stored fields
@@ -131,6 +123,6 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
 
     @Override
     public long cost() {
-        return templateIdDocValues.cost() + patternTextDocValues.cost();
+        return templateIdDocValues.cost() + patternTextDocValues.cost() + rawTextDocValues.cost();
     }
 }

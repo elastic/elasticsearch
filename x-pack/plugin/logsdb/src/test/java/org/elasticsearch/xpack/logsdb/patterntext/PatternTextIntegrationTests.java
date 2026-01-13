@@ -59,7 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
     private static final Logger logger = LogManager.getLogger(PatternTextIntegrationTests.class);
 
-    @ParametersFactory(argumentFormatting = "indexOptions=%s, disableTemplating=%b, useBinaryDocValues=%s")
+    @ParametersFactory(argumentFormatting = "indexOptions=%s, disableTemplating=%b, useBinaryDocValuesForRawText=%s")
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
         for (var indexOption : new String[] { "docs", "positions" }) {

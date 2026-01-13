@@ -117,7 +117,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final TextParams.Analyzers analyzers;
         private final boolean storedFieldInBinaryFormat;
-        private final boolean usesBinaryDocValues;
+        private final boolean useBinaryDocValuesForFallbackFields;
 
         private Builder(
             String name,
@@ -125,7 +125,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
             boolean isWithinMultiField,
-            boolean usesBinaryDocValues
+            boolean useBinaryDocValuesForFallbackFields
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
@@ -135,7 +135,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
-            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.useBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields;
         }
 
         public Builder(String name, MappingParserContext context) {
@@ -145,7 +145,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 context.getIndexAnalyzers(),
                 isSyntheticSourceStoredFieldInBinaryFormat(context.indexVersionCreated()),
                 context.isWithinMultiField(),
-                usesBinaryDocValues(context.getIndexSettings())
+                useBinaryDocValuesForFallbackFields(context.getIndexSettings())
             );
         }
 
@@ -154,7 +154,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta };
         }
 
-        private static boolean usesBinaryDocValues(final IndexSettings indexSettings) {
+        private static boolean useBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
             return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES)
                 && indexSettings.useTimeSeriesDocValuesFormat();
         }
@@ -174,7 +174,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 storedFieldInBinaryFormat,
                 // match only text fields are not stored by definition
                 TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(false, multiFields),
-                usesBinaryDocValues
+                useBinaryDocValuesForFallbackFields
             );
         }
 
@@ -201,7 +201,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
         private final boolean storedFieldInBinaryFormat;
-        private final boolean usesBinaryDocValues;
+        private final boolean useBinaryDocValuesForFallbackFields;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -212,13 +212,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean withinMultiField,
             boolean storedFieldInBinaryFormat,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
-            boolean usesBinaryDocValues
+            boolean useBinaryDocValuesForFallbackFields
         ) {
             super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, withinMultiField);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
-            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.useBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields;
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -283,7 +283,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     return delegateFieldFetcher(searchExecutionContext, textFieldType.syntheticSourceDelegate().get());
                 } else {
                     // otherwise, fetch the value from self
-                    if (usesBinaryDocValues) {
+                    if (useBinaryDocValuesForFallbackFields) {
                         return ignoredValuesDocValuesFieldFetcher(syntheticSourceFallbackFieldName());
                     }
                     return storedFieldFetcher(name(), syntheticSourceFallbackFieldName());
@@ -366,7 +366,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 String fallbackName = syntheticSourceFallbackFieldName();
 
                 // The fallback field may be stored in binary doc values or stored fields depending on index version
-                var fallbackFetcher = usesBinaryDocValues
+                var fallbackFetcher = useBinaryDocValuesForFallbackFields
                     ? ignoredValuesDocValuesFieldFetcher(fallbackName)
                     : storedFieldFetcher(fallbackName);
 
@@ -628,7 +628,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (isSyntheticSourceEnabled()) {
                 // if there is no delegate, load from a fallback field we created
                 if (textFieldType.syntheticSourceDelegate().isEmpty()) {
-                    if (usesBinaryDocValues) {
+                    if (useBinaryDocValuesForFallbackFields) {
                         return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                     } else {
                         // for bwc - load from a StoredField
@@ -687,7 +687,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
             if (isSyntheticSourceEnabled()) {
-                if (usesBinaryDocValues) {
+                if (useBinaryDocValuesForFallbackFields) {
                     // For newer indexes, fallback data is stored in binary doc values
                     return (cache, breaker) -> new BytesBinaryIndexFieldData(
                         syntheticSourceFallbackFieldName(),
@@ -728,7 +728,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final boolean storedFieldInBinaryFormat;
-    private final boolean usesBinaryDocValues;
+    private final boolean useBinaryDocValuesForFallbackFields;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -748,7 +748,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
-        this.usesBinaryDocValues = builder.usesBinaryDocValues;
+        this.useBinaryDocValuesForFallbackFields = builder.useBinaryDocValuesForFallbackFields;
     }
 
     @Override
@@ -764,7 +764,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             indexAnalyzers,
             storedFieldInBinaryFormat,
             fieldType().isWithinMultiField(),
-            usesBinaryDocValues
+            useBinaryDocValuesForFallbackFields
         ).init(this);
     }
 
@@ -791,7 +791,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // otherwise, store the field ourselves
             final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
 
-            if (usesBinaryDocValues) {
+            if (useBinaryDocValuesForFallbackFields) {
                 // store the value in a binary doc values field, create one if it doesn't exist
                 MultiValuedBinaryDocValuesField bdvField = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
 
@@ -834,7 +834,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-        if (usesBinaryDocValues) {
+        if (useBinaryDocValuesForFallbackFields) {
             layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields

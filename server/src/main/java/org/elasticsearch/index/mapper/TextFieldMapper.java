@@ -291,7 +291,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
-        private final boolean usesBinaryDocValues;
+        private final boolean useBinaryDocValuesForFallbackFields;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             this(name, IndexVersion.current(), null, indexAnalyzers, false, false, false);
@@ -304,12 +304,12 @@ public final class TextFieldMapper extends FieldMapper {
             IndexAnalyzers indexAnalyzers,
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField,
-            boolean usesBinaryDocValues
+            boolean useBinaryDocValuesForFallbackFields
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
 
             this.indexMode = indexMode;
-            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.useBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
@@ -351,7 +351,7 @@ public final class TextFieldMapper extends FieldMapper {
                 indexAnalyzers,
                 SourceFieldMapper.isSynthetic(indexSettings),
                 isWithinMultiField,
-                usesBinaryDocValues(indexSettings)
+                useBinaryDocValuesForFallbackFields(indexSettings)
             );
         }
 
@@ -359,7 +359,7 @@ public final class TextFieldMapper extends FieldMapper {
             this(name, context.getIndexSettings(), context.getIndexAnalyzers(), context.isWithinMultiField());
         }
 
-        private static boolean usesBinaryDocValues(final IndexSettings indexSettings) {
+        private static boolean useBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
             IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
             if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
                 return indexSettings.useTimeSeriesDocValuesFormat();
@@ -448,7 +448,7 @@ public final class TextFieldMapper extends FieldMapper {
                     eagerGlobalOrdinals.getValue(),
                     indexPhrases.getValue(),
                     indexCreatedVersion,
-                    usesBinaryDocValues
+                    useBinaryDocValuesForFallbackFields
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -720,7 +720,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final boolean indexPhrases;
         private final boolean eagerGlobalOrdinals;
         private final IndexVersion indexCreatedVersion;
-        private final boolean usesBinaryDocValues;
+        private final boolean useBinaryDocValuesForFallbackFields;
 
         /**
          * In some configurations text fields use a sub-keyword field to provide
@@ -741,7 +741,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             boolean indexPhrases,
             IndexVersion indexCreatedVersion,
-            boolean usesBinaryDocValues
+            boolean useBinaryDocValuesForFallbackFields
         ) {
             super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             this.fielddata = false;
@@ -750,7 +750,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.useBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields;
         }
 
         public TextFieldType(
@@ -796,7 +796,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.indexPhrases = false;
             this.indexCreatedVersion = IndexVersion.current();
-            this.usesBinaryDocValues = false;
+            this.useBinaryDocValuesForFallbackFields = false;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -1188,7 +1188,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             // 5. check if we can load from a fallback field
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
-                if (usesBinaryDocValues) {
+                if (useBinaryDocValuesForFallbackFields) {
                     return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                 }
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
@@ -1464,7 +1464,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
-    private final boolean usesBinaryDocValues;
+    private final boolean useBinaryDocValuesForFallbackFields;
 
     private TextFieldMapper(
         String simpleName,
@@ -1502,7 +1502,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.usesBinaryDocValues = builder.usesBinaryDocValues;
+        this.useBinaryDocValuesForFallbackFields = builder.useBinaryDocValuesForFallbackFields;
     }
 
     @Override
@@ -1533,7 +1533,7 @@ public final class TextFieldMapper extends FieldMapper {
             indexAnalyzers,
             fieldType().isSyntheticSourceEnabled(),
             fieldType().isWithinMultiField(),
-            usesBinaryDocValues
+            useBinaryDocValuesForFallbackFields
         ).init(this);
     }
 
@@ -1570,7 +1570,7 @@ public final class TextFieldMapper extends FieldMapper {
             final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
             final BytesRef bytesRef = new BytesRef(value);
 
-            if (usesBinaryDocValues) {
+            if (useBinaryDocValuesForFallbackFields) {
                 // store the value in a binary doc values field, create one if it doesn't exist
                 MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
                 if (field == null) {
@@ -1793,7 +1793,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-        if (usesBinaryDocValues) {
+        if (useBinaryDocValuesForFallbackFields) {
             layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -95,7 +94,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_techPreview() {
-        assumeFalse("Snapshot", Build.current().isSnapshot());
+        assumeFalse("OPTIONAL_FIELDS should be disabled", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
 
         validateUnmappedFields("FAIL", "NULLIFY");
         var settingName = QuerySettings.UNMAPPED_FIELDS.name();

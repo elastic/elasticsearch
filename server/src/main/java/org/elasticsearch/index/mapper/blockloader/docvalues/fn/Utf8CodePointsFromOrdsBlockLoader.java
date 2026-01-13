@@ -18,12 +18,15 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
@@ -32,6 +35,13 @@ import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingle
  * A count of utf-8 code points for {@code keyword} style fields that are stored as a lookup table.
  */
 public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+
+    private static final FeatureFlag FAST_CODE_POINT_COUNT_FEATURE_FLAG = new FeatureFlag("fast_code_point_count");
+
+    private static final ToIntFunction<BytesRef> codePointCountProvider = FAST_CODE_POINT_COUNT_FEATURE_FLAG.isEnabled()
+        ? BytesRefs::fastCodePointCount
+        : UnicodeUtil::codePointCount;
+
     /**
      * When there are fewer than this many unique values we use much more efficient "low cardinality"
      * loaders. This must be fairly small because we build an untracked int[] with at most this many
@@ -237,7 +247,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = UnicodeUtil.codePointCount(v);
+            int count = codePointCountProvider.applyAsInt(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -372,7 +382,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = UnicodeUtil.codePointCount(v);
+            int count = codePointCountProvider.applyAsInt(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -522,7 +532,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
          * The {@code ord} must be {@code >= 0} or this will fail.
          */
         private int codePointsAtOrd(long ord) throws IOException {
-            return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
+            return codePointCountProvider.applyAsInt(ordinals.lookupOrd(ord));
         }
     }
 
@@ -578,7 +588,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     assert advanced;
 
                     BytesRef bytes = values.binaryValue();
-                    int length = UnicodeUtil.codePointCount(bytes);
+                    int length = codePointCountProvider.applyAsInt(bytes);
                     builder.appendInt(length);
                 } else {
                     registerSingleValueWarning(warnings);
@@ -597,7 +607,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     assert advanced;
 
                     BytesRef bytes = values.binaryValue();
-                    int length = UnicodeUtil.codePointCount(bytes);
+                    int length = codePointCountProvider.applyAsInt(bytes);
                     return factory.constantInt(length, 1);
                 } else {
                     registerSingleValueWarning(warnings);

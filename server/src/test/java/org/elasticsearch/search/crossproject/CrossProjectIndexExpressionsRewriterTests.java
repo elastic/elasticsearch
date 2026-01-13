@@ -248,7 +248,6 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
     }
 
     public void testRewritingWithIndexExclusions() {
-        // This will fail when we implement index exclusions
         final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         final List<ProjectRoutingInfo> linked = List.of(
             createRandomProjectWithAlias("P1"),

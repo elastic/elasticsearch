@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -64,6 +67,33 @@ public class QuerySettings {
             }
         },
         ZoneOffset.UTC
+    );
+
+    @Param(
+        name = "unmapped_fields",
+        type = { "keyword" },
+        description = "Defines how unmapped fields are treated. Possible values are: "
+            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"NULLIFY\" - treats unmapped fields as null values; "
+            + "\"LOAD\" - attempts to load the fields from the source."
+    )
+    public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
+        "unmapped_fields",
+        DataType.KEYWORD,
+        false,
+        true,
+        true,
+        (value) -> {
+            String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            try {
+                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+            } catch (Exception exc) {
+                throw new IllegalArgumentException(
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+                );
+            }
+        },
+        UnmappedResolution.FAIL
     );
 
     @Param(name = "approximate", type = { "boolean", "map_param" }, description = "TODO - add description here")
@@ -129,8 +159,12 @@ public class QuerySettings {
         null
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE, APPROXIMATE)
-        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(
+        UNMAPPED_FIELDS,
+        PROJECT_ROUTING,
+        TIME_ZONE,
+        APPROXIMATE
+    ).collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {

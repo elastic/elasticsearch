@@ -14,12 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-/**
- * Tests for {@link MetadataBuffer}.
- * <p>
- * Since MetadataBuffer is write-only, these tests verify encoding correctness
- * by using Lucene's ByteArrayDataInput to read back written values.
- */
 public class MetadataBufferTests extends ESTestCase {
 
     public void testWriteRandomBytes() {

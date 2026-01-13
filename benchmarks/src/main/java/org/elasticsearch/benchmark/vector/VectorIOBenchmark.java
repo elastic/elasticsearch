@@ -57,6 +57,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
 
+@Fork(value=1)
 @Warmup(iterations = 5)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.Throughput)
@@ -76,7 +77,7 @@ public class VectorIOBenchmark {
 
     private float[] queryVector;
 
-    @Param({ "20000000" })
+    @Param({ "200000000" })
     private int numVectors;
 
     @Param({ "1024" })
@@ -85,7 +86,7 @@ public class VectorIOBenchmark {
     @Param({ "100" })
     private int numVectorPerThread;
 
-    @Param({ "1", "4" })
+    @Param({ "1", "32" })
     private int readThreads;
 
     @Param({ "true", "false" })

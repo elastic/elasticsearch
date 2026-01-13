@@ -25,7 +25,9 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 /** Tests that endpoints in reindex-management module are project-aware and behave as expected in multi-project environments. */
 public class ReindexManagementMultiProjectIT extends ESRestTestCase {
@@ -94,7 +96,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         assertTrue(runningTaskExistsInProject(taskId, projectWithReindex));
 
         final Map<String, Object> response = cancelReindexInProjectAndWaitForCompletion(taskId, projectWithReindex);
-        assertThat("reindex is cancelled", response, equalTo(Map.of("acknowledged", true)));
+        assertThat("reindex is cancelled", response, allOf(hasEntry("cancelled", true), hasEntry("completed", true)));
 
         assertFalse(runningTaskExistsInProject(taskId, projectWithReindex));
     }

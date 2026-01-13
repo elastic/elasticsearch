@@ -14,35 +14,54 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Response returned from {@code POST /_reindex/{taskId}/_cancel}.
  */
 public class CancelReindexResponse extends BaseTasksResponse implements ToXContentObject {
 
-    public CancelReindexResponse(List<TaskOperationFailure> taskFailures, List<FailedNodeException> failedNodes) {
+    @Nullable
+    private final GetReindexResponse completedReindexResponse;
+
+    public CancelReindexResponse(
+        final List<TaskOperationFailure> taskFailures,
+        final List<FailedNodeException> failedNodes,
+        @Nullable final GetReindexResponse completedReindexResponse
+    ) {
         super(taskFailures, failedNodes);
+        this.completedReindexResponse = completedReindexResponse;
     }
 
     public CancelReindexResponse(final StreamInput in) throws IOException {
         super(in);
+        this.completedReindexResponse = in.readOptionalWriteable(GetReindexResponse::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalWriteable(completedReindexResponse);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        assert getNodeFailures().isEmpty() && getTaskFailures().isEmpty() : "should be thrown before being able to call serialization";
+        if (completedReindexResponse != null) {
+            return completedReindexResponse.toXContent(builder, params);
+        }
         builder.startObject();
         builder.field("acknowledged", true);
-        builder.endObject();
-        return builder;
+        return builder.endObject();
+    }
+
+    public Optional<GetReindexResponse> getCompletedReindexResponse() {
+        return Optional.ofNullable(completedReindexResponse);
     }
 }

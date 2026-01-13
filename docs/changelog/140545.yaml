@@ -1,5 +1,5 @@
 pr: 140545
-summary: Vector functions are GA
+summary: ES|QL [dense vector functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) are GA
 area: ES|QL
 type: enhancement
 issues: []

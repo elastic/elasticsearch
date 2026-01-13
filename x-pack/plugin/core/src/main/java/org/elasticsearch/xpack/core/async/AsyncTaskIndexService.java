@@ -326,8 +326,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             os = Streams.noCloseStream(os);
             TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
             TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-            os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
-            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(os)) {
                 out.setTransportVersion(minNodeVersion);
                 response.writeTo(out);
             }

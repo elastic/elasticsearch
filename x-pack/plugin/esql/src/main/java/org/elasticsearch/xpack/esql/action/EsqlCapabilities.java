@@ -1878,6 +1878,11 @@ public class EsqlCapabilities {
          */
         ROUTING_FUNCTION_UPDATE,
 
+        /**
+         * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
+         */
+        TS_STATS_BINARY_OPS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

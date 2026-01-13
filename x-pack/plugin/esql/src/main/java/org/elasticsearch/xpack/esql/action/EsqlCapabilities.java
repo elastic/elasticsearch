@@ -1807,11 +1807,6 @@ public class EsqlCapabilities {
         FIX_STATS_MV_CONSTANT_FOLD,
 
         /**
-         * Support for requesting the "_tier" metadata field.
-         */
-        METADATA_TIER_FIELD,
-
-        /**
          * Enrich works with dense_vector fields
          */
         ENRICH_DENSE_VECTOR_BUGFIX,

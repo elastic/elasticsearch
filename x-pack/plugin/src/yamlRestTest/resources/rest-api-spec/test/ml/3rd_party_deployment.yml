@@ -345,6 +345,18 @@ setup:
         priority: "low"
         threads_per_allocation: 4
 ---
+"Test start deployment with low priority and max allocations more than one":
+  - do:
+      catch: /\[max_number_of_allocations\] must be 1 when \[priority\] is low/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        priority: "low"
+        body:
+          adaptive_allocations:
+            enabled: true
+            min_number_of_allocations: 0
+            max_number_of_allocations: 2
+---
 "Test update deployment":
   - do:
       ml.start_trained_model_deployment:
@@ -507,6 +519,30 @@ setup:
       ml.stop_trained_model_deployment:
         model_id: test_model
   - match: { stopped: true }
+---
+"Test update deployment with low priority and max allocations more than one":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        priority: "low"
+        body:
+          adaptive_allocations:
+            enabled: true
+            min_number_of_allocations: 0
+            max_number_of_allocations: 1
+        wait_for: started
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.priority: low }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      catch: /\[max_number_of_allocations\] must be 1 when \[priority\] is low/
+      ml.update_trained_model_deployment:
+        model_id: test_model
+        body:
+          adaptive_allocations:
+            max_number_of_allocations: 2
 ---
 "Test put model alias on pytorch model":
   - do:

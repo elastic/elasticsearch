@@ -31,9 +31,19 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution
     ) {
-        super(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution, minimumVersion);
+        super(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            unmappedResolution
+        );
         this.currentVersion = minimumVersion;
     }
 

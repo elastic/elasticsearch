@@ -51,7 +51,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
             .map(HistogramMergeTests::makeSupplier)
             .collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override

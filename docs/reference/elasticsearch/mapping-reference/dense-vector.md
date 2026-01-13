@@ -435,6 +435,16 @@ Here is an example of indexing and searching bit vectors:
 PUT my-bit-vectors
 {
   "mappings": {
+## Docvalue output formats [dense-vector-docvalue-formats]
+
+You can return dense vector doc values using the `docvalue_fields` search option. The response format can be controlled per field:
+
+- `format: array` (default) returns the decoded vector values as a JSON array.
+- `format: binary` returns the raw vector bytes encoded as base64. This works whether the vector was originally indexed from an array or from a binary string.
+
+Supplying any other format value results in an error that lists the supported values. The chosen format applies to all dense vector element types, including `float`, `bfloat16`, `byte`, and `bit`.
+
+
     "properties": {
       "my_vector": {
         "type": "dense_vector",

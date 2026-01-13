@@ -543,6 +543,8 @@ GET my-index-000001/_search
 1. Both full field names and wildcard patterns are accepted.
 2. Using object notation, you can pass a `format` parameter to apply a custom format for the field’s doc values. [Date fields](/reference/elasticsearch/mapping-reference/date.md) support a [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md). [Numeric fields](/reference/elasticsearch/mapping-reference/number.md) support a [DecimalFormat pattern](https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.md). Other field datatypes do not support the `format` parameter.
 
+Dense vector fields are an exception: they accept `format` values of `array` (default) or `binary` when returned through `docvalue_fields`. `array` returns the decoded vector values, while `binary` returns the raw vector bytes encoded as base64. Any other format produces an error that lists the supported values.
+
 
 ::::{tip}
 You cannot use the `docvalue_fields` parameter to retrieve doc values for nested objects. If you specify a nested object, the search returns an empty array (`[ ]`) for the field. To access nested fields, use the [`inner_hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) parameter’s `docvalue_fields` property.

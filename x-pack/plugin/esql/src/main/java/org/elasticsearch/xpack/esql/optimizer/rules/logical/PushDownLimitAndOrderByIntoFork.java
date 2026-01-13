@@ -52,12 +52,7 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.OptimizerRul
         return changed ? limit.replaceChild(orderBy.replaceChild(fork.replaceChildren(newForkChildren))) : limit;
     }
 
-    private LogicalPlan maybePushDownLimitAndOrderByToForkBranch(
-        Limit limit,
-        Fork fork,
-        OrderBy orderBy,
-        LogicalPlan forkChild
-    ) {
+    private LogicalPlan maybePushDownLimitAndOrderByToForkBranch(Limit limit, Fork fork, OrderBy orderBy, LogicalPlan forkChild) {
         if (shouldPushDownIntoForkBranch(forkChild) == false) {
             return forkChild;
         }

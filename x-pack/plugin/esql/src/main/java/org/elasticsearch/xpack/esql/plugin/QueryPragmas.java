@@ -220,7 +220,9 @@ public final class QueryPragmas implements Writeable {
     /**
      * Returns true if we should add the implicit LIMIT to FORK branches
      */
-    public boolean forkImplicitLimit() { return FORK_IMPLICIT_LIMIT.get(settings); }
+    public boolean forkImplicitLimit() {
+        return FORK_IMPLICIT_LIMIT.get(settings);
+    }
 
     public boolean isEmpty() {
         return settings.isEmpty();

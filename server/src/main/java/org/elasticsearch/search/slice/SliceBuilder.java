@@ -198,7 +198,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (numShards == 1) {
             return createSliceQuery(id, max, context, isScroll);
         }
-        if (max >= numShards) {
+        if (max > numShards) {
             // the number of slices is greater than the number of shards
             // in such case we can reduce the number of requested shards by slice
 

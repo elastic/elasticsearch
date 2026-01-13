@@ -170,7 +170,7 @@ public class VectorScorerInt4Benchmark {
     public void scoreFromMemorySegmentBulk(Blackhole bh) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
-            for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
+            for (int i = 0; i < numVectors; i += bulkSize) {
                 scorer.scoreBulk(
                     binaryQueries[j],
                     queryCorrections.lowerInterval(),

@@ -112,7 +112,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(
             centroids,
             fieldInfo.getVectorDimension(),
-            fieldEntry.bulkSize
+            BULK_SIZE
         );
         centroids.seek(0L);
         int numParents = centroids.readVInt();

@@ -579,6 +579,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                             null,
                             createDefaultIndexAnalyzers(),
                             false,
+                            true,
                             true
                         ).addMultiField(new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", defaultIndexSettings(), true))
                     )

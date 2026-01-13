@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -518,7 +519,7 @@ public final class DataTypeConverter {
         }
 
         private static Function<Object, Object> toDateTime(Converter conversion) {
-            return l -> DateUtils.asDateTime(((Number) conversion.convert(l)).longValue());
+            return l -> DateUtils.asDateTime(((Number) conversion.convert(l)).longValue(), ZoneOffset.UTC);
         }
 
         @Override

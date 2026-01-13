@@ -40,23 +40,23 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * to {@code Limit} optimization can be applied.
  *
  * This rule applies for certain patterns of {@code UnionAll} branches. The branches of a {@code UnionAll}/{@code Fork} plan has a similar
- * pattern, as {@code Fork} adds {@code EsqlProject}, an optional {@code Eval} and {@code Limit} on top of its actual children. In case
+ * pattern, as {@code Fork} adds {@code Project}, an optional {@code Eval} and {@code Limit} on top of its actual children. In case
  * there is mismatched data types on the same field across different {@code UnionAll} branches, a {@code ConvertFunction} could also be
  * added in the optional {@code Eval}.
  *
  * If the patterns of the {@code UnionAll} branches do not match the following expected patterns, the rule is not applied.
  *
- *   EsqlProject
+ *   Project
  *     Eval (optional) - added when the output of each UnionAll branch are not exactly the same
  *       Limit
  *         EsRelation
  * or
- *   EsqlProject
+ *   Project
  *     Eval (optional)
  *       Limit
  *         Subquery
  * or
- *   Limit   - CombineProjections may remove the EsqlProject on top of the limit
+ *   Limit   - CombineProjections may remove the Project on top of the limit
  *     Subquery
  */
 public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, LogicalPlan> {

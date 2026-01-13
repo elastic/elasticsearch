@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
@@ -377,29 +378,20 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         // We want to detect if a resharding operation has happened after this snapshot was started
         // and if that is the case we'll fail the shard snapshot to avoid inconsistency.
         // `maximumShardIdInTheSnapshot` is needed for the detection logic.
-        final var shardIdToLargestShardIdInTheSnapshot = new HashMap<ShardId, ShardId>();
+        final var largestShardIdInTheSnapshotPerIndex = new HashMap<Index, ShardId>();
 
         final var runningShardsForSnapshot = shardSnapshots.getOrDefault(snapshot, emptyMap());
         for (var scheduledShard : entry.shards().entrySet()) {
             final var shardId = scheduledShard.getKey();
-            final var shardSnapshotStatus = scheduledShard.getValue();
 
-            if (shardId.id() == 0) {
-                // Base case - either the index has only one shard or we happened to see shard 0 first.
-                shardIdToLargestShardIdInTheSnapshot.putIfAbsent(shardId, shardId);
-            } else {
-                // This is potentially the largest shardId for this index in the snapshot,
-                // we need to check if we need to record this fact.
-                var shardZero = new ShardId(shardId.getIndex(), 0);
-                var shardZeroValue = shardIdToLargestShardIdInTheSnapshot.get(shardZero);
-                if (shardZeroValue == null || shardZeroValue.id() < shardId.id()) {
-                    // Update the "max" for all shards including ourselves.
-                    for (int i = 0; i <= shardId.id(); i++) {
-                        shardIdToLargestShardIdInTheSnapshot.put(new ShardId(shardId.getIndex(), i), shardId);
-                    }
-                }
+            // This is potentially the largest shardId for this index in the snapshot,
+            // we need to check if we need to record this fact.
+            var currentMax = largestShardIdInTheSnapshotPerIndex.get(shardId.getIndex());
+            if (currentMax == null || currentMax.id() < shardId.id()) {
+                largestShardIdInTheSnapshotPerIndex.put(shardId.getIndex(), shardId);
             }
 
+            final var shardSnapshotStatus = scheduledShard.getValue();
             // Add all new shards to start processing on
             if (shardSnapshotStatus.state() == ShardState.INIT && localNodeId.equals(shardSnapshotStatus.nodeId())) {
                 final var runningShard = runningShardsForSnapshot.get(shardId);
@@ -437,7 +429,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 snapshotStatus,
                 entry.version(),
                 entry.startTime(),
-                shardIdToLargestShardIdInTheSnapshot.get(shardId)
+                largestShardIdInTheSnapshotPerIndex.get(shardId.getIndex())
             );
             snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
             startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {

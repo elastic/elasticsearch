@@ -40,7 +40,7 @@ public class IndexReshardService {
         return indices;
     }
 
-    /// Determines if a shard snapshot is impacted by possibly happening resharding operation.
+    /// Determines if a shard snapshot is impacted by an ongoing resharding operation.
     /// Such shard snapshot may contain data inconsistent with other shards due to metadata changes or data movement
     /// performed in scope of resharding.
     /// @param maximumShardIdForIndexInTheSnapshot maximum [ShardId] by [ShardId#id()] of the same index as the provided `indexShard`

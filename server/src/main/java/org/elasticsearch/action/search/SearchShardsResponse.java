@@ -118,7 +118,7 @@ public final class SearchShardsResponse extends ActionResponse {
         return Objects.hash(groups, nodes, aliasFilters);
     }
 
-    static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
+    public static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
         Map<String, Index> indexByNames = new HashMap<>();
         for (ClusterSearchShardsGroup oldGroup : oldResp.getGroups()) {
             ShardId shardId = oldGroup.getShardId();

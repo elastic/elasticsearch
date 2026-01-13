@@ -12,7 +12,6 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
@@ -97,11 +96,11 @@ public class NestedHelperTests extends MapperServiceTestCase {
     }
 
     public void testMatchAll() {
-        assertTrue(NestedHelper.mightMatchNestedDocs(new MatchAllDocsQuery(), searchExecutionContext));
-        assertTrue(NestedHelper.mightMatchNonNestedDocs(new MatchAllDocsQuery(), "nested1", searchExecutionContext));
-        assertTrue(NestedHelper.mightMatchNonNestedDocs(new MatchAllDocsQuery(), "nested2", searchExecutionContext));
-        assertTrue(NestedHelper.mightMatchNonNestedDocs(new MatchAllDocsQuery(), "nested3", searchExecutionContext));
-        assertTrue(NestedHelper.mightMatchNonNestedDocs(new MatchAllDocsQuery(), "nested_missing", searchExecutionContext));
+        assertTrue(NestedHelper.mightMatchNestedDocs(Queries.ALL_DOCS_INSTANCE, searchExecutionContext));
+        assertTrue(NestedHelper.mightMatchNonNestedDocs(Queries.ALL_DOCS_INSTANCE, "nested1", searchExecutionContext));
+        assertTrue(NestedHelper.mightMatchNonNestedDocs(Queries.ALL_DOCS_INSTANCE, "nested2", searchExecutionContext));
+        assertTrue(NestedHelper.mightMatchNonNestedDocs(Queries.ALL_DOCS_INSTANCE, "nested3", searchExecutionContext));
+        assertTrue(NestedHelper.mightMatchNonNestedDocs(Queries.ALL_DOCS_INSTANCE, "nested_missing", searchExecutionContext));
     }
 
     public void testMatchNo() {
@@ -229,25 +228,25 @@ public class NestedHelperTests extends MapperServiceTestCase {
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested3", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .add(Queries.ALL_DOCS_INSTANCE, Occur.SHOULD)
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested1", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), Occur.SHOULD)
-            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .add(Queries.ALL_DOCS_INSTANCE, Occur.SHOULD)
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested1", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.SHOULD)
-            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .add(Queries.ALL_DOCS_INSTANCE, Occur.SHOULD)
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested2", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.SHOULD)
-            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .add(Queries.ALL_DOCS_INSTANCE, Occur.SHOULD)
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested3", searchExecutionContext));
@@ -259,42 +258,50 @@ public class NestedHelperTests extends MapperServiceTestCase {
 
     public void testConjunction() {
         BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), requiredOccur())
-            .add(new MatchAllDocsQuery(), requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
             .build();
         assertFalse(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested1", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), requiredOccur())
-            .add(new MatchAllDocsQuery(), requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertFalse(NestedHelper.mightMatchNonNestedDocs(bq, "nested1", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), requiredOccur())
-            .add(new MatchAllDocsQuery(), requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested2", searchExecutionContext));
 
         bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), requiredOccur())
-            .add(new MatchAllDocsQuery(), requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
             .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested3", searchExecutionContext));
 
-        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
+        bq = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested1", searchExecutionContext));
 
-        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
+        bq = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested1", searchExecutionContext));
 
-        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
+        bq = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested2", searchExecutionContext));
 
-        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
+        bq = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .add(Queries.ALL_DOCS_INSTANCE, requiredOccur())
+            .build();
         assertTrue(NestedHelper.mightMatchNestedDocs(bq, searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(bq, "nested3", searchExecutionContext));
     }
@@ -304,7 +311,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
-        Query expectedChildQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST)
+        Query expectedChildQuery = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.MUST)
             // we automatically add a filter since the inner query might match non-nested docs
             .add(new TermQuery(new Term("_nested_path", "nested1")), Occur.FILTER)
             .build();

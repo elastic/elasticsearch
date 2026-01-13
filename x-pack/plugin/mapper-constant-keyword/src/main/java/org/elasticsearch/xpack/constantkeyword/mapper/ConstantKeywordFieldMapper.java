@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -45,6 +44,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -151,9 +152,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (value == null) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
-            return BlockLoader.constantBytes(new BytesRef(value));
+            return new ConstantBytes(new BytesRef(value));
         }
 
         @Override
@@ -219,7 +220,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return value != null ? new MatchAllDocsQuery() : Queries.NO_DOCS_INSTANCE;
+            return value != null ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -244,7 +245,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             if (upperTerm != null && valueAsBytesRef.compareTo(BytesRefs.toBytesRef(upperTerm)) >= (includeUpper ? 1 : 0)) {
                 return Queries.NO_DOCS_INSTANCE;
             }
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -278,7 +279,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             } else {
                 return Queries.NO_DOCS_INSTANCE;
             }
@@ -303,7 +304,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             );
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             } else {
                 return Queries.NO_DOCS_INSTANCE;
             }

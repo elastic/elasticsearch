@@ -13,6 +13,6 @@ FROM books METADATA _score
 
 | title:text | _score:double | rerank_score:double |
 | --- | --- | --- |
-| Return of the Shadow | 2.8181066513061523 | 5.740527994930744E-4 |
-| Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4 |
-| The Lays of Beleriand | 1.3002015352249146 | 9.36329597607255E-4 |
+| Return of the Shadow | 3.4218082427978516 | 5.740527994930744E-4 |
+| Return of the King Being the Third Part of The Lord of the Rings | 2.8398752212524414 | 9.000900317914784E-4 |
+| The Lays of Beleriand | 1.5629040002822876 | 9.36329597607255E-4 |

@@ -44,7 +44,6 @@ public class SampleTests extends AbstractAggregationTestCase {
 
         for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 100, false)) {
             Stream.of(
-                MultiRowTestCaseSupplier.nullCases(1, 1000),
                 MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                 MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
                 MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),

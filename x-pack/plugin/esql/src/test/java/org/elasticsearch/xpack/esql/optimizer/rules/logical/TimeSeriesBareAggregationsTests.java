@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +65,8 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                TransportVersion.minimumCompatible()
+                TransportVersion.minimumCompatible(),
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );
@@ -99,13 +101,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should have aggregates", aggregates.isEmpty(), is(false));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -133,13 +132,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should have aggregates", aggregates.isEmpty(), is(false));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -170,13 +166,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should group by bucket", hasBucket, is(true));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -207,13 +200,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should group by bucket", hasBucket, is(true));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -247,13 +237,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should still group by _tsid", hasTsid, is(true));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -281,7 +268,13 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
             | STATS rate(network.total_bytes_out) BY region, TBUCKET(1hour)
             """); });
 
-        assertThat(error.getMessage(), equalTo("Cannot mix time-series aggregate and grouping attributes. Found [region]."));
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Only grouping functions are supported (e.g. tbucket) when the time series aggregation function "
+                    + "[rate(network.total_bytes_out)] is not wrapped with another aggregation function. Found [region]."
+            )
+        );
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

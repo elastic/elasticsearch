@@ -36,7 +36,8 @@ public class VectorBuilderTests extends ESTestCase {
                 || e == ElementType.COMPOSITE
                 || e == ElementType.AGGREGATE_METRIC_DOUBLE
                 || e == ElementType.TDIGEST
-                || e == ElementType.EXPONENTIAL_HISTOGRAM) {
+                || e == ElementType.EXPONENTIAL_HISTOGRAM
+                || e == ElementType.LONG_RANGE) {
                 continue;
             }
             params.add(new Object[] { e });
@@ -120,7 +121,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, UNKNOWN ->
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, UNKNOWN ->
                 throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);

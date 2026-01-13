@@ -659,6 +659,68 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
+    /**
+     * Adjusts metadata that will be stored in a new (non-clone) snapshot.
+     * This is needed because some functionality like resharding uses transient index metadata in the implementation.
+     * Due to the async nature of the snapshot logic, such metadata can be out of sync with the shard data captured in the
+     * snapshot.
+     * As such we don't want to have it in the snapshot since it would be incorrect to make decisions based on it
+     * after the snapshot is restored.
+     */
+    private static Metadata adjustNewSnapshotMetadata(Metadata original, SnapshotsInProgress.Entry entry) {
+        Metadata.Builder builder = Metadata.builder(original);
+
+        for (var project : original.projects().values()) {
+            var indicesBuilder = ImmutableOpenMap.<String, IndexMetadata>builder();
+            for (Map.Entry<String, IndexMetadata> indexNameAndMetadata : project.indices().entrySet()) {
+                IndexMetadata metadata = indexNameAndMetadata.getValue();
+                if (metadata.getReshardingMetadata() != null) {
+                    // This index is being resharded, strip the resharding metadata
+                    // so that resharding does not (possibly incorrectly) resume after a snapshot restore.
+                    // Also reset the number of shards since the snapshot may not contain snapshots for
+                    // newly added shards.
+
+                    IndexMetadata newMetadata = IndexMetadata.builder(metadata)
+                        .reshardingMetadata(null)
+                        .numberOfShards(metadata.getReshardingMetadata().shardCountBefore())
+                        .build();
+                    indicesBuilder.put(indexNameAndMetadata.getKey(), newMetadata);
+                } else {
+                    // Even if resharding metadata is not present it is still possible that resharding has happened
+                    // while the snapshot was running and impacted it.
+                    // We check for that by looking if the largest possible shard id is present in the snapshot entry.
+                    // If it isn't it means that the number of shards was different when the snapshot started.
+                    var maxShardId = new ShardId(metadata.getIndex(), metadata.getNumberOfShards() - 1);
+                    if (entry.shards().get(maxShardId) == null) {
+
+                    } else {
+                        // No changes.
+                        indicesBuilder.put(indexNameAndMetadata.getKey(), metadata);
+                    }
+                }
+            }
+            builder = builder.put(ProjectMetadata.builder(project).indices(indicesBuilder.build()));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * We simply trust the snapshot to tell us what the number of shards was when this snapshot was created.
+     * It is in theory possible that multiple reshard operations were executed during the snapshot, and therefore
+     * we can't make any assumptions here and calculate it from metadata.
+     */
+    private static int calculateNumberOfShardsAccordingToSnapshot(SnapshotsInProgress.Entry entry, Index index, int max) {
+        var maxPresentShardId = 0;
+        for (int i = 1; i < max; i++) {
+            if (entry.shards().get(new ShardId(index, i)) != null) {
+                maxPresentShardId = i;
+            }
+        }
+
+        return maxPresentShardId + 1;
+    }
+
     private Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata, ProjectId projectId) {
         final ProjectMetadata snapshotProject = SnapshotsServiceUtils.projectForSnapshot(snapshot, metadata.getProject(projectId));
         final Metadata.Builder builder;

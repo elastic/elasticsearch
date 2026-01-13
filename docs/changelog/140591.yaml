@@ -1,5 +1,0 @@
-pr: 140591
-summary: Add benchmark to test `fastCodePointCount`
-area: Codec
-type: enhancement
-issues: []

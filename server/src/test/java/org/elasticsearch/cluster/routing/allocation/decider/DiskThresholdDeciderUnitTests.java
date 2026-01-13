@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -113,7 +114,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of()
+            Set.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
@@ -189,7 +190,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of()
+            Set.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
@@ -339,7 +340,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of()
+            Set.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),

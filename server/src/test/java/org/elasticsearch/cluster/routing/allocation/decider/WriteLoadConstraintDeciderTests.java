@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -324,7 +325,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     .filter(ignored -> randomBoolean()) // some write-loads are missing altogether
                     .collect(Collectors.toMap(ShardRouting::shardId, ignored -> 0.0d))  // the rest are zero
             )
-            .nodeIdsWriteLoadHotspotting(Map.of(overloadedNode.getId(), true, otherNode.getId(), false))
+            .nodeIdsWriteLoadHotspotting(Set.of(overloadedNode.getId()))
             .build();
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
@@ -420,7 +421,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     )
                 )
             )
-            .nodeIdsWriteLoadHotspotting(Map.of(overloadedNode.getId(), true, otherNode.getId(), false))
+            .nodeIdsWriteLoadHotspotting(Set.of(overloadedNode.getId()))
             .build();
 
         final var writeLoadConstraintDecider = createWriteLoadConstraintDecider(settings);
@@ -553,19 +554,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         nodeIdToNodeUsageStatsForThreadPools.put(queuingBelowThresholdDiscoveryNode4.getId(), nodeThreadPoolStatsWithQueuingBelowThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(queuingAboveThresholdDiscoveryNode5.getId(), nodeThreadPoolStatsWithQueuingAboveThreshold);
 
-        // create a map of hotspots
-        var nodeIdsWriteLoadHotspotting = Map.of(
-            exceedingThresholdDiscoveryNode.getId(),
-            false,
-            belowThresholdDiscoveryNode2.getId(),
-            false,
-            nearThresholdDiscoveryNode3.getId(),
-            false,
-            queuingBelowThresholdDiscoveryNode4.getId(),
-            false,
-            queuingAboveThresholdDiscoveryNode5.getId(),
-            true
-        );
+        // create a set of hotspots
+        var nodeIdsWriteLoadHotspotting = Set.of(queuingAboveThresholdDiscoveryNode5.getId());
 
         // Create a map of usage per shard.
         var shardIdToWriteLoadEstimate = new HashMap<ShardId, Double>();

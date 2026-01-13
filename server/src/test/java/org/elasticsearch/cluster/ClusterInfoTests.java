@@ -17,7 +17,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
 
@@ -48,7 +50,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
-            randomNodeIdsWriteLoadHotspottingTable()
+            randomNodeIdsWriteLoadHotspottingSet()
         );
     }
 
@@ -103,13 +105,12 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return nodeUsageStatsForThreadPools;
     }
 
-    private static Map<String, Boolean> randomNodeIdsWriteLoadHotspottingTable() {
+    private static Set<String> randomNodeIdsWriteLoadHotspottingSet() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, Boolean> nodeIdsWriteLoadHotspotting = new HashMap<>(numEntries);
+        Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String nodeId = randomAlphaOfLength(32);
-            boolean isHotspotting = randomBoolean();
-            nodeIdsWriteLoadHotspotting.put(nodeId, isHotspotting);
+            nodeIdsWriteLoadHotspotting.add(nodeId);
         }
         return nodeIdsWriteLoadHotspotting;
     }

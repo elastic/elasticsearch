@@ -637,7 +637,7 @@ public class CsvTestsDataLoader {
             {
                 "service": "test_reranking_service",
                 "service_settings": { "model_id": "my_model", "api_key": "abc64" },
-                "task_settings": { "use_text_length": true }
+                "task_settings": { "use_text_hash": true, "min_score": 0 }
             }
             """);
     }

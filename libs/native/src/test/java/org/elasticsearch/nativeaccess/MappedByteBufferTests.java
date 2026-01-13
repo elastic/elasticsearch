@@ -116,6 +116,8 @@ public class MappedByteBufferTests extends ESTestCase {
         byte expectedLastByte = buffer.get(buffer.limit() - 1);
         byte sliceLastByte = sliceBuffer.get(sliceBuffer.limit() - 1);
         assertThat(sliceLastByte, equalTo(expectedLastByte));
+
+        slice.close(); // should have no effect on later operations on the parent
     }
 
     private byte[] newByteArray(int size) {

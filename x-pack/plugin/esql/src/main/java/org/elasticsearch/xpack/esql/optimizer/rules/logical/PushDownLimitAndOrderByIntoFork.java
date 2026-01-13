@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,13 +89,18 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.OptimizerRul
 
     private boolean shouldPushDownIntoForkBranch(LogicalPlan plan) {
         // We only push down when no pipeline breaker can be found
-        Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
+        Holder<Boolean> shouldPushDown = new Holder<>(false);
         plan.forEachDown(p -> {
             if (p instanceof PipelineBreaker) {
-                hasPipelineBreaker.set(true);
+                shouldPushDown.set(true);
+            }
+            // this is pretty much a hack until we get an optimization to trim
+            // empty FORK branches
+            if (p instanceof LocalRelation) {
+                shouldPushDown.set(true);
             }
         });
 
-        return hasPipelineBreaker.get() == false;
+        return shouldPushDown.get() == false;
     }
 }

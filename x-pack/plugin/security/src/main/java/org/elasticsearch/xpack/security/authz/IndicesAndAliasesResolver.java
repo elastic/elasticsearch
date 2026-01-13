@@ -431,12 +431,12 @@ class IndicesAndAliasesResolver {
                     }
                     var resolved = resolvedExpressionsBuilder.build();
 
-                    if (crossProjectModeDecider.crossProjectEnabled()) {
+                    if (crossProjectModeDecider.crossProjectEnabled() || indicesOptions.wildcardOptions().resolveViews()) {
                         setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
-                } else if (crossProjectModeDecider.crossProjectEnabled()) {
+                } else if (crossProjectModeDecider.crossProjectEnabled() || indicesOptions.wildcardOptions().resolveViews()) {
                     setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
                 }
 
@@ -488,7 +488,7 @@ class IndicesAndAliasesResolver {
                     // only store resolved expressions if configured, to avoid unnecessary memory usage
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
-                    if (crossProjectModeDecider.crossProjectEnabled()) {
+                    if (crossProjectModeDecider.crossProjectEnabled() || indicesOptions.wildcardOptions().resolveViews()) {
                         setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());

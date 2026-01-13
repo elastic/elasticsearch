@@ -531,7 +531,8 @@ public final class IndicesPermission {
                             }
                         }
                         size += failureIndices;
-                    } else {
+                        // Views have no indices and no failure indices
+                    } else if (IndexAbstraction.Type.VIEW.equals(indexAbstraction.getType()) == false) {
                         DataStream parentDataStream = (DataStream) indexAbstraction;
                         size += parentDataStream.getFailureIndices().size();
                     }

@@ -228,7 +228,8 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
-        var viewResolution = viewResolver.replaceViews(
+
+        viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> EsqlParser.INSTANCE.parseView(
                 query,
@@ -237,103 +238,102 @@ public class EsqlSession {
                 planTelemetry,
                 inferenceService.inferenceSettings(),
                 viewName
-            ).plan()
-        );
-        parsingProfile.stop();
-        PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
+            ).plan(),
+            ActionListener.wrap(viewResolution -> {
+                parsingProfile.stop();
+                PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
-        ZoneId timeZone = request.timeZone() == null
-            ? statement.setting(QuerySettings.TIME_ZONE)
-            : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
-        ApproximationSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATION);
+                ZoneId timeZone = request.timeZone() == null
+                    ? statement.setting(QuerySettings.TIME_ZONE)
+                    : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
+                ApproximationSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATION);
 
-        Configuration configuration = new Configuration(
-            timeZone,
-            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-            request.locale() != null ? request.locale() : Locale.US,
-            // TODO: plug-in security
-            null,
-            clusterName,
-            request.pragmas(),
-            analyzerSettings.resultTruncationMaxSize(),
-            analyzerSettings.resultTruncationDefaultSize(),
-            request.query(),
-            request.profile(),
-            request.tables(),
-            System.nanoTime(),
-            request.allowPartialResults(),
-            analyzerSettings.timeseriesResultTruncationMaxSize(),
-            analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            projectRouting(request, statement),
-            viewResolution.viewQueries()
-        );
-        final FoldContext foldContext = configuration.newFoldContext();
+                Configuration configuration = new Configuration(
+                    timeZone,
+                    Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+                    request.locale() != null ? request.locale() : Locale.US,
+                    // TODO: plug-in security
+                    null,
+                    clusterName,
+                    request.pragmas(),
+                    analyzerSettings.resultTruncationMaxSize(),
+                    analyzerSettings.resultTruncationDefaultSize(),
+                    request.query(),
+                    request.profile(),
+                    request.tables(),
+                    System.nanoTime(),
+                    request.allowPartialResults(),
+                    analyzerSettings.timeseriesResultTruncationMaxSize(),
+                    analyzerSettings.timeseriesResultTruncationDefaultSize(),
+                    projectRouting(request, statement),
+                    viewResolution.viewQueries()
+                );
+                final FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = viewResolution.plan();
-        if (plan instanceof Explain explain) {
-            explainMode = true;
-            plan = explain.query();
-            parsedPlanString = plan.toString();
-        }
-
-        final EsqlStatement statementFinal = statement;
-        analyzedPlan(
-            plan,
-            statement.setting(UNMAPPED_FIELDS),
-            configuration,
-            executionInfo,
-            request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(configuration, executionInfo, listener) {
-                @Override
-                public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
-                    assert ThreadPool.assertCurrentThreadPool(
-                        ThreadPool.Names.SEARCH,
-                        ThreadPool.Names.SEARCH_COORDINATION,
-                        ThreadPool.Names.SYSTEM_READ
-                    );
-
-                    LogicalPlan plan = analyzedPlan.inner();
-                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
-
-                    var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
-                        new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
-                    );
-                    var logicalPlanOptimizer = new LogicalPlanOptimizer(
-                        new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
-                    );
-
-                    SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
-                        .<LogicalPlan>andThen((l, p) -> {
-                            if (statementFinal.setting(QuerySettings.APPROXIMATION) != null) {
-                                Approximation.verifyPlan(p);
-                            }
-                            l.onResponse(p);
-                        })
-                        .<LogicalPlan>andThen(
-                            (l, p) -> preMapper.preMapper(
-                                new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
-                                l
-                            )
-                        )
-                        .<Result>andThen(
-                            (l, p) -> executeOptimizedPlan(
-                                request,
-                                statementFinal,
-                                executionInfo,
-                                planRunner,
-                                p,
-                                configuration,
-                                foldContext,
-                                minimumVersion,
-                                planTimeProfile,
-                                logicalPlanOptimizer,
-                                l
-                            )
-                        )
-                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
-                        .addListener(listener);
+                LogicalPlan plan = viewResolution.plan();
+                if (plan instanceof Explain explain) {
+                    explainMode = true;
+                    plan = explain.query();
+                    parsedPlanString = plan.toString();
                 }
-            }
+
+                final EsqlStatement statementFinal = statement;
+
+                analyzedPlan(
+                    plan,
+                    statement.setting(UNMAPPED_FIELDS),
+                    configuration,
+                    executionInfo,
+                    request.filter(),
+                    new EsqlCCSUtils.CssPartialErrorsActionListener(configuration, executionInfo, listener) {
+                        @Override
+                        public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
+                            assert ThreadPool.assertCurrentThreadPool(
+                                ThreadPool.Names.SEARCH,
+                                ThreadPool.Names.SEARCH_COORDINATION,
+                                ThreadPool.Names.SYSTEM_READ
+                            );
+
+                            LogicalPlan plan = analyzedPlan.inner();
+                            TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+
+                            var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
+                                new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
+                            );
+                            var logicalPlanOptimizer = new LogicalPlanOptimizer(
+                                new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
+                            );
+
+                            SubscribableListener.<LogicalPlan>newForked(
+                                l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l)
+                            )
+                                .<LogicalPlan>andThen(
+                                    (l, p) -> preMapper.preMapper(
+                                        new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
+                                        l
+                                    )
+                                )
+                                .<Result>andThen(
+                                    (l, p) -> executeOptimizedPlan(
+                                        request,
+                                        statementFinal,
+                                        executionInfo,
+                                        planRunner,
+                                        p,
+                                        configuration,
+                                        foldContext,
+                                        minimumVersion,
+                                        planTimeProfile,
+                                        logicalPlanOptimizer,
+                                        l
+                                    )
+                                )
+                                .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
+                                .addListener(listener);
+                        }
+                    }
+                );
+            }, listener::onFailure)
         );
     }
 

@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -635,25 +636,22 @@ public class CsvTests extends ESTestCase {
         }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             for (var viewConfig : VIEW_CONFIGS) {
-                loadView(viewService, viewConfig);
+                try {
+                    String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
+                    PutViewAction.Request request = new PutViewAction.Request(
+                        TimeValue.ONE_MINUTE,
+                        TimeValue.ONE_MINUTE,
+                        new View(viewConfig.viewName(), viewQuery)
+                    );
+                    viewService.putView(ProjectId.DEFAULT, request, ActionListener.noop());
+                } catch (IOException e) {
+                    logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
             }
-            return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
-        }
-    }
-
-    private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
-        try {
-            ProjectId projectId = ProjectId.fromId("dummy");
-            String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
-            PutViewAction.Request request = new PutViewAction.Request(
-                TimeValue.ONE_MINUTE,
-                TimeValue.ONE_MINUTE,
-                new View(viewConfig.viewName(), viewQuery)
-            );
-            viewService.putView(projectId, request, ActionListener.noop());
-        } catch (IOException e) {
-            logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
-            throw new RuntimeException(e);
+            PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+            viewService.getViewResolver().replaceViews(parsed, this::parseView, future);
+            return future.actionGet().plan();
         }
     }
 

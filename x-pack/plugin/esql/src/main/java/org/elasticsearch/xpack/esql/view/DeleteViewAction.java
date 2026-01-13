@@ -41,6 +41,7 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
         // TODO this currently doesn't support multi-target syntax, but should probably if action.destructive_requires_name=false
         private final String name;
 
+        // TODO: Should this match delete index request and allow for several views and `_all`?
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
             super(masterNodeTimeout, ackTimeout);
             this.name = Objects.requireNonNull(name, "name cannot be null");

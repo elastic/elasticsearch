@@ -17,6 +17,7 @@ import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
@@ -28,54 +29,62 @@ import java.util.concurrent.TimeUnit;
 // throughput is more representable metric, it amortizes pages recycling code path and reduces benchmark error
 @BenchmarkMode(Mode.Throughput)
 @Warmup(time = 1)
-@Measurement(time = 5)
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@Measurement(time = 1)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Thread)
 @Fork(1)
 public class RecyclerBytesStreamOutputWriteBenchmark {
     private static final int PAGE_SIZE = 16384;
 
+    // large enough to negate stream reset
+    // and not too large to reach 2GB limit stream limit on worst case (5 bytes vint)
+    private static final int WRITES_PER_ITERATION = 400_000;
+
     // must not be final - avoid constant fold
     // see https://github.com/openjdk/jmh/blob/master/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_10_ConstantFold.java
-    private int vint1 = 2;
-    private int vint2 = vint1 << 8;
-    private int vint3 = vint2 << 8;
-    private int vint4 = vint3 << 8;
+    private int vint1Byte = 123; // any number between 0 and 127 (7 bit)
+    private int vint2Bytes = (vint1Byte << 7) | vint1Byte;
+    private int vint3Bytes = (vint2Bytes << 7) | vint2Bytes;
+    private int vint4Bytes = (vint3Bytes << 7) | vint3Bytes;
+    private int vint5Bytes = Integer.MIN_VALUE;
     private RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new SinglePageStream());
 
-    // Ideally, we should not write own loop and let JMH do it right.
-    // But there is a problem, output stream can hold only 2GB of data and needs occasional reset.
-    // There is a lifecycle hook @TearDown(Level.Invocation) but it comes with own set of problems.
-    // https://github.com/openjdk/jmh/blob/master/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_11_Loops.java
-    private int writeVInt(int n) throws IOException {
-        // write multiple pages
-        for (int i = 0; i <= PAGE_SIZE; i++) {
+    private int writeLoop(int n) throws IOException {
+        for (int i = 0; i < WRITES_PER_ITERATION; i++) {
             output.writeVInt(n);
         }
-        output.seek(1);
-        // return value back to benchmark so it can be Blackhole-ed.
-        // see https://github.com/openjdk/jmh/blob/master/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_09_Blackholes.java
+        output.seek(0);
         return n;
     }
 
     @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
     public int writeVInt1() throws IOException {
-        return writeVInt(vint1);
+        return writeLoop(vint1Byte);
     }
 
     @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
     public int writeVInt2() throws IOException {
-        return writeVInt(vint2);
+        return writeLoop(vint2Bytes);
     }
 
     @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
     public int writeVInt3() throws IOException {
-        return writeVInt(vint3);
+        return writeLoop(vint3Bytes);
     }
 
     @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
     public int writeVInt4() throws IOException {
-        return writeVInt(vint4);
+        return writeLoop(vint4Bytes);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public int writeVInt5() throws IOException {
+        return writeLoop(vint5Bytes);
     }
 
     // recycle same page, we never read previous pages

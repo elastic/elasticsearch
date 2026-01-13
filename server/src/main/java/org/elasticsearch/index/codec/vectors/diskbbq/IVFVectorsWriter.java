@@ -154,6 +154,16 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException;
 
+    public abstract void writeCentroids(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
+        float[] globalCentroid,
+        CentroidOffsetAndLength centroidOffsetAndLength,
+        IndexOutput centroidOutput,
+        MergeState mergeState
+    ) throws IOException;
+
     public abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -432,7 +442,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         assignments,
                         calculatedGlobalCentroid,
                         centroidOffsetAndLength,
-                        ivfCentroids
+                        ivfCentroids,
+                        mergeState
                     );
                     centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
                     // write meta

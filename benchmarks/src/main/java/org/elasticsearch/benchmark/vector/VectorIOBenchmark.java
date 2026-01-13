@@ -57,9 +57,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
 
-@Fork(value = 1, jvmArgsPrepend = { "--enable-native-access=ALL-UNNAMED" })
-@Warmup(iterations = 2)
-@Measurement(iterations = 2)
+@Warmup(iterations = 5)
+@Measurement(iterations = 5)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
@@ -77,7 +76,7 @@ public class VectorIOBenchmark {
 
     private float[] queryVector;
 
-    @Param({ "200000000" })
+    @Param({ "20000000" })
     private int numVectors;
 
     @Param({ "1024" })
@@ -86,7 +85,7 @@ public class VectorIOBenchmark {
     @Param({ "100" })
     private int numVectorPerThread;
 
-    @Param({ "1", "32" })
+    @Param({ "1", "4" })
     private int readThreads;
 
     @Param({ "true", "false" })
@@ -97,6 +96,9 @@ public class VectorIOBenchmark {
 
     @Param({ "true", "false" })
     private boolean batch;
+
+    @Param( { "true", "false" })
+    private boolean inMemory;
 
     @Setup
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
@@ -171,7 +173,7 @@ public class VectorIOBenchmark {
     }
 
     private int randomDoc() {
-        return random.nextInt(0, numVectors-1);
+        return random.nextInt(0, inMemory ? numVectors / 500 : numVectors-1);
     }
 
     @Benchmark

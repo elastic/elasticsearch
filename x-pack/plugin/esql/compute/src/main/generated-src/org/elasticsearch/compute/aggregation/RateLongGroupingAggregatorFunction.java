@@ -105,21 +105,25 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
+        this.isRateOverTime = isRateOverTime;
+        LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
             driverContext.bigArrays().breakerService(),
             ByteSizeValue.ofKb(8).getBytes(),
             ByteSizeValue.ofKb(512).getBytes()
         );
         this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
-        this.isRateOverTime = isRateOverTime;
-        ObjectArray<Buffer> buffers = bigArrays.newObjectArray(256);
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        ObjectArray<Buffer> buffers = null;
         try {
+            buffers = bigArrays.newObjectArray(256);
             this.reducedStates = bigArrays.newObjectArray(256);
+
             this.buffers = buffers;
+            this.localCircuitBreakerService = localCircuitBreakerService;
             buffers = null;
+            localCircuitBreakerService = null;
         } finally {
-            Releasables.close(buffers);
+            Releasables.close(buffers, localCircuitBreakerService);
         }
     }
 

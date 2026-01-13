@@ -93,14 +93,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
         List<Attribute> rightAttrs = right().output();
         Set<String> leftLabels = extractLabelNames(leftAttrs);
         Set<String> rightLabels = extractLabelNames(rightAttrs);
-        if (leftLabels.equals(rightLabels)) {
-            return leftAttrs;
-        } else if (matchFilter() == VectorMatch.Filter.ON) {
+        if (matchFilter() == VectorMatch.Filter.ON) {
             outputLabels = new HashSet<>(match.filterLabels());
         } else if (matchFilter() == VectorMatch.Filter.IGNORING) {
             outputLabels = new HashSet<>(leftLabels);
             outputLabels.addAll(rightLabels);
             outputLabels.removeAll(match.filterLabels());
+        } else if (leftLabels.equals(rightLabels)) {
+            return leftAttrs;
         } else {
             // If there's a mismatch in labels that is not handled by ON or IGNORING,
             // the query result is an empty set by definition as non-matching series are dropped.

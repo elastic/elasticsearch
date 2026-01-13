@@ -37,7 +37,7 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
     private static final int PAGE_SIZE = 16384;
 
     // large enough to negate stream reset
-    // and not too large to reach 2GB limit stream limit on worst case (5 bytes vint)
+    // and not too large to reach 2GB limit on worst case (5 bytes vint)
     private static final int WRITES_PER_ITERATION = 400_000;
 
     // must not be final - avoid constant fold

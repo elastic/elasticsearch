@@ -19,7 +19,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -179,8 +178,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
                 int limit = numVectors - bulkSize + 1;
-                OptimizedScalarQuantizer.QuantizationResult[] results =
-                    new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
+                OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
                 for (int i = 0; i < limit; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
                         randomVector(vectors[i + j], similarityFunction);

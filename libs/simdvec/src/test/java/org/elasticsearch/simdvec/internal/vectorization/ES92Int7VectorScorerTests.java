@@ -182,8 +182,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
-                OptimizedScalarQuantizer.QuantizationResult[] results =
-                    new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
+                OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
                         randomVector(vectors[i + j], similarityFunction);

@@ -6,42 +6,33 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
 
 public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
-    public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
-    private final ViewService viewService;
+
+    private final ViewResolutionService viewResolutionService;
 
     @Inject
     public TransportGetViewAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        ProjectResolver projectResolver,
-        ViewService viewService
+        ProjectResolver projectResolver
     ) {
         super(
             GetViewAction.NAME,
@@ -51,7 +42,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
         );
-        this.viewService = viewService;
+        this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
     }
 
     @Override
@@ -61,34 +52,17 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ProjectState project,
         ActionListener<GetViewAction.Response> listener
     ) {
-        ProjectId projectId = project.projectId();
-        Collection<View> views = new LinkedHashSet<>();
-        List<String> missing = new ArrayList<>();
-        String[] names = request.indices();
-        // TODO currently doesn't support multi-target when security is off
-        if (names == null || names.length == 0 || (names.length == 1 && Regex.isMatchAllPattern(names[0]))) {
-            views = viewService.getMetadata(projectId).views().values();
-        } else if (names != IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) {
-            for (String name : names) {
-                View view = viewService.get(projectId, name);
-                if (view == null) {
-                    if (project.metadata().getIndicesLookup().containsKey(name) == false) {
-                        missing.add(name);
-                    }
-                } else {
-                    views.add(view);
-                }
-            }
-        }
-        if (missing.isEmpty() == false) {
-            listener.onFailure(new ResourceNotFoundException("Views do not exist: " + String.join(", ", missing)));
-        } else {
-            listener.onResponse(new GetViewAction.Response(views));
-        }
+        var result = viewResolutionService.resolveViews(
+            project,
+            request.indices(),
+            request.indicesOptions(),
+            request.getResolvedIndexExpressions()
+        );
+        listener.onResponse(new GetViewAction.Response(List.of(result.views())));
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetViewAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

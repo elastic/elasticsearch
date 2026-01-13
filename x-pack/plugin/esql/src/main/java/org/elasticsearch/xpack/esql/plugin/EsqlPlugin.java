@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
@@ -221,7 +222,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
-            components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
             components.add(new ViewService(services.clusterService()));
         }
         return components;
@@ -293,6 +294,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 List.of(
                     new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                     new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                    new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
                     new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
                 )
             );

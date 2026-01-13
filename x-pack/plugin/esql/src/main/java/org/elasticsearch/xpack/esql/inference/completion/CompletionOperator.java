@@ -25,25 +25,14 @@ public class CompletionOperator extends InferenceOperator {
      * @param inferenceService                The inference service to use for executing inference requests.
      * @param requestItemIteratorFactory      Factory for creating request iterators from input pages.
      * @param outputBuilder                   Builder for converting inference responses into output pages.
-     * @param maxOutstandingPages             The maximum number of pages processed in parallel.
-     * @param maxOutstandingInferenceRequests The maximum number of inference requests to be run in parallel.
      */
     CompletionOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         CompletionRequestIterator.Factory requestItemIteratorFactory,
-        CompletionOutputBuilder outputBuilder,
-        int maxOutstandingPages,
-        int maxOutstandingInferenceRequests
+        CompletionOutputBuilder outputBuilder
     ) {
-        super(
-            driverContext,
-            inferenceService,
-            requestItemIteratorFactory,
-            outputBuilder,
-            maxOutstandingPages,
-            maxOutstandingInferenceRequests
-        );
+        super(driverContext, inferenceService, requestItemIteratorFactory, outputBuilder);
     }
 
     /**
@@ -63,9 +52,7 @@ public class CompletionOperator extends InferenceOperator {
                 driverContext,
                 inferenceService,
                 new CompletionRequestIterator.Factory(inferenceId, promptEvaluatorFactory.get(driverContext)),
-                new CompletionOutputBuilder(driverContext.blockFactory()),
-                DEFAULT_MAX_OUTSTANDING_PAGES,
-                DEFAULT_MAX_OUTSTANDING_REQUESTS
+                new CompletionOutputBuilder(driverContext.blockFactory())
             );
         }
     }

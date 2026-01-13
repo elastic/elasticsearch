@@ -76,6 +76,31 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         this.ongoingBulkOperations = ConcurrentCollections.newQueue();
     }
 
+    /**
+     * Constructs a new {@code InferenceOperator} with default throttling parameters.
+     * Use default max outstanding pages and requests settings.
+     *
+     * @param driverContext The driver context.
+     * @param inferenceService The inference service to use for executing inference requests.
+     * @param inferenceRequestsFactory Factory for creating inference request iterators from input pages.
+     * @param outputBuilder Builder for converting inference responses into output pages.
+     */
+    public InferenceOperator(
+        DriverContext driverContext,
+        InferenceService inferenceService,
+        BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory,
+        OutputBuilder outputBuilder
+    ) {
+        this(
+            driverContext,
+            inferenceService,
+            inferenceRequestsFactory,
+            outputBuilder,
+            DEFAULT_MAX_OUTSTANDING_PAGES,
+            DEFAULT_MAX_OUTSTANDING_REQUESTS
+        );
+    }
+
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
         try {
             BulkInferenceRequestItemIterator requests = inferenceRequestsFactory.create(input);

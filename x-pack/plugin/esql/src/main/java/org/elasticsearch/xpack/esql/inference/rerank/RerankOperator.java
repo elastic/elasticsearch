@@ -29,25 +29,14 @@ public class RerankOperator extends InferenceOperator {
      * @param inferenceService                The inference service to use for executing inference requests.
      * @param requestItemIteratorFactory      Factory for creating request iterators from input pages.
      * @param outputBuilder                   Builder for converting inference responses into output pages.
-     * @param maxOutstandingPages             The maximum number of pages processed in parallel.
-     * @param maxOutstandingInferenceRequests The maximum number of inference requests to be run in parallel.
      */
     RerankOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         RerankRequestIterator.Factory requestItemIteratorFactory,
-        RerankOutputBuilder outputBuilder,
-        int maxOutstandingPages,
-        int maxOutstandingInferenceRequests
+        RerankOutputBuilder outputBuilder
     ) {
-        super(
-            driverContext,
-            inferenceService,
-            requestItemIteratorFactory,
-            outputBuilder,
-            maxOutstandingPages,
-            maxOutstandingInferenceRequests
-        );
+        super(driverContext, inferenceService, requestItemIteratorFactory, outputBuilder);
     }
 
     /**
@@ -72,9 +61,7 @@ public class RerankOperator extends InferenceOperator {
                 driverContext,
                 inferenceService,
                 new RerankRequestIterator.Factory(inferenceId, queryText, rowEncoderFactory.get(driverContext), batchSize),
-                new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel),
-                DEFAULT_MAX_OUTSTANDING_PAGES,
-                DEFAULT_MAX_OUTSTANDING_REQUESTS
+                new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel)
             );
         }
     }

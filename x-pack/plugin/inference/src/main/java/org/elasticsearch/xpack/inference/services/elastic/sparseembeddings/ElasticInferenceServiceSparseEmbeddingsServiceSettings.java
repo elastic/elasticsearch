@@ -101,6 +101,14 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         return modelId;
     }
 
+    @Override
+    public ElasticInferenceServiceSparseEmbeddingsServiceSettings updateServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType
+    ) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+    }
+
     public Integer maxInputTokens() {
         return maxInputTokens;
     }

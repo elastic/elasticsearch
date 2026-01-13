@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -28,7 +29,6 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 public class ContextualAiRerankServiceSettings extends FilteredXContentObject
@@ -37,7 +37,6 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         ServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
-    private static final String API_KEY = "api_key";
 
     // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
     private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
@@ -52,7 +51,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     public static ContextualAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String url = extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
@@ -91,6 +90,11 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         return modelId;
     }
 
+    @Override
+    public ContextualAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+    }
+
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }
@@ -104,7 +108,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(URL, uri.toString());
+        builder.field(ServiceFields.URL, uri.toString());
         builder.field(ServiceFields.MODEL_ID, modelId);
 
         rateLimitSettings.toXContent(builder, params);
@@ -115,7 +119,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
+        builder.field(ServiceFields.URL, uri.toString());
         builder.field(ServiceFields.MODEL_ID, modelId);
 
         rateLimitSettings.toXContent(builder, params);

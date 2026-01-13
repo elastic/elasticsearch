@@ -397,5 +397,10 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().field("model", modelId()).endObject();
         }
+
+        @Override
+        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            return fromMap(serviceSettings);
+        }
     }
 }

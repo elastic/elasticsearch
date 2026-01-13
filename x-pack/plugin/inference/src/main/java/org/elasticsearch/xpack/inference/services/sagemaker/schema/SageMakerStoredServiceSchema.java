@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.validation.DenseEmbeddingModelValidator;
+
+import java.util.Map;
 
 /**
  * Contains any model-specific settings that are stored in SageMakerServiceSettings.
@@ -37,6 +40,12 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
         @Override
         public boolean supportsVersion(TransportVersion version) {
             return version.supports(ML_INFERENCE_SAGEMAKER);
+        }
+
+        @Override
+        public SageMakerStoredServiceSchema updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            // Update operation is not expected to be called for no-op schema
+            return this;
         }
 
         @Override

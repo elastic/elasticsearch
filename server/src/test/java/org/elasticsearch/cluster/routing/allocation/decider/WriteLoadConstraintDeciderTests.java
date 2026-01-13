@@ -448,7 +448,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             equalTo(
                 "Node ["
                     + overloadedNode.getId()
-                    + "] is currently hotspotting and in a waiting "
+                    + "] is currently hotspotting or in a waiting "
                     + "period, and does not prefer shards moved onto it"
             )
         );

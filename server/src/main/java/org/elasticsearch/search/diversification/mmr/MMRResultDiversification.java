@@ -196,9 +196,6 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     highestDocScore = querySimilarityScore;
                 }
             }
-            if (similarityScore != null && similarityScore > highestScore) {
-                highestScore = similarityScore;
-            }
         }
 
         return highestDocRank;

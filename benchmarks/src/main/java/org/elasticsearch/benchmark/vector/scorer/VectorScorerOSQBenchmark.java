@@ -71,6 +71,9 @@ public class VectorScorerOSQBenchmark {
     @Param({ "1", "2", "4" })
     public int bits;
 
+    @Param({ "16", "32", "64" })
+    public int bulkSize;
+
     @Param
     public VectorImplementation implementation;
 
@@ -169,7 +172,7 @@ public class VectorScorerOSQBenchmark {
         scorer = switch (implementation) {
             case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
+                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
         };
         scratchScores = new float[ESNextOSQVectorsScorer.BULK_SIZE];
         corrections = new float[3];

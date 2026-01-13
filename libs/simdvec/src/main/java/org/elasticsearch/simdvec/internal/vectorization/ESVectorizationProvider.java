@@ -43,7 +43,8 @@ public abstract class ESVectorizationProvider {
         byte queryBits,
         byte indexBits,
         int dimension,
-        int dataLength
+        int dataLength,
+        int bulkSize
     ) throws IOException;
 
     /** Create a new {@link ES91Int4VectorsScorer} for the given {@link IndexInput}. */

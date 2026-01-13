@@ -629,7 +629,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 quantEncoding.queryBits(),
                 quantEncoding.bits(),
                 fieldInfo.getVectorDimension(),
-                (int) quantizedVectorByteSize
+                (int) quantizedVectorByteSize,
+                BULK_SIZE
             );
         }
 

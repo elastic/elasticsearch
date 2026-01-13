@@ -38,7 +38,8 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
         byte queryBits,
         byte indexBits,
         int dimension,
-        int dataLength
+        int dataLength,
+        int bulkSize
     ) {
         return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
     }
@@ -50,6 +51,6 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
 
     @Override
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension) {
-        return new ES92Int7VectorsScorer(input, dimension);
+        return new ES92Int7VectorsScorer(input, dimension, 16);
     }
 }

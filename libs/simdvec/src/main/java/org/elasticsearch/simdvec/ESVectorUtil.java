@@ -53,9 +53,11 @@ public class ESVectorUtil {
         byte queryBits,
         byte indexBits,
         int dimension,
-        int dataLength
+        int dataLength,
+        int bulkSize
     ) throws IOException {
-        return ESVectorizationProvider.getInstance().newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+        return ESVectorizationProvider.getInstance()
+            .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
     public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {

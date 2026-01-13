@@ -22,8 +22,6 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ES91OSQVectorsScorer {
 
-    public static final int BULK_SIZE = 16;
-
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
     /** The wrapper {@link IndexInput}. */
@@ -140,7 +138,7 @@ public class ES91OSQVectorsScorer {
      * compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      *
-     * <p>The number of vectors to score is defined by {@link #BULK_SIZE}. The expected format of the
+     * <p>The number of vectors to score is defined by {@link #bulkSize}. The expected format of the
      * input is as follows: First the quantized vectors are read from the input,then all the lower
      * intervals as floats, then all the upper intervals as floats, then all the target component sums
      * as shorts, and finally all the additional corrections as floats.

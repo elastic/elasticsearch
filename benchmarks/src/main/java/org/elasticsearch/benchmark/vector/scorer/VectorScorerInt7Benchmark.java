@@ -17,7 +17,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -57,13 +56,16 @@ public class VectorScorerInt7Benchmark {
     @Param({ "384", "782", "1024" })
     int dims;
 
-    int numVectors = 20 * ES92Int7VectorsScorer.BULK_SIZE;
+    @Param({ "16", "32", "64" })
+    int bulkSize;
+
+    int numVectors;
     int numQueries = 5;
 
     byte[] scratch;
     byte[][] binaryVectors;
     byte[][] binaryQueries;
-    float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
+    float[] scores;
 
     ES92Int7VectorsScorer scorer;
     Directory dir;
@@ -74,6 +76,8 @@ public class VectorScorerInt7Benchmark {
 
     @Setup
     public void setup() throws IOException {
+        numVectors = dims * bulkSize;
+        scores = new float[bulkSize];
         binaryVectors = new byte[numVectors][dims];
         dir = new MMapDirectory(Files.createTempDirectory("vectorData"));
         try (IndexOutput out = dir.createOutput("vectors", IOContext.DEFAULT)) {
@@ -140,7 +144,7 @@ public class VectorScorerInt7Benchmark {
     public void scoreFromMemorySegmentBulk(Blackhole bh) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
-            for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
+            for (int i = 0; i < numVectors; i += bulkSize) {
                 scorer.scoreBulk(
                     binaryQueries[j],
                     queryCorrections.lowerInterval(),
@@ -150,7 +154,7 @@ public class VectorScorerInt7Benchmark {
                     VectorSimilarityFunction.EUCLIDEAN,
                     centroidDp,
                     scores,
-                    ES92Int7VectorsScorer.BULK_SIZE
+                    bulkSize
                 );
                 for (float score : scores) {
                     bh.consume(score);

@@ -69,10 +69,10 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
             || translogRecoveryStartFile == translogReleaseEndFile
             || translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE
             : "translog start file for cleaning ("
-            + translogReleaseEndFile
-            + ") must be the same as translog recovery start file ("
-            + translogRecoveryStartFile
-            + ") for non-hollow commits or negative (ineffective)";
+                + translogReleaseEndFile
+                + ") must be the same as translog recovery start file ("
+                + translogRecoveryStartFile
+                + ") for non-hollow commits or negative (ineffective)";
         assert translogReleaseEndFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE
             : translogReleaseEndFile + " == " + HOLLOW_TRANSLOG_RECOVERY_START_FILE;
     }

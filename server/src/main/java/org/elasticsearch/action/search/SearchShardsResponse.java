@@ -132,7 +132,7 @@ public final class SearchShardsResponse extends ActionResponse {
         }
         List<SearchShardsGroup> groups = Arrays.stream(oldResp.getGroups()).map(SearchShardsGroup::new).toList();
         assert groups.stream().noneMatch(SearchShardsGroup::preFiltered) : "legacy responses must not have preFiltered set";
-        return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters);
+        return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters, oldResp.getResolvedIndexExpressions());
     }
 
     @Override

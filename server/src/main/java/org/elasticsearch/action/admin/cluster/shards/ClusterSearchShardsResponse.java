@@ -10,9 +10,11 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +28,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     private final ClusterSearchShardsGroup[] groups;
     private final DiscoveryNode[] nodes;
     private final Map<String, AliasFilter> indicesAndFilters;
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     public ClusterSearchShardsResponse(StreamInput in) throws IOException {
         groups = in.readArray(ClusterSearchShardsGroup::new, ClusterSearchShardsGroup[]::new);
@@ -43,11 +46,21 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     public ClusterSearchShardsResponse(
         ClusterSearchShardsGroup[] groups,
         DiscoveryNode[] nodes,
-        Map<String, AliasFilter> indicesAndFilters
+        Map<String, AliasFilter> indicesAndFilters,
+        ResolvedIndexExpressions resolvedIndexExpressions
     ) {
         this.groups = groups;
         this.nodes = nodes;
         this.indicesAndFilters = indicesAndFilters;
+        this.resolvedIndexExpressions = resolvedIndexExpressions;
+    }
+
+    public ClusterSearchShardsResponse(
+        ClusterSearchShardsGroup[] groups,
+        DiscoveryNode[] nodes,
+        Map<String, AliasFilter> indicesAndFilters
+    ) {
+        this(groups, nodes, indicesAndFilters, null);
     }
 
     public ClusterSearchShardsGroup[] getGroups() {
@@ -96,5 +109,10 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         builder.endArray();
         builder.endObject();
         return builder;
+    }
+
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 }

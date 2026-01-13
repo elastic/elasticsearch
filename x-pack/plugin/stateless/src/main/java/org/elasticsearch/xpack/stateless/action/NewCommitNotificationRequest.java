@@ -155,15 +155,15 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
                 );
             } else if (getTerm() == latestUploadedBatchedCompoundCommitTermAndGen.primaryTerm()
                 && batchedCompoundCommitGeneration < latestUploadedBatchedCompoundCommitTermAndGen.generation()) {
-                validationException = addValidationError(
-                    "batched compound commit generation ["
-                        + batchedCompoundCommitGeneration
-                        + "] < latest uploaded batched compound commit generation ["
-                        + latestUploadedBatchedCompoundCommitTermAndGen.generation()
-                        + "]",
-                    validationException
-                );
-            }
+                    validationException = addValidationError(
+                        "batched compound commit generation ["
+                            + batchedCompoundCommitGeneration
+                            + "] < latest uploaded batched compound commit generation ["
+                            + latestUploadedBatchedCompoundCommitTermAndGen.generation()
+                            + "]",
+                        validationException
+                    );
+                }
         }
 
         return validationException;

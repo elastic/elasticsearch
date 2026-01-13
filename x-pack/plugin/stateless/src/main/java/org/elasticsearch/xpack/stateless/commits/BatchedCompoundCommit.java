@@ -29,7 +29,7 @@ import java.util.stream.IntStream;
  */
 public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGeneration, List<StatelessCompoundCommit> compoundCommits)
     implements
-    AbstractBatchedCompoundCommit {
+        AbstractBatchedCompoundCommit {
 
     public BatchedCompoundCommit {
         if (primaryTermAndGeneration == null) {
@@ -156,10 +156,10 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         public boolean hasNext() {
             assert offset < maxBlobLength || offset == BlobCacheUtils.toPageAlignedSize(maxBlobLength) || exactBlobLength == false
                 : "offset "
-                + offset
-                + " != page-aligned blobLength "
-                + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
-                + " with exact blob length flag [true]";
+                    + offset
+                    + " != page-aligned blobLength "
+                    + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
+                    + " with exact blob length flag [true]";
             return offset < maxBlobLength;
         }
 

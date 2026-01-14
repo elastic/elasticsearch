@@ -37,10 +37,10 @@ class CompletionOutputBuilder implements OutputBuilder {
     /**
      * Builds the output page by converting inference responses into a {@link BytesRefBlock}.
      * <p>
-     * The shape array in each response determines how output values are distributed across rows:
+     * The position value counts in each response determine how output values are distributed across rows:
      * <ul>
-     *   <li>shape[i] = 0: produces a null value for row i</li>
-     *   <li>shape[i] = N: produces N completion strings for row i (multi-valued)</li>
+     *   <li>positionValueCounts[i] = 0: produces a null value for row i</li>
+     *   <li>positionValueCounts[i] = N: produces N completion strings for row i (multi-valued)</li>
      * </ul>
      *
      * @param inputPage The original input page
@@ -52,7 +52,7 @@ class CompletionOutputBuilder implements OutputBuilder {
         try (BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount())) {
             for (BulkInferenceResponseItem response : responses) {
                 List<String> outputValues = extractOutputValues(response);
-                appendResponseToBlock(outputBlockBuilder, response.shape(), outputValues);
+                appendResponseToBlock(outputBlockBuilder, response.positionValueCounts(), outputValues);
             }
 
             return inputPage.appendBlock(outputBlockBuilder.build());
@@ -60,21 +60,21 @@ class CompletionOutputBuilder implements OutputBuilder {
     }
 
     /**
-     * Appends the output values to the block builder according to the shape specification.
+     * Appends the output values to the block builder according to the position value counts.
      * <p>
-     * The shape array defines the distribution of output values across input rows. Each element
-     * in the shape array corresponds to one input row and specifies how many output values
+     * The position value counts array defines the distribution of output values across input rows. Each element
+     * in the array corresponds to one input row and specifies how many output values
      * that row should consume.
      * </p>
      *
-     * @param builder      The block builder to append to
-     * @param shape        Array where shape[i] = number of output values for row i (0 means null)
-     * @param outputValues The flat list of output values to distribute according to the shape
+     * @param builder             The block builder to append to
+     * @param positionValueCounts Array where positionValueCounts[i] = number of output values for row i (0 means null)
+     * @param outputValues        The flat list of output values to distribute according to the position value counts
      */
-    private void appendResponseToBlock(BytesRefBlock.Builder builder, int[] shape, List<String> outputValues) {
+    private void appendResponseToBlock(BytesRefBlock.Builder builder, int[] positionValueCounts, List<String> outputValues) {
         int outputIndex = 0;
 
-        for (int valueCount : shape) {
+        for (int valueCount : positionValueCounts) {
             if (valueCount == 0) {
                 // No output values for this row - append null
                 builder.appendNull();
@@ -101,7 +101,7 @@ class CompletionOutputBuilder implements OutputBuilder {
             }
         }
 
-        // Verify all output values were consumed (catches shape/output mismatch bugs)
+        // Verify all output values were consumed (catches position value counts/output mismatch bugs)
         if (outputIndex != outputValues.size()) {
             throw new IllegalStateException(
                 format("Not all output values were consumed. Expected [{}], consumed [{}]", outputValues.size(), outputIndex)

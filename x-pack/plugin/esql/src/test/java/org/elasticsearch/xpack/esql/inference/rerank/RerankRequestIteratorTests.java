@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.nullValue;
  *   <li>Multi-valued field support (multiple documents per position)</li>
  *   <li>Null and empty position handling</li>
  *   <li>Trailing null bundling (nulls after batch size bundled with current batch)</li>
- *   <li>Shape array correctness (tracking document count per position)</li>
+ *   <li>Position value counts correctness (tracking document count per position)</li>
  * </ul>
  */
 public class RerankRequestIteratorTests extends ComputeTestCase {
@@ -62,7 +62,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
             assertThat(request.getQuery(), equalTo(QUERY_TEXT));
             assertThat(request.getInput().size(), equalTo(size));
-            assertThat(requestItem.shape().length, equalTo(size));
+            assertThat(requestItem.positionValueCounts().length, equalTo(size));
 
             // No more requests
             assertFalse(requestIterator.hasNext());
@@ -98,13 +98,13 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
-                int[] shape = requestItem.shape();
+                int[] positionValueCounts = requestItem.positionValueCounts();
 
-                // Count positions and documents from shape
-                int positionsInBatch = shape.length;
+                // Count positions and documents from position value counts
+                int positionsInBatch = positionValueCounts.length;
                 int documentsInBatch = 0;
-                for (int shapeValue : shape) {
-                    documentsInBatch += shapeValue;
+                for (int valueCount : positionValueCounts) {
+                    documentsInBatch += valueCount;
                 }
 
                 totalPositionsProcessed += positionsInBatch;
@@ -126,9 +126,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                     // Documents in batch should not exceed batchSize
                     assertThat(documentsInBatch, lessThanOrEqualTo(batchSize));
 
-                    // Each shape value should be 0 or 1 for single-valued fields
-                    for (int shapeValue : shape) {
-                        assertTrue(shapeValue == 0 || shapeValue == 1);
+                    // Each value count should be 0 or 1 for single-valued fields
+                    for (int valueCount : positionValueCounts) {
+                        assertTrue(valueCount == 0 || valueCount == 1);
                     }
                 }
             }
@@ -142,7 +142,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
     /**
      * Tests that a leading null position is included in the first batch rather than
-     * creating a separate batch. The null contributes to the shape array but not to
+     * creating a separate batch. The null contributes to the position value counts array but not to
      * the document count.
      */
     public void testIterateWithLeadingNull() throws Exception {
@@ -160,21 +160,21 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
                 // First batch: 1 null position + 10 document positions
-                // Shape [0,1,1,1,1,1,1,1,1,1,1] where first 0 is the leading null
+                // Position value counts [0,1,1,1,1,1,1,1,1,1,1] where first 0 is the leading null
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem firstItem = requestIterator.next();
                 assertThat(firstItem.inferenceRequest().getInput().size(), equalTo(10));
-                assertThat(firstItem.shape().length, equalTo(11)); // 1 null position + 10 doc positions
-                assertThat(firstItem.shape()[0], equalTo(0)); // Leading null contributes 0 documents
+                assertThat(firstItem.positionValueCounts().length, equalTo(11)); // 1 null position + 10 doc positions
+                assertThat(firstItem.positionValueCounts()[0], equalTo(0)); // Leading null contributes 0 documents
                 for (int i = 1; i < 11; i++) {
-                    assertThat(firstItem.shape()[i], equalTo(1)); // Each position contributes 1 document
+                    assertThat(firstItem.positionValueCounts()[i], equalTo(1)); // Each position contributes 1 document
                 }
 
                 // Second batch: remaining 4 document positions
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem secondItem = requestIterator.next();
                 assertThat(secondItem.inferenceRequest().getInput().size(), equalTo(4));
-                assertThat(secondItem.shape().length, equalTo(4));
+                assertThat(secondItem.positionValueCounts().length, equalTo(4));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -204,13 +204,13 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
         try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
             List<Integer> batchSizes = new ArrayList<>();
-            List<Integer> shapeLengths = new ArrayList<>();
+            List<Integer> positionValueCountsLengths = new ArrayList<>();
 
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
                 InferenceAction.Request request = requestItem.inferenceRequest();
                 batchSizes.add(request.getInput().size());
-                shapeLengths.add(requestItem.shape().length);
+                positionValueCountsLengths.add(requestItem.positionValueCounts().length);
             }
 
             // Should produce 3 batches: 10, 10, 5 documents
@@ -219,10 +219,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             assertThat(batchSizes.get(1), equalTo(10));
             assertThat(batchSizes.get(2), equalTo(5));
 
-            // Shape lengths should match document counts for non-null positions
-            assertThat(shapeLengths.get(0), equalTo(10));
-            assertThat(shapeLengths.get(1), equalTo(10));
-            assertThat(shapeLengths.get(2), equalTo(5));
+            // Position value counts lengths should match document counts for non-null positions
+            assertThat(positionValueCountsLengths.get(0), equalTo(10));
+            assertThat(positionValueCountsLengths.get(1), equalTo(10));
+            assertThat(positionValueCountsLengths.get(2), equalTo(5));
         }
 
         allBreakersEmpty();
@@ -256,23 +256,23 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
                 // First batch: 5 document positions (hits batch size) + 3 trailing null positions
-                // Shape [1,1,1,1,1,0,0,0] represents 5 docs and 3 nulls bundled together
+                // Position value counts [1,1,1,1,1,0,0,0] represents 5 docs and 3 nulls bundled together
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem firstItem = requestIterator.next();
                 assertThat(firstItem.inferenceRequest().getInput().size(), equalTo(5));
-                assertThat(firstItem.shape().length, equalTo(8)); // 5 doc positions + 3 null positions
-                assertThat(firstItem.shape()[5], equalTo(0)); // First trailing null
-                assertThat(firstItem.shape()[6], equalTo(0)); // Second trailing null
-                assertThat(firstItem.shape()[7], equalTo(0)); // Third trailing null
+                assertThat(firstItem.positionValueCounts().length, equalTo(8)); // 5 doc positions + 3 null positions
+                assertThat(firstItem.positionValueCounts()[5], equalTo(0)); // First trailing null
+                assertThat(firstItem.positionValueCounts()[6], equalTo(0)); // Second trailing null
+                assertThat(firstItem.positionValueCounts()[7], equalTo(0)); // Third trailing null
 
                 // Second batch: 5 document positions (hits batch size) + 2 trailing null positions
-                // Shape [1,1,1,1,1,0,0] represents 5 docs and 2 nulls bundled together
+                // Position value counts [1,1,1,1,1,0,0] represents 5 docs and 2 nulls bundled together
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem secondItem = requestIterator.next();
                 assertThat(secondItem.inferenceRequest().getInput().size(), equalTo(5));
-                assertThat(secondItem.shape().length, equalTo(7)); // 5 doc positions + 2 null positions
-                assertThat(secondItem.shape()[5], equalTo(0)); // First trailing null
-                assertThat(secondItem.shape()[6], equalTo(0)); // Second trailing null
+                assertThat(secondItem.positionValueCounts().length, equalTo(7)); // 5 doc positions + 2 null positions
+                assertThat(secondItem.positionValueCounts()[5], equalTo(0)); // First trailing null
+                assertThat(secondItem.positionValueCounts()[6], equalTo(0)); // Second trailing null
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -283,7 +283,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
     /**
      * Tests support for multi-valued fields where a single position can contribute
-     * multiple documents to the inference request. The shape array should reflect
+     * multiple documents to the inference request. The position value counts array should reflect
      * the actual number of documents from each position.
      */
     public void testMultiValuedFields() throws Exception {
@@ -317,12 +317,12 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 // Total documents: 1 + 2 + 3 + 1 = 7
                 assertThat(item.inferenceRequest().getInput().size(), equalTo(7));
 
-                // Shape should be [1, 2, 3, 1]
-                assertThat(item.shape().length, equalTo(4));
-                assertThat(item.shape()[0], equalTo(1));
-                assertThat(item.shape()[1], equalTo(2));
-                assertThat(item.shape()[2], equalTo(3));
-                assertThat(item.shape()[3], equalTo(1));
+                // Position value counts should be [1, 2, 3, 1]
+                assertThat(item.positionValueCounts().length, equalTo(4));
+                assertThat(item.positionValueCounts()[0], equalTo(1));
+                assertThat(item.positionValueCounts()[1], equalTo(2));
+                assertThat(item.positionValueCounts()[2], equalTo(3));
+                assertThat(item.positionValueCounts()[3], equalTo(1));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -333,7 +333,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
     /**
      * Tests that empty and whitespace-only strings are filtered out and treated
-     * as null positions (shape value of 0). This prevents sending invalid input
+     * as null positions (value count of 0). This prevents sending invalid input
      * to the inference service.
      */
     public void testEmptyStringsFiltered() throws Exception {
@@ -356,12 +356,12 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 // Only 2 valid documents (empty and whitespace filtered out)
                 assertThat(item.inferenceRequest().getInput().size(), equalTo(2));
 
-                // Shape should be [1, 0, 0, 1] - empty strings treated as null
-                assertThat(item.shape().length, equalTo(4));
-                assertThat(item.shape()[0], equalTo(1));
-                assertThat(item.shape()[1], equalTo(0));
-                assertThat(item.shape()[2], equalTo(0));
-                assertThat(item.shape()[3], equalTo(1));
+                // Position value counts should be [1, 0, 0, 1] - empty strings treated as null
+                assertThat(item.positionValueCounts().length, equalTo(4));
+                assertThat(item.positionValueCounts()[0], equalTo(1));
+                assertThat(item.positionValueCounts()[1], equalTo(0));
+                assertThat(item.positionValueCounts()[2], equalTo(0));
+                assertThat(item.positionValueCounts()[3], equalTo(1));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -372,7 +372,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
     /**
      * Tests the edge case where all positions are null. This should produce a single
-     * batch with a null request and a shape array of all zeros.
+     * batch with a null request and a position value counts array of all zeros.
      */
     public void testAllNullPositions() throws Exception {
         final String inferenceId = randomIdentifier();
@@ -387,17 +387,17 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
 
             try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
-                // Should produce one batch with no documents but shape [0,0,0,0,0]
+                // Should produce one batch with no documents but position value counts [0,0,0,0,0]
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
                 // Null request since no documents
                 assertThat(item.inferenceRequest(), nullValue());
 
-                // Shape should have 5 zeros
-                assertThat(item.shape().length, equalTo(5));
+                // Position value counts should have 5 zeros
+                assertThat(item.positionValueCounts().length, equalTo(5));
                 for (int i = 0; i < 5; i++) {
-                    assertThat(item.shape()[i], equalTo(0));
+                    assertThat(item.positionValueCounts()[i], equalTo(0));
                 }
 
                 assertFalse(requestIterator.hasNext());
@@ -427,10 +427,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 int batchItemCount = request.getInput().size();
                 assertThat(batchItemCount, lessThanOrEqualTo(batchSize));
 
-                // Verify shape matches batch size
-                assertThat(requestItem.shape().length, equalTo(batchItemCount));
-                for (int shapeValue : requestItem.shape()) {
-                    assertThat(shapeValue, equalTo(1));
+                // Verify position value counts matches batch size
+                assertThat(requestItem.positionValueCounts().length, equalTo(batchItemCount));
+                for (int valueCount : requestItem.positionValueCounts()) {
+                    assertThat(valueCount, equalTo(1));
                 }
 
                 totalItemsProcessed += batchItemCount;

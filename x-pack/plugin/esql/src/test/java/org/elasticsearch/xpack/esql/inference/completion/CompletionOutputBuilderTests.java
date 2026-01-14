@@ -45,10 +45,10 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
             // Mix null and non-null responses
             if (randomBoolean()) {
-                // Null response with shape [0]
+                // Null response with position value counts [0]
                 responses.add(new BulkInferenceResponseItem(null, new int[] { 0 }, currentPos));
             } else {
-                // Regular response with shape [1]
+                // Regular response with position value counts [1]
                 ChatCompletionResults results = new ChatCompletionResults(
                     List.of(new ChatCompletionResults.Result("Completion result #" + currentPos))
                 );
@@ -102,7 +102,7 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
             BytesRefBlock outputBlock = outputPage.getBlock(outputPage.getBlockCount() - 1);
             for (int pos = 0; pos < responses.size(); pos++) {
                 BulkInferenceResponseItem responseItem = responses.get(pos);
-                int expectedCount = responseItem.shape()[0];
+                int expectedCount = responseItem.positionValueCounts()[0];
                 assertThat(outputBlock.getValueCount(pos), equalTo(expectedCount));
             }
         }
@@ -110,26 +110,26 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
-    public void testBuildOutputWithMixedShapes() throws Exception {
+    public void testBuildOutputWithMixedPositionValueCounts() throws Exception {
         final int size = 20;
         final Page inputPage = randomInputPage(size, 3);
 
         CompletionOutputBuilder outputBuilder = new CompletionOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = IntStream.range(0, inputPage.getPositionCount()).mapToObj(currentPos -> {
-            int shapeValue = currentPos % 4;
-            if (shapeValue == 0) {
+            int valueCount = currentPos % 4;
+            if (valueCount == 0) {
                 // Null response
                 return new BulkInferenceResponseItem(null, new int[] { 0 }, currentPos);
             } else {
                 // Multi-valued response
                 List<ChatCompletionResults.Result> results = new ArrayList<>();
-                for (int i = 0; i < shapeValue; i++) {
+                for (int i = 0; i < valueCount; i++) {
                     results.add(new ChatCompletionResults.Result("Value " + currentPos + "-" + i));
                 }
 
                 ChatCompletionResults chatResults = new ChatCompletionResults(results);
                 InferenceAction.Response response = new InferenceAction.Response(chatResults);
-                return (new BulkInferenceResponseItem(response, new int[] { shapeValue }, currentPos));
+                return (new BulkInferenceResponseItem(response, new int[] { valueCount }, currentPos));
             }
         }).toList();
         ;
@@ -137,15 +137,15 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
         try (Page outputPage = outputBuilder.buildOutputPage(inputPage, responses)) {
             assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
 
-            // Verify shapes
+            // Verify position value counts
             BytesRefBlock outputBlock = outputPage.getBlock(outputPage.getBlockCount() - 1);
             for (int pos = 0; pos < responses.size(); pos++) {
-                int expectedShape = responses.get(pos).shape()[0];
-                if (expectedShape == 0) {
+                int expectedValueCount = responses.get(pos).positionValueCounts()[0];
+                if (expectedValueCount == 0) {
                     assertTrue(outputBlock.isNull(pos));
                 } else {
                     assertFalse(outputBlock.isNull(pos));
-                    assertThat(outputBlock.getValueCount(pos), equalTo(expectedShape));
+                    assertThat(outputBlock.getValueCount(pos), equalTo(expectedValueCount));
                 }
             }
         }

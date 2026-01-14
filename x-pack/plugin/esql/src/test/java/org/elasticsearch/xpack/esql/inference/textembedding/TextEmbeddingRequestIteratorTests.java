@@ -53,17 +53,17 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
-                // Verify shape array covers the positions in this batch
-                int[] shape = requestItem.shape();
-                assertTrue("Shape must not be empty", shape.length > 0);
+                // Verify position value counts array covers the positions in this batch
+                int[] positionValueCounts = requestItem.positionValueCounts();
+                assertTrue("Position value counts must not be empty", positionValueCounts.length > 0);
 
                 // Count how many positions are in this batch
-                int positionsInBatch = shape.length;
+                int positionsInBatch = positionValueCounts.length;
                 totalPositionsProcessed += positionsInBatch;
 
-                // Count non-null positions in the shape
+                // Count non-null positions
                 int nonNullCount = 0;
-                for (int value : shape) {
+                for (int value : positionValueCounts) {
                     if (value > 0) {
                         nonNullCount++;
                     }
@@ -108,20 +108,20 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem1 = requestIterator.next();
 
-                // Shape should be [0, 0, 1] for the two leading nulls and the first text
-                assertThat(requestItem1.shape().length, equalTo(3));
-                assertThat(requestItem1.shape()[0], equalTo(0)); // null
-                assertThat(requestItem1.shape()[1], equalTo(0)); // null
-                assertThat(requestItem1.shape()[2], equalTo(1)); // "text1"
+                // Position value counts should be [0, 0, 1] for the two leading nulls and the first text
+                assertThat(requestItem1.positionValueCounts().length, equalTo(3));
+                assertThat(requestItem1.positionValueCounts()[0], equalTo(0)); // null
+                assertThat(requestItem1.positionValueCounts()[1], equalTo(0)); // null
+                assertThat(requestItem1.positionValueCounts()[2], equalTo(1)); // "text1"
                 assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("text1"));
 
                 // Second batch: processes second non-null
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem2 = requestIterator.next();
 
-                // Shape should be [1] for just the second text
-                assertThat(requestItem2.shape().length, equalTo(1));
-                assertThat(requestItem2.shape()[0], equalTo(1)); // "text2"
+                // Position value counts should be [1] for just the second text
+                assertThat(requestItem2.positionValueCounts().length, equalTo(1));
+                assertThat(requestItem2.positionValueCounts()[0], equalTo(1)); // "text2"
                 assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("text2"));
 
                 assertFalse(requestIterator.hasNext());
@@ -147,11 +147,11 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
-                // Shape should be [1, 0, 0] for the text and two trailing nulls
-                assertThat(requestItem.shape().length, equalTo(3));
-                assertThat(requestItem.shape()[0], equalTo(1)); // "text1"
-                assertThat(requestItem.shape()[1], equalTo(0)); // null
-                assertThat(requestItem.shape()[2], equalTo(0)); // null
+                // Position value counts should be [1, 0, 0] for the text and two trailing nulls
+                assertThat(requestItem.positionValueCounts().length, equalTo(3));
+                assertThat(requestItem.positionValueCounts()[0], equalTo(1)); // "text1"
+                assertThat(requestItem.positionValueCounts()[1], equalTo(0)); // null
+                assertThat(requestItem.positionValueCounts()[2], equalTo(0)); // null
                 assertThat(requestItem.inferenceRequest().getInput().getFirst(), equalTo("text1"));
 
                 assertFalse(requestIterator.hasNext());
@@ -178,10 +178,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
-                // Shape should have all zeros
-                assertThat(requestItem.shape().length, equalTo(size));
+                // Position value counts should have all zeros
+                assertThat(requestItem.positionValueCounts().length, equalTo(size));
                 for (int i = 0; i < size; i++) {
-                    assertThat(requestItem.shape()[i], equalTo(0));
+                    assertThat(requestItem.positionValueCounts()[i], equalTo(0));
                 }
 
                 // Request should be null since there's no actual text
@@ -212,25 +212,25 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 // First batch: "text1" with trailing null
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem1 = requestIterator.next();
-                assertThat(requestItem1.shape().length, equalTo(2));
-                assertThat(requestItem1.shape()[0], equalTo(1)); // "text1"
-                assertThat(requestItem1.shape()[1], equalTo(0)); // null
+                assertThat(requestItem1.positionValueCounts().length, equalTo(2));
+                assertThat(requestItem1.positionValueCounts()[0], equalTo(1)); // "text1"
+                assertThat(requestItem1.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("text1"));
 
                 // Second batch: "text2" with trailing nulls
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem2 = requestIterator.next();
-                assertThat(requestItem2.shape().length, equalTo(3));
-                assertThat(requestItem2.shape()[0], equalTo(1)); // "text2"
-                assertThat(requestItem2.shape()[1], equalTo(0)); // null
-                assertThat(requestItem2.shape()[2], equalTo(0)); // null
+                assertThat(requestItem2.positionValueCounts().length, equalTo(3));
+                assertThat(requestItem2.positionValueCounts()[0], equalTo(1)); // "text2"
+                assertThat(requestItem2.positionValueCounts()[1], equalTo(0)); // null
+                assertThat(requestItem2.positionValueCounts()[2], equalTo(0)); // null
                 assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("text2"));
 
                 // Third batch: "text3" alone
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem3 = requestIterator.next();
-                assertThat(requestItem3.shape().length, equalTo(1));
-                assertThat(requestItem3.shape()[0], equalTo(1)); // "text3"
+                assertThat(requestItem3.positionValueCounts().length, equalTo(1));
+                assertThat(requestItem3.positionValueCounts()[0], equalTo(1)); // "text3"
                 assertThat(requestItem3.inferenceRequest().getInput().getFirst(), equalTo("text3"));
 
                 assertFalse(requestIterator.hasNext());
@@ -287,7 +287,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                     // Verify only the first value is used
                     scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(iterationCount), scratch);
                     assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));
-                    assertThat(requestItem.shape()[0], equalTo(1));
+                    assertThat(requestItem.positionValueCounts()[0], equalTo(1));
 
                     iterationCount++;
                 }
@@ -317,9 +317,9 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(iterationCount), scratch);
                 assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));
 
-                // Verify shape is [1] for simple text embedding requests
-                assertThat(requestItem.shape().length, equalTo(1));
-                assertThat(requestItem.shape()[0], equalTo(1));
+                // Verify position value counts is [1] for simple text embedding requests
+                assertThat(requestItem.positionValueCounts().length, equalTo(1));
+                assertThat(requestItem.positionValueCounts()[0], equalTo(1));
 
                 iterationCount++;
             }

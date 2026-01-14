@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
 
@@ -33,7 +34,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
     private final InputTextReader textReader;
     private final String inferenceId;
     private final int size;
-    private final BulkInferenceRequestItem.ShapeBuilder shapeBuilder = BulkInferenceRequestItem.shapeBuilder();
+    private final PositionValueCountsBuilder positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder();
 
     private int currentPos = 0;
 
@@ -60,26 +61,26 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
             throw new NoSuchElementException();
         }
 
-        shapeBuilder.reset();
+        positionValueCountsBuilder.reset();
 
         // Read rows until we find a non-null/non-blank value or reach the end of the page
         String currentPrompt = textReader.readText(currentPos++);
         while (hasNext() && Strings.isNullOrBlank(currentPrompt)) {
-            shapeBuilder.addValue(0);
+            positionValueCountsBuilder.addValue(0);
             currentPrompt = textReader.readText(currentPos++);
         }
 
-        shapeBuilder.addValue(Strings.isNullOrBlank(currentPrompt) ? 0 : 1);
+        positionValueCountsBuilder.addValue(Strings.isNullOrBlank(currentPrompt) ? 0 : 1);
 
         if (Strings.hasText(currentPrompt)) {
             // Consume trailing null positions after the current row
             while (hasNext() && textReader.isNull(currentPos)) {
-                shapeBuilder.addValue(0);
+                positionValueCountsBuilder.addValue(0);
                 currentPos++;
             }
         }
 
-        return new BulkInferenceRequestItem(inferenceRequest(currentPrompt), shapeBuilder);
+        return new BulkInferenceRequestItem(inferenceRequest(currentPrompt), positionValueCountsBuilder);
     }
 
     /**

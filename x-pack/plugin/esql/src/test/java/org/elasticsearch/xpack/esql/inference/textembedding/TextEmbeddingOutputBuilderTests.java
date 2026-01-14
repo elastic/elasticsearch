@@ -63,7 +63,7 @@ public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
             // Verify output content matches expected pattern
             FloatBlock outputBlock = outputPage.getBlock(outputPage.getBlockCount() - 1);
             for (int pos = 0; pos < responses.size(); pos++) {
-                if (responses.get(pos).inferenceResponse() == null || responses.get(pos).shape()[0] == 0) {
+                if (responses.get(pos).inferenceResponse() == null || responses.get(pos).positionValueCounts()[0] == 0) {
                     assertTrue(outputBlock.isNull(pos));
                 } else {
                     assertFalse(outputBlock.isNull(pos));

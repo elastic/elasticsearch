@@ -215,21 +215,23 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     /**
      * Represents a single inference request with metadata for result building.
      *
-     * @param inferenceRequest The inference request (may be null to represent a null input).
-     * @param shape The shape array for the input that generated this request.
+     * @param inferenceRequest   The inference request (may be null to represent a null input).
+     * @param positionValueCounts Array where each element indicates how many values the corresponding input position contributed.
+     *                            For example, [1, 0, 2] means position 0 contributed 1 value, position 1 was null/empty,
+     *                            and position 2 contributed 2 values (multi-valued field).
      * @param seqNo The sequence number for ordering.
      */
-    public record BulkInferenceRequestItem(InferenceAction.Request inferenceRequest, int[] shape, long seqNo) {
+    public record BulkInferenceRequestItem(InferenceAction.Request inferenceRequest, int[] positionValueCounts, long seqNo) {
 
-        public static final int[] SINGLE_ZERO_SHAPE = new int[] { 0 };
-        public static final int[] SINGLE_ONE_SHAPE = new int[] { 1 };
+        public static final int[] SINGLE_ZERO_POSITION_VALUE_COUNTS = new int[] { 0 };
+        public static final int[] SINGLE_ONE_POSITION_VALUE_COUNTS = new int[] { 1 };
 
-        public static ShapeBuilder shapeBuilder() {
-            return new ShapeBuilder(1);
+        public static PositionValueCountsBuilder positionValueCountsBuilder() {
+            return new PositionValueCountsBuilder(1);
         }
 
-        public static ShapeBuilder shapeBuilder(int capacity) {
-            return new ShapeBuilder(capacity);
+        public static PositionValueCountsBuilder positionValueCountsBuilder(int capacity) {
+            return new PositionValueCountsBuilder(capacity);
         }
 
         private static final long NO_SEQ_NO = -1L;
@@ -237,38 +239,39 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         /**
          * Constructor for batched requests without sequence number.
          */
-        public BulkInferenceRequestItem(InferenceAction.Request inferenceRequest, ShapeBuilder shape) {
-            this(inferenceRequest, shape.build(), NO_SEQ_NO);
+        public BulkInferenceRequestItem(InferenceAction.Request inferenceRequest, PositionValueCountsBuilder positionValueCounts) {
+            this(inferenceRequest, positionValueCounts.build(), NO_SEQ_NO);
         }
 
         public BulkInferenceRequestItem withSeqNo(long seqNo) {
-            return new BulkInferenceRequestItem(this.inferenceRequest, this.shape, seqNo);
+            return new BulkInferenceRequestItem(this.inferenceRequest, this.positionValueCounts, seqNo);
         }
 
         public BulkInferenceResponseItem createResponse(InferenceAction.Response inferenceResponse) {
-            return new BulkInferenceResponseItem(inferenceResponse, this.shape, this.seqNo);
+            return new BulkInferenceResponseItem(inferenceResponse, this.positionValueCounts, this.seqNo);
         }
 
         /**
-         * Builder for constructing shape arrays dynamically.
+         * Builder for constructing position value counts arrays dynamically.
+         * Each element in the array represents how many values a specific input position contributed.
          */
-        public static class ShapeBuilder {
+        public static class PositionValueCountsBuilder {
             private int[] buffer;
             private int size = 0;
 
-            ShapeBuilder(int initialCapacity) {
+            PositionValueCountsBuilder(int initialCapacity) {
                 this.buffer = new int[initialCapacity];
             }
 
             /**
-             * Resets the shape builder to an empty state.
+             * Resets the builder to an empty state.
              */
             public void reset() {
                 size = 0;
             }
 
             /**
-             * Adds a value to the shape array, expanding it if necessary.
+             * Adds a value count for the next position, expanding the buffer if necessary.
              */
             public void addValue(int value) {
                 if (size >= buffer.length) {
@@ -279,17 +282,17 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             }
 
             /**
-             * Builds the final shape array, optimizing for common cases.
+             * Builds the final position value counts array, optimizing for common cases.
              */
             public int[] build() {
-                assert size > 0 : "Shape must have at least one dimension";
+                assert size > 0 : "Position value counts must have at least one entry";
 
                 // Optimize common single-element cases
                 if (size == 1) {
                     if (buffer[0] == 0) {
-                        return SINGLE_ZERO_SHAPE;
+                        return SINGLE_ZERO_POSITION_VALUE_COUNTS;
                     } else if (buffer[0] == 1) {
-                        return SINGLE_ONE_SHAPE;
+                        return SINGLE_ONE_POSITION_VALUE_COUNTS;
                     }
                 }
 
@@ -317,11 +320,11 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     /**
      * Represents a completed inference response with metadata for result building.
      *
-     * @param inferenceResponse The inference response (may be null for null requests).
-     * @param shape             The shape array from the corresponding request.
-     * @param seqNo             The sequence number for ordering.
+     * @param inferenceResponse   The inference response (may be null for null requests).
+     * @param positionValueCounts Array where each element indicates how many values the corresponding input position contributed.
+     * @param seqNo               The sequence number for ordering.
      */
-    public record BulkInferenceResponseItem(InferenceAction.Response inferenceResponse, int[] shape, long seqNo) {}
+    public record BulkInferenceResponseItem(InferenceAction.Response inferenceResponse, int[] positionValueCounts, long seqNo) {}
 
     /**
      * Manages the execution of inference requests for a single input page.

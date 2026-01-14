@@ -30,7 +30,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * </p>
  * <p>
  * Since reranking operates on batches of documents, each inference response contains multiple scores
- * that must be distributed back to their corresponding input positions based on the response shape array.
+ * that must be distributed back to their corresponding input positions based on the response's position value counts array.
  * </p>
  * <p>
  * <b>Multi-valued Position Handling:</b> When a position contributes multiple documents (multi-valued field),
@@ -38,8 +38,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * relevance score in the output block.
  * </p>
  * <p>
- * <b>Shape Array Semantics:</b> The shape array indicates how many documents each position contributed.
- * For example, shape [1, 0, 2, 1] means:
+ * <b>Position Value Counts Semantics:</b> The position value counts array indicates how many documents each position contributed.
+ * For example, [1, 0, 2, 1] means:
  * <ul>
  *   <li>Position 0: 1 document → receives score at index 0</li>
  *   <li>Position 1: 0 documents (null/empty) → receives null</li>
@@ -66,11 +66,11 @@ class RerankOutputBuilder implements OutputBuilder {
     /**
      * Builds the output page by converting inference responses into a {@link DoubleBlock} of scores.
      * <p>
-     * The shape array in each response determines how output scores are distributed across positions:
+     * The position value counts in each response determine how output scores are distributed across positions:
      * <ul>
-     *   <li>shape[i] = 0: produces a null value for position i (null/empty input)</li>
-     *   <li>shape[i] = 1: produces one relevance score for position i</li>
-     *   <li>shape[i] = N (N > 1): produces the max of N relevance scores for position i (multi-valued field)</li>
+     *   <li>positionValueCounts[i] = 0: produces a null value for position i (null/empty input)</li>
+     *   <li>positionValueCounts[i] = 1: produces one relevance score for position i</li>
+     *   <li>positionValueCounts[i] = N (N > 1): produces the max of N relevance scores for position i (multi-valued field)</li>
      * </ul>
      * The score block replaces the block at the {@code scoreChannel} position in the output page.
      * The output page has the same number of blocks as the input page.
@@ -115,38 +115,42 @@ class RerankOutputBuilder implements OutputBuilder {
     /**
      * Appends scores from a single inference response to the score block.
      * <p>
-     * The response shape array determines how scores are distributed:
+     * The response's position value counts determine how scores are distributed:
      * <ul>
-     *   <li>For each position with shape value 0: appends a null score</li>
-     *   <li>For each position with shape value 1: appends the corresponding score</li>
-     *   <li>For each position with shape value N > 1: appends the max of N consecutive scores</li>
+     *   <li>For each position with value count 0: appends a null score</li>
+     *   <li>For each position with value count 1: appends the corresponding score</li>
+     *   <li>For each position with value count N > 1: appends the max of N consecutive scores</li>
      * </ul>
      * <p>
      * Scores are sorted by their index before processing to ensure correct alignment with positions.
      *
      * @param builder  The block builder to append scores to
-     * @param response The inference response item containing the reranking results and shape information
-     * @throws IllegalStateException if the number of scores doesn't match the sum of shape values
+     * @param response The inference response item containing the reranking results and position value counts
+     * @throws IllegalStateException if the number of scores doesn't match the sum of position value counts
      */
     private void appendResponseToBlock(DoubleBlock.Builder builder, BulkInferenceResponseItem response) {
-        // Handle null responses or null shape
-        if (response == null || response.shape() == null) {
+        // Handle null responses or null position value counts
+        if (response == null || response.positionValueCounts() == null) {
             return;
         }
 
         double[] scores = extractRerankScores(response);
 
-        // Validate that the number of scores matches the expected count from the shape
-        int expectedScoreCount = IntStream.of(response.shape()).sum();
+        // Validate that the number of scores matches the expected count from the position value counts
+        int expectedScoreCount = IntStream.of(response.positionValueCounts()).sum();
         if (scores.length != expectedScoreCount) {
             throw new IllegalStateException(
-                format("Mismatch between score count and shape: expected {} scores but got {}", expectedScoreCount, scores.length)
+                format(
+                    "Mismatch between score count and position value counts: expected {} scores but got {}",
+                    expectedScoreCount,
+                    scores.length
+                )
             );
         }
 
         var currentScoreIndex = 0;
 
-        for (int valueCount : response.shape()) {
+        for (int valueCount : response.positionValueCounts()) {
             if (valueCount == 0) {
                 // No scores for this position, append a null value to the block
                 builder.appendNull();

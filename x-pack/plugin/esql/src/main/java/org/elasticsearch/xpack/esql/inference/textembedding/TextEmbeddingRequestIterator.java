@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
 
@@ -35,7 +36,7 @@ class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     private final int size;
     private int currentPos = 0;
 
-    private final BulkInferenceRequestItem.ShapeBuilder shapeBuilder = BulkInferenceRequestItem.shapeBuilder();
+    private final PositionValueCountsBuilder positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder();
 
     /**
      * Constructs a new iterator from the given block of text inputs.
@@ -60,27 +61,27 @@ class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
             throw new NoSuchElementException();
         }
 
-        shapeBuilder.reset();
+        positionValueCountsBuilder.reset();
 
         // Read rows until we find a non-null value or reach the end of the page.
         // For multi-valued fields, only the first value is considered to do the embedding.
         String currentText = textReader.readText(currentPos++, 1);
         while (hasNext() && currentText == null) {
-            shapeBuilder.addValue(0);
+            positionValueCountsBuilder.addValue(0);
             currentText = textReader.readText(currentPos++, 1);
         }
 
-        shapeBuilder.addValue(currentText == null ? 0 : 1);
+        positionValueCountsBuilder.addValue(currentText == null ? 0 : 1);
 
         if (currentText != null) {
             // Consume trailing null positions after the current row
             while (hasNext() && textReader.isNull(currentPos)) {
-                shapeBuilder.addValue(0);
+                positionValueCountsBuilder.addValue(0);
                 currentPos++;
             }
         }
 
-        return new BulkInferenceRequestItem(inferenceRequest(currentText), shapeBuilder);
+        return new BulkInferenceRequestItem(inferenceRequest(currentText), positionValueCountsBuilder);
     }
 
     /**

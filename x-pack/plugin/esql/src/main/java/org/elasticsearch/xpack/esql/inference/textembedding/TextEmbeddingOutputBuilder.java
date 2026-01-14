@@ -40,10 +40,10 @@ class TextEmbeddingOutputBuilder implements OutputBuilder {
     /**
      * Builds the output page by converting inference responses into a {@link FloatBlock}.
      * <p>
-     * The shape array in each response determines how output values are distributed across rows:
+     * The position value counts in each response determine how output values are distributed across rows:
      * <ul>
-     *   <li>shape[i] = 0: produces a null value for row i (no embedding)</li>
-     *   <li>shape[i] = 1: produces one embedding vector for row i</li>
+     *   <li>positionValueCounts[i] = 0: produces a null value for row i (no embedding)</li>
+     *   <li>positionValueCounts[i] = 1: produces one embedding vector for row i</li>
      * </ul>
      * Each embedding vector is stored as a multi-valued entry in the output block.
      *
@@ -65,7 +65,7 @@ class TextEmbeddingOutputBuilder implements OutputBuilder {
     }
 
     private int dimensionCount(BulkInferenceResponseItem response) {
-        if (response == null || response.shape() == null || response.inferenceResponse() == null) {
+        if (response == null || response.positionValueCounts() == null || response.inferenceResponse() == null) {
             return 0;
         }
 
@@ -88,19 +88,19 @@ class TextEmbeddingOutputBuilder implements OutputBuilder {
     /**
      * Appends embeddings from a single inference response to the output block.
      * <p>
-     * The response shape array determines how embeddings are distributed:
+     * The response's position value counts determine how embeddings are distributed:
      * <ul>
-     *   <li>For each position with shape value 0: appends a null embedding</li>
-     *   <li>For each position with shape value 1: appends the corresponding embedding vector</li>
+     *   <li>For each position with value count 0: appends a null embedding</li>
+     *   <li>For each position with value count 1: appends the corresponding embedding vector</li>
      * </ul>
      *
      * @param builder  The block builder to append to
      * @param response The inference response item containing the embedding results
-     * @throws IllegalStateException if the number of embeddings doesn't match the sum of shape values
+     * @throws IllegalStateException if the number of embeddings doesn't match the sum of position value counts
      */
     private void appendResponseToBlock(FloatBlock.Builder builder, BulkInferenceResponseItem response) {
-        // Handle null responses or null shape
-        if (response == null || response.shape() == null) {
+        // Handle null responses or null position value counts
+        if (response == null || response.positionValueCounts() == null) {
             return;
         }
 
@@ -114,12 +114,12 @@ class TextEmbeddingOutputBuilder implements OutputBuilder {
                 .toArray(float[][]::new);
         }
 
-        // Validate that the number of embeddings matches the expected count from the shape
-        int expectedEmbeddingCount = IntStream.of(response.shape()).sum();
+        // Validate that the number of embeddings matches the expected count from the position value counts
+        int expectedEmbeddingCount = IntStream.of(response.positionValueCounts()).sum();
         if (embeddings != null && embeddings.length != expectedEmbeddingCount) {
             throw new IllegalStateException(
                 format(
-                    "Mismatch between embedding count and shape: expected {} embeddings but got {}",
+                    "Mismatch between embedding count and position value counts: expected {} embeddings but got {}",
                     expectedEmbeddingCount,
                     embeddings.length
                 )
@@ -128,7 +128,7 @@ class TextEmbeddingOutputBuilder implements OutputBuilder {
 
         int currentEmbeddingIndex = 0;
 
-        for (int valueCount : response.shape()) {
+        for (int valueCount : response.positionValueCounts()) {
             if (valueCount == 0) {
                 // No embedding for this position, append a null value to the block
                 builder.appendNull();

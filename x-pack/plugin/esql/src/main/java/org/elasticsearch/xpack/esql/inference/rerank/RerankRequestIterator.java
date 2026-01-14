@@ -33,8 +33,8 @@ import java.util.NoSuchElementException;
  *   <li>Trailing null bundling: Null positions after reaching batch size are bundled with the current batch</li>
  * </ul>
  * <p>
- * The shape array tracks how many documents each position contributes, enabling proper result alignment
- * when scores are returned. For example, a shape of [1, 0, 2, 1] indicates the first position contributed
+ * The position value counts array tracks how many documents each position contributes, enabling proper result alignment
+ * when scores are returned. For example, [1, 0, 2, 1] indicates the first position contributed
  * 1 document, the second contributed none (null/empty), the third contributed 2 documents, and the fourth
  * contributed 1 document.
  */
@@ -51,7 +51,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      */
     private int currentPos = 0;
 
-    private final BulkInferenceRequestItem.ShapeBuilder shapeBuilder;
+    private final BulkInferenceRequestItem.PositionValueCountsBuilder positionValueCountsBuilder;
 
     /**
      * Reusable buffer for reading BytesRef values from the block.
@@ -78,7 +78,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         this.batchSize = batchSize;
         this.totalPositions = textBlock.getPositionCount();
         this.inputBuffer = new ArrayList<>(batchSize);
-        this.shapeBuilder = BulkInferenceRequestItem.shapeBuilder(batchSize);
+        this.positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder(batchSize);
     }
 
     @Override
@@ -96,7 +96,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         fillBatchUpToBatchSize();
         consumeTrailingNullOrEmptyPositions();
 
-        return new BulkInferenceRequestItem(inferenceRequest(inputBuffer), shapeBuilder);
+        return new BulkInferenceRequestItem(inferenceRequest(inputBuffer), positionValueCountsBuilder);
     }
 
     /**
@@ -104,7 +104,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      */
     private void resetBatchState() {
         inputBuffer.clear();
-        shapeBuilder.reset();
+        positionValueCountsBuilder.reset();
     }
 
     /**
@@ -115,7 +115,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         while (inputBuffer.size() < batchSize && currentPos < totalPositions) {
             List<String> inputs = readInputText(currentPos);
             inputBuffer.addAll(inputs);
-            shapeBuilder.addValue(inputs.size());
+            positionValueCountsBuilder.addValue(inputs.size());
             currentPos++;
         }
     }
@@ -129,7 +129,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         while (currentPos < totalPositions) {
             List<String> inputs = readInputText(currentPos);
             if (inputs.isEmpty()) {
-                shapeBuilder.addValue(0);
+                positionValueCountsBuilder.addValue(0);
                 currentPos++;
             } else {
                 break;

@@ -30,10 +30,10 @@ import static org.hamcrest.Matchers.equalTo;
  * These tests verify:
  * <ul>
  *   <li>Score block creation and insertion at the correct channel</li>
- *   <li>Null position handling (shape value 0 produces null scores)</li>
+ *   <li>Null position handling (value count 0 produces null scores)</li>
  *   <li>Multi-valued position handling (aggregates multiple scores per position)</li>
  *   <li>Batched response processing</li>
- *   <li>Score-to-shape validation</li>
+ *   <li>Score-to-position value counts validation</li>
  * </ul>
  */
 public class RerankOutputBuilderTests extends ComputeTestCase {
@@ -64,10 +64,10 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
             // Mix null and non-null responses
             if (randomBoolean()) {
-                // Null response with shape [0]
+                // Null response with position value counts [0]
                 responses.add(new BulkInferenceResponseItem(null, new int[] { 0 }, currentPos));
             } else {
-                // Regular response with shape [1]
+                // Regular response with position value counts [1]
                 RankedDocsResults results = createRankedDocsResults(1, currentPos);
                 InferenceAction.Response response = new InferenceAction.Response(results);
                 responses.add(new BulkInferenceResponseItem(response, new int[] { 1 }, currentPos));
@@ -85,7 +85,7 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
             // Verify score block is at the correct channel
             DoubleBlock scoreBlock = outputPage.getBlock(scoreChannel);
             for (int pos = 0; pos < responses.size(); pos++) {
-                if (responses.get(pos).inferenceResponse() == null || responses.get(pos).shape()[0] == 0) {
+                if (responses.get(pos).inferenceResponse() == null || responses.get(pos).positionValueCounts()[0] == 0) {
                     assertTrue(scoreBlock.isNull(pos));
                 } else {
                     assertFalse(scoreBlock.isNull(pos));
@@ -110,13 +110,13 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
         while (currentPos < size) {
             int itemsInBatch = Math.min(batchSize, size - currentPos);
 
-            // Create shape array: one value per item in batch
-            int[] shape = new int[itemsInBatch];
-            Arrays.fill(shape, 1); // Each position contributes 1 document
+            // Create position value counts array: one value per item in batch
+            int[] positionValueCounts = new int[itemsInBatch];
+            Arrays.fill(positionValueCounts, 1); // Each position contributes 1 document
 
             RankedDocsResults results = createRankedDocsResults(itemsInBatch, currentPos);
             InferenceAction.Response response = new InferenceAction.Response(results);
-            responses.add(new BulkInferenceResponseItem(response, shape, currentPos));
+            responses.add(new BulkInferenceResponseItem(response, positionValueCounts, currentPos));
 
             currentPos += itemsInBatch;
         }
@@ -254,11 +254,11 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
 
         RankedDocsResults results = new RankedDocsResults(rankedDocs);
         InferenceAction.Response response = new InferenceAction.Response(results);
-        int[] shape = new int[batchSize];
+        int[] positionValueCounts = new int[batchSize];
         for (int i = 0; i < batchSize; i++) {
-            shape[i] = 1;
+            positionValueCounts[i] = 1;
         }
-        responses.add(new BulkInferenceResponseItem(response, shape, 0));
+        responses.add(new BulkInferenceResponseItem(response, positionValueCounts, 0));
 
         try (Page outputPage = outputBuilder.buildOutputPage(inputPage, responses)) {
             DoubleBlock scoreBlock = outputPage.getBlock(scoreChannel);
@@ -276,7 +276,7 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
     }
 
     /**
-     * Tests that multi-valued positions (shape value > 1) are handled correctly
+     * Tests that multi-valued positions (value count > 1) are handled correctly
      * by aggregating multiple scores using max aggregation.
      */
     public void testBuildOutputWithMultiValuedPositions() throws Exception {
@@ -286,7 +286,7 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
         RerankOutputBuilder outputBuilder = new RerankOutputBuilder(blockFactory(), scoreChannel);
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
-        // Create a response with shape [2, 1, 3] representing:
+        // Create a response with position value counts [2, 1, 3] representing:
         // Position 0: 2 documents → should get max of first 2 scores
         // Position 1: 1 document → should get the next score
         // Position 2: 3 documents → should get max of last 3 scores
@@ -300,8 +300,8 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
 
         RankedDocsResults results = new RankedDocsResults(rankedDocs);
         InferenceAction.Response response = new InferenceAction.Response(results);
-        int[] shape = new int[] { 2, 1, 3 };
-        responses.add(new BulkInferenceResponseItem(response, shape, 0));
+        int[] positionValueCounts = new int[] { 2, 1, 3 };
+        responses.add(new BulkInferenceResponseItem(response, positionValueCounts, 0));
 
         try (Page outputPage = outputBuilder.buildOutputPage(inputPage, responses)) {
             DoubleBlock scoreBlock = outputPage.getBlock(scoreChannel);
@@ -317,7 +317,7 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
     }
 
     /**
-     * Tests that a mismatch between score count and shape sum throws an exception.
+     * Tests that a mismatch between score count and position value counts sum throws an exception.
      */
     public void testShapeValidationThrowsOnMismatch() throws Exception {
         final int scoreChannel = 0;
@@ -325,7 +325,7 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
         try (Page inputPage = randomInputPage(2, 1)) {
             RerankOutputBuilder outputBuilder = new RerankOutputBuilder(blockFactory(), scoreChannel);
 
-            // Create response with 3 scores but shape [1, 1] (sum = 2)
+            // Create response with 3 scores but position value counts [1, 1] (sum = 2)
             List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
             rankedDocs.add(new RankedDocsResults.RankedDoc(0, 0.5f, "doc_0"));
             rankedDocs.add(new RankedDocsResults.RankedDoc(1, 0.6f, "doc_1"));
@@ -333,28 +333,31 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
 
             RankedDocsResults results = new RankedDocsResults(rankedDocs);
             InferenceAction.Response response = new InferenceAction.Response(results);
-            int[] shape = new int[] { 1, 1 }; // Sum is 2, but we have 3 scores
-            List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(response, shape, 0));
+            int[] positionValueCounts = new int[] { 1, 1 }; // Sum is 2, but we have 3 scores
+            List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(response, positionValueCounts, 0));
 
             IllegalStateException exception = expectThrows(
                 IllegalStateException.class,
                 () -> outputBuilder.buildOutputPage(inputPage, responses)
             );
-            assertThat(exception.getMessage(), equalTo("Mismatch between score count and shape: expected 2 scores but got 3"));
+            assertThat(
+                exception.getMessage(),
+                equalTo("Mismatch between score count and position value counts: expected 2 scores but got 3")
+            );
         }
 
         allBreakersEmpty();
     }
 
     /**
-     * Tests that positions with mixed shape values (including zeros) are handled correctly.
+     * Tests that positions with mixed position value counts (including zeros) are handled correctly.
      */
     public void testBuildOutputWithMixedShapeValues() throws Exception {
         final int scoreChannel = 1;
         final Page inputPage = randomInputPage(4, 2);
 
         RerankOutputBuilder outputBuilder = new RerankOutputBuilder(blockFactory(), scoreChannel);
-        // Shape [1, 0, 2, 0] representing: doc, null, multi-valued, null
+        // Position value counts [1, 0, 2, 0] representing: doc, null, multi-valued, null
         List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
         rankedDocs.add(new RankedDocsResults.RankedDoc(0, 0.5f, "doc_0"));
         rankedDocs.add(new RankedDocsResults.RankedDoc(1, 0.7f, "doc_2_0"));
@@ -362,8 +365,8 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
 
         RankedDocsResults results = new RankedDocsResults(rankedDocs);
         InferenceAction.Response response = new InferenceAction.Response(results);
-        int[] shape = new int[] { 1, 0, 2, 0 };
-        List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(response, shape, 0));
+        int[] positionValueCounts = new int[] { 1, 0, 2, 0 };
+        List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(response, positionValueCounts, 0));
 
         try (Page outputPage = outputBuilder.buildOutputPage(inputPage, responses)) {
             DoubleBlock scoreBlock = outputPage.getBlock(scoreChannel);
@@ -371,12 +374,12 @@ public class RerankOutputBuilderTests extends ComputeTestCase {
             assertFalse(scoreBlock.isNull(0));
             assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(0)), equalTo((double) 0.5f));
 
-            assertTrue(scoreBlock.isNull(1)); // Position with shape 0
+            assertTrue(scoreBlock.isNull(1)); // Position with value count 0
 
             assertFalse(scoreBlock.isNull(2));
             assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(2)), equalTo((double) 0.7f)); // max(0.7, 0.6)
 
-            assertTrue(scoreBlock.isNull(3)); // Position with shape 0
+            assertTrue(scoreBlock.isNull(3)); // Position with value count 0
         }
 
         allBreakersEmpty();

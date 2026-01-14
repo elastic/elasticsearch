@@ -58,6 +58,6 @@
   "examples" : [
     "from colors metadata _score\n| where knn(rgb_vector, [0, 120, 0])\n| sort _score desc, color asc"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

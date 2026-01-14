@@ -231,9 +231,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/138311
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/138319

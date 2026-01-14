@@ -256,7 +256,7 @@ public class SharedBytes extends AbstractRefCounted {
             final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
             buffer.put(zeroes, 0, adjustment);
         }
-        assert buffer.position() % PAGE_SIZE == 0;
+        assert buffer.position() % PAGE_SIZE == 0 : "write is not page aligned, got " + buffer.position();
         return positionalWrite(fc, fileChannelPos, buffer);
     }
 

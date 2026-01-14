@@ -59,6 +59,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 @Fork(1)
 @Warmup(iterations = 5)
@@ -121,7 +122,8 @@ public class QueryPlanningBenchmark {
                 Map.of(),
                 new EnrichResolution(),
                 InferenceResolution.EMPTY,
-                minimumVersion
+                minimumVersion,
+                UNMAPPED_FIELDS.defaultValue()
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );

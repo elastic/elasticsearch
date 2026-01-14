@@ -27,6 +27,7 @@ public class MvFunctionWritables {
             MvMedian.ENTRY,
             MvMedianAbsoluteDeviation.ENTRY,
             MvMin.ENTRY,
+            MvOverlaps.ENTRY,
             MvPercentile.ENTRY,
             MvPSeriesWeightedSum.ENTRY,
             MvSlice.ENTRY,

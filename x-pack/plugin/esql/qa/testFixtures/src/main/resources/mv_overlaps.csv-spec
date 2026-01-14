@@ -1,0 +1,90 @@
+mvOverlaps
+required_capability: fn_mv_overlaps_v1
+// tag::mv_overlaps[]
+ROW set = ["a", "b", "c"], element = "a"
+| EVAL set_overlaps_element = mv_overlaps(set, element)
+// end::mv_overlaps[]
+;
+
+// tag::mv_overlaps-result[]
+set:keyword | element:keyword | set_overlaps_element:boolean 
+[a, b, c]   | a               | true         
+// end::mv_overlaps-result[]
+;
+
+mvOverlaps_bothsides
+required_capability: fn_mv_overlaps_v1
+// tag::mv_overlaps_bothsides[]
+ROW setA = ["a","c"], setB = ["a", "b", "c"]
+| EVAL a_overlaps_b = mv_overlaps(setB, setA)
+| EVAL b_overlaps_a = mv_overlaps(setA, setB)
+// end::mv_overlaps_bothsides[]
+;
+
+// tag::mv_overlaps_bothsides-result[]
+setA:keyword | setB:keyword | a_overlaps_b:boolean | b_overlaps_a:boolean 
+[a, c]       | [a, b, c]    | true                  | true
+// end::mv_overlaps_bothsides-result[]
+;
+
+mvOverlapsCombinations
+required_capability: fn_mv_overlaps_v1
+
+ROW a = "a", b = ["a", "b", "c"], n = null
+| EVAL aa = mv_overlaps(a, a), 
+       bb = mv_overlaps(b, b), 
+       ab = mv_overlaps(a, b), 
+       ba = mv_overlaps(b,a), 
+       na = mv_overlaps(n, a), 
+       an = mv_overlaps(a, n), 
+       nn = mv_overlaps(n,n)
+;
+
+a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boolean | na:boolean | an:boolean | nn:boolean
+a         | [a, b, c] | null   | true       | true         | true       | true       | false      | false      | false
+;
+
+mvOverlapsCombinations_multirow
+required_capability: fn_mv_overlaps_v1
+
+ROW row_number = [0,1,2,3,4,5], element = "e", n = null, emptyStringSet = [""], setA = ["b","d"], setB = ["a", "c", "e"]
+| MV_EXPAND row_number
+| EVAL set = CASE(
+                    row_number == 0, ["a","e"],
+                    row_number == 1, ["b","d"],
+                    row_number == 2, null,
+                    row_number == 3, ["a","e","c","b","d"], 
+                    row_number == 4, ["a","d","c","b","e"],
+                    row_number == 5, ["a","d","c","b","","e"],
+                  null) 
+| EVAL overlaps_element         = mv_overlaps(set, element), 
+       overlaps_null            = mv_overlaps(set, n), 
+       overlaps_emptyStringSet  = mv_overlaps(set, emptyStringSet), 
+       overlaps_setA            = mv_overlaps(set, setA), 
+       overlaps_setB            = mv_overlaps(set, setB) 
+;
+
+row_number:INTEGER | element:keyword | n:null | emptyStringSet:keyword | setA:keyword | setB:keyword    | set:keyword              | overlaps_element:boolean | overlaps_null:boolean | overlaps_emptyStringSet:boolean | overlaps_setA:boolean | overlaps_setB:boolean
+0                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","e"]                | true                     | false                 | false                           | false                 | true       
+1                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["b","d"]                | false                    | false                 | false                           | true                  | false    
+2                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | null                     | false                    | false                 | false                           | false                 | false    
+3                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","e","c","b","d"]    | true                     | false                 | false                           | true                  | true    
+4                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","e"]    | true                     | false                 | false                           | true                  | true    
+5                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","","e"] | true                     | false                 | true                            | true                  | true    
+;
+
+mvOverlaps_where
+required_capability: fn_mv_overlaps_v1
+// tag::mv_overlaps_where[]
+FROM airports
+| WHERE mv_overlaps(type, ["major"]) AND scalerank == 9
+| KEEP scalerank, name, country
+// end::mv_overlaps_where[]
+;
+
+// tag::mv_overlaps_where-result[]
+scalerank:integer | name:text        | country:keyword  
+9                 | Chandigarh Int'l | India
+9                 | Cheongju Int'l   | South Korea
+// end::mv_overlaps_where-result[]
+;

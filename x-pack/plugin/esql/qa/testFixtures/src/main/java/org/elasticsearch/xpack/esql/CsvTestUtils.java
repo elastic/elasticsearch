@@ -492,7 +492,7 @@ public final class CsvTestUtils {
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
         DATE_RANGE(EsqlDataTypeConverter::parseDateRange, LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
-        NULL(s -> null, Void.class),
+        NULL(s -> s, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
             (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),

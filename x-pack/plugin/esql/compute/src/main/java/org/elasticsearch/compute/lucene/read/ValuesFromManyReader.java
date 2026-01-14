@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -49,15 +50,8 @@ class ValuesFromManyReader extends ValuesReader {
         }
     }
 
-    private record BlockBuilderAndLoader(Block.Builder builder, BlockLoader loader) implements Releasable {
-        @Override
-        public void close() {
-            builder.close();
-        }
-    }
-
     class Run implements Releasable {
-        private final ComputeBlockLoaderFactory blockFactory = new ComputeBlockLoaderFactory(operator.blockFactory);
+        private final ComputeBlockLoaderFactory blockFactory = new ComputeBlockLoaderFactory(operator.driverContext.blockFactory());
         private final Block[] target;
         /**
          * The "final" builder for the block we're going to return. See {@link #current} for
@@ -76,13 +70,13 @@ class ValuesFromManyReader extends ValuesReader {
          *     shard again.
          * </p>
          */
-        private final BlockBuilderAndLoader[] current;
+        private final CurrentWork[] current;
         private int currentShard = -1;
 
         Run(Block[] target) {
             this.target = target;
             finalBuilders = new Block.Builder[target.length];
-            current = new BlockBuilderAndLoader[target.length];
+            current = new CurrentWork[target.length];
         }
 
         void run(int offset) throws IOException {
@@ -94,7 +88,8 @@ class ValuesFromManyReader extends ValuesReader {
                  * (one for each field and shard), and converters (again one for each field and shard) to actually perform the field
                  * loading in a way that is correct for the mapped field type, and then convert between that type and the desired type.
                  */
-                finalBuilders[f] = operator.fields[f].info.type().newBlockBuilder(docs.getPositionCount(), operator.blockFactory);
+                finalBuilders[f] = operator.fields[f].info.type()
+                    .newBlockBuilder(docs.getPositionCount(), operator.driverContext.blockFactory());
             }
             int p = forwards[offset];
             int shard = docs.shards().getInt(p);
@@ -128,7 +123,7 @@ class ValuesFromManyReader extends ValuesReader {
                 for (Block b : target) {
                     actual += b.ramBytesUsed();
                 }
-                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p, estimated, actual);
+                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p + 1, estimated, actual);
             }
         }
 
@@ -196,13 +191,13 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         private void convertAndAccumulate() {
-            for (int f = 0; f < current.length; f++) {
-                try (Block orig = (Block) current[f].loader.convert(current[f].builder.build())) {
-                    finalBuilders[f].copyFrom(orig, 0, orig.getPositionCount());
+            for (CurrentWork currentWork : current) {
+                try {
+                    currentWork.convertAndAccumulate();
                 } finally {
-                    current[f].close();
+                    currentWork.close();
                     /*
-                     * Calling current[f].close() here is redundant. Once you call
+                     * Calling currentWork.close() here is redundant. Once you call
                      * `BlockBuilder#build`, `BlockBuilder#close` becomes a noop. Safe to call
                      * but not required. But calling it is more idiomatic, so we do it.
                      *
@@ -221,10 +216,52 @@ class ValuesFromManyReader extends ValuesReader {
         private void moveBuildersAndLoadersToShard() {
             for (int f = 0; f < operator.fields.length; f++) {
                 // NOTE: This relies on the operator.fields being positioned on the new shard.
-                current[f] = new BlockBuilderAndLoader(
-                    (Block.Builder) operator.fields[f].loader.builder(blockFactory, docs.getPositionCount()),
-                    operator.fields[f].loader
-                );
+                current[f] = new CurrentWork(blockFactory, docs, operator.fields[f], finalBuilders[f]);
+            }
+        }
+    }
+
+    /**
+     * Work for a single field for the current segment. If there's a conversion, then this contains
+     * a "scratch" builder and {@link #convertAndAccumulate} accumulates the scratch builder into
+     * the {@link #finalBuilder}. If there isn't a conversion then this accumulates directly into
+     * the {@link #finalBuilder} immediately.
+     */
+    private static class CurrentWork implements Releasable {
+        private final Block.Builder builder;
+        @Nullable
+        private final ValuesSourceReaderOperator.ConverterEvaluator converter;
+        private final Block.Builder finalBuilder;
+
+        CurrentWork(
+            ComputeBlockLoaderFactory blockFactory,
+            DocVector docs,
+            ValuesSourceReaderOperator.FieldWork field,
+            Block.Builder finalBuilder
+        ) {
+            this.converter = field.converter;
+            this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
+            this.finalBuilder = finalBuilder;
+        }
+
+        void convertAndAccumulate() {
+            if (converter == null) {
+                // We built directly into the final block so there isn't any need to convert anything
+                return;
+            }
+            try (Block orig = converter.convert(builder.build())) {
+                finalBuilder.copyFrom(orig, 0, orig.getPositionCount());
+            }
+        }
+
+        @Override
+        public void close() {
+            if (converter != null) {
+                /*
+                 * If there *isn't* a converter than the `builder` is just the final builder
+                 * and it's closed by the Run.
+                 */
+                builder.close();
             }
         }
     }

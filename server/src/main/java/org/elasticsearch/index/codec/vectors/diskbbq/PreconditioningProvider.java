@@ -65,7 +65,7 @@ public class PreconditioningProvider {
         }
 
         // TODO: write Panama version of this
-        static void modifiedGramSchmidt(float[][] m) {
+        private static void modifiedGramSchmidt(float[][] m) {
             assert m.length == m[0].length;
             int dim = m.length;
             for (int i = 0; i < dim; i++) {

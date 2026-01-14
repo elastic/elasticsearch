@@ -389,18 +389,18 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public void createPreconditioner(int dimension) {
+    protected void createPreconditioner(int dimension) {
         // no-op
     }
 
     @Override
-    public FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
+    protected FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
         // no-op
         return vectors;
     }
 
     @Override
-    public List<float[]> preconditionVectors(List<float[]> vectors) {
+    protected List<float[]> preconditionVectors(List<float[]> vectors) {
         // no-op
         return vectors;
     }

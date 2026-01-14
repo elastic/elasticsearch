@@ -110,7 +110,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public List<float[]> preconditionVectors(List<float[]> vectors) {
+    protected List<float[]> preconditionVectors(List<float[]> vectors) {
         if (doPrecondition == false) {
             return vectors;
         }
@@ -122,7 +122,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
+    protected FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
         if (doPrecondition == false) {
             return vectors;
         }

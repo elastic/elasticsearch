@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -154,6 +154,51 @@ public class PreconditioningProvider {
 
             return permutationMatrix;
         }
+
+        public byte[] toByteArray() throws IOException {
+            int rem = blockDim();
+            float[][][] blocks = blocks();
+            int[][] permutationMatrix = permutationMatrix();
+            int blockDim = blockDim();
+            if (blocks[blocks.length - 1].length != blockDim) {
+                rem = blocks[blocks.length - 1].length;
+            }
+
+            final ByteBuffer blockBuffer = ByteBuffer.allocate(
+                (blocks.length - 1) * blockDim * blockDim * Float.BYTES + rem * rem * Float.BYTES
+            ).order(ByteOrder.LITTLE_ENDIAN);
+
+            int permutationMatrixSize = 0;
+            for (int i = 0; i < permutationMatrix.length; i++) {
+                permutationMatrixSize += permutationMatrix[i].length;
+            }
+
+            byte[] bytes = new byte[4 * 4 + blockBuffer.array().length + 4 * permutationMatrix.length + 4 * permutationMatrixSize];
+            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+
+            out.writeInt(blocks.length);
+            out.writeInt(blockDim);
+            out.writeInt(rem);
+            out.writeInt(permutationMatrix.length);
+
+            FloatBuffer floatBuffer = blockBuffer.asFloatBuffer();
+            for (int i = 0; i < blocks.length; i++) {
+                for (int j = 0; j < blocks[i].length; j++) {
+                    floatBuffer.put(blocks[i][j]);
+                }
+            }
+            out.writeBytes(blockBuffer.array(), blockBuffer.array().length);
+
+            for (int i = 0; i < permutationMatrix.length; i++) {
+                out.writeInt(permutationMatrix[i].length);
+                final ByteBuffer permBuffer = ByteBuffer.allocate(permutationMatrix[i].length * Integer.BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN);
+                permBuffer.asIntBuffer().put(permutationMatrix[i]);
+                out.writeBytes(permBuffer.array(), permBuffer.array().length);
+            }
+
+            return bytes;
+        }
     }
 
     public static Preconditioner createPreconditioner(int vectorDimension, int blockDimension) {
@@ -171,39 +216,6 @@ public class PreconditioningProvider {
         }
         int[][] permutationMatrix = Preconditioner.createPermutationMatrixRandomly(vectorDimension, dimBlocks, random);
         return new Preconditioner(blockDimension, permutationMatrix, blocks);
-    }
-
-    public static void write(Preconditioner preconditioner, IndexOutput out) throws IOException {
-        int rem = preconditioner.blockDim();
-        float[][][] blocks = preconditioner.blocks();
-        int[][] permutationMatrix = preconditioner.permutationMatrix();
-        int blockDim = preconditioner.blockDim();
-        if (blocks[blocks.length - 1].length != blockDim) {
-            rem = blocks[blocks.length - 1].length;
-        }
-
-        out.writeInt(blocks.length);
-        out.writeInt(blockDim);
-        out.writeInt(rem);
-        out.writeInt(permutationMatrix.length);
-
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(
-            (blocks.length - 1) * blockDim * blockDim * Float.BYTES + rem * rem * Float.BYTES
-        ).order(ByteOrder.LITTLE_ENDIAN);
-        FloatBuffer floatBuffer = blockBuffer.asFloatBuffer();
-        for (int i = 0; i < blocks.length; i++) {
-            for (int j = 0; j < blocks[i].length; j++) {
-                floatBuffer.put(blocks[i][j]);
-            }
-        }
-        out.writeBytes(blockBuffer.array(), blockBuffer.array().length);
-
-        for (int i = 0; i < permutationMatrix.length; i++) {
-            out.writeInt(permutationMatrix[i].length);
-            final ByteBuffer permBuffer = ByteBuffer.allocate(permutationMatrix[i].length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-            permBuffer.asIntBuffer().put(permutationMatrix[i]);
-            out.writeBytes(permBuffer.array(), permBuffer.array().length);
-        }
     }
 
     public static Preconditioner read(IndexInput input) throws IOException {

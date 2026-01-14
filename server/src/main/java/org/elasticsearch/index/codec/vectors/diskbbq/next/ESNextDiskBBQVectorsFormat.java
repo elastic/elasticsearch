@@ -76,7 +76,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MIN_PRECONDITIONING_BLOCK_DIMS = 8;
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
-    public static final String PRECONDITIONING_EXTENSION = "pivf";
 
     public enum QuantEncoding {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
@@ -220,15 +219,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
-    private final int dimensions;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(0, QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
+        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
-    public ESNextDiskBBQVectorsFormat(int dimensions, QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
+    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
         this(
-            dimensions,
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -240,7 +237,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     }
 
     public ESNextDiskBBQVectorsFormat(
-        int dimensions,
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -283,7 +279,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             );
         }
 
-        this.dimensions = dimensions;
         this.quantEncoding = quantEncoding;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -313,7 +308,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
-            dimensions,
             preconditioningBlockDimension,
             doPrecondition
         );

@@ -146,6 +146,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
+            preconditionQuery(context);
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
@@ -210,6 +211,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio
         );
     }
+
+    abstract void preconditionQuery(LeafReaderContext context) throws IOException;
 
     abstract TopDocs approximateSearch(
         LeafReaderContext context,

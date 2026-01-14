@@ -2266,15 +2266,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             this.passedMergingExecutorService = mergingExecutorService;
             this.passedNumMergeWorkers = numMergeWorkers;
-            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, dimensions);
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
         }
 
         @Override

@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_DIMENSIONS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
@@ -72,20 +71,17 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     @Before
     @Override
     public void setUp() throws Exception {
-        int dims = random().nextInt(8, MAX_DIMENSIONS);
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
             ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
         )];
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
-                dims,
                 encoding,
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER)
             );
         } else if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
-                dims,
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -97,7 +93,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         } else {
             // run with low numbers to force many clusters with parents
             format = new ESNextDiskBBQVectorsFormat(
-                dims,
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8)

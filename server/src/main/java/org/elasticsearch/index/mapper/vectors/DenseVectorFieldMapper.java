@@ -1395,12 +1395,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.type = type;
         }
 
-        abstract KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        );
+        abstract KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers);
 
         public boolean validate(ElementType elementType, int dim, boolean throwOnError) {
             return validateElementType(elementType, throwOnError) && validateDimension(dim, throwOnError);
@@ -1817,12 +1812,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 7, false);
         }
@@ -1870,12 +1860,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             return new ES93FlatVectorFormat(elementType);
         }
 
@@ -1923,12 +1908,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2023,12 +2003,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 4, true);
         }
@@ -2101,12 +2076,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2221,12 +2191,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             return new ES93HnswVectorsFormat(m, efConstruction, elementType, numMergeWorkers, mergingExecutorService);
         }
 
@@ -2299,12 +2264,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswBinaryQuantizedVectorsFormat(
                 m,
@@ -2376,12 +2336,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93BinaryQuantizedVectorsFormat(elementType, false);
         }
@@ -2454,12 +2409,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int dimensions
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)) {
                 // if we got here, this means we didn't get the plugin installed, so we should throw an exception
@@ -2471,7 +2421,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (Build.current().isSnapshot()) {
                 return new ESNextDiskBBQVectorsFormat(
-                    dimensions,
                     ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
@@ -2981,10 +2930,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
 
-                // FIXME: add a boolean for preconditioning
-                boolean doPrecondition = true;
-                if (doPrecondition) {
-                }
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -3372,8 +3317,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    elementType,
-                    fieldType().getVectorDimensions()
+                    elementType
                 );
                 if (extraKnnFormat != null) {
                     break;
@@ -3381,7 +3325,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             format = extraKnnFormat != null
                 ? extraKnnFormat
-                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers, fieldType().getVectorDimensions());
+                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers);
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

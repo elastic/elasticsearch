@@ -9,11 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -25,7 +23,6 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
@@ -65,10 +62,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
-    private final int dimension;
     private final int blockDimension;
     private final boolean doPrecondition;
-    private final IndexOutput ivfPreConditioning;
     private PreconditioningProvider.Preconditioner preconditioner;
 
     public ESNextDiskBBQVectorsWriter(
@@ -79,7 +74,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
-        int dimension,
         int blockDimension,
         boolean doPrecondition
     ) throws IOException {
@@ -87,47 +81,36 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = encoding;
-        this.dimension = dimension;
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
-
-        String preconditioningFileName = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ESNextDiskBBQVectorsFormat.PRECONDITIONING_EXTENSION
-        );
-        ivfPreConditioning = state.directory.createOutput(preconditioningFileName, state.context);
-        CodecUtil.writeIndexHeader(
-            ivfPreConditioning,
-            ESNextDiskBBQVectorsFormat.NAME,
-            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
-            state.segmentInfo.getId(),
-            state.segmentSuffix
-        );
     }
 
     @Override
-    public boolean createPreconditioner() throws IOException {
-        if (doPrecondition) {
+    protected void createPreconditioner(int dimension) {
+        if (doPrecondition && this.preconditioner == null) {
             this.preconditioner = PreconditioningProvider.createPreconditioner(dimension, blockDimension);
         }
+    }
 
-        ivfPreConditioning.alignFilePointer(Float.BYTES);
+    private void writePreconditioner(IndexOutput out) throws IOException {
         if (preconditioner != null) {
-            ivfPreConditioning.writeByte((byte) 1);
-            PreconditioningProvider.write(preconditioner, ivfPreConditioning);
+            byte[] data = preconditioner.toByteArray();
+            out.writeInt(data.length);
+            out.writeBytes(data, data.length);
         } else {
-            ivfPreConditioning.writeByte((byte) 0);
+            out.writeInt(0);
         }
-
-        return this.preconditioner != null;
     }
 
     @Override
     public List<float[]> preconditionVectors(List<float[]> vectors) {
-        if (doPrecondition && preconditioner != null) {
-            vectors.replaceAll(floats -> preconditioner.applyTransform(floats));
+        if (doPrecondition == false) {
+            return vectors;
         }
+        if (preconditioner == null) {
+            throw new IllegalStateException("preconditioner was not created but should be first");
+        }
+        vectors.replaceAll(floats -> preconditioner.applyTransform(floats));
         return vectors;
     }
 
@@ -484,6 +467,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
         metaOutput.writeInt(quantEncoding.id());
+        writePreconditioner(metaOutput);
     }
 
     @Override
@@ -672,18 +656,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
         assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
         indexOutput.writeShort((short) corrections.quantizedComponentSum());
-    }
-
-    @Override
-    public void doFinish() throws IOException {
-        if (ivfPreConditioning != null) {
-            CodecUtil.writeFooter(ivfPreConditioning);
-        }
-    }
-
-    @Override
-    public void doClose() throws IOException {
-        IOUtils.close(ivfPreConditioning);
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {

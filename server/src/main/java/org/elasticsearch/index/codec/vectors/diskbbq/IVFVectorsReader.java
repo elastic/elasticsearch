@@ -37,6 +37,7 @@ import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.IVF_META_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
 /**
@@ -64,14 +66,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
         this.genericReaders = new GenericFlatVectorReaders();
-        String meta = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
-        );
+        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, IVF_META_EXTENSION);
 
         int versionMeta = -1;
-        try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
+        try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta);) {
             Throwable priorE = null;
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
@@ -90,14 +88,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
             ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
-            doInitExtraFiles(state, versionMeta, fieldInfos);
+            initAdditionalInputs(state, versionMeta);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
     }
 
-    protected abstract void doInitExtraFiles(SegmentReadState state, int versionMeta, FieldInfos fieldInfo) throws IOException;
+    protected abstract void initAdditionalInputs(SegmentReadState state, int versionMeta) throws IOException;
 
     public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
@@ -265,8 +263,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return getReaderForField(field).getByteVectorValues(field);
     }
 
-    protected abstract float[] preconditionVector(FieldInfo fieldInfo, float[] vector) throws IOException;
-
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -309,8 +305,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
-
-        target = preconditionVector(fieldInfo, target);
 
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
@@ -389,15 +383,15 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
-    protected abstract List<IndexInput> getAdditionalCloseables();
-
     @Override
     public void close() throws IOException {
         List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
-        closeables.addAll(getAdditionalCloseables());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
+        closeables.addAll(getAdditionalCloseables());
         IOUtils.close(closeables);
     }
+
+    protected abstract Collection<Closeable> getAdditionalCloseables();
 
     protected static class FieldEntry implements GenericFlatVectorReaders.Field {
         protected final String rawVectorFormatName;

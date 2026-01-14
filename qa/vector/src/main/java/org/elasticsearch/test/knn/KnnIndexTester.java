@@ -28,7 +28,6 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
@@ -53,9 +52,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.management.ThreadInfo;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -133,35 +129,14 @@ public class KnnIndexTester {
                 );
             };
 
-            // get the actual dims
-            int dims = args.dimensions();
-            if (dims == -1) {
-                Path docsPath = docsPaths.getFirst();
-                try (FileChannel in = FileChannel.open(docsPath)) {
-                    ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-                    int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
-                    if (bytesRead < 4) {
-                        long docsPathSizeInBytes = in.size();
-                        throw new IllegalArgumentException(
-                            "docsPath \"" + docsPath + "\" does not contain a valid dims?  size=" + docsPathSizeInBytes
-                        );
-                    }
-                    dims = preamble.getInt(0);
-                    if (dims <= 0) {
-                        throw new IllegalArgumentException("docsPath \"" + docsPath + "\" has invalid dimension: " + dims);
-                    }
-                }
-            }
-
             format = new ESNextDiskBBQVectorsFormat(
-                dims,
                 encoding,
                 args.ivfClusterSize(),
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 args.onDiskRescore(),
                 args.doPrecondition(),
-                args.preconditioningDims()
+                args.preconditioningBlockDims()
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {

@@ -378,15 +378,14 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public boolean createPreconditioner() throws IOException {
+    public void createPreconditioner(int dimension) {
         // no-op
-        return false;
     }
 
     @Override
-    public FloatVectorValues preconditionVectors(FloatVectorValues floatVectorValues) throws IOException {
+    public FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
         // no-op
-        return floatVectorValues;
+        return vectors;
     }
 
     @Override
@@ -559,16 +558,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
         assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
         indexOutput.writeShort((short) corrections.quantizedComponentSum());
-    }
-
-    @Override
-    public void doFinish() throws IOException {
-        // no-op
-    }
-
-    @Override
-    public void doClose() throws IOException {
-        // no-op
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {

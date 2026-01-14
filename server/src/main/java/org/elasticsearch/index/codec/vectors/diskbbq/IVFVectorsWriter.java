@@ -183,18 +183,19 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException;
 
-    public abstract boolean createPreconditioner() throws IOException;
+    protected abstract void createPreconditioner(int dimension);
 
-    public abstract FloatVectorValues preconditionVectors(FloatVectorValues floatVectorValues) throws IOException;
+    protected abstract FloatVectorValues preconditionVectors(FloatVectorValues vectors);
 
-    public abstract List<float[]> preconditionVectors(List<float[]> vectors);
+    protected abstract List<float[]> preconditionVectors(List<float[]> vectors);
 
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
-        // build a preconditioner if necessary, only need one given that this writer is tied to a format that has a fixed dim and block dim
-        createPreconditioner();  // create and write preconditioner
         for (FieldWriter fieldWriter : fieldWriters) {
+            // build preconditioner if necessary, only need one given that this writer is tied to a format that has a fixed dim & block dim
+            // write preconditioner when we write the meta file
+            createPreconditioner(fieldWriter.fieldInfo().getVectorDimension());
             if (fieldWriter.delegate == null) {
                 // field is not float, we just write meta information
                 writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null);
@@ -330,7 +331,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
 
             // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
-            createPreconditioner();  // create and write preconditioner
+            createPreconditioner(fieldInfo.getVectorDimension());  // create and write preconditioner in meta file
             mergedFloatVectorValues = preconditionVectors(mergedFloatVectorValues);
 
             // if the segment is dense, we don't need to do anything with docIds.
@@ -527,24 +528,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         if (ivfClusters != null) {
             CodecUtil.writeFooter(ivfClusters);
         }
-        doFinish();
     }
-
-    protected abstract void doFinish() throws IOException;
 
     @Override
     public final void close() throws IOException {
         IOUtils.close(rawVectorDelegate, ivfMeta, ivfCentroids, ivfClusters);
-        doClose();
     }
-
-    protected abstract void doClose() throws IOException;
 
     @Override
     public final long ramBytesUsed() {
         return rawVectorDelegate.ramBytesUsed();
     }
 
-    protected record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
+    private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
 
 }

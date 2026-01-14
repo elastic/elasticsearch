@@ -8,12 +8,17 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,7 +26,8 @@ import java.util.Arrays;
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
-    private final float[] query;
+    private boolean isQueryPreconditioned = false;
+    private float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -72,6 +78,25 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int result = super.hashCode();
         result = 31 * result + Arrays.hashCode(query);
         return result;
+    }
+
+    @Override
+    protected void preconditionQuery(LeafReaderContext context) throws IOException {
+        if (isQueryPreconditioned) {
+            return; // already preconditioned
+        }
+        LeafReader reader = context.reader();
+        KnnVectorsReader fieldsReader = Lucene.segmentReader(reader).getVectorReader();
+        if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
+            KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
+            if (knnVectorsReader instanceof ESNextDiskBBQVectorsReader) {
+                PreconditioningProvider.Preconditioner preconditioner = ((ESNextDiskBBQVectorsReader) knnVectorsReader).getPreconditioner();
+                if (preconditioner != null) {
+                    query = preconditioner.applyTransform(query);
+                    isQueryPreconditioned = true;
+                }
+            }
+        }
     }
 
     @Override

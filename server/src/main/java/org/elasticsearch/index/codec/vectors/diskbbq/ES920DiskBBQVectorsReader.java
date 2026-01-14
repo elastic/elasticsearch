@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
@@ -27,7 +26,9 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
@@ -48,8 +49,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    public void doInitExtraFiles(SegmentReadState state, int version, FieldInfos fieldInfo) throws IOException {
-        // no extra files to init
+    protected void initAdditionalInputs(SegmentReadState state, int versionMeta) throws IOException {
+        // no-op
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
@@ -186,13 +187,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) {
-        // no-op
-        return vector;
-    }
-
-    @Override
-    protected List<IndexInput> getAdditionalCloseables() {
+    protected Collection<Closeable> getAdditionalCloseables() {
         // no-op
         return List.of();
     }

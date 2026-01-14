@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 
 import java.io.IOException;
@@ -51,5 +52,48 @@ public class PreconditioningProviderTests extends LuceneTestCase {
         assertEquals(dim / blockDim + 1, preconditioner.blocks().length);
         assertEquals(Math.min(blockDim, dim), preconditioner.blocks()[0].length);
         assertEquals(Math.min(blockDim, dim), preconditioner.blocks()[0][0].length);
+
+        // verify can be written and read back
+        PreconditioningProvider.read(new IndexInput("test") {
+            byte[] data = preconditioner.toByteArray();
+            int nextByte = 0;
+
+            @Override
+            public void close() throws IOException {
+                // no-op
+            }
+
+            @Override
+            public long getFilePointer() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void seek(long pos) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public byte readByte() throws IOException {
+                return data[nextByte++];
+            }
+
+            @Override
+            public void readBytes(byte[] b, int offset, int len) throws IOException {
+                for (int i = nextByte; i < len; i++) {
+                    b[offset + (i - nextByte)] = data[i];
+                }
+            }
+        });
     }
 }

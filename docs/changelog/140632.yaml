@@ -1,5 +1,0 @@
-pr: 140632
-summary: Make balancer threshold configurable per tier
-area: Allocation
-type: enhancement
-issues: []

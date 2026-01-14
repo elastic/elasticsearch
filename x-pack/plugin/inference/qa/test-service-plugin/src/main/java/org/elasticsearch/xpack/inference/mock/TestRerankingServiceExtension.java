@@ -180,7 +180,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         private RankedDocsResults makeResults(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
-            if (taskSettings.useTextHash) {
+            if (taskSettings.useTextLength) {
                 return makeResultFromTextInput(input, taskSettings);
             }
 
@@ -205,8 +205,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             for (int i = 0; i < input.size(); i++) {
                 float relevanceScore = minScore + resultDiff * (totalResults - i);
                 String inputText = input.get(totalResults - 1 - i);
-                if (taskSettings.useTextHash()) {
-                    relevanceScore = minScore + makeScoreFromTextHash(inputText);
+                if (taskSettings.useTextLength()) {
+                    relevanceScore = 1f / inputText.length();
                 }
                 results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, relevanceScore, inputText));
             }
@@ -217,10 +217,6 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
-        }
-
-        private static float makeScoreFromTextHash(String text) {
-            return Math.abs((float) text.hashCode() / Integer.MAX_VALUE);
         }
 
         @Override
@@ -257,17 +253,17 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(boolean useTextHash, float minScore, float resultDiff) implements TaskSettings {
+    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff) implements TaskSettings {
 
         static final String NAME = "test_reranking_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
-            boolean useTextHash = false;
+            boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
 
-            if (map.containsKey("use_text_hash")) {
-                useTextHash = Boolean.parseBoolean(map.remove("use_text_hash").toString());
+            if (map.containsKey("use_text_length")) {
+                useTextLength = Boolean.parseBoolean(map.remove("use_text_length").toString());
             }
 
             if (map.containsKey("min_score")) {
@@ -278,7 +274,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 resultDiff = Float.parseFloat(map.remove("result_diff").toString());
             }
 
-            return new TestTaskSettings(useTextHash, minScore, resultDiff);
+            return new TestTaskSettings(useTextLength, minScore, resultDiff);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
@@ -292,7 +288,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(useTextHash);
+            out.writeBoolean(useTextLength);
             out.writeFloat(minScore);
             out.writeFloat(resultDiff);
         }
@@ -300,7 +296,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("use_text_hash", useTextHash);
+            builder.field("use_text_length", useTextLength);
             builder.field("min_score", minScore);
             builder.field("result_diff", resultDiff);
             builder.endObject();
@@ -321,7 +317,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
             TestTaskSettings newSettingsObject = fromMap(Map.copyOf(newSettingsMap));
             return new TestTaskSettings(
-                newSettingsMap.containsKey("use_text_hash") ? newSettingsObject.useTextHash() : useTextHash,
+                newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
                 newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
                 newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff
             );

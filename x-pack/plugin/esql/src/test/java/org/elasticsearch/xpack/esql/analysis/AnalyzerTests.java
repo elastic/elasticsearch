@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -4007,7 +4006,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"food"
-                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year
+                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100)
                   WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
@@ -4019,7 +4018,7 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.queryText(), equalTo(string("food")));
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
 
-            assertThat(rerank.rerankFields(), hasSize(3));
+            assertThat(rerank.rerankFields(), hasSize(2));
             Attribute titleAttribute = getAttributeByName(relation.output(), "title");
             assertThat(titleAttribute, notNullValue());
             assertThat(rerank.rerankFields().get(0), equalToIgnoringIds(alias("title", titleAttribute)));
@@ -4032,10 +4031,6 @@ public class AnalyzerTests extends ESTestCase {
                 as(descriptionAlias.child(), Substring.class).children(),
                 equalTo(List.of(descriptionAttribute, literal(0), literal(100)))
             );
-
-            Attribute yearAttribute = getAttributeByName(relation.output(), "year");
-            assertThat(yearAttribute, notNullValue());
-            assertThat(rerank.rerankFields().get(2), equalToIgnoringIds(alias("yearRenamed", yearAttribute)));
 
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
         }
@@ -4140,7 +4135,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldsInvalidTypes() {
-        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
+        List<String> invalidFieldNames = List.of(
+            "boolean",
+            "byte",
+            "date",
+            "date_nanos",
+            "dense_vector",
+            "double",
+            "float",
+            "half_float",
+            "integer",
+            "ip",
+            "long",
+            "scaled_float",
+            "short",
+            "unsigned_long",
+            "version"
+        );
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
@@ -4150,28 +4161,13 @@ public class AnalyzerTests extends ESTestCase {
                     + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
                 "mapping-all-types.json",
                 new QueryParams(),
-                "rerank field must be a valid string, numeric or boolean expression, found [" + fieldName + "]"
+                "rerank field must be a valid string expression, found [" + fieldName + "]"
             );
         }
     }
 
     public void testRerankFieldValidTypes() {
-        List<String> validFieldNames = List.of(
-            "boolean",
-            "byte",
-            "constant_keyword-foo",
-            "double",
-            "float",
-            "half_float",
-            "scaled_float",
-            "integer",
-            "keyword",
-            "long",
-            "unsigned_long",
-            "short",
-            "text",
-            "wildcard"
-        );
+        List<String> validFieldNames = List.of("constant_keyword-foo", "keyword", "text", "wildcard");
 
         for (String fieldName : validFieldNames) {
             LogicalPlan plan = analyze(
@@ -4184,15 +4180,7 @@ public class AnalyzerTests extends ESTestCase {
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             EsRelation relation = as(rerank.child(), EsRelation.class);
             Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
-            if (DataType.isString(fieldAttribute.dataType())) {
-                assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias(fieldName, fieldAttribute))));
-
-            } else {
-                assertThat(
-                    rerank.rerankFields(),
-                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
-                );
-            }
+            assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias(fieldName, fieldAttribute))));
         }
     }
 

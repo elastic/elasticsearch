@@ -259,6 +259,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMixedMultivaluedNullGroupsAndValues() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -322,6 +323,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         case DOUBLE -> randomDouble();
                         case INT -> 1;
                         case LONG -> 1L;
+                        case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
                         default -> throw new UnsupportedOperationException();
                     });
                 }
@@ -370,7 +372,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
+    protected boolean supportsMultiValues() {
+        return true;
+    }
+
     public final void testMultivalued() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         int end = between(1_000, 100_000);
         List<Page> input = CannedSourceOperator.collectPages(
@@ -382,6 +389,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMulitvaluedNullGroupsAndValues() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -394,6 +402,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMulitvaluedNullGroup() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert
@@ -405,6 +414,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMulitvaluedNullValues() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -487,6 +497,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         // Sprinkle garbage into it
         input = CannedSourceOperator.collectPages(new AddGarbageRowsSourceOperator(new CannedSourceOperator(input.iterator())));
+        // Feed it to the aggregator
         List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
         assertSimpleOutput(origInput, results, false);
     }

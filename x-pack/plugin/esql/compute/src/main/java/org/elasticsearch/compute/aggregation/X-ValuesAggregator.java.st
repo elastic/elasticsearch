@@ -14,9 +14,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.$if(BytesRef)$Int$else$$Type$$endif$Array;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -203,12 +205,19 @@ $if(long||double)$
         private final LongLongHash hashes;
 
 $else$
-        private final LongHash hashes;
-
+        private final LongHashTable hashes;
 $endif$
+        private int[] selectedCounts = null;
+        private int[] ids = null;
+        private long extraMemoryUsed = 0;
+
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new Long$if(long||double)$Long$endif$Hash(1, blockFactory.bigArrays());
+$if(long||double)$
+            this.hashes = new LongLongHash(1, blockFactory.bigArrays());
+$else$
+            this.hashes = HashImplFactory.newLongHash(blockFactory);
+$endif$
         }
 
         void addValue(int groupId, $if(BytesRef)$int$else$$type$$endif$ v) {

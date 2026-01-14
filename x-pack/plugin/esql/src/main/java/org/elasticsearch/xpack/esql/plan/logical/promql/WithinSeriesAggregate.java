@@ -7,42 +7,39 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
 /**
  * Represents a PromQL aggregate function call that operates on range vectors.
+ * <p>
+ * These functions take a range vector as input and aggregate the values within each series
+ * over the specified time range, returning an instant vector.
+ * This corresponds to PromQL syntax:
+ * <pre>
+ * function_name(range_vector)
+ * </pre>
  *
- * This is a surrogate logical plan for PromQL range vector functions that translate
- * to ESQL TimeSeriesAggregate operations. It extends PromqlFunctionCall and implements
- * the surrogate pattern to transform PromQL aggregations into ESQL time-series aggregates.
+ * Examples:
+ * <pre>
+ * rate(http_requests_total[5m])
+ * increase(errors_total[1h])
+ * delta(cpu_temp_celsius[30m])
+ * </pre>
  *
- * Range vector functions supported:
- * - Counter functions: rate(), irate(), increase(), delta(), idelta()
- * - Aggregation functions: avg_over_time(), sum_over_time(), min_over_time(), max_over_time(), count_over_time()
- * - Selection functions: first_over_time(), last_over_time()
- * - Presence functions: present_over_time(), absent_over_time()
- * - Cardinality functions: count_distinct_over_time()
- *
- * During planning, surrogate() transforms this node into:
- *   TimeSeriesAggregate(
- *     child: RangeSelector (or other time-series source),
- *     groupings: [_tsid],
- *     aggregates: [function_result, _tsid]
- *   )
- *
- * Example transformations:
- *   rate(http_requests[5m])
- *     → TimeSeriesAggregate(groupBy: _tsid, agg: Rate(value, @timestamp))
- *
- *   avg_over_time(cpu_usage[1h])
- *     → TimeSeriesAggregate(groupBy: _tsid, agg: AvgOverTime(value))
+ * These functions operate independently on each time series selected by the range vector.
+ * The result contains one sample per series at the evaluation timestamp.
  */
 public final class WithinSeriesAggregate extends PromqlFunctionCall {
+
+    private List<Attribute> output;
 
     public WithinSeriesAggregate(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child, functionName, parameters);
@@ -58,8 +55,17 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
         return new WithinSeriesAggregate(source(), newChild, functionName(), parameters());
     }
 
-    // @Override
-    // public String telemetryLabel() {
-    // return "PROMQL_WITHIN_SERIES_AGGREGATION";
-    // }
+    @Override
+    public List<Attribute> output() {
+        if (output == null) {
+            // returns values grouped per time series
+            output = List.of(FieldAttribute.timeSeriesAttribute(source()));
+        }
+        return output;
+    }
+
+    @Override
+    public FunctionType functionType() {
+        return FunctionType.WITHIN_SERIES_AGGREGATION;
+    }
 }

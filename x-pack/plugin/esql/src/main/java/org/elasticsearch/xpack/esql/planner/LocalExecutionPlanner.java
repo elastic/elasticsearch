@@ -668,7 +668,14 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
+            new RerankOperator.Factory(
+                inferenceService,
+                inferenceId,
+                queryText,
+                rowEncoderFactory,
+                scoreChannel,
+                RerankOperator.DEFAULT_BATCH_SIZE
+            ),
             outputLayout
         );
     }
@@ -940,7 +947,7 @@ public class LocalExecutionPlanner {
     /**
      * Immutable physical operation.
      */
-    public static class PhysicalOperation implements Describable {
+    public static class PhysicalOperation {
         final SourceOperatorFactory sourceOperatorFactory;
         final List<OperatorFactory> intermediateOperatorFactories;
         final SinkOperatorFactory sinkOperatorFactory;
@@ -1008,17 +1015,32 @@ public class LocalExecutionPlanner {
             return sinkOperatorFactory.get(driverContext);
         }
 
-        @Override
-        public String describe() {
-            return Stream.concat(
-                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
-                Stream.of(sinkOperatorFactory)
-            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
+        public Supplier<String> longDescription() {
+            return new LongDescription(sourceOperatorFactory, intermediateOperatorFactories, sinkOperatorFactory);
         }
 
         @Override
         public String toString() {
-            return describe();
+            return longDescription().get();
+        }
+    }
+
+    /**
+     * Closure that builds the description. This is a subset of {@link PhysicalOperation}
+     * that we pass to {@link Driver} that does not contain the quite large
+     * {@link PhysicalOperation#layout} member.
+     */
+    private record LongDescription(
+        SourceOperatorFactory sourceOperatorFactory,
+        List<OperatorFactory> intermediateOperatorFactories,
+        SinkOperatorFactory sinkOperatorFactory
+    ) implements Supplier<String> {
+        @Override
+        public String get() {
+            return Stream.concat(
+                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
+                Stream.of(sinkOperatorFactory)
+            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
         }
     }
 
@@ -1125,7 +1147,7 @@ public class LocalExecutionPlanner {
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,
-                    physicalOperation::describe,
+                    physicalOperation.longDescription(),
                     source,
                     operators,
                     sink,
@@ -1141,7 +1163,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public String describe() {
-            return physicalOperation.describe();
+            return physicalOperation.toString();
         }
     }
 

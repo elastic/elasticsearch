@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -26,7 +23,6 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * This rule implements the "group by all" logic for time series aggregations.  It is intended to work in conjunction with
@@ -44,45 +40,45 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
-        AggregateFunction lastTSAggFunction = null;
-        AggregateFunction lastNonTSAggFunction = null;
+        Holder<Expression> lastTSAggFunction = new Holder<>();
+        Holder<Expression> lastNonTSAggFunction = new Holder<>();
 
         List<NamedExpression> newAggregateFunctions = new ArrayList<>(aggregate.aggregates().size());
         for (NamedExpression agg : aggregate.aggregates()) {
-            if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
-                if (af instanceof TimeSeriesAggregateFunction tsAgg) {
-                    newAggregateFunctions.add(new Alias(alias.source(), alias.name(), new Values(tsAgg.source(), tsAgg)));
-                    lastTSAggFunction = tsAgg;
-                } else {
-                    newAggregateFunctions.add(agg);
-                    lastNonTSAggFunction = af;
-                }
-            } else {
-                newAggregateFunctions.add(agg);
+            Holder<NamedExpression> newAggHolder = new Holder<>(agg);
+            if (agg instanceof Alias alias) {
+                alias.forEachDownMayReturnEarly((lp, exit) -> {
+                    if (lp instanceof TimeSeriesAggregateFunction) {
+                        // we've encountered a time-series aggregation function first, so we'll enable the "group by all" logic
+                        newAggHolder.set(
+                            new Alias(alias.source(), alias.name(), new Values(alias.child().source(), alias.child()), alias.id())
+                        );
+                        lastTSAggFunction.set(agg);
+                        exit.set(true);
+                    } else if (lp instanceof AggregateFunction) {
+                        lastNonTSAggFunction.set(agg);
+                        exit.set(true);
+                    }
+                });
             }
+            newAggregateFunctions.add(newAggHolder.get());
         }
-        if (lastTSAggFunction == null) {
+        if (lastTSAggFunction.get() == null) {
             return aggregate;
         }
 
-        if (lastNonTSAggFunction != null) {
+        if (lastNonTSAggFunction.get() != null) {
             throw new IllegalArgumentException(
                 "Cannot mix time-series aggregate ["
-                    + lastTSAggFunction.sourceText()
+                    + lastTSAggFunction.get().sourceText()
                     + "] and regular aggregate ["
-                    + lastNonTSAggFunction.sourceText()
+                    + lastNonTSAggFunction.get().sourceText()
                     + "] in the same TimeSeriesAggregate."
 
             );
         }
 
-        var timeSeries = new FieldAttribute(
-            aggregate.source(),
-            null,
-            null,
-            MetadataAttribute.TIMESERIES,
-            new EsField(MetadataAttribute.TIMESERIES, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
-        );
+        var timeSeries = FieldAttribute.timeSeriesAttribute(aggregate.source());
         List<Expression> groupings = new ArrayList<>();
         groupings.add(timeSeries);
 
@@ -90,7 +86,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
                 throw new IllegalArgumentException(
                     "Only grouping functions are supported (e.g. tbucket) when the time series aggregation function ["
-                        + lastTSAggFunction.sourceText()
+                        + lastTSAggFunction.get().sourceText()
                         + "] is not wrapped with another aggregation function. Found ["
                         + grouping.sourceText()
                         + "]."
@@ -104,21 +100,10 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             aggregate.child(),
             groupings,
             newAggregateFunctions,
-            null
+            null,
+            aggregate.timestamp()
         );
         // insert the time_series
-        return newStats.transformDown(EsRelation.class, r -> {
-            ArrayList<Attribute> attributes = new ArrayList<>(r.output());
-            attributes.add(timeSeries);
-            return new EsRelation(
-                r.source(),
-                r.indexPattern(),
-                r.indexMode(),
-                r.originalIndices(),
-                r.concreteIndices(),
-                r.indexNameWithModes(),
-                attributes
-            );
-        });
+        return newStats.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeries));
     }
 }

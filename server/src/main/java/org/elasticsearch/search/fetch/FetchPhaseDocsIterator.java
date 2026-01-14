@@ -282,7 +282,12 @@ abstract class FetchPhaseDocsIterator {
                     // Wait for permit before sending
                     // This blocks if maxInFlightChunks are already in flight,
                     // with periodic cancellation checks to remain responsive
-                    acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
+                    try {
+                        acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
+                    } catch (Exception e) {
+                        chunk.decRef();
+                        throw e;
+                    }
 
                     // Send chunk asynchronously - permit released when ACK arrives
                     sendChunk(
@@ -338,17 +343,26 @@ abstract class FetchPhaseDocsIterator {
 
         // Fetch in docId order, place in score-order position
         SearchHit[] hits = new SearchHit[chunkSize];
-        int currentLeafOrd = -1;
-        for (DocIdToIndex doc : docs) {
-            int leafOrd = ReaderUtil.subIndex(doc.docId, indexReader.leaves());
-            if (leafOrd != currentLeafOrd) {
-                currentLeafOrd = leafOrd;
-                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-                setNextReader(ctx, docsInLeafByOrd.get(leafOrd));
+        boolean success = false;
+        try {
+            int currentLeafOrd = -1;
+            for (DocIdToIndex doc : docs) {
+                int leafOrd = ReaderUtil.subIndex(doc.docId, indexReader.leaves());
+                if (leafOrd != currentLeafOrd) {
+                    currentLeafOrd = leafOrd;
+                    LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+                    setNextReader(ctx, docsInLeafByOrd.get(leafOrd));
+                }
+                hits[doc.index] = nextDoc(doc.docId);
             }
-            hits[doc.index] = nextDoc(doc.docId);
+            success = true;
+            return hits;
+        } finally {
+            if (success == false) {
+                // Clean up any hits that were created before the failure
+                purgeSearchHits(hits);
+            }
         }
-        return hits;
     }
 
     /**

@@ -981,6 +981,7 @@ null        | fork2         | 18
 
 forkWithAllEmptyBranches
 required_capability: fork_v9
+required_capability: fn_contains
 
 FROM books METADATA _score
 | WHERE author:"Faulkner"

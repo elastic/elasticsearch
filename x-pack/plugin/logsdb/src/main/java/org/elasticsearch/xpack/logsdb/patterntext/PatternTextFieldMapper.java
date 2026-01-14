@@ -23,7 +23,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -370,11 +370,14 @@ public class PatternTextFieldMapper extends FieldMapper {
     private SourceLoader.SyntheticFieldLoader getSyntheticFieldLoader() {
         if (fieldType().disableTemplating()) {
             if (useBinaryDocValuesForRawText) {
-                return new CompositeSyntheticFieldLoader(
-                    leafName(),
-                    fullPath(),
-                    new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().storedNamed())
-                );
+                return new BinaryDocValuesSyntheticFieldLoader(fieldType().storedNamed()) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                        // pattern text fields are not multi-valued, so there is no special encoding here unlike other fields that use
+                        // binary doc values. As a result, we don't need to much and this function remains simple
+                        b.field(leafName(), value.utf8ToString());
+                    }
+                };
             }
 
             return new StringStoredFieldFieldLoader(fieldType().storedNamed(), fieldType().name(), leafName()) {

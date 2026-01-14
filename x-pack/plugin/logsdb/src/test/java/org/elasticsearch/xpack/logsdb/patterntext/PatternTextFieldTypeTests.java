@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.hamcrest.Matchers;
 
@@ -245,7 +245,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
             true
         );
         BlockLoader blockLoader = ft.blockLoader(null);
-        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryBlockLoader.class));
     }
 
     public void testBlockLoaderWhenTemplatingIsDisabledAndStoredFieldsAreUsed() {

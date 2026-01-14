@@ -36,7 +36,7 @@ import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -329,7 +329,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         if (disableTemplating) {
             if (useBinaryDocValuesRawText) {
                 // for newer indices, raw pattern text values are stored in binary doc values
-                return new BytesRefsFromCustomBinaryBlockLoader(storedNamed());
+                return new BytesRefsFromBinaryBlockLoader(storedNamed());
             } else {
                 // for older indices (bwc), raw pattern text values are stored in stored fields
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());

@@ -20,11 +20,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Values which exceeds 32kb cannot be analyzed and hence cannot be stored in regular doc values. Such values must be stored separately in
- * binary doc values, which do not have length limitations. This class combines the regular doc values with the raw values from binary doc
- * values.
+ * Values which exceeds 32kb cannot be stored as sorted set doc values. Such values must be stored separately in binary doc values, which
+ * do not have length limitations. This class combines the regular doc values with the raw values from binary doc values.
  */
 public final class PatternTextCompositeValues extends BinaryDocValues {
+
     private final LeafStoredFieldLoader storedTemplateLoader;
     private final String storedMessageFieldName;
     private final BinaryDocValues patternTextDocValues;
@@ -62,7 +62,11 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         );
 
         // load binary doc values (for newer indices that store raw values in binary doc values)
-        BinaryDocValues rawBinaryDocValues = DocValues.getBinary(leafReader, fieldType.storedNamed());
+        BinaryDocValues rawBinaryDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
+        if (rawBinaryDocValues == null) {
+            // use an empty object here to avoid making null checks later
+            rawBinaryDocValues = DocValues.emptyBinary();
+        }
 
         // load stored field loader (for older indices that store raw values in stored fields)
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
@@ -103,7 +107,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
     public boolean advanceExact(int i) throws IOException {
         boolean hasValue = templateIdDocValues.advanceExact(i);
         hasDocValue = patternTextDocValues.advanceExact(i);
-        hasRawTextDocValue = rawTextDocValues != null && rawTextDocValues.advanceExact(i);
+        hasRawTextDocValue = rawTextDocValues.advanceExact(i);
         if (hasValue && hasDocValue == false && hasRawTextDocValue == false) {
             storedTemplateLoader.advanceTo(i);
         }

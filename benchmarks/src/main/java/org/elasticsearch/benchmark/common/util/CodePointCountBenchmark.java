@@ -25,6 +25,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 @Warmup(iterations = 4, time = 1)
@@ -39,37 +40,52 @@ public class CodePointCountBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "1", "5", "10", "50", "100", "500", "1000" })
+    @Param({ "1", "10", "100", "1000" })
     public int numCodePoints;
+
+    @Param({ "same-length", "varied-length" })
+    public String lengthMode;
 
     @Param({ "ascii", "unicode" })
     public String type;
 
-    private BytesRef bytesRef;
+    private BytesRef[] data;
+    private int index = 0;
+    private static final int NUM_VALUES = 1024;
 
     @Setup
     public void setup() {
-        String s = switch (type) {
-            case "ascii" -> UTF8StringBytesBenchmark.generateAsciiString(numCodePoints);
-            case "unicode" -> UTF8StringBytesBenchmark.generateUTF8String(numCodePoints);
-            default -> throw new IllegalArgumentException("Unknown string type: " + type);
-        };
-        bytesRef = new BytesRef(s);
+        data = new BytesRef[NUM_VALUES];
+        Random random = new Random(1);
+
+        for (int i = 0; i < NUM_VALUES; i++) {
+            int currentLen = lengthMode.equals("same-length")
+                    ? numCodePoints
+                    : random.nextInt(numCodePoints + 1);
+
+            String s = type.equals("ascii")
+                ? UTF8StringBytesBenchmark.generateAsciiString(currentLen)
+                : UTF8StringBytesBenchmark.generateUTF8String(currentLen);
+            data[i] = new BytesRef(s);
+        }
     }
 
     @Benchmark
     public int luceneUnicodeUtil() {
-        return UnicodeUtil.codePointCount(bytesRef);
+        BytesRef bytes = data[index++ & (NUM_VALUES - 1)];
+        return UnicodeUtil.codePointCount(bytes);
     }
 
     @Benchmark
     public int elasticsearchSwar() {
-        return ESVectorUtil.codePointCount(bytesRef);
+        BytesRef bytes = data[index++ & (NUM_VALUES - 1)];
+        return ESVectorUtil.codePointCount(bytes);
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public int elasticsearchPanamaSimd() {
-        return ESVectorUtil.codePointCount(bytesRef);
+        BytesRef bytes = data[index++ & (NUM_VALUES - 1)];
+        return ESVectorUtil.codePointCount(bytes);
     }
 }

@@ -51,17 +51,19 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
+    // Default log level for this log type. Logger can override that if it wants to.
     public static final Setting.AffixSetting<Level> ACTION_LOGGER_LEVEL = Setting.affixKeySetting(
         ACTION_LOGGER_SETTINGS_PREFIX,
         "log_level",
         key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
+    // Whether to include authentication information in the log
     public static final Setting.AffixSetting<Boolean> ACTION_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
         ACTION_LOGGER_SETTINGS_PREFIX,
         // Named to match slowlog, we may reconsider this naming
         "include.user",
-        key -> boolSetting(key, false, Setting.Property.Dynamic, Setting.Property.NodeScope)
+        key -> boolSetting(key, true, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     public ActionLogger(
@@ -73,7 +75,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
     ) {
         this.producer = producer;
         this.writer = writer;
-        var context = new SlowLogContext();
+        var context = new SlowLogContext(true);
         this.additionalFields = slowLogFieldProvider.create(context);
         settings.addAffixUpdateConsumer(ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
         settings.addAffixUpdateConsumer(ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
@@ -99,7 +101,9 @@ public class ActionLogger<Context extends ActionLoggerContext> {
             return;
         }
         var event = producer.produce(context, additionalFields);
-        writer.write(level, event);
+        if (event != null) {
+            writer.write(level, event);
+        }
     }
 
     public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActionLoggerContextBuilder<Context, Req, R> contextBuilder) {
@@ -109,16 +113,24 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         return new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(R r) {
-                var ctx = contextBuilder.build(r);
-                logAction(ctx);
+                log(r);
                 delegate.onResponse(r);
             }
 
             @Override
             public void onFailure(Exception e) {
-                var ctx = contextBuilder.build(e);
-                logAction(ctx);
+                log(e);
                 super.onFailure(e);
+            }
+
+            private void log(R r) {
+                Context ctx = contextBuilder.build(r);
+                logAction(ctx);
+            }
+
+            private void log(Exception e) {
+                Context ctx = contextBuilder.build(e);
+                logAction(ctx);
             }
 
             @Override

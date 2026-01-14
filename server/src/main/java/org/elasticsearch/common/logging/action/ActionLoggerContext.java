@@ -66,7 +66,7 @@ public abstract class ActionLoggerContext {
         return error == null ? "" : error.getClass().getName();
     }
 
-    public Object getOpaqueId() {
+    public String getOpaqueId() {
         return task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
     }
 }

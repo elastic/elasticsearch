@@ -1,0 +1,49 @@
+products:
+- product: cloud-serverless
+  target: 2025-01-13
+entries:
+- file:
+    name: 1768345776-[docs]-add-api-reference-links-to-longform-elastic.yaml
+    checksum: 7a0c17544455c2934a023bfd23b35d8b6722b678
+- file:
+    name: 1768345777-diskbbq-tail-centroids-should-always-be-block-enco.yaml
+    checksum: 8bb5069b15dd63a1b540d88f35a12776370708ba
+- file:
+    name: 1768345778-[inference-api]-include-rerank-in-supported-tasks-.yaml
+    checksum: 94aac992578b3ea227746a57c186a3bf9cc26ebe
+- file:
+    name: 1768345778-bugfix-deleted-async-search-wont-show-on-any-api.yaml
+    checksum: dffba59d4a8def8f63e1ecdaaadd3e5b376cd4d4
+- file:
+    name: 1768345776-improve-locality-by-placing-parent---child-centroi.yaml
+    checksum: 0bace95e5efe98f3650e098e209cff02de10f866
+- file:
+    name: 1768345780-esql-improve-lookup-join-performance-with-cacheddi.yaml
+    checksum: f565cd926e3250e5936e456df7d02d620d27e362
+- file:
+    name: 1768345773-fix-read-write-counts-for-copy-in-repo-analysis.yaml
+    checksum: c7fa74edba48d286e13bc4e456f0f4a6f6a7c2ee
+- file:
+    name: 1768345774-always-log-connection-failure-at-warn-level-for-sn.yaml
+    checksum: 38d9d0164a207cd3f32a8885a53f6b3c3c8d55a0
+- file:
+    name: 1768345775-retrieve-routing-hash-from-synthetic-id-for-transl.yaml
+    checksum: b2a3304cd93d690947c99407f338bd29d687083d
+- file:
+    name: 1768345781-[es|ql]-convert-`packedvaluesblockhash.bytes`-to-`.yaml
+    checksum: 9aa50aef7201374b379fa0276da94fabc59e7598
+- file:
+    name: 1768345777-[docs]-applies_to-syntax-changes.yaml
+    checksum: f922bf446f56c03bb80cc3e4ded44b89a86a5fa6
+- file:
+    name: 1768345774-dense-vector-docvalues-add-base64-format.yaml
+    checksum: 7327a304fb866d5b047bd3b15c9df3f7dcfb1906
+- file:
+    name: 1768345775-es|ql-add-syntax-support-and-parsing-for-set-appro.yaml
+    checksum: ae8fc64039b38d1618baa02f6ba21b1a9ab5e8ba
+- file:
+    name: 1768345779-disable-_delete_by_query-and-_update_by_query-for-.yaml
+    checksum: 4b7f3bef0254c0368a552f4fb4ed70df936ffd00
+- file:
+    name: 1768345780-esql-add-timezone-to-add-and-sub-operators,-and-co.yaml
+    checksum: c4e9f43cb30ab3bb359c573b6217bfa398a136cc

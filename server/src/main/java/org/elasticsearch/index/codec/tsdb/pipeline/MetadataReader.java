@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
  * Interface for reading variable-length encoded metadata.
+ * <p>
+ * Methods mirror Lucene's DataInput for easy delegation.
  */
 public interface MetadataReader {
 
@@ -18,7 +20,6 @@ public interface MetadataReader {
      * Reads a single byte.
      *
      * @return the byte value
-     * @throws IllegalStateException if no more bytes are available
      */
     byte readByte();
 
@@ -26,7 +27,6 @@ public interface MetadataReader {
      * Reads a non-negative integer in variable-length format (1-5 bytes).
      *
      * @return the integer value
-     * @throws IllegalStateException if no more bytes are available or encoding is invalid
      */
     int readVInt();
 
@@ -34,7 +34,6 @@ public interface MetadataReader {
      * Reads a non-negative long in variable-length format (1-9 bytes).
      *
      * @return the long value
-     * @throws IllegalStateException if no more bytes are available or encoding is invalid
      */
     long readVLong();
 
@@ -42,29 +41,6 @@ public interface MetadataReader {
      * Reads a signed long that was written using zig-zag encoding (1-10 bytes).
      *
      * @return the signed long value
-     * @throws IllegalStateException if no more bytes are available or encoding is invalid
      */
     long readZLong();
-
-    /**
-     * Sets the read position.
-     *
-     * @param position the new position
-     * @throws IllegalArgumentException if position is negative or exceeds size
-     */
-    void setPosition(int position);
-
-    /**
-     * Returns the current read position.
-     *
-     * @return the current position
-     */
-    int position();
-
-    /**
-     * Returns the number of bytes available for reading.
-     *
-     * @return the size in bytes
-     */
-    int size();
 }

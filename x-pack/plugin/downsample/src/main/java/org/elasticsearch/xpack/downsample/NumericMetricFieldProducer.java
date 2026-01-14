@@ -193,7 +193,7 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
 
         @Override
         public boolean hasSecondaryValue() {
-            return isEmpty() == false && firstValue != lastValue;
+            return isEmpty() == false;
         }
     }
 }

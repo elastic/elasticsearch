@@ -1,0 +1,5 @@
+pr: 140666
+summary: Account for field readers in breaker
+area: ES|QL
+type: bug
+issues: []

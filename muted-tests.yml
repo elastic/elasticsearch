@@ -387,6 +387,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
   method: testLocalDateMathExpression
   issue: https://github.com/elastic/elasticsearch/issues/140106
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test070BindMountCustomPathConfAndJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/131366
 
 # Examples:
 #

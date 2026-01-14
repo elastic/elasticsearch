@@ -22,10 +22,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -203,7 +205,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
     class TSDBStoredFieldsReader extends StoredFieldsReader implements BloomFilter {
         private final StoredFieldsReader storedFieldsReader;
-        private final StoredFieldsReader syntheticIdStoredFieldsReader; // null if no synthetic _id
+        private final @Nullable StoredFieldsReader syntheticIdStoredFieldsReader; // null if no synthetic _id
         private final StoredFieldsReader bloomFilterStoredFieldsReader;
         private final BloomFilter bloomFilter;
 
@@ -213,9 +215,13 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             try {
                 this.storedFieldsReader = delegate.fieldsReader(directory, si, fn, context);
                 toClose.add(this.storedFieldsReader);
-                // Do we need to check again if _id is synthetic in field infos?
-                this.syntheticIdStoredFieldsReader = TSDBSyntheticIdStoredFieldsReader.open(directory, si, fn, context);
-                toClose.add(this.syntheticIdStoredFieldsReader);
+                var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
+                if (fieldInfo != null && SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes())) {
+                    this.syntheticIdStoredFieldsReader = TSDBSyntheticIdStoredFieldsReader.open(directory, si, fn, context);
+                    toClose.add(this.syntheticIdStoredFieldsReader);
+                } else {
+                    this.syntheticIdStoredFieldsReader = null;
+                }
                 this.bloomFilterStoredFieldsReader = bloomFilterStoredFieldsFormat.fieldsReader(directory, si, fn, context);
                 toClose.add(this.bloomFilterStoredFieldsReader);
                 this.bloomFilter = (BloomFilter) bloomFilterStoredFieldsReader;
@@ -229,11 +235,11 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         TSDBStoredFieldsReader(
             StoredFieldsReader storedFieldsReader,
-            StoredFieldsReader syntheticIdStoredFieldsReader,
+            @Nullable StoredFieldsReader syntheticIdStoredFieldsReader,
             StoredFieldsReader bloomFilterStoredFieldsReader
         ) {
             this.storedFieldsReader = storedFieldsReader;
-            assert syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader : syntheticIdStoredFieldsReader;
+            assert syntheticIdStoredFieldsReader == null || syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader;
             this.syntheticIdStoredFieldsReader = syntheticIdStoredFieldsReader;
             this.bloomFilterStoredFieldsReader = bloomFilterStoredFieldsReader;
             assert bloomFilterStoredFieldsReader instanceof BloomFilter;
@@ -244,7 +250,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         public StoredFieldsReader clone() {
             return new TSDBStoredFieldsReader(
                 storedFieldsReader.clone(),
-                syntheticIdStoredFieldsReader.clone(),
+                syntheticIdStoredFieldsReader != null ? syntheticIdStoredFieldsReader.clone() : null,
                 bloomFilterStoredFieldsReader.clone()
             );
         }
@@ -253,7 +259,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         public StoredFieldsReader getMergeInstance() {
             return new TSDBStoredFieldsReader(
                 storedFieldsReader.getMergeInstance(),
-                syntheticIdStoredFieldsReader.getMergeInstance(),
+                syntheticIdStoredFieldsReader != null ? syntheticIdStoredFieldsReader.getMergeInstance() : null,
                 bloomFilterStoredFieldsReader.getMergeInstance()
             );
         }
@@ -261,7 +267,6 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         @Override
         public void checkIntegrity() throws IOException {
             storedFieldsReader.checkIntegrity();
-            syntheticIdStoredFieldsReader.checkIntegrity();
             bloomFilterStoredFieldsReader.checkIntegrity();
         }
 
@@ -276,7 +281,9 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             // therefore we call first to the bloom filter reader so we can synthesize the _id
             // and read it in the expected order.
             bloomFilterStoredFieldsReader.document(docID, visitor);
-            syntheticIdStoredFieldsReader.document(docID, visitor);
+            if (syntheticIdStoredFieldsReader != null) {
+                syntheticIdStoredFieldsReader.document(docID, visitor);
+            }
             storedFieldsReader.document(docID, visitor);
         }
 

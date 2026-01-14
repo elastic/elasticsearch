@@ -7,7 +7,7 @@ steps:
     steps:
       - label: "{{matrix.GRADLE_TASK}} / ipv6-tests"
         key: "packaging-tests-unix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints {{matrix.GRADLE_TASK}}
+        command: .ci/scripts/run-gradle.sh -Djava.net.preferIPv6Addresses=true -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints {{matrix.GRADLE_TASK}}
         timeout_in_minutes: 300
         agents:
           provider: aws
@@ -19,6 +19,8 @@ steps:
           ipv6Only: true
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+          JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv6Addresses=true"
+          _JAVA_OPTIONS: "-Djava.net.preferIPv6Addresses=true"
         matrix:
           setup:
             GRADLE_TASK:

@@ -208,7 +208,7 @@ public class ExponentialHistogramUtils {
                 .zeroBucket(copyWithNewCount(targetZeroBucket, 1))
                 .build()
         );
-        // the merger now has the desired zero-threshold, but we need to subtract the fake zero count again
+        // the merger now has the desired zero-threshold, but we need to subtract the fake zero count of 1
         ExponentialHistogram mergeResult = merger.get();
         return ExponentialHistogram.builder(mergeResult, ExponentialHistogramCircuitBreaker.noop())
             .zeroBucket(copyWithNewCount(mergeResult.zeroBucket(), mergeResult.zeroBucket().count() - 1))

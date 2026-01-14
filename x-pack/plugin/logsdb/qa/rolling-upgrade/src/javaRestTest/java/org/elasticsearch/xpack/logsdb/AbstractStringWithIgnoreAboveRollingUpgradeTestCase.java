@@ -36,7 +36,7 @@ public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extend
     }
 
     @Override
-    protected void query() throws Exception {
+    void query() throws Exception {
         var queryRequest = new Request("POST", "/_query");
         queryRequest.addParameter("pretty", "true");
         queryRequest.setJsonEntity("""

@@ -17,6 +17,11 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
 
     private static final String TEMPLATE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -37,6 +42,11 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
 
     private static final String TEMPLATE_WITH_MULTI_FIELD = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -62,6 +72,11 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
 
     private static final String TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {

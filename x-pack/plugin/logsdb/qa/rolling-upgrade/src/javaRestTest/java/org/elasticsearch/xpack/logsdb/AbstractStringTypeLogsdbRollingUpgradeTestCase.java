@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -21,10 +24,12 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends AbstractLogsdbRollingUpgradeTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = Clusters.oldVersionClusterWithLogsDisabled(USER, PASS);
 
     // template for individual log items
     private static final String ITEM_TEMPLATE = """
@@ -45,38 +50,38 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         this.numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
     }
 
-    @Before
-    public void createIndex() throws Exception {
-        checkRequiredFeatures();
-        LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
-        // data stream name should already be reflective of whats being tested, so template id can be random
-        templateId = UUID.randomUUID().toString();
-        LogsdbIndexingRollingUpgradeIT.createTemplate(dataStreamName, templateId, template);
+    @Override
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
+    }
+
+    @Before
+    public void checkFeatures() {
+        checkRequiredFeatures();
     }
 
     /**
      * Override this method to add feature checks that must pass before the test runs.
      * Use {@code assumeTrue} to skip the test if required features are not available.
      */
-    protected void checkRequiredFeatures() throws Exception {
-        // Default: no additional feature requirements
+    protected void checkRequiredFeatures() {
+        // default: no additional feature requirements
     }
 
-    protected List<String> getMessages() {
-        return messages;
-    }
+    public void testIndexingWithLogsEnabledFromTheStart() throws Exception {
+        enableLogsDb();
+        createIndex();
 
-    public void testIndexing() throws Exception {
         // before upgrading
         indexDocumentsAndVerifyResults();
 
         // verify that logsdb and synthetic source are enabled before proceeding
-        // note, we must index at least one document to create the data stream (data streams are created lazily on first index)
-        String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
-        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
-        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+        verifyIndexMode(IndexMode.LOGSDB);
 
         // during upgrade
         for (int i = 0; i < numNodes; i++) {
@@ -88,13 +93,70 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         indexDocumentsAndVerifyResults();
     }
 
-    private void indexDocumentsAndVerifyResults() throws Exception {
-        // given - implicitly start from the previous state
+    public void testIndexingWithLogsEnabledAfterUpgrading() throws Exception {
+        createIndex();
 
-        // when - index some documents
+        // before upgrading (this also creates the data stream via lazy initialization)
+        indexDocumentsAndVerifyResults();
+
+        // verify that standard mode is being used
+        verifyIndexMode(IndexMode.STANDARD);
+
+        // during upgrade
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            indexDocumentsAndVerifyResults();
+        }
+
+        // enable logsdb
+        enableLogsDb();
+        rolloverDataStream();
+        verifyIndexMode(IndexMode.LOGSDB);
+
+        // after everything is upgraded
+        indexDocumentsAndVerifyResults();
+    }
+
+    private void createIndex() throws Exception {
+        // data stream name should already be reflective of whats being tested, so template id can be random
+        templateId = UUID.randomUUID().toString();
+        LogsdbIndexingRollingUpgradeIT.createTemplate(dataStreamName, templateId, template);
+    }
+
+    private void enableLogsDb() throws IOException {
+        // enable logsdb cluster setting
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+    }
+
+    private void rolloverDataStream() throws IOException {
+        var request = new Request("POST", "/" + dataStreamName + "/_rollover");
+        final Response response = client().performRequest(request);
+        assertOK(response);
+    }
+
+    protected void verifyIndexMode(IndexMode indexMode) throws IOException {
+        String writeBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
+        var settings = (Map<?, ?>) getIndexSettings(writeBackingIndex, true).get(writeBackingIndex);
+        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mapping.source.mode"), equalTo("synthetic"));
+
+        // when index mode is not specified (like when standard mode is used), then settings.index.mode will return null
+        if (indexMode == IndexMode.STANDARD) {
+            assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mode"), equalTo(indexMode.getName()));
+        } else {
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(indexMode.getName()));
+        }
+    }
+
+    protected void indexDocumentsAndVerifyResults() throws Exception {
         indexDocuments(1, 5);
-
-        // then
 
         // verify that the data stream is healthy and still as expected
         assertDataStream();
@@ -105,9 +167,9 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
     }
 
     /**
-     * Verifies that we're still using the expected data stream and thats its healthy.
+     * Verifies that we're still using the expected data stream and that its healthy.
      */
-    protected void assertDataStream() throws IOException {
+    private void assertDataStream() throws IOException {
         var getDataStreamsRequest = new Request("GET", "/_data_stream/" + dataStreamName);
         var getDataStreamResponse = client().performRequest(getDataStreamsRequest);
 
@@ -115,15 +177,14 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         var dataStreams = entityAsMap(getDataStreamResponse);
 
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateId));
 
         ensureGreen(dataStreamName);
     }
 
     /**
-     * Generates a string containing a random number of tokens. Tokens are either
-     * random length alpha sequences or random integers and are delimited by spaces.
+     * Generates a string containing a random number of tokens. Tokens are either random length alpha sequences or random integers and are
+     * delimited by spaces.
      */
     private static String randomTokensDelimitedBySpace(int maxTokens, int minCodeUnits, int maxCodeUnits) {
         int numTokens = randomIntBetween(1, maxTokens);
@@ -144,7 +205,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
     /**
      * Create an arbitrary document containing random values and index it.
      */
-    protected void indexDocuments(int numRequests, int numDocs) throws Exception {
+    private void indexDocuments(int numRequests, int numDocs) throws Exception {
         for (int i = 0; i < numRequests; i++) {
             // create the request
             Request request = new Request("POST", "/" + dataStreamName + "/_bulk");
@@ -219,7 +280,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         assertThat(values, containsInAnyOrder(messages.toArray()));
     }
 
-    protected void query() throws Exception {
+    void query() throws Exception {
         var queryRequest = new Request("POST", "/_query");
         queryRequest.addParameter("pretty", "true");
         queryRequest.setJsonEntity("""
@@ -264,6 +325,10 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
             queryMessages,
             containsInAnyOrder(messages.toArray())
         );
+    }
+
+    List<String> getMessages() {
+        return messages;
     }
 
 }

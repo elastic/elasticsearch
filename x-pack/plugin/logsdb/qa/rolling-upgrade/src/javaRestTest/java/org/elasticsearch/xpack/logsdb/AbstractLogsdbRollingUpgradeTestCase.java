@@ -30,8 +30,9 @@ import java.util.function.BiFunction;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
-    private static final String USER = "admin-user";
-    private static final String PASS = "x-pack-test-password";
+
+    protected static final String USER = "admin-user";
+    protected static final String PASS = "x-pack-test-password";
 
     private static TestFeatureService oldClusterTestFeatureService;
 
@@ -76,8 +77,12 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-        cluster.upgradeNodeToVersion(n, upgradeVersion);
+        getCluster().upgradeNodeToVersion(n, upgradeVersion);
         initClient();
+    }
+
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
     }
 
     static String formatInstant(Instant instant) {

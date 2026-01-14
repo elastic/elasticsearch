@@ -20,6 +20,11 @@ public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollin
 
     private static final String TEMPLATE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -40,6 +45,11 @@ public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollin
 
     private static final String TEMPLATE_WITH_IGNORE_ABOVE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {

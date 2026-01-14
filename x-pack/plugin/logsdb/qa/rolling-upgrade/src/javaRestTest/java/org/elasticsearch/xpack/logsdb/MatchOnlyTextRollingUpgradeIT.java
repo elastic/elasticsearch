@@ -19,6 +19,11 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
 
     private static final String TEMPLATE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -39,6 +44,11 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
 
     private static final String TEMPLATE_WITH_MULTI_FIELD = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -64,6 +74,11 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
 
     private static final String TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -103,12 +118,11 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
     }
 
     @Override
-    public void testIndexing() throws Exception {
+    protected void checkRequiredFeatures() {
         assumeTrue(
             "Match only text block loader bug is present and fix is not present in this cluster",
             oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
         );
-        super.testIndexing();
     }
 
 }

@@ -689,7 +689,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
                     bulk.append(", ");
                 }
                 bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": \"");
-                // generate random string to hit CBE faster
+                // if requested, generate random string to hit the CBE faster
                 bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
                 bulk.append('"');
             }

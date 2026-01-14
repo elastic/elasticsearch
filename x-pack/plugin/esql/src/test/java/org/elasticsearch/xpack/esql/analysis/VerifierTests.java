@@ -3535,6 +3535,14 @@ public class VerifierTests extends ESTestCase {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
 
+    public void testUnsupportedMetadata() {
+        // GroupByAll
+        assertThat(
+            error("FROM k8s METADATA unknown_field"),
+            equalTo("1:1: unresolved metadata fields: [?unknown_field]\nline 1:19: Unresolved metadata pattern [unknown_field]")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

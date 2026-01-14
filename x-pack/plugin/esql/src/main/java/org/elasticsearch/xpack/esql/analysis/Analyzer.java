@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -174,6 +175,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -334,7 +336,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = indexResolution.get();
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
-            attributes.addAll(plan.metadataFields().stream().map(NamedExpression::toAttribute).toList());
+            attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),
@@ -347,22 +349,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
-            List<NamedExpression> resolved = new ArrayList<>();
+            LinkedHashMap<String, NamedExpression> resolved = new LinkedHashMap<>();
             for (NamedExpression item : metadata) {
                 switch (item) {
-                    case MetadataAttribute ma -> resolved.add(ma);
-                    case UnresolvedMetadataAttributeExpression um -> resolved.addAll(tryResolveMetadata(um, context));
+                    case MetadataAttribute ma -> resolved.put(ma.name(), ma);
+                    case UnresolvedMetadataAttributeExpression um -> {
+                        List<? extends NamedExpression> resolvedItems = tryResolveMetadata(um, context);
+                        if (resolvedItems.isEmpty()) {
+                            resolved.put(um.pattern(), um); // unresolved
+                        } else {
+                            for (NamedExpression resolvedItem : resolvedItems) {
+                                resolved.remove(resolvedItem.name()); // last one wins
+                                resolved.put(resolvedItem.name(), resolvedItem);
+                            }
+                        }
+                    }
                     default -> throw new IllegalStateException("Unexpected metadata type: " + item.getClass().getName());
                 }
             }
-            return resolved;
+            return resolved.values().stream().toList();
         }
 
         private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, AnalyzerContext context) {
+            Pattern pattern = Pattern.compile(StringUtils.wildcardToJavaPattern(um.pattern(), '\\'));
+            Set<String> allowedTags = new HashSet<>();
+            allowedTags.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
             if (context.projectMetadata() != null) {
-                // TODO implement metadata resolution
+                context.projectMetadata()
+                    .customs()
+                    .values()
+                    .stream()
+                    .filter(Metadata.TaggedProjectCustom.class::isInstance)
+                    .map(Metadata.TaggedProjectCustom.class::cast)
+                    .forEach(x -> {
+                        Set<String> tagNames = x.tags().tags().keySet();
+                        for (String tagName : tagNames) {
+                            allowedTags.add(x.tagPrefix() + tagName);
+                        }
+                    });
             }
-            return List.of(um);
+
+            List<String> found = allowedTags.stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
+            List<NamedExpression> result = new ArrayList<>();
+            for (String item : found) {
+                NamedExpression attribute = MetadataAttribute.create(um.source(), item);
+                // try to create it again, in case it's a known metadata attribute (it knows the type)
+                if (attribute instanceof UnresolvedMetadataAttributeExpression) {
+                    // we don't know the type here, but for now we can assume that they are all keywords
+                    attribute = new MetadataAttribute(um.source(), item, KEYWORD, false);
+                }
+                result.add(attribute);
+            }
+            return result;
         }
     }
 

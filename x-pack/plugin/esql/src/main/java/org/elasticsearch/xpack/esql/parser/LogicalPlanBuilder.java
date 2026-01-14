@@ -378,9 +378,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
-                if (MetadataAttribute.isSupported(id) == false) {
-                    throw new ParsingException(src, "unsupported metadata field [" + id + "]");
-                }
                 NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
                 if (a != null) {
                     throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");

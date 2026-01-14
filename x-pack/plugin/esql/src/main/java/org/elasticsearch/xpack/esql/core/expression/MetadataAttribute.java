@@ -33,19 +33,13 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
 
-    public static final String PROJECT_PREFIX = "_project.";
-
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "MetadataAttribute",
         MetadataAttribute::readFrom
     );
 
-    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTE_PREFIXES_MAP = Map.ofEntries(
-        Map.entry(PROJECT_PREFIX, new MetadataAttributeConfiguration(DataType.KEYWORD, true))
-    );
-
-    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
+    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
         Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
         Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         // actually _id is searchable, but fielddata access on it is disallowed by default
@@ -158,13 +152,7 @@ public class MetadataAttribute extends TypedAttribute {
             return new MetadataAttribute(source, name, t.dataType(), t.searchable());
         }
 
-        t = ATTRIBUTE_PREFIXES_MAP.get(prefix(name));
-        if (t != null) {
-            return new UnresolvedMetadataAttributeExpression(source, name, t.dataType());
-        }
-
-        return null;
-
+        return new UnresolvedMetadataAttributeExpression(source, name, DataType.UNSUPPORTED);
     }
 
     private static String prefix(String name) {
@@ -177,7 +165,7 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     public static boolean isSupported(String name) {
-        return ATTRIBUTES_MAP.containsKey(name) || name.contains(".") && ATTRIBUTE_PREFIXES_MAP.containsKey(prefix(name));
+        return ATTRIBUTES_MAP.containsKey(name);
     }
 
     public static boolean isScoreAttribute(Expression a) {
@@ -196,6 +184,6 @@ public class MetadataAttribute extends TypedAttribute {
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (MetadataAttribute) o;
-        return super.innerEquals(other, ignoreIds) && searchable == other.searchable;
+        return super.innerEquals(other, false) && searchable == other.searchable;
     }
 }

@@ -64,7 +64,7 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedMetadataAttributeExpression) o;
-        return super.innerEquals(other, ignoreIds) && pattern == other.pattern && dataType == other.dataType;
+        return super.innerEquals(other, false) && pattern == other.pattern && dataType == other.dataType;
     }
 
     @Override

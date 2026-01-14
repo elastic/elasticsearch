@@ -138,10 +138,4 @@ public class TransportVersionUtils {
     private static boolean isPatchVersion(TransportVersion version) {
         return version.id() % 100 != 0;
     }
-
-    private static void assertNotPatch(@Nullable TransportVersion version) {
-        if (version != null && isPatchVersion(version)) {
-            throw new IllegalArgumentException("Version [" + version + "] is a patch version");
-        }
-    }
 }

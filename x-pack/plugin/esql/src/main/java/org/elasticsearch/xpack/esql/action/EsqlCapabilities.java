@@ -161,9 +161,15 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings).
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
          */
         OPTIONAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
+         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
+         * capability until we enable the LOAD option mentioned above.
+         */
+        OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1859,7 +1865,7 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tier" metadata field.
          */
-        METADATA_TIER_FIELD,
+        METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887

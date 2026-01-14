@@ -342,6 +342,9 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisSuccessIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/140638
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140621
 
 # Examples:
 #

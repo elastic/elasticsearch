@@ -2948,7 +2948,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     oldAttr.source(),
                     oldAttr.name(),
                     new UnsupportedEsField(oldAttr.name(), dataTypes),
-                    "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
+                    "Column [" + oldAttr.name() + "] has conflicting or unsupported data types in subqueries: " + dataTypes,
                     oldAttr.id()
                 );
                 newAliases.add(new Alias(oldAttr.source(), oldAttr.name(), unsupported));
@@ -2967,8 +2967,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> dataTypes = new ArrayList<>();
             for (List<Attribute> out : outputs) {
                 Attribute attr = out.get(columnIndex);
-                if (attr instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                    dataTypes.addAll(imf.types().stream().map(DataType::typeName).toList());
+                if (attr instanceof FieldAttribute fa) {
+                    if (fa.field() instanceof InvalidMappedField invalidMappedField) {
+                        dataTypes.addAll(invalidMappedField.types().stream().map(DataType::typeName).toList());
+                    } else if (fa.field() instanceof UnsupportedEsField unsupportedEsField) {
+                        dataTypes.addAll(unsupportedEsField.getOriginalTypes());
+                    } else {
+                        dataTypes.add(attr.dataType().typeName());
+                    }
                 } else {
                     dataTypes.add(attr.dataType().typeName());
                 }

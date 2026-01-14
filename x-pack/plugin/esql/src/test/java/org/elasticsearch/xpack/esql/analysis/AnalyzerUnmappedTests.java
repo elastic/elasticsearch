@@ -1415,7 +1415,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[language_code{r}#22, language_name{r}#23, does_not_exist1{r}#24, @timestamp{r}#25, client_ip{r}#26, event_dur
      * ation{r}#27, message{r}#28]]
-     *   |_Limit[1000[INTEGER],false,false]
      *   | \_EsqlProject[[language_code{f}#6, language_name{f}#7, does_not_exist1{r}#12, @timestamp{r}#16, client_ip{r}#17, event_durat
      * ion{r}#18, message{r}#19]]
      *   |   \_Eval[[null[DATETIME] AS @timestamp#16, null[IP] AS client_ip#17, null[LONG] AS event_duration#18, null[KEYWORD] AS
@@ -1424,7 +1423,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *   |       \_Filter[TOLONG(does_not_exist1{r}#12) > 1[INTEGER]]
      *   |         \_Eval[[null[NULL] AS does_not_exist1#12]]
      *   |           \_EsRelation[languages][language_code{f}#6, language_name{f}#7]
-     *   \_Limit[1000[INTEGER],false,false]
      *     \_EsqlProject[[language_code{r}#20, language_name{r}#21, does_not_exist1{r}#14, @timestamp{f}#8, client_ip{f}#9, event_durat
      * ion{f}#10, message{f}#11]]
      *       \_Eval[[null[INTEGER] AS language_code#20, null[KEYWORD] AS language_name#21]]
@@ -1434,7 +1432,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *               \_EsRelation[sample_data][@timestamp{f}#8, client_ip{f}#9, event_duration{f}#..]
      */
     public void testDoubleSubqueryOnly() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
 
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM
@@ -1451,10 +1452,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(union.children(), hasSize(2));
 
         // Left branch: languages
-        var leftLimit = as(union.children().get(0), Limit.class);
-        assertThat(leftLimit.limit().fold(FoldContext.small()), is(1000));
-
-        var leftProject = as(leftLimit.child(), Project.class);
+        var leftProject = as(union.children().get(0), Project.class);
         var leftEval = as(leftProject.child(), Eval.class);
         // Verify unmapped null aliases for @timestamp, client_ip, event_duration, message
         assertThat(leftEval.fields(), hasSize(4));
@@ -1487,10 +1485,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(leftRel.indexPattern(), is("languages"));
 
         // Right branch: sample_data
-        var rightLimit = as(union.children().get(1), Limit.class);
-        assertThat(rightLimit.limit().fold(FoldContext.small()), is(1000));
-
-        var rightProject = as(rightLimit.child(), Project.class);
+        var rightProject = as(union.children().get(1), Project.class);
         var rightEval = as(rightProject.child(), Eval.class);
         // Verify unmapped null aliases for language_code, language_name
         assertThat(rightEval.fields(), hasSize(2));
@@ -1524,7 +1519,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *   \_Filter[$$does_not_exist2$converted_to$long{r$}#36 < 100[INTEGER]]
      *     \_UnionAll[[language_code{r}#23, language_name{r}#24, does_not_exist1{r}#25, @timestamp{r}#26, client_ip{r}#27,
      *              event_duration{r}#28, message{r}#29, does_not_exist2{r}#30, $$does_not_exist2$converted_to$long{r$}#36]]
-     *       |_Limit[1000[INTEGER],false,false]
      *       | \_EsqlProject[[language_code{f}#7, language_name{f}#8, does_not_exist1{r}#13, @timestamp{r}#17, client_ip{r}#18,
      *              event_duration{r}#19, message{r}#20, does_not_exist2{r}#31, $$does_not_exist2$converted_to$long{r}#34]]
      *       |   \_Eval[[TOLONG(does_not_exist2{r}#31) AS $$does_not_exist2$converted_to$long#34]]
@@ -1534,7 +1528,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *       |         \_Filter[TOLONG(does_not_exist1{r}#13) > 1[INTEGER]]
      *       |           \_Eval[[null[NULL] AS does_not_exist1#13, null[NULL] AS does_not_exist2#30]]
      *       |             \_EsRelation[languages][language_code{f}#7, language_name{f}#8]
-     *       \_Limit[1000[INTEGER],false,false]
      *         \_EsqlProject[[language_code{r}#21, language_name{r}#22, does_not_exist1{r}#15, @timestamp{f}#9, client_ip{f}#10,
      *                  event_duration{f}#11, message{f}#12, does_not_exist2{r}#32, $$does_not_exist2$converted_to$long{r}#35]]
      *           \_Eval[[TOLONG(does_not_exist2{r}#32) AS $$does_not_exist2$converted_to$long#35]]
@@ -1545,7 +1538,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *                     \_EsRelation[sample_data][@timestamp{f}#9, client_ip{f}#10, event_duration{f}..]
      */
     public void testDoubleSubqueryOnlyWithTopFilterAndNoMain() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
 
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM
@@ -1573,10 +1569,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(union.children(), hasSize(2));
 
         // Left branch: languages
-        var leftLimit = as(union.children().get(0), Limit.class);
-        assertThat(leftLimit.limit().fold(FoldContext.small()), is(1000));
-
-        var leftProject = as(leftLimit.child(), Project.class);
+        var leftProject = as(union.children().get(0), Project.class);
         assertThat(
             Expressions.names(leftProject.output()),
             is(
@@ -1619,10 +1612,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(leftRel.indexPattern(), is("languages"));
 
         // Right branch: sample_data
-        var rightLimit = as(union.children().get(1), Limit.class);
-        assertThat(rightLimit.limit().fold(FoldContext.small()), is(1000));
-
-        var rightProject = as(rightLimit.child(), Project.class);
+        var rightProject = as(union.children().get(1), Project.class);
         assertThat(
             Expressions.names(rightProject.output()),
             is(
@@ -1672,7 +1662,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *     \_UnionAll[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42,
      *              languages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{r}#46, language_code{r}#47, language_name{r}#48,
      *              does_not_exist1{r}#49, does_not_exist2{r}#50, $$does_not_exist2$converted_to$long{r$}#56]]
-     *       |_Limit[1000[INTEGER],false,false]
      *       | \_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
      *              languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_code{r}#22, language_name{r}#23,
      *              does_not_exist1{r}#24, does_not_exist2{r}#51, $$does_not_exist2$converted_to$long{r}#54]]
@@ -1680,7 +1669,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *       |     \_Eval[[null[INTEGER] AS language_code#22, null[KEYWORD] AS language_name#23, null[NULL] AS does_not_exist1#24,
      *                      null[NULL] AS does_not_exist2#50]]
      *       |       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *       \_Limit[1000[INTEGER],false,false]
      *         \_EsqlProject[[_meta_field{r}#25, emp_no{r}#26, first_name{r}#27, gender{r}#28, hire_date{r}#29, job{r}#30, job.raw{r}#31,
      *                  languages{r}#32, last_name{r}#33, long_noidx{r}#34, salary{r}#35, language_code{f}#18, language_name{f}#19,
      *                  does_not_exist1{r}#20, does_not_exist2{r}#52, $$does_not_exist2$converted_to$long{r}#55]]
@@ -1695,7 +1683,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *                     \_EsRelation[languages][language_code{f}#18, language_name{f}#19]
      */
     public void testSubqueryAndMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
 
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM test,
@@ -1751,10 +1742,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(union.children(), hasSize(2));
 
         // Left branch: EsRelation[test] with EsqlProject + Eval nulls
-        var leftLimit = as(union.children().get(0), Limit.class);
-        assertThat(leftLimit.limit().fold(FoldContext.small()), is(1000));
-
-        var leftProject = as(leftLimit.child(), Project.class);
+        var leftProject = as(union.children().get(0), Project.class);
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
         var leftEvalEval = as(leftEval.child(), Eval.class);
@@ -1772,10 +1760,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(leftRel.indexPattern(), is("test"));
 
         // Right branch: EsqlProject + Eval many nulls, Subquery -> Filter -> Eval -> EsRelation[languages]
-        var rightLimit = as(union.children().get(1), Limit.class);
-        assertThat(rightLimit.limit().fold(FoldContext.small()), is(1000));
-
-        var rightProject = as(rightLimit.child(), Project.class);
+        var rightProject = as(union.children().get(1), Project.class);
         var rightEval = as(rightProject.child(), Eval.class);
         assertThat(Expressions.names(rightEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
         var rightEvalEval = as(rightEval.child(), Eval.class);
@@ -2034,6 +2019,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailAfterUnionAllOfStats() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
         var query = """
             FROM
                 (FROM employees
@@ -2056,7 +2043,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *              languages{r}#60, last_name{r}#61, long_noidx{r}#62, salary{r}#63, language_code{r}#64, language_name{r}#65,
      *              does_not_exist1{r}#66, $$does_not_exist1$converted_to$long{r$}#70, does_not_exist2{r}#71,
      *              $$does_not_exist2$converted_to$long{r$}#79]]
-     *       |_Limit[1000[INTEGER],false,false]
      *       | \_EsqlProject[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
      *                  languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, language_code{r}#28, language_name{r}#29,
      *                  does_not_exist1{r}#30, $$does_not_exist1$converted_to$long{r}#67, does_not_exist2{r}#72,
@@ -2066,7 +2052,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *       |       \_Eval[[null[INTEGER] AS language_code#28, null[KEYWORD] AS language_name#29, null[NULL] AS does_not_exist1#30,
      *                      null[NULL] AS does_not_exist2#71]]
      *       |         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
-     *       |_Limit[1000[INTEGER],false,false]
      *       | \_EsqlProject[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37,
      *                  languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, language_code{f}#20, language_name{f}#21,
      *                  does_not_exist1{r}#24, $$does_not_exist1$converted_to$long{r}#68, does_not_exist2{r}#73,
@@ -2081,7 +2066,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *       |           \_Filter[TOLONG(does_not_exist1{r}#24) > 1[INTEGER]]
      *       |             \_Eval[[null[NULL] AS does_not_exist1#24, null[NULL] AS does_not_exist2#71]]
      *       |               \_EsRelation[languages][language_code{f}#20, language_name{f}#21]
-     *       \_Limit[1000[INTEGER],false,false]
      *         \_EsqlProject[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48,
      *                  languages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, language_code{f}#22, language_name{f}#23,
      *                  does_not_exist1{r}#26, $$does_not_exist1$converted_to$long{r}#69, does_not_exist2{r}#74,
@@ -2098,7 +2082,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *                       \_EsRelation[languages][language_code{f}#22, language_name{f}#23]
      */
     public void testSubquerysWithMainAndSameOptional() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
 
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM test,
@@ -2141,10 +2128,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(union.children(), hasSize(3));
 
         // Branch 1: EsRelation[test] with EsqlProject + Eval(null language_code/name/dne1) + Eval(TOLONG does_not_exist1)
-        var b1Limit = as(union.children().get(0), Limit.class);
-        assertThat(b1Limit.limit().fold(FoldContext.small()), is(1000));
-
-        var b1Project = as(b1Limit.child(), Project.class);
+        var b1Project = as(union.children().get(0), Project.class);
         var b1EvalToLong = as(b1Project.child(), Eval.class);
         assertThat(b1EvalToLong.fields(), hasSize(1));
         var b1Converted = as(b1EvalToLong.fields().getFirst(), Alias.class);
@@ -2164,10 +2148,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(b1Rel.indexPattern(), is("test"));
 
         // Branch 2: Subquery[languages] with Filter TOLONG(does_not_exist1) > 1, wrapped by EsqlProject nulls + Eval(TOLONG dne1)
-        var b2Limit = as(union.children().get(1), Limit.class);
-        assertThat(b2Limit.limit().fold(FoldContext.small()), is(1000));
-
-        var b2Project = as(b2Limit.child(), Project.class);
+        var b2Project = as(union.children().get(1), Project.class);
         var b2EvalToLong = as(b2Project.child(), Eval.class);
         assertThat(b2EvalToLong.fields(), hasSize(1));
         var b2Converted = as(b2EvalToLong.fields().getFirst(), Alias.class);
@@ -2191,10 +2172,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(b2Rel.indexPattern(), is("languages"));
 
         // Branch 3: Subquery[languages] with Filter TOLONG(does_not_exist1) > 2, wrapped by EsqlProject nulls + Eval(TOLONG dne1)
-        var b3Limit = as(union.children().get(2), Limit.class);
-        assertThat(b3Limit.limit().fold(FoldContext.small()), is(1000));
-
-        var b3Project = as(b3Limit.child(), Project.class);
+        var b3Project = as(union.children().get(2), Project.class);
         var b3EvalToLong = as(b3Project.child(), Eval.class);
         assertThat(b3EvalToLong.fields(), hasSize(1));
         var b3Converted = as(b3EvalToLong.fields().getFirst(), Alias.class);
@@ -3040,7 +3018,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedNullify(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         return "SET unmapped_fields=\"nullify\"; " + query;
     }
 

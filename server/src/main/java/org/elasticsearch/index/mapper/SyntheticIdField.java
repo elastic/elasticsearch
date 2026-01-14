@@ -27,13 +27,6 @@ public final class SyntheticIdField extends Field {
     private static final String ENABLED_ATTRIBUTE_KEY = SyntheticIdField.class.getSimpleName() + ".enabled";
     private static final String ENABLED_ATTRIBUTE_VALUE = Boolean.TRUE.toString();
 
-    private static final TokenStream EMPTY_TOKEN_STREAM = new TokenStream() {
-        @Override
-        public boolean incrementToken() {
-            return false;
-        }
-    };
-
     private static final FieldType TYPE;
 
     static {

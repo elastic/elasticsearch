@@ -59,6 +59,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,
                 random().nextBoolean(),
+                null,
+                1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
@@ -69,6 +71,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,
                 false,
+                null,
+                1,
                 true,
                 random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS)
             );
@@ -80,6 +84,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,
                 random().nextBoolean(),
+                null,
+                1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );

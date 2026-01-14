@@ -27,9 +27,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.junit.BeforeClass;
 
 import java.util.List;
@@ -75,7 +75,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      * Limit[1000[INTEGER],false]
      * \_InlineJoin[LEFT,[y{r}#10],[y{r}#10],[y{r}#10]]
      *   |_Eval[[gender{f}#13 AS y]]
-     *   | \_EsqlProject[[emp_no{f}#11, languages{f}#14, gender{f}#13]]
+     *   | \_Project[[emp_no{f}#11, languages{f}#14, gender{f}#13]]
      *   |   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *   \_Aggregate[STANDARD,[y{r}#10],[MAX(languages{f}#14,true[BOOLEAN]) AS max_lang, y{r}#10]]
      *     \_StubRelation[[emp_no{f}#11, languages{f}#14, gender{f}#13, y{r}#10]]
@@ -91,7 +91,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);
         var leftEval = as(inline.left(), Eval.class);
-        var project = as(leftEval.child(), EsqlProject.class);
+        var project = as(leftEval.child(), Project.class);
 
         assertThat(Expressions.names(project.projections()), contains("emp_no", "languages", "gender"));
 
@@ -116,7 +116,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      * r}#9]]
      *   |_Eval[[LEFT(last_name{f}#27,1[INTEGER]) AS f, gender{f}#25 AS g]]
      *   | \_Eval[[LEFT(first_name{f}#24,1[INTEGER]) AS first_name_l]]
-     *   |   \_EsqlProject[[emp_no{f}#23, languages{f}#26, gender{f}#25, last_name{f}#27, first_name{f}#24]]
+     *   |   \_Project[[emp_no{f}#23, languages{f}#26, gender{f}#25, last_name{f}#27, first_name{f}#24]]
      *   |     \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
      *   \_Aggregate[STANDARD,[f{r}#18, g{r}#21, first_name_l{r}#9],[MAX(languages{f}#26,true[BOOLEAN]) AS max_lang, MIN(languages{f}
      * #26,true[BOOLEAN]) AS min_lang, f{r}#18, g{r}#21, first_name_l{r}#9]]
@@ -136,7 +136,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         var inline = as(limit.child(), InlineJoin.class);
         var leftEval1 = as(inline.left(), Eval.class);
         var leftEval2 = as(leftEval1.child(), Eval.class);
-        var project = as(leftEval2.child(), EsqlProject.class);
+        var project = as(leftEval2.child(), Project.class);
 
         assertThat(Expressions.names(project.projections()), contains("emp_no", "languages", "gender", "last_name", "first_name"));
 

@@ -115,7 +115,7 @@ class KnnSearcher {
         this.numQueryVectors = testConfiguration.numQueries();
         this.dim = testConfiguration.dimensions();
         this.similarityFunction = testConfiguration.vectorSpace();
-        this.vectorEncoding = testConfiguration.vectorEncoding();
+        this.vectorEncoding = testConfiguration.vectorEncoding().luceneEncoding();
         if (numQueryVectors <= 0) {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }

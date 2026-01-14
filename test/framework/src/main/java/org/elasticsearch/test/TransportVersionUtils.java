@@ -42,11 +42,6 @@ public class TransportVersionUtils {
         return RELEASED_VERSIONS;
     }
 
-    /** Returns the oldest known {@link TransportVersion} */
-    public static TransportVersion getFirstVersion() {
-        return allReleasedVersions().getFirst();
-    }
-
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
         return RandomPicks.randomFrom(random(), allReleasedVersions());
@@ -60,6 +55,11 @@ public class TransportVersionUtils {
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
         return RandomPicks.randomFrom(random, allReleasedVersions());
+    }
+
+    /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    public static TransportVersion randomVersionBetween(@Nullable TransportVersion minVersion, @Nullable TransportVersion maxVersion) {
+        return randomVersionBetween(random(), minVersion, maxVersion);
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

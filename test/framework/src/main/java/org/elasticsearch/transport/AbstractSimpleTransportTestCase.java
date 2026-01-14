@@ -2340,10 +2340,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testHandshakeUpdatesVersion() throws IOException {
+    public void testHandshakeUpdatesVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
             TransportVersion.minimumCompatible(),
             TransportVersion.current()
         );

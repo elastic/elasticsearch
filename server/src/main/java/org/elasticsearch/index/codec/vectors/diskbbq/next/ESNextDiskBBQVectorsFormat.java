@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
@@ -24,6 +25,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Codec format for Inverted File Vector indexes. This index expects to break the dimensional space
@@ -217,6 +219,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
+    private final TaskExecutor mergeExec;
+    private final int numMergeWorkers;
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
 
@@ -231,6 +235,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
             false,
+            null,
+            1,
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
         );
@@ -242,6 +248,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
         boolean doPrecondition,
         int preconditioningBlockDimension
     ) {
@@ -288,7 +296,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
         this.useDirectIO = useDirectIO;
-
+        this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
+        this.numMergeWorkers = maxMergingWorkers;
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
     }
@@ -308,8 +317,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
             preconditioningBlockDimension,
             doPrecondition
+
         );
     }
 
@@ -329,7 +341,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ESNextDiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
+        return "ESNextDiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
     }
 
 }

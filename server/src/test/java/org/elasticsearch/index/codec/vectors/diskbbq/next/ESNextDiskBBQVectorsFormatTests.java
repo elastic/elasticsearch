@@ -87,6 +87,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 false,
+                null,
+                1,
                 true,
                 random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS)
             );
@@ -158,7 +160,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 return new ESNextDiskBBQVectorsFormat(128, 4);
             }
         };
-        String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128)";
+        String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false)";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");

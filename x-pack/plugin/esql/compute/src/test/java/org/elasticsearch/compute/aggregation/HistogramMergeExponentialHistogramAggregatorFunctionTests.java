@@ -46,7 +46,7 @@ public class HistogramMergeExponentialHistogramAggregatorFunctionTests extends A
 
     @Override
     protected int maximumTestRowCount() {
-        return super.maximumTestRowCount() / 10;
+        return 10_000;
     }
 
     @Override

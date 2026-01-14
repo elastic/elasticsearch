@@ -320,20 +320,20 @@ from colors metadata _score
 | limit 10
 | rerank rerank_score = "deepest blue" ON color WITH { "inference_id" : "test_reranker" }
 | sort rerank_score desc, color asc
-| keep color
+| keep color, rerank_score
 ;
 
 color:text
-gray
-peru
-brown
-green
-olive
 maroon
+golden rod
 sienna
 chocolate
 firebrick
-golden rod
+olive
+green
+brown
+peru
+gray
 ;
 
 testKnnWithSemanticText

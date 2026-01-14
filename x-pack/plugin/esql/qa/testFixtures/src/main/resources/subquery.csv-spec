@@ -773,9 +773,9 @@ FROM books, (FROM sample_data
 ;
 ignoreOrder:true
 
-book_no:keyword | title:text                                | author:text       | _score:double | @timestamp:datetime
-1211            | The brothers Karamazov                    | Fyodor Dostoevsky | 0.05          | null
-1463            | Realms of Tolkien: Images of Middle-earth | J. R. R. Tolkien  | 0.02          | null
+book_no:keyword | title:text                                | author:text       | _score:double | @timestamp:datetime	
+1211            | The brothers Karamazov                    | Fyodor Dostoevsky | 0.45          | null	
+1463            | Realms of Tolkien: Images of Middle-earth | J. R. R. Tolkien  | 0.25          | null
 ;
 
 subqueryInFromWithUnionTypesWithCommonTypes

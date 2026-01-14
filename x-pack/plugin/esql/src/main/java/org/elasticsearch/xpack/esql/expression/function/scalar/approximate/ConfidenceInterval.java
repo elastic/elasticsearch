@@ -66,7 +66,13 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         returnType = { "double", },
         description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
             + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
-            + "interval. If no sensible interval is found, the function returns null instead."
+            + "interval. If no sensible interval is found, the function returns null instead. "
+            + "For example: CONFIDENCE_INTERVAL(10.0, [9.8, 9.9, 10.0, 10.1, 9, 9, 11, 11], 2, 4, 0.9) = [9.54, 10.46, 0.5]"
+            + "Explanation: the best estimate (based on all data) is 10.0, and there are 2 trials with 4 buckets each. "
+            + "The first trial has estimates [9.8, 9.9, 10.0, 10.1] and the second trial has estimates [9, 9, 11, 11]. "
+            + "The computed 90% confidence interval is [9.54, 10.46]. Only the first trial is considered reliable, because "
+            + "its values are nicely distributed around the best estimate. The second trial has very high kurtosis and is therefore"
+            + "considered unreliable. This leads to a reliability of 0.5 (1 reliable trial out of 2)."
     )
     public ConfidenceInterval(
         Source source,
@@ -196,7 +202,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Evaluator
     static void process(
-        DoubleBlock.Builder builder,
+        DoubleBlock.Builder resultBuilder,
         @Position int position,
         DoubleBlock bestEstimateBlock,
         DoubleBlock estimatesBlock,
@@ -204,44 +210,31 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         IntBlock bucketCountBlock,
         DoubleBlock confidenceLevelBlock
     ) {
+        // Validate input.
         if (bestEstimateBlock.getValueCount(position) != 1
             || trialCountBlock.getValueCount(position) != 1
             || bucketCountBlock.getValueCount(position) != 1
             || confidenceLevelBlock.getValueCount(position) != 1) {
-            builder.appendNull();
+            resultBuilder.appendNull();
             return;
         }
         double bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
         int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
         int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
-        if (estimatesBlock.getValueCount(position) != trialCount * bucketCount) {
-            builder.appendNull();
+        int estimatesCount = estimatesBlock.getValueCount(position);
+        if (estimatesCount != trialCount * bucketCount) {
+            resultBuilder.appendNull();
             return;
         }
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
-        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
-            estimates[i] = estimatesBlock.getDouble(estimatesBlock.getFirstValueIndex(position) + i);
-        }
         double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
-        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
-        if (confidenceInterval == null) {
-            builder.appendNull();
-        } else {
-            builder.beginPositionEntry();
-            for (double v : confidenceInterval) {
-                builder.appendDouble(v);
-            }
-            builder.endPositionEntry();
-        }
-    }
 
-    private static double[] computeConfidenceInterval(
-        double bestEstimate,
-        double[] estimates,
-        int trialCount,
-        int bucketCount,
-        double confidenceLevel
-    ) {
+        // Collect estimates into an array.
+        double[] estimates = new double[estimatesCount];
+        int offset = estimatesBlock.getFirstValueIndex(position);
+        for (int i = 0; i < estimatesCount; i++) {
+            estimates[i] = estimatesBlock.getDouble(offset + i);
+        }
+
         // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to
         // compute the confidence interval. To compute a mean, empty buckets are best ignored.
         // However, to compute a count or sum, it's best to treat them as zero. For a mixed
@@ -262,16 +255,18 @@ public class ConfidenceInterval extends EsqlScalarFunction {
                     meanZeroNaN.increment(0.0);
                 }
             }
-            double value;
-            if (Double.isNaN(value = meanIgnoreNaN.getResult()) == false) {
-                meansIgnoreNaN.increment(value);
+            double mean = meanIgnoreNaN.getResult();
+            if (Double.isNaN(mean) == false) {
+                meansIgnoreNaN.increment(mean);
             }
-            if (Double.isNaN(value = meanZeroNaN.getResult()) == false) {
-                meansZeroNaN.increment(value);
+            mean = meanZeroNaN.getResult();
+            if (Double.isNaN(mean) == false) {
+                meansZeroNaN.increment(mean);
             }
         }
         if (Double.isNaN(meansIgnoreNaN.getResult()) || Double.isNaN(meansZeroNaN.getResult())) {
-            return null;
+            resultBuilder.appendNull();
+            return;
         }
 
         double meanIgnoreNan = meansIgnoreNaN.getResult();
@@ -343,10 +338,16 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double sm = stddevs.getResult();
         double skew = skews.getResult();
         if (Double.isNaN(sm) || Double.isNaN(skew)) {
-            return null;
+            resultBuilder.appendNull();
+            return;
         }
         if (sm == 0.0) {
-            return new double[] { bestEstimate, bestEstimate, (double) reliableCount / trialCount };
+            resultBuilder.beginPositionEntry();
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble((double) reliableCount / trialCount);
+            resultBuilder.endPositionEntry();
+            return;
         }
 
         // Scale the acceleration to account for the dependence of skewness on sample size.
@@ -361,9 +362,17 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double lower = mm + scale * sm * zl;
         double upper = mm + scale * sm * zu;
 
-        // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
-        // so return null instead. TODO: this criterion is not ideal, and should be revisited.
-        return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper, (double) reliableCount / trialCount } : null;
+        if (lower <= bestEstimate && bestEstimate <= upper) {
+            resultBuilder.beginPositionEntry();
+            resultBuilder.appendDouble(lower);
+            resultBuilder.appendDouble(upper);
+            resultBuilder.appendDouble((double) reliableCount / trialCount);
+            resultBuilder.endPositionEntry();
+        } else {
+            // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
+            // so return null instead. TODO: this criterion is not ideal, and should be revisited.
+            resultBuilder.appendNull();
+        }
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -83,7 +84,6 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -171,6 +171,11 @@ public class Approximation {
         Sample.class,
         TopN.class
     );
+
+    /**
+     * These index modes of EsRelation are supported.
+     */
+    private static final Set<IndexMode> SUPPORTED_INDEX_MODES = Set.of(IndexMode.STANDARD, IndexMode.LOOKUP);
 
     /**
      * These commands preserve all rows, making it easy to predict the number of output rows.
@@ -332,10 +337,11 @@ public class Approximation {
         }
         // Verify that all commands are supported.
         logicalPlan.forEachUp(plan -> {
-            if (SUPPORTED_COMMANDS.contains(plan.getClass()) == false) {
-                // TODO: better way of obtaining the command name
+            if (SUPPORTED_COMMANDS.contains(plan.getClass()) == false
+                || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
+                // TODO: ideally just return the command from the source
                 throw new VerificationException(
-                    List.of(Failure.fail(plan, "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] cannot be approximated"))
+                    List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] cannot be approximated"))
                 );
             }
         });
@@ -346,20 +352,15 @@ public class Approximation {
 
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (plan instanceof Aggregate aggregate) {
+                if (plan instanceof Aggregate) {
                     // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);
                     plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
-                            // TODO: better way of obtaining the agg name
+                            // TODO: ideally just return aggregate function from the source
                             throw new VerificationException(
-                                List.of(
-                                    Failure.fail(
-                                        aggFn,
-                                        "aggregation function [" + aggFn.nodeName().toUpperCase(Locale.ROOT) + "] cannot be approximated"
-                                    )
-                                )
+                                List.of(Failure.fail(aggFn, "aggregation function [" + aggFn.sourceText() + "] cannot be approximated"))
                             );
                         }
                         return aggFn;
@@ -526,7 +527,13 @@ public class Approximation {
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
+                runner.run(
+                    toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    countListener
+                );
                 return;
             }
             double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
@@ -538,14 +545,20 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    listener
+                    countListener
                 );
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
+                runner.run(
+                    toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    countListener
+                );
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
@@ -555,7 +568,7 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    countListener(sampleProbability, listener)
+                    countListener(sampleProbability, countListener)
                 );
             }
         });
@@ -614,7 +627,13 @@ public class Approximation {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
+                runner.run(
+                    toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    countListener
+                );
             } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
                 newSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
@@ -624,7 +643,7 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    countListener(newSampleProbability, listener)
+                    countListener(newSampleProbability, countListener)
                 );
             } else {
                 runner.reset();
@@ -633,7 +652,7 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    listener
+                    countListener
                 );
             }
         });
@@ -676,7 +695,7 @@ public class Approximation {
      *         FROM index
      *             | EVAL x = 2*x
      *             | STATS s = SUM(x) BY group
-     *             | EVAL s2 = s*s
+     *             | EVAL t = s*s
      *     }
      * </pre>
      * is rewritten to (prob=sampleProbability, T=trialCount, B=bucketCount):

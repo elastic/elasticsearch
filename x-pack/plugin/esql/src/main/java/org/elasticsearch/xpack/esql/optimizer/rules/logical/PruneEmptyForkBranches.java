@@ -26,7 +26,7 @@ import java.util.List;
  * | ...
  * | FORK ( SORT _score | LIMIT 10) // return top hits every time
  *        ( WHERE ?include_completion | STATS s = values(title) | COMPLETION ...)
- * }<pre/>
+ * }</pre>
  */
 public class PruneEmptyForkBranches extends OptimizerRules.OptimizerRule<Fork> {
 

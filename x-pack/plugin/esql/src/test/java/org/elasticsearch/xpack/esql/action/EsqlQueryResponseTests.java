@@ -1330,6 +1330,77 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testDatesWithTimezone() {
+        LongBlock blk11, blk12, blk21, blk22;
+        try (
+            var bb11 = blockFactory.newLongBlockBuilder(2);
+            var bb12 = blockFactory.newLongBlockBuilder(4);
+            var bb21 = blockFactory.newLongBlockBuilder(2);
+            var bb22 = blockFactory.newLongBlockBuilder(4)
+        ) {
+            blk11 = bb11.appendLong(dateTimeToLong("2007-12-03T10:15:30+01:00")).appendNull().build();
+            blk12 = bb12.beginPositionEntry()
+                .appendLong(dateTimeToLong("2007-12-03T10:15:30Z"))
+                .appendLong(dateTimeToLong("2007-12-03T10:15:30+01:00"))
+                .endPositionEntry()
+                .build();
+            blk21 = bb21.appendLong(dateNanosToLong("2007-12-03T10:15:30.123456789+01:00")).appendNull().build();
+            blk22 = bb22.beginPositionEntry()
+                .appendLong(dateNanosToLong("2007-12-03T10:15:30.1234Z"))
+                .appendLong(dateNanosToLong("2007-12-03T10:15:30+01:00"))
+                .endPositionEntry()
+                .build();
+        }
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "date", null), new ColumnInfoImpl("bar", "date_nanos", null));
+        var pages = List.of(new Page(blk11, blk21), new Page(blk12, blk22));
+        try (
+            var response = new EsqlQueryResponse(
+                columnInfo,
+                pages,
+                0,
+                0,
+                null,
+                false,
+                null,
+                false,
+                false,
+                ZoneId.of("Europe/Paris"),
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(
+                columnValues(response.column(0)),
+                contains("2007-12-03T10:15:30.000+01:00", null, List.of("2007-12-03T11:15:30.000+01:00", "2007-12-03T10:15:30.000+01:00"))
+            );
+            assertThat(
+                columnValues(response.column(1)),
+                contains(
+                    "2007-12-03T10:15:30.123456789+01:00",
+                    null,
+                    List.of("2007-12-03T11:15:30.1234+01:00", "2007-12-03T10:15:30.000+01:00")
+                )
+            );
+
+            var rowValues = getValuesList(response.rows());
+            var valValues = getValuesList(response.values());
+            // Ensure they're identical
+            for (int i = 0; i < rowValues.size(); i++) {
+                assertThat(rowValues.get(i), equalTo(valValues.get(i)));
+            }
+            assertThat(rowValues.get(0), contains("2007-12-03T10:15:30.000+01:00", "2007-12-03T10:15:30.123456789+01:00"));
+            assertThat(rowValues.get(1), contains(null, null));
+            assertThat(
+                rowValues.get(2),
+                contains(
+                    List.of("2007-12-03T11:15:30.000+01:00", "2007-12-03T10:15:30.000+01:00"),
+                    List.of("2007-12-03T11:15:30.1234+01:00", "2007-12-03T10:15:30.000+01:00")
+                )
+            );
+        }
+    }
+
     public void testRowValues() {
         for (int times = 0; times < 10; times++) {
             int numColumns = randomIntBetween(1, 10);

@@ -231,12 +231,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public Iterable<Iterable<Object>> rows() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages);
+        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages, zoneId);
     }
 
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
-        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
+        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages, zoneId);
     }
 
     /**

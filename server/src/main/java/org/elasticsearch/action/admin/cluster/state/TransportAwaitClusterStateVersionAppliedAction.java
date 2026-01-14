@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 /**
@@ -103,8 +104,14 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
 
     @Override
     protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
+        var completed = new AtomicBoolean(false);
+
         var cancellableTask = (CancellableTask) task;
-        cancellableTask.addListener(() -> listener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled())));
+        cancellableTask.addListener(() -> {
+            if (completed.compareAndSet(false, true)) {
+                listener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled()));
+            }
+        });
 
         Predicate<ClusterState> predicate = (ClusterState state) -> cancellableTask.isCancelled()
             || state.version() >= request.clusterStateVersion;
@@ -113,7 +120,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             @Override
             public void onNewClusterState(ClusterState state) {
                 // The listener is notified directly from the task in case of cancellation.
-                if (cancellableTask.isCancelled() == false) {
+                if (completed.compareAndSet(false, true)) {
                     listener.onResponse(new NodeResponse(clusterService.localNode()));
                 }
             }
@@ -121,7 +128,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             @Override
             public void onClusterServiceClose() {
                 // The listener is notified directly from the task in case of cancellation.
-                if (cancellableTask.isCancelled() == false) {
+                if (completed.compareAndSet(false, true)) {
                     listener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
             }
@@ -129,7 +136,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             @Override
             public void onTimeout(TimeValue timeout) {
                 // The listener is notified directly from the task in case of cancellation.
-                if (cancellableTask.isCancelled() == false) {
+                if (completed.compareAndSet(false, true)) {
                     listener.onFailure(
                         new ElasticsearchTimeoutException(
                             "timed out waiting for cluster state version [" + request.clusterStateVersion + "] to be applied"

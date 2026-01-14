@@ -239,12 +239,12 @@ POST bbq_disk-index/_search
 
 A lower `visit_percentage` can further reduce memory use and speed up queries, while a higher value can improve recall. Learn more about [top-level parameters for knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) queries.
 
-#### Quantize bits [bbq-quantize-bits]
+#### Quantize bits [bbq-bits]
 ```{applies_to}
 stack: ga 9.4
 ```
 By default, BBQ performs asymmetric quantization: it performs 1-bit quantization for the indexed vectors and 4-bit quantization for query vectors.
-For fields of type `bbq_disk` it is possible to change the level of quantization for indexed vectors by setting the `quantize_bits` parameter in `index_options` to `1`, `2` or `4`.
+For fields of type `bbq_disk` it is possible to change the level of quantization for indexed vectors by setting the `bits` parameter in `index_options` to `1`, `2` or `4`.
 
 ```console
 PUT bbq_disk-index/_mapping
@@ -256,7 +256,7 @@ PUT bbq_disk-index/_mapping
       "index": true,
       "index_options": {
         "type": "bbq_disk"
-        "quantize_bits": 2
+        "bits": 2
       }
     }
   }

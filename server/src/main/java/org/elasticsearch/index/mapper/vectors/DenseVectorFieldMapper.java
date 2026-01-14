@@ -1739,7 +1739,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
-                Object quantizeBitsNode = indexOptionsMap.remove("quantize_bits");
+                Object quantizeBitsNode = indexOptionsMap.remove("bits");
                 int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
                 if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4) == false) {
                     throw new IllegalArgumentException(

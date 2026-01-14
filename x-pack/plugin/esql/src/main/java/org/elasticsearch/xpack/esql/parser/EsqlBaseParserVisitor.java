@@ -497,6 +497,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

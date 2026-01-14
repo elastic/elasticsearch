@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -4318,6 +4319,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "1:13: value of [limit ?param] must be a non negative integer, found value [?param] type [" + type.typeName() + "]"
         );
 
+    }
+
+    public void testMMRCommandWithLimit() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr dense_embedding limit 5");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+        assertThat(mmrCmd.limit(), equalToIgnoringIds(literalLong(5)));
     }
 
     public void testInvalidSample() {

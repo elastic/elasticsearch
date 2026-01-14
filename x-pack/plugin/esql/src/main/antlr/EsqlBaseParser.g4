@@ -71,6 +71,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -375,3 +376,6 @@ setField
     : identifier ASSIGN ( constant | mapExpression )
     ;
 
+mmrCommand
+    : DEV_MMR diversifyField=qualifiedName LIMIT limitValue=integerValue
+    ;

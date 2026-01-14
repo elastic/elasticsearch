@@ -17,8 +17,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
-
 /**
  * Loads the MIN {@code double} in each doc.
  */
@@ -34,7 +32,7 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
 
     @Override
     protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMaxSorted(breaker, docValues, toDouble);
+        return new MvMinSorted(breaker, docValues, toDouble);
     }
 
     @Override
@@ -42,11 +40,11 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         return "DoublesFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMinSorted extends DoublesBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private final ToDouble toDouble;
 
-        MvMaxSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues, ToDouble toDouble) {
+        MvMinSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues, ToDouble toDouble) {
             super(breaker);
             this.numericDocValues = numericDocValues;
             this.toDouble = toDouble;
@@ -84,11 +82,6 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         @Override
         public String toString() {
             return "MvMinDoublesFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

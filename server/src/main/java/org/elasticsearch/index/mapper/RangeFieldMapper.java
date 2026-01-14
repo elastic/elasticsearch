@@ -649,5 +649,4 @@ public class RangeFieldMapper extends FieldMapper {
             }
         }
     }
-
 }

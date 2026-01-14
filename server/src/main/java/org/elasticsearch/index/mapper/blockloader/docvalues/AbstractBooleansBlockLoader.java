@@ -58,7 +58,18 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
 
     protected abstract AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues);
 
-    public static class Singleton extends BlockDocValuesReader {
+    protected abstract static class BooleansBlockDocValuesReader extends BlockDocValuesReader {
+        public BooleansBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+    }
+
+    public static class Singleton extends BooleansBlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
         public Singleton(CircuitBreaker breaker, NumericDocValues numericDocValues) {
@@ -105,14 +116,9 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
         public String toString() {
             return "BooleansFromDocValues.Singleton";
         }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        }
     }
 
-    static class Sorted extends BlockDocValuesReader {
+    static class Sorted extends BooleansBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         Sorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
@@ -161,11 +167,6 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
         @Override
         public String toString() {
             return "BooleansFromDocValues.Sorted";
-        }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

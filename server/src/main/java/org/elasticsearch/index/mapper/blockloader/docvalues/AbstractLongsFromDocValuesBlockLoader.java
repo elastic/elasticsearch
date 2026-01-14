@@ -63,7 +63,18 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
 
     protected abstract AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues);
 
-    public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
+    protected abstract static class LongsBlockDocValuesReader extends BlockDocValuesReader {
+        public LongsBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+    }
+
+    public static class Singleton extends LongsBlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
         final NumericDocValues numericDocValues;
 
         public Singleton(CircuitBreaker breaker, NumericDocValues numericDocValues) {
@@ -116,14 +127,9 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
         public NumericDocValues numericDocValues() {
             return numericDocValues;
         }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        }
     }
 
-    public static class Sorted extends BlockDocValuesReader {
+    public static class Sorted extends LongsBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         Sorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
@@ -172,11 +178,6 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
         @Override
         public String toString() {
             return "LongsFromDocValues.Sorted";
-        }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

@@ -68,7 +68,18 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         BlockDocValuesReader.ToDouble toDouble
     );
 
-    public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
+    protected abstract static class DoublesBlockDocValuesReader extends BlockDocValuesReader {
+        public DoublesBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+    }
+
+    public static class Singleton extends DoublesBlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
         private final NumericDocValues docValues;
         private final ToDouble toDouble;
 
@@ -123,14 +134,9 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         public NumericDocValues numericDocValues() {
             return docValues;
         }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        }
     }
 
-    public static class Sorted extends BlockDocValuesReader {
+    public static class Sorted extends DoublesBlockDocValuesReader {
         private final SortedNumericDocValues docValues;
         private final ToDouble toDouble;
 
@@ -181,11 +187,6 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "DoublesFromDocValues.Sorted";
-        }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

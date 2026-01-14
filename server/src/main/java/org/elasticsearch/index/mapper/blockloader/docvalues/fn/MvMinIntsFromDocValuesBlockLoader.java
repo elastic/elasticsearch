@@ -13,11 +13,8 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractIntsFromDocValuesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
 
 /**
  * Loads the MIN {@code int} in each doc.
@@ -42,7 +39,7 @@ public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
         return "IntsFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMinSorted extends IntsBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMinSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
@@ -82,11 +79,6 @@ public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
         @Override
         public String toString() {
             return "MvMinIntsFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

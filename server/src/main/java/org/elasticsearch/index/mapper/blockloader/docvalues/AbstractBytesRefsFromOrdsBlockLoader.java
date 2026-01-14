@@ -66,7 +66,18 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
 
     protected abstract AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues);
 
-    protected static class Singleton extends BlockDocValuesReader {
+    protected abstract static class BytesRefsBlockDocValuesReader extends BlockDocValuesReader {
+        public BytesRefsBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+    }
+
+    protected static class Singleton extends BytesRefsBlockDocValuesReader {
         private final SortedDocValues ordinals;
 
         public Singleton(CircuitBreaker breaker, SortedDocValues ordinals) {
@@ -126,14 +137,9 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         public String toString() {
             return "BytesRefsFromOrds.Singleton";
         }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        }
     }
 
-    protected static class SortedSet extends BlockDocValuesReader {
+    protected static class SortedSet extends BytesRefsBlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
         SortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {
@@ -221,11 +227,6 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         @Override
         public String toString() {
             return "BytesRefsFromOrds.SortedSet";
-        }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 }

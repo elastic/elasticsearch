@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
@@ -24,15 +24,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
-import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 import java.util.ArrayList;

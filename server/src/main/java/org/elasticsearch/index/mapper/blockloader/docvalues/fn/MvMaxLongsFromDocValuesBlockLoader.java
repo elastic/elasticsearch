@@ -13,7 +13,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
@@ -40,7 +39,7 @@ public class MvMaxLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
         return "LongsFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends LongsBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMaxSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
@@ -81,11 +80,6 @@ public class MvMaxLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
         @Override
         public String toString() {
             return "MvMaxLongsFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
     }
 

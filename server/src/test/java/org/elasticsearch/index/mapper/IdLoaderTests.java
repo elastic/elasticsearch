@@ -28,7 +28,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.blockloader.docvalues.IdLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

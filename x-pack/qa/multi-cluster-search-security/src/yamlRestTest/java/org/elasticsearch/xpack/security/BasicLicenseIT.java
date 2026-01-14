@@ -65,8 +65,13 @@ public class BasicLicenseIT extends LicenseYamlSuiteTestCase {
     }
 
     @Override
-    protected String getTestRestCluster() {
-        return isUsingFulfillingCluster() ? fulfillingCluster.getHttpAddresses() : queryingCluster.getHttpAddresses();
+    protected ElasticsearchCluster fulfillingCluster() {
+        return fulfillingCluster;
+    }
+
+    @Override
+    protected ElasticsearchCluster queryingCluster() {
+        return queryingCluster;
     }
 
 }

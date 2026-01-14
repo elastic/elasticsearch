@@ -21,7 +21,6 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -41,8 +40,6 @@ public class RestrictedTrustIT extends ESRestTestCase {
 
     // Path to certificates in x-pack:plugin:core test resources (on classpath via testArtifact dependency)
     private static final String CERTS_PATH = "org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/";
-
-    private static Boolean usingFulfillingCluster;
 
     private static final ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
         .name("fulfilling-cluster")
@@ -65,62 +62,47 @@ public class RestrictedTrustIT extends ESRestTestCase {
         .user(TEST_USER, TEST_PASSWORD)
         .build();
 
-    private static final ElasticsearchCluster queryingCluster = initQueryingCluster();
+    private static final ElasticsearchCluster queryingCluster = ElasticsearchCluster.local()
+        .name("querying-cluster")
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "basic")
+        // Transport SSL configuration
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.client_authentication", "required")
+        .setting("xpack.security.transport.ssl.key", "transport.key")
+        .setting("xpack.security.transport.ssl.certificate", "transport.cert")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca")
+        .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+        .setting("xpack.security.transport.ssl.trust_restrictions.path", "trust.yml")
+        .setting("xpack.security.transport.ssl.trust_restrictions.x509_fields", "subjectAltName.dnsName")
+        // Certificate files for cluster 2 (c2)
+        .configFile("transport.key", Resource.fromClasspath(CERTS_PATH + "ca-signed/n1.c2.key"))
+        .configFile("transport.cert", Resource.fromClasspath(CERTS_PATH + "ca-signed/n1.c2.crt"))
+        .configFile("transport.ca", Resource.fromClasspath(CERTS_PATH + "ca.crt"))
+        .configFile("trust.yml", Resource.fromClasspath("trust.yml"))
+        // Remote cluster settings
+        .setting("cluster.remote.connections_per_cluster", "1")
+        .setting("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".skip_unavailable", "false")
+        .settings(spec -> {
+            final Map<String, String> settings = new HashMap<>();
+            if (randomBoolean()) {
+                settings.put("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".mode", "proxy");
+                settings.put(
+                    "cluster.remote." + REMOTE_CLUSTER_ALIAS + ".proxy_address",
+                    "\"" + fulfillingCluster.getTransportEndpoint(0) + "\""
+                );
+            } else {
+                settings.put("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".mode", "sniff");
+                settings.put("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".seeds", "\"" + fulfillingCluster.getTransportEndpoint(0) + "\"");
+            }
+            return settings;
+        })
+        .user(TEST_USER, TEST_PASSWORD)
+        .build();
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryingCluster);
-
-    private static ElasticsearchCluster initQueryingCluster() {
-        return ElasticsearchCluster.local()
-            .name("querying-cluster")
-            .distribution(DistributionType.DEFAULT)
-            .setting("xpack.security.enabled", "true")
-            .setting("xpack.license.self_generated.type", "basic")
-            // Transport SSL configuration
-            .setting("xpack.security.transport.ssl.enabled", "true")
-            .setting("xpack.security.transport.ssl.client_authentication", "required")
-            .setting("xpack.security.transport.ssl.key", "transport.key")
-            .setting("xpack.security.transport.ssl.certificate", "transport.cert")
-            .setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca")
-            .setting("xpack.security.transport.ssl.verification_mode", "certificate")
-            .setting("xpack.security.transport.ssl.trust_restrictions.path", "trust.yml")
-            .setting("xpack.security.transport.ssl.trust_restrictions.x509_fields", "subjectAltName.dnsName")
-            // Certificate files for cluster 2 (c2)
-            .configFile("transport.key", Resource.fromClasspath(CERTS_PATH + "ca-signed/n1.c2.key"))
-            .configFile("transport.cert", Resource.fromClasspath(CERTS_PATH + "ca-signed/n1.c2.crt"))
-            .configFile("transport.ca", Resource.fromClasspath(CERTS_PATH + "ca.crt"))
-            .configFile("trust.yml", Resource.fromClasspath("trust.yml"))
-            // Remote cluster settings
-            .setting("cluster.remote.connections_per_cluster", "1")
-            .setting("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".skip_unavailable", "false")
-            .settings(spec -> {
-                final Map<String, String> settings = new HashMap<>();
-                if (randomBoolean()) {
-                    settings.put("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".mode", "proxy");
-                    settings.put(
-                        "cluster.remote." + REMOTE_CLUSTER_ALIAS + ".proxy_address",
-                        "\"" + fulfillingCluster.getTransportEndpoint(0) + "\""
-                    );
-                } else {
-                    settings.put("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".mode", "sniff");
-                    settings.put(
-                        "cluster.remote." + REMOTE_CLUSTER_ALIAS + ".seeds",
-                        "\"" + fulfillingCluster.getTransportEndpoint(0) + "\""
-                    );
-                }
-                return settings;
-            })
-            .user(TEST_USER, TEST_PASSWORD)
-            .build();
-    }
-
-    @Before
-    public void reinitializeClientsForCurrentCluster() throws Exception {
-        if (usingFulfillingCluster == null || usingFulfillingCluster != isUsingFulfillingCluster()) {
-            usingFulfillingCluster = isUsingFulfillingCluster();
-            resetClients();
-        }
-    }
 
     private void resetClients() throws Exception {
         closeClients();
@@ -149,7 +131,8 @@ public class RestrictedTrustIT extends ESRestTestCase {
     }
 
     // runs first based on alphabetic test method ordering
-    public void testFulfillingSetupTestData() throws Exception {
+    public void test10SetupTestData() throws Exception {
+        resetClients();
         Request indexDocRequest = new Request("POST", "/test_idx/_doc?refresh=true");
         indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
         Response response = client().performRequest(indexDocRequest);
@@ -157,7 +140,8 @@ public class RestrictedTrustIT extends ESRestTestCase {
     }
 
     // runs second based on alphabetic test method ordering
-    public void testQueryingRemoteAccessPortFunctions() throws Exception {
+    public void test20RemoteAccessPortFunctions() throws Exception {
+        resetClients();
         Request searchRequest = new Request("GET", "/" + REMOTE_CLUSTER_ALIAS + ":test_idx/_search");
         Response response = client().performRequest(searchRequest);
         assertOK(response);
@@ -167,7 +151,7 @@ public class RestrictedTrustIT extends ESRestTestCase {
     }
 
     private boolean isUsingFulfillingCluster() {
-        return getTestName().contains("Fulfilling");
+        return getTestName().contains("Setup");
     }
 
 }

@@ -11,8 +11,8 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.TimestampLikeSupplier;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -31,7 +31,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for decoding increasing integer patterns.
+ * Benchmark for decoding timestamp-like data patterns.
+ *
+ * <p>Parameterized by jitter probability to test how delta encoding handles
+ * varying degrees of timestamp regularity. Lower jitter means more consistent
+ * deltas (better compression), higher jitter simulates irregular sampling.
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -39,15 +43,15 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class DecodeIncreasingIntegerBenchmark {
+public class DecodeTimestampLikeBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "0.0", "0.1", "0.2", "0.5" })
+    private double jitterProbability;
 
     private final AbstractTSDBCodecBenchmark decode;
 
-    public DecodeIncreasingIntegerBenchmark() {
+    public DecodeTimestampLikeBenchmark() {
         this.decode = new DecodeBenchmark();
     }
 
@@ -58,7 +62,7 @@ public class DecodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
+        decode.setupTrial(TimestampLikeSupplier.builder(SEED, decode.getBlockSize()).withJitterProbability(jitterProbability).build());
     }
 
     @Benchmark

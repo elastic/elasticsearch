@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.NearConstantWithOutliersSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -32,7 +32,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for encoding increasing integer patterns.
+ * Benchmark for encoding near-constant data patterns with outliers.
+ *
+ * <p>Parameterized by outlier probability to test how occasional spikes affect
+ * compression. Lower probability means more constant values (better compression),
+ * higher probability simulates noisier data.
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -40,15 +44,16 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class EncodeIncreasingIntegerBenchmark {
+public class EncodeNearConstantBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "0.0", "0.01", "0.05", "0.1", "0.2" })
+    private double outlierProbability;
 
     private final AbstractTSDBCodecBenchmark encode;
+    private NearConstantWithOutliersSupplier supplier;
 
-    public EncodeIncreasingIntegerBenchmark() {
+    public EncodeNearConstantBenchmark() {
         this.encode = new EncodeBenchmark();
     }
 
@@ -59,7 +64,8 @@ public class EncodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        encode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
+        supplier = NearConstantWithOutliersSupplier.builder(SEED, encode.getBlockSize()).withOutlierProbability(outlierProbability).build();
+        encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
     }
@@ -82,6 +88,6 @@ public class EncodeIncreasingIntegerBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

@@ -55,7 +55,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private static final long MAX_BYTES_PER_MAP = ByteSizeValue.ofGb(1).getBytes();
 
-    private static final byte[] zeroes = new byte[PAGE_SIZE];
+    private static final byte[] ZEROES = new byte[PAGE_SIZE];
 
     final int numRegions;
 

@@ -47,4 +47,11 @@ public interface BalancingWeights {
      * Returns true if disk usage is ignored for the purposes of weight calculations
      */
     boolean diskUsageIgnored();
+
+    /**
+     * Get the balancing threshold to apply when using these balancing weights
+     *
+     * @return The balancer threshold
+     */
+    float getThreshold();
 }

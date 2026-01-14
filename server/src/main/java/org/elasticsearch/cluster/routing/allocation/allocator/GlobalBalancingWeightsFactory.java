@@ -32,6 +32,7 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
 
         private final WeightFunction weightFunction;
         private final boolean diskUsageIgnored;
+        private final float threshold;
 
         GlobalBalancingWeights() {
             final float diskUsageBalanceFactor = balancerSettings.getDiskUsageBalanceFactor();
@@ -42,6 +43,7 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
                 diskUsageBalanceFactor
             );
             this.diskUsageIgnored = diskUsageBalanceFactor == 0;
+            this.threshold = balancerSettings.getThreshold();
         }
 
         @Override
@@ -62,6 +64,11 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
         @Override
         public boolean diskUsageIgnored() {
             return diskUsageIgnored;
+        }
+
+        @Override
+        public float getThreshold() {
+            return threshold;
         }
 
         private record GlobalNodeSorters(BalancedShardsAllocator.NodeSorter nodeSorter) implements NodeSorters {

@@ -169,7 +169,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            balancerSettings.getThreshold(),
             balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
@@ -248,7 +247,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
@@ -315,7 +313,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
-            float threshold,
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange
         ) {
@@ -323,7 +320,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            this.threshold = threshold;
+            this.threshold = balancingWeights.getThreshold();
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = balancingWeights.diskUsageIgnored()

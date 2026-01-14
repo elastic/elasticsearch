@@ -744,6 +744,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 public boolean diskUsageIgnored() {
                     return true; // This makes the computation ignore disk usage
                 }
+
+                @Override
+                public float getThreshold() {
+                    return BalancerSettings.DEFAULT.getThreshold();
+                }
             }
         );
 
@@ -1331,6 +1336,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             public boolean diskUsageIgnored() {
                 return true;
             }
+
+            @Override
+            public float getThreshold() {
+                return BalancerSettings.DEFAULT.getThreshold();
+            }
         }
 
         @Override
@@ -1540,6 +1550,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public boolean diskUsageIgnored() {
                 return true;
+            }
+
+            @Override
+            public float getThreshold() {
+                return BalancerSettings.DEFAULT.getThreshold();
             }
         }
     }

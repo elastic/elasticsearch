@@ -319,21 +319,22 @@ from colors metadata _score
 | sort _score desc, color asc
 | limit 10
 | rerank rerank_score = "deepest blue" ON color WITH { "inference_id" : "test_reranker" }
+| eval rerank_score = round(rerank_score, 3)
 | sort rerank_score desc, color asc
 | keep color, rerank_score
 ;
 
-color:text
-maroon
-golden rod
-sienna
-chocolate
-firebrick
-olive
-green
-brown
-peru
-gray
+color:text | rerank_score:double
+maroon     | 0.504
+golden rod | 0.480
+sienna     | 0.420
+chocolate  | 0.320
+firebrick  | 0.132
+olive      | 0.049
+green      | 0.046
+brown      | 0.044
+peru       | 0.002
+gray       | 0.001
 ;
 
 testKnnWithSemanticText

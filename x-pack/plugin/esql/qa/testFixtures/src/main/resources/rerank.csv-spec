@@ -239,6 +239,7 @@ FROM books METADATA _score
 | SORT _score DESC
 | LIMIT 100
 | RERANK "hobbit" ON description WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
 | LIMIT 3
 | KEEP title, _score
 // end::simple-query[]
@@ -246,9 +247,9 @@ FROM books METADATA _score
 
 // tag::simple-query-result[]
 title:text                        | _score:double
-Poems from the Hobbit             | 0.8589272
-The Lord of the Rings - Boxed Set | 0.3006814
-Letters of J R R Tolkien          | 0.3541939
+Poems from the Hobbit             | 0.86
+The Lord of the Rings - Boxed Set | 0.30
+Letters of J R R Tolkien          | 0.35
 // end::simple-query-result[]
 ;
 
@@ -262,6 +263,7 @@ FROM books METADATA _id, _score
 | SORT _score DESC
 | LIMIT 100
 | RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
+| EVAL rerank_score=ROUND(rerank_score, 2), _score=ROUND(_score, 2)
 | SORT rerank_score, _id
 | LIMIT 3
 | KEEP title, _score, rerank_score
@@ -270,9 +272,9 @@ FROM books METADATA _id, _score
 
 // tag::two-queries-result[]
 title:text                                   | _score:double | rerank_score:double
-The Two Towers                               | 1.285061      | 0.05495336
-Smith of Wooten Manor & Farmer Giles of Ham  | 2.590887      | 0.1373061
-Smith of Wootton Major & Farmer Giles of Ham | 2.590887      | 0.1373061
+The Two Towers                               | 1.29          | 0.05
+Smith of Wooten Manor & Farmer Giles of Ham  | 2.59          | 0.14
+Smith of Wootton Major & Farmer Giles of Ham | 2.59          | 0.14
 // end::two-queries-result[]
 ;
 
@@ -285,7 +287,7 @@ FROM books METADATA _score
 | SORT _score DESC
 | LIMIT 100
 | RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
-| EVAL original_score = _score, _score = rerank_score + original_score
+| EVAL original_score = ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2), _score = rerank_score + original_score
 | SORT _score
 | LIMIT 3
 | KEEP title, original_score, rerank_score, _score
@@ -294,9 +296,9 @@ FROM books METADATA _score
 
 // tag::combine-result[]
 title:text                                                                 | original_score:double | rerank_score:double | _score:double
-The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278             | 0.1941675           | 0.9917953
-A Middle English Reader and Vocabulary                                     | 1.043297              | 0.219511            | 1.262808
-The Two Towers                                                             | 1.285061              | 0.05495336          | 1.340014
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.80                  | 0.19                | 0.99
+A Middle English Reader and Vocabulary                                     | 1.04                  | 0.22                | 1.26
+The Two Towers                                                             | 1.29                  | 0.05                | 1.34
 // end::combine-result[]
 ;
 

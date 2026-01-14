@@ -6,12 +6,13 @@ FROM books METADATA _score
 | SORT _score DESC
 | LIMIT 100
 | RERANK "hobbit" ON description WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
 | LIMIT 3
 | KEEP title, _score
 ```
 
 | title:text | _score:double |
 | --- | --- |
-| Poems from the Hobbit | 0.0015673980815336108 |
-| The Lord of the Rings - Boxed Set | 0.0011135857785120606 |
-| Letters of J R R Tolkien | 0.0024999999441206455 |
+| Poems from the Hobbit | 0.86 |
+| The Lord of the Rings - Boxed Set | 0.30 |
+| Letters of J R R Tolkien | 0.35 |

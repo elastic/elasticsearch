@@ -24,6 +24,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -390,6 +391,12 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             notNullValue()
         );
 
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
         assertBusy(() -> {
             assertThat(
                 "Circuit breaker should be released after tripped search",
@@ -430,6 +437,12 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             "Should contain CircuitBreakingException",
             ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
             notNullValue()
+        );
+
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
         );
 
         assertBusy(() -> {

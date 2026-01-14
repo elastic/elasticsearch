@@ -50,7 +50,7 @@ public class PresentAggregatorFunctionTests extends AggregatorFunctionTestCase {
         assertThat(valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(false))));
     }
 
-    public void testWithNullValues() {
+    public void testWithNonNullAndConstantNullPages() {
         Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(AggregatorMode.SINGLE, List.of(0));
 
         AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
@@ -63,6 +63,7 @@ public class PresentAggregatorFunctionTests extends AggregatorFunctionTestCase {
         );
 
         try (Page page = new Page(blockFactory().newConstantNullBlock(10))) {
+            // randomly add the null page before or after the non-null page
             input.add(randomFrom(0, 1), page);
 
             List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());

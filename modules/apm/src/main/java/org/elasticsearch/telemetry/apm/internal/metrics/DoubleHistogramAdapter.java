@@ -35,7 +35,7 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        getInstrument().record(value, OtelHelper.fromMap(attributes));
+        getInstrument().record(value, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<DoubleHistogram> {

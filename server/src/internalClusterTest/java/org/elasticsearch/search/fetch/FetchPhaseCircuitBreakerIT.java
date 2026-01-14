@@ -63,11 +63,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -95,24 +94,18 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 100, 10_000);  // More docs to spread across shards
         ensureSearchable(INDEX);
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 
-        assertNoFailuresAndResponse(
-            client(coordinatorNode).prepareSearch(INDEX)
-                .setQuery(matchAllQuery())
-                .setSize(50),
-            response -> {
-                assertThat(response.getHits().getHits().length, equalTo(50));
-            }
-        );
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(50), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(50));
+        });
 
         assertBusy(() -> {
             assertThat(
@@ -132,11 +125,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -167,11 +159,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -222,11 +213,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -274,11 +264,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -288,9 +277,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             Exception.class,
             () -> client(coordinatorNode).prepareSearch(INDEX)
                 .setQuery(matchAllQuery())
-                .addScriptField("failing_script",
-                    new Script(ScriptType.INLINE, "painless", "throw new RuntimeException('fetch failure')",
-                        Collections.emptyMap()))
+                .addScriptField(
+                    "failing_script",
+                    new Script(ScriptType.INLINE, "painless", "throw new RuntimeException('fetch failure')", Collections.emptyMap())
+                )
                 .setSize(10)
                 .get()
         );
@@ -312,11 +302,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -366,11 +355,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -379,10 +367,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         // Search should trip the circuit breaker
         Exception exception = expectThrows(
             Exception.class,
-            () -> client(coordinatorNode).prepareSearch(INDEX)
-                .setQuery(matchAllQuery())
-                .setSize(50)
-                .get()
+            () -> client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(50).get()
         );
 
         assertThat(
@@ -414,11 +399,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
-        createIndexForTest(INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         populateIndex(INDEX, 50, 10_000);
         ensureSearchable(INDEX);
 
@@ -456,10 +440,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     private String startDataNode(String cbRequestLimit) {
         return internalCluster().startNode(
-            Settings.builder()
-                .put("indices.breaker.request.type", "memory")
-                .put("indices.breaker.request.limit", cbRequestLimit)
-                .build()
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", cbRequestLimit).build()
         );
     }
 
@@ -471,20 +452,19 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     private void createIndexForTest(String indexName, Settings indexSettings) {
         assertAcked(
-            prepareCreate(indexName)
-            .setSettings(indexSettings)
-            .setMapping(
-                SORT_FIELD,
-                "type=long",
-                "text",
-                "type=text,store=true",
-                "large_text_1",
-                "type=text,store=false",
-                "large_text_2",
-                "type=text,store=false",
-                "keyword",
-                "type=keyword"
-            )
+            prepareCreate(indexName).setSettings(indexSettings)
+                .setMapping(
+                    SORT_FIELD,
+                    "type=long",
+                    "text",
+                    "type=text,store=true",
+                    "large_text_1",
+                    "type=text,store=false",
+                    "large_text_2",
+                    "type=text,store=false",
+                    "keyword",
+                    "type=keyword"
+                )
         );
     }
 

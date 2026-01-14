@@ -110,14 +110,14 @@ public final class FetchPhase {
                 // Always finish profiling
                 ProfileResult profileResult = profiler.finish();
                 // Only set the shardResults if building search hits was successful
-                    if (hits != null) {
-                        context.fetchResult().shardResult(hits, profileResult);
-                        context.fetchResult().setSearchHitsSizeBytes(searchHitsBytesSize);
-                        hits = null;
-                    } else {
-                        assert searchHitsBytesSize == 0L
-                            : "searchHitsBytesSize must be 0 when hits are null but was [" + searchHitsBytesSize + "]";
-                    }
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                    context.fetchResult().setSearchHitsSizeBytes(searchHitsBytesSize);
+                    hits = null;
+                } else {
+                    assert searchHitsBytesSize == 0L
+                        : "searchHitsBytesSize must be 0 when hits are null but was [" + searchHitsBytesSize + "]";
+                }
             } finally {
                 if (hits != null) {
                     hits.decRef();

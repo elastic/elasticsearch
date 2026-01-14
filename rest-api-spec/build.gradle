@@ -89,9 +89,6 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("indices.create/20_synthetic_source/subobjects auto", "subobjects auto removed")
   task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object", "temporary until backported")
   task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to pointing to ambiguous field and subobjects auto", "subobjects auto removed")
-  task.skipTest("indices.create/20_synthetic_source/fallback synthetic_source for text field", "fallback text fields now use sorted binary doc values")
-  task.skipTest("mget/90_synthetic_source/keyword with normalizer and skip store original value", "ignore_above now uses sorted binary doc values")
-  task.skipTest("mget/90_synthetic_source/keyword with built-in normalizer", "ignore_above now uses sorted binary doc values")
   task.skipTest("indices.put_index_template/15_composition/Composable index templates that include subobjects: auto on arbitrary field", "subobjects auto removed")
   task.skipTest("indices.put_index_template/15_composition/Composable index templates that include subobjects: auto at root", "subobjects auto removed")
   task.skipTest(

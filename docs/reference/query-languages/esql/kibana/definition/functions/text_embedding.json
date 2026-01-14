@@ -32,6 +32,6 @@
   "examples" : [
     "FROM dense_vector_text METADATA _score\n| WHERE KNN(text_embedding_field, TEXT_EMBEDDING(\"be excellent to each other\", \"test_dense_inference\"))"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

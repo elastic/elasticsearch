@@ -41,14 +41,6 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.local_cluster", bwcVersion)
     maxParallelForks = 1
-
-    // Temporarily mute MultiClusterSpecIT on 9.3.0 because it uses GetInferenceFieldsAction, which is being moved.
-    // These tests can be unmuted once the change is backported to 9.3.0.
-    if (bwcVersion == Version.fromString("9.3.0")) {
-      filter {
-        excludeTestsMatching("org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT")
-      }
-    }
   }
 
   // TODO: avoid running tests twice with the current version

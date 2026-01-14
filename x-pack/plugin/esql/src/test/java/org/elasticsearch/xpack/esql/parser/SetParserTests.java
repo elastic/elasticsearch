@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -206,7 +207,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFields_nonSnapshot() {
-        assumeFalse("OPTIONAL_FIELDS should be disabled", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
 
         verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
 

@@ -107,6 +107,7 @@ GET my-datastream-ingest::failures/_search
 // TESTRESPONSE[s/"_index": ".fs-my-datastream-ingest-2025.05.09-000001"/"_index": $body.hits.hits.0._index/]
 // TESTRESPONSE[s/"_id": "F3S3s5YBwrYNjPmayMr9"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"@timestamp": "2025-05-09T06:24:48.381Z"/"@timestamp": $body.hits.hits.0._source.@timestamp/]
+// TESTRESPONSE[s/"stack_trace": ".*"/"stack_trace": $body.hits.hits.0._source.error.stack_trace/]
 <1> When an ingest pipeline fails, the document stored is what was originally sent to the cluster.
 <2> The important information that we failed to find was originally present in the document.
 <3> The info field was not present when the failure occurred.
@@ -341,6 +342,7 @@ GET my-datastream-ingest::failures/_search
 // TESTRESPONSE[s/"_index": ".fs-my-datastream-ingest-2025.05.09-000001"/"_index": $body.hits.hits.0._index/]
 // TESTRESPONSE[s/"_id": "HnTJs5YBwrYNjPmaFcri"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"@timestamp": "2025-05-09T06:41:24.775Z"/"@timestamp": $body.hits.hits.0._source.@timestamp/]
+// TESTRESPONSE[s/"stack_trace": ".*"/"stack_trace": $body.hits.hits.0._source.error.stack_trace/]
 <1> Helpful, but which set processor on the pipeline could it be?
 <2> The tag of the exact processor that the document failed on.
 

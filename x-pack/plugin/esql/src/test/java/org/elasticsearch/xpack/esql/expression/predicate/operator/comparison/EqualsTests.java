@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collection;
+
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -257,23 +257,45 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         }
 
         // Dense vector cases
-        List<TestCaseSupplier.TypedDataSupplier> denseVectorSuppliers = new ArrayList<>();
-        for (int i = 0; i < 20; i++) {
-            List<Float> vector = randomDenseVector();
-            denseVectorSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<dense_vector_" + i + ">", () -> vector, DataType.DENSE_VECTOR));
-        }
-
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "EqualsDenseVectorEvaluator",
-                "lhs",
-                "rhs",
-                Object::equals,
-                DataType.BOOLEAN,
-                denseVectorSuppliers,
-                denseVectorSuppliers,
-                List.of(),
-                false
+        suppliers.add(
+            new TestCaseSupplier(
+                "<dense_vector>, <dense_vector>",
+                List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR),
+                () -> {
+                    List<Float> vector = randomDenseVector();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(vector, DataType.DENSE_VECTOR, "lhs"),
+                            new TestCaseSupplier.TypedData(vector, DataType.DENSE_VECTOR, "rhs")
+                        ),
+                        "EqualsDenseVectorEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.BOOLEAN,
+                        org.hamcrest.Matchers.equalTo(true)
+                    );
+                }
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<dense_vector>, <different dense_vector>",
+                List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR),
+                () -> {
+                    List<Float> left = randomDenseVector();
+                    List<Float> right = randomDenseVector();
+                    // Make sure vectors are different
+                    if (left.equals(right) && left.size() > 0) {
+                        right.set(0, right.get(0) + 1.0f);
+                    }
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(left, DataType.DENSE_VECTOR, "lhs"),
+                            new TestCaseSupplier.TypedData(right, DataType.DENSE_VECTOR, "rhs")
+                        ),
+                        "EqualsDenseVectorEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.BOOLEAN,
+                        org.hamcrest.Matchers.equalTo(false)
+                    );
+                }
             )
         );
 

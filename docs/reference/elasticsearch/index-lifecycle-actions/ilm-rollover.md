@@ -77,7 +77,7 @@ The index will roll over once any `max_*` condition is satisfied and all `min_*`
 :   (Optional, integer) Triggers rollover when the largest primary shard in the index reaches a certain number of documents. This is the maximum docs of the primary shards in the index. As with `max_docs`, replicas are ignored.
 
     ::::{tip}
-    The rollover action implicitly always rolls over a data stream or alias if one or more shards contain 200,000,000 or more documents. Normally a shard will reach 50GB long before it reaches 200M documents, but this isn’t the case for space efficient data sets. Search performance can suffer if a shard contains more than 200M documents, which is the reason for the builtin limit. Setting the `max_primary_shard_docs` to higher than 200,000,000 will have no effect.
+    The rollover action implicitly always rolls over a data stream or alias if one or more shards contain 200,000,000 or more documents. Normally a shard will reach 50GB long before it reaches 200M documents, but this isn’t the case for space efficient data sets. Search performance can suffer if a shard contains more than 200M documents, which is the reason for the built-in limit. Setting the `max_primary_shard_docs` to higher than 200,000,000 will have no effect.
     ::::
 
     ::::{tip}

@@ -37,17 +37,13 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionCreator;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -57,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -86,127 +81,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-
-    private static final Map<TaskType, AlibabaCloudSearchModelCreator> MODEL_CREATORS = Map.of(
-        TaskType.TEXT_EMBEDDING,
-        new AlibabaCloudSearchModelCreator() {
-            @Override
-            public AlibabaCloudSearchModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                return new AlibabaCloudSearchEmbeddingsModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
-            }
-
-            @Override
-            public AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                return new AlibabaCloudSearchEmbeddingsModel(config, secrets);
-            }
-        },
-        TaskType.SPARSE_EMBEDDING,
-        new AlibabaCloudSearchModelCreator() {
-            @Override
-            public AlibabaCloudSearchModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                return new AlibabaCloudSearchSparseModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
-            }
-
-            @Override
-            public AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                return new AlibabaCloudSearchSparseModel(config, secrets);
-            }
-        },
-        TaskType.RERANK,
-        new AlibabaCloudSearchModelCreator() {
-            @Override
-            public AlibabaCloudSearchModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                return new AlibabaCloudSearchRerankModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    context
-                );
-            }
-
-            @Override
-            public AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                return new AlibabaCloudSearchRerankModel(config, secrets);
-            }
-        },
-        TaskType.COMPLETION,
-        new AlibabaCloudSearchModelCreator() {
-            @Override
-            public AlibabaCloudSearchModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                return new AlibabaCloudSearchCompletionModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    context
-                );
-            }
-
-            @Override
-            public AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                return new AlibabaCloudSearchCompletionModel(config, secrets);
-            }
-        }
-    );
+    private static final AlibabaCloudSearchModelFactory MODEL_FACTORY = new AlibabaCloudSearchModelFactory();
 
     public AlibabaCloudSearchService(
         HttpRequestSender.Factory factory,
@@ -305,11 +180,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var creator = MODEL_CREATORS.get(taskType);
-        if (creator == null) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return creator.createFromMaps(
+        return MODEL_FACTORY.createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -349,16 +220,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
     @Override
     public AlibabaCloudSearchModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var creator = MODEL_CREATORS.get(config.getTaskType());
-        if (creator == null) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -576,20 +438,5 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
                     .build();
             }
         );
-    }
-
-    private interface AlibabaCloudSearchModelCreator extends ModelCreator {
-        AlibabaCloudSearchModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        );
-
-        AlibabaCloudSearchModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

@@ -141,9 +141,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
-- class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
-  method: testSerializationOfSimple {TestCase=<boolean>}
-  issue: https://github.com/elastic/elasticsearch/issues/131334
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
@@ -342,6 +339,12 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.rest.SnapshotRepoTestKitClientYamlTestSuiteIT
   method: test {p0=/10_analyze/Analysis without details}
   issue: https://github.com/elastic/elasticsearch/issues/140627
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisSuccessIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/140638
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/250_high_cardinality_keyword/*
+  issue: https://github.com/elastic/elasticsearch/issues/140639
 
 # Examples:
 #

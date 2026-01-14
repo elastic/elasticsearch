@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlanTuple;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -101,7 +102,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -157,7 +157,6 @@ public class EsqlSession {
     private final ByteSizeValue intermediateLocalRelationMaxSize;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
-
     private boolean explainMode;
     private String parsedPlanString;
     private String optimizedLogicalPlanString;
@@ -393,7 +392,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         var subPlansResults = new HashSet<LocalRelation>();
-        var subPlan = firstSubPlan(optimizedPlan, subPlansResults);
+        var subPlan = firstSubPlan(optimizedPlan, statement, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -407,6 +406,7 @@ public class EsqlSession {
                 executionInfo,
                 runner,
                 request,
+                statement,
                 subPlansResults,
                 physicalPlanOptimizer,
                 planTimeProfile,
@@ -439,12 +439,13 @@ public class EsqlSession {
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
         LogicalPlan optimizedPlan,
-        InlineJoin.LogicalPlanTuple subPlans,
+        LogicalPlanTuple subPlans,
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
+        EsqlStatement statement,
         Set<LocalRelation> subPlansResults,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
@@ -470,7 +471,7 @@ public class EsqlSession {
                 LogicalPlan newMainPlan = newMainPlan(optimizedPlan, subPlans, resultWrapper);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, statement, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
@@ -498,6 +499,7 @@ public class EsqlSession {
                         executionInfo,
                         runner,
                         request,
+                        statement,
                         subPlansResults,
                         physicalPlanOptimizer,
                         planTimeProfile,
@@ -515,7 +517,16 @@ public class EsqlSession {
         }));
     }
 
-    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
+    private LogicalPlanTuple firstSubPlan(LogicalPlan plan, EsqlStatement statement, Set<LocalRelation> subPlansResults) {
+        if (statement.setting(QuerySettings.APPROXIMATION) != null) {
+            // when approximation is enabled, we don't inline joins one by one, but rather let the Approximation
+            // logic handle all inline joins at once
+            return null;
+        }
+        return InlineJoin.firstSubPlan(plan, subPlansResults);
+    }
+
+    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
         LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
             InlineJoin.class,
             // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point

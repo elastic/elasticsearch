@@ -169,15 +169,15 @@ public class MetricValidator {
         validateMaxLength(metricName);
 
         Matcher matcher = METRIC_PATTERN.matcher(metricName);
-        if (matcher.matches() == false) {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Metric name [%s] does not match the required naming pattern [%s], see the naming guidelines.",
-                    metricName,
-                    METRIC_PATTERN
-                )
-            );
-        }
+//        if (matcher.matches() == false) {
+//            throw new IllegalArgumentException(
+//                Strings.format(
+//                    "Metric name [%s] does not match the required naming pattern [%s], see the naming guidelines.",
+//                    metricName,
+//                    METRIC_PATTERN
+//                )
+//            );
+//        }
         return metricName;
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlanTuple;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
@@ -116,17 +117,6 @@ public class InlineJoin extends Join implements SortPreserving {
 
         return result;
     }
-
-    /**
-     * @param stubReplacedSubPlan - the completed / "destubbed" right-hand side of the bottommost InlineJoin in the plan. For example:
-     *                            Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
-     *                            \_Limit[1000[INTEGER],false]
-     *                              \_LocalRelation[[x{r}#99],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
-     * @param originalSubPlan - the original (unchanged) right-hand side of the bottommost InlineJoin in the plan. For example:
-     *                        Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
-     *                        \_StubRelation[[x{r}#99]]]
-     */
-    public record LogicalPlanTuple(LogicalPlan stubReplacedSubPlan, LogicalPlan originalSubPlan) {}
 
     /**
      * Finds the "first" (closest to the source command or bottom up in the tree) {@link InlineJoin}, replaces the {@link StubRelation}

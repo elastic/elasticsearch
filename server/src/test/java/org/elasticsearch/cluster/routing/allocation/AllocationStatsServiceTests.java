@@ -220,6 +220,14 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 return null;
             }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
+            }
         };
     }
 }

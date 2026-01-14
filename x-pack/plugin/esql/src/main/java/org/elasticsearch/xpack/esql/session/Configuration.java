@@ -20,11 +20,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -41,7 +38,7 @@ public class Configuration implements Writeable {
 
     private final String clusterName;
     private final String username;
-    private final ZonedDateTime now;
+    private final Instant now;
     private final ZoneId zoneId;
 
     private final QueryPragmas pragmas;
@@ -64,6 +61,7 @@ public class Configuration implements Writeable {
 
     public Configuration(
         ZoneId zi,
+        Instant now,
         Locale locale,
         String username,
         String clusterName,
@@ -80,7 +78,7 @@ public class Configuration implements Writeable {
         String projectRouting
     ) {
         this.zoneId = zi.normalized();
-        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
+        this.now = now;
         this.username = username;
         this.clusterName = clusterName;
         this.locale = locale;
@@ -100,7 +98,7 @@ public class Configuration implements Writeable {
 
     public Configuration(BlockStreamInput in) throws IOException {
         this.zoneId = in.readZoneId();
-        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt()).atZone(zoneId);
+        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt());
         this.username = in.readOptionalString();
         this.clusterName = in.readOptionalString();
         locale = Locale.forLanguageTag(in.readString());
@@ -131,9 +129,8 @@ public class Configuration implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZoneId(zoneId);
-        var instant = now.toInstant();
-        out.writeVLong(instant.getEpochSecond());
-        out.writeVInt(instant.getNano());
+        out.writeVLong(now.getEpochSecond());
+        out.writeVInt(now.getNano());
         out.writeOptionalString(username);    // TODO this one is always null
         out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
         out.writeString(locale.toLanguageTag());
@@ -157,7 +154,7 @@ public class Configuration implements Writeable {
         return zoneId;
     }
 
-    public ZonedDateTime now() {
+    public Instant now() {
         return now;
     }
 
@@ -200,7 +197,7 @@ public class Configuration implements Writeable {
      * It ensures consistency by using the same value on all nodes involved in the search request.
      */
     public long absoluteStartedTimeInMillis() {
-        return now.toInstant().toEpochMilli();
+        return now.toEpochMilli();
     }
 
     /**
@@ -227,6 +224,7 @@ public class Configuration implements Writeable {
     public Configuration withoutTables() {
         return new Configuration(
             zoneId,
+            now,
             locale,
             username,
             clusterName,

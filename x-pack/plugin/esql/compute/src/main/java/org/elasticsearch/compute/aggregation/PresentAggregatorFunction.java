@@ -78,6 +78,8 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
+        // is a previous page has non-null values we can return immediately
+        if (state) return;
         if (mask.isConstant() && mask.getBoolean(0) == false) return;
 
         Block block = page.getBlock(blockIndex());

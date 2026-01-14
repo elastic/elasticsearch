@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.mixedbread.request;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadAccount;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
 
@@ -43,16 +43,16 @@ public class MixedbreadRerankRequest extends MixedbreadRequest {
 
     @Override
     protected List<String> pathSegments() {
-        return List.of(CohereUtils.VERSION_1, CohereUtils.RERANK_PATH);
+        return List.of(MixedbreadConstants.VERSION_1, MixedbreadConstants.RERANK_PATH);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(CohereUtils.MODEL_FIELD, getModelId());
-        builder.field(CohereUtils.QUERY_FIELD, query);
-        builder.field(CohereUtils.DOCUMENTS_FIELD, input);
+        builder.field(MixedbreadConstants.MODEL_FIELD, getModelId());
+        builder.field(MixedbreadConstants.QUERY_FIELD, query);
+        builder.field(MixedbreadConstants.DOCUMENTS_FIELD, input);
 
         // prefer the root level return_documents over task settings
         if (returnDocuments != null) {

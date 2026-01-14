@@ -7,51 +7,74 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.rerank;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class MixedbreadRerankModel extends MixedbreadModel {
+    public static final String HOST = "api.mixedbread.com";
+    public static final String VERSION_1 = "v1";
+    public static final String RERANK_PATH = "reranking";
+
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(HOST)
+        .setPathSegments(VERSION_1, RERANK_PATH);
+
     public static MixedbreadRerankModel of(MixedbreadRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = MixedbreadRerankTaskSettings.fromMap(taskSettings);
+        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+            return model;
+        }
         return new MixedbreadRerankModel(model, MixedbreadRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public MixedbreadRerankModel(
-        String modelId,
+        String inferenceId,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
         this(
-            modelId,
+            inferenceId,
             MixedbreadRerankServiceSettings.fromMap(serviceSettings, context),
             MixedbreadRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            null
         );
     }
 
+    // should only be used for testing
     public MixedbreadRerankModel(
         String modelId,
         MixedbreadRerankServiceSettings serviceSettings,
         MixedbreadRerankTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable String uri
     ) {
         super(
             new ModelConfigurations(modelId, TaskType.RERANK, MixedbreadService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings
+            serviceSettings,
+            Objects.requireNonNullElse(
+                ServiceUtils.createOptionalUri(uri),
+                buildUri(MixedbreadService.SERVICE_NAME, DEFAULT_URI_BUILDER::build)
+            )
         );
     }
 
@@ -80,7 +103,7 @@ public class MixedbreadRerankModel extends MixedbreadModel {
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor          Interface for creating {@link ExecutableAction} instances for Cohere models.
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for Mixedbread models.
      * @param taskSettings     Settings in the request to override the model's defaults
      * @return the rerank action
      */

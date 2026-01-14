@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 public class MixedbreadService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "mixedbread";
 
-    private static final String SERVICE_NAME = "Mixedbread";
+    public static final String SERVICE_NAME = "Mixedbread";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
@@ -204,7 +204,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     public InferenceServiceConfiguration getConfiguration() {
-        return org.elasticsearch.xpack.inference.services.cohere.CohereService.Configuration.get();
+        return Configuration.get();
     }
 
     @Override

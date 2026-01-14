@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -19,9 +20,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.cohere.CohereService;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadAccount;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -33,10 +33,13 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 
 public abstract class MixedbreadRequest implements Request, ToXContentObject {
 
+    public static final String REQUEST_SOURCE_HEADER = "Request-Source";
+    public static final String ELASTIC_REQUEST_SOURCE = "unspecified:elasticsearch";
+
     public static void decorateWithAuthHeader(HttpPost request, MixedbreadAccount account) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         request.setHeader(createAuthBearerHeader(account.apiKey()));
-        request.setHeader(CohereUtils.createRequestSourceHeader());
+        request.setHeader(new BasicHeader(REQUEST_SOURCE_HEADER, ELASTIC_REQUEST_SOURCE));
     }
 
     protected final MixedbreadAccount account;
@@ -47,7 +50,7 @@ public abstract class MixedbreadRequest implements Request, ToXContentObject {
     protected MixedbreadRequest(MixedbreadAccount account, String inferenceEntityId, @Nullable String modelId, boolean stream) {
         this.account = account;
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
-        this.modelId = modelId; // model is optional in the v1 api
+        this.modelId = modelId;
         this.stream = stream;
     }
 
@@ -89,7 +92,7 @@ public abstract class MixedbreadRequest implements Request, ToXContentObject {
             return new URIBuilder(baseUri).setPathSegments(pathSegments()).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
-                Strings.format("Failed to construct %s URL", CohereService.NAME),
+                Strings.format("Failed to construct %s URL", MixedbreadService.NAME),
                 RestStatus.BAD_REQUEST,
                 e
             );

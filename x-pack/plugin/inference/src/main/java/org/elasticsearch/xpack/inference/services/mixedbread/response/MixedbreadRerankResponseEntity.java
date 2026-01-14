@@ -115,7 +115,7 @@ public class MixedbreadRerankResponseEntity {
 
         // This should never be reached. The above code should either return successfully or hit the throwUnknownToken
         // or throw a parsing exception
-        throw new IllegalStateException("Reached an invalid state while parsing the Cohere response");
+        throw new IllegalStateException("Reached an invalid state while parsing the Mixedbread response");
     }
 
     private record RankedDocEntry(Integer index, Float score, @Nullable String text) {

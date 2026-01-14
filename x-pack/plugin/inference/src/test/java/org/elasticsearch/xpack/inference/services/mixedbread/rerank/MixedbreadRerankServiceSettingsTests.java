@@ -31,13 +31,13 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializin
     }
 
     public static MixedbreadRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
-        return new MixedbreadRerankServiceSettings(randomAlphaOfLengthOrNull(10), rateLimitSettings);
+        return new MixedbreadRerankServiceSettings(randomAlphaOfLengthOrNull(10), rateLimitSettings, null);
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var model = "model";
 
-        var serviceSettings = new MixedbreadRerankServiceSettings(model, null);
+        var serviceSettings = new MixedbreadRerankServiceSettings(model, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -73,7 +73,7 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializin
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings);
+        return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings, null);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

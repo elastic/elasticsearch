@@ -31,17 +31,20 @@ import java.util.Objects;
 public abstract class MixedbreadModel extends RateLimitGroupingModel {
     private final SecureString apiKey;
     private final MixedbreadRateLimitServiceSettings rateLimitServiceSettings;
+    private final URI uri;
 
     public MixedbreadModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        MixedbreadRateLimitServiceSettings rateLimitServiceSettings
+        MixedbreadRateLimitServiceSettings rateLimitServiceSettings,
+        URI uri
     ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.uri = uri;
     }
 
     protected MixedbreadModel(MixedbreadModel model, TaskSettings taskSettings) {
@@ -49,6 +52,7 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     protected MixedbreadModel(MixedbreadModel model, ServiceSettings serviceSettings) {
@@ -56,6 +60,7 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     public SecureString apiKey() {
@@ -67,6 +72,10 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
     }
 
     public abstract ExecutableAction accept(MixedbreadActionVisitor creator, Map<String, Object> taskSettings);
+
+    public URI uri() {
+        return uri;
+    }
 
     public RateLimitSettings rateLimitSettings() {
         return rateLimitServiceSettings.rateLimitSettings();

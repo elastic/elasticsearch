@@ -8,15 +8,83 @@
 package org.elasticsearch.xpack.inference.services.mixedbread.rerank;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-public class MixedbreadRerankModelTests {
-    public static MixedbreadRerankModel createModel(String model, String apiKey) {
+import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettingsTests.getTaskSettingsMap;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
+
+public class MixedbreadRerankModelTests extends ESTestCase {
+
+    public static final String DEFAULT_URL = "https://api.mixedbread.com/v1/reranking";
+    public static final String CUSTOM_URL = "https://custom.url.com/v1/reranking";
+    public static final String MODEL_ID = "model_id";
+    public static final String API_KEY = "secret";
+
+    public void testConstructor_usesDefaultUrlWhenNull() {
+        var model = createModel(MODEL_ID, API_KEY, null, null, null);
+        assertThat(model.uri().toString(), is(DEFAULT_URL));
+    }
+
+    public void testConstructor_usesUrlWhenSpecified() {
+        var model = createModel(MODEL_ID, API_KEY, CUSTOM_URL, null, null);
+        assertThat(model.uri().toString(), is(CUSTOM_URL));
+    }
+
+    public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
+        var model = createModel(MODEL_ID, API_KEY, null, 10, true);
+        var overriddenModel = MixedbreadRerankModel.of(model, Map.of());
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
+        var model = createModel(MODEL_ID, API_KEY, null, 10, true);
+        var overriddenModel = MixedbreadRerankModel.of(model, null);
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEqual() {
+        var topN = randomNonNegativeInt();
+        var returnDocuments = randomBoolean();
+        var model = createModel(MODEL_ID, API_KEY, null, topN, returnDocuments);
+        var overriddenModel = MixedbreadRerankModel.of(model, getTaskSettingsMap(topN, returnDocuments));
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOf_SetsTopN_FromRequestTaskSettings_OverridingStoredTaskSettings() {
+        var model = createModel(MODEL_ID, API_KEY, null, 15, null);
+        var topNFromRequest = 10;
+        var overriddenModel = MixedbreadRerankModel.of(model, getTaskSettingsMap(topNFromRequest, null));
+        var expectedModel = createModel(MODEL_ID, API_KEY, null, topNFromRequest, null);
+        assertThat(overriddenModel, is(expectedModel));
+    }
+
+    public void testOf_SetsReturnDocuments_FromRequestTaskSettings() {
+        var topN = 15;
+        var model = createModel(MODEL_ID, API_KEY, null, topN, true);
+        var returnDocumentsFromRequest = false;
+        var overriddenModel = MixedbreadRerankModel.of(model, getTaskSettingsMap(null, returnDocumentsFromRequest));
+        var expectedModel = createModel(MODEL_ID, API_KEY, null, topN, returnDocumentsFromRequest);
+        assertThat(overriddenModel, is(expectedModel));
+    }
+
+    public static MixedbreadRerankModel createModel(
+        String model,
+        String apiKey,
+        String uri,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments
+    ) {
         return new MixedbreadRerankModel(
             model,
-            new MixedbreadRerankServiceSettings(model, null),
-            new MixedbreadRerankTaskSettings(null, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new MixedbreadRerankServiceSettings(model, null, null),
+            new MixedbreadRerankTaskSettings(topN, returnDocuments),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            uri
         );
     }
 }

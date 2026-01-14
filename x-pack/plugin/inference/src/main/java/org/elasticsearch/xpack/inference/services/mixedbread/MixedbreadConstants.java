@@ -8,18 +8,18 @@
 package org.elasticsearch.xpack.inference.services.mixedbread;
 
 public class MixedbreadConstants {
-    public static final String RERANK_URI_PATH = "/v1/rerank";
+    public static final String VERSION_1 = "v1";
+    public static final String RERANK_PATH = "rerank";
 
     // common service settings fields
-    public static final String API_KEY_FIELD = "api_key";
-
     public static final String MODEL_FIELD = "model";
 
-    // embeddings service and request settings
     public static final String INPUT_FIELD = "input";
 
     // rerank task settings fields
     public static final String QUERY_FIELD = "query";
+
+    public static final String DOCUMENTS_FIELD = "documents";
 
     // rerank task settings fields
     public static final String RETURN_DOCUMENTS_FIELD = "return_documents";

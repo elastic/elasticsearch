@@ -286,10 +286,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + preconditioningBlockDimension
             );
         }
-
-        this.quantEncoding = quantEncoding;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.quantEncoding = quantEncoding;
         this.rawVectorFormat = switch (elementType) {
             case FLOAT -> float32VectorFormat;
             case BFLOAT16 -> bfloat16VectorFormat;
@@ -321,7 +320,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             numMergeWorkers,
             preconditioningBlockDimension,
             doPrecondition
-
         );
     }
 

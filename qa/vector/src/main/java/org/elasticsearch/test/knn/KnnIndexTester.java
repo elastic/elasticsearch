@@ -133,7 +133,7 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args, List<Path> docsPaths) throws IOException {
+    static Codec createCodec(TestConfiguration args) {
         final KnnVectorsFormat format;
         int quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = switch (args.vectorEncoding()) {
@@ -150,7 +150,6 @@ public class KnnIndexTester {
                     "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
                 );
             };
-
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
@@ -321,7 +320,7 @@ public class KnnIndexTester {
             }
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            Codec codec = createCodec(testConfiguration, testConfiguration.docVectors());
+            Codec codec = createCodec(testConfiguration);
             Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
             MergePolicy mergePolicy = getMergePolicy(testConfiguration);
             if (testConfiguration.reindex() || testConfiguration.forceMerge()) {

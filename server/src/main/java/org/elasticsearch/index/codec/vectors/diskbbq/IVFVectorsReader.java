@@ -69,7 +69,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, IVF_META_EXTENSION);
 
         int versionMeta = -1;
-        try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta);) {
+        try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
             Throwable priorE = null;
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
@@ -305,7 +305,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
-
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
@@ -321,7 +320,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;

@@ -90,7 +90,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.test.knn.KnnFileUtils.getDirectory;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 import static org.elasticsearch.test.knn.KnnIndexer.ID_FIELD;
 import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
@@ -172,7 +171,7 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
-            try (Directory dir = getDirectory(indexPath)) {
+            try (Directory dir = KnnIndexer.getDirectory(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchParameters.searchThreads() > 1
                         ? new IndexSearcher(reader, executorService)

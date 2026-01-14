@@ -74,13 +74,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         this.writeVersion = writeVersion;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
-
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
             ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
         );
-
         final String ivfCentroidsFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -388,7 +386,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 ? null
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
-            FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
             final long centroidOffset;
             final long centroidLength;

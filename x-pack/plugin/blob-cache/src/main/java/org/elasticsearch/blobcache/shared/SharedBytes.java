@@ -213,7 +213,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @param input stream to read from
      * @param fileChannelPos position in {@code fc} to write to
      * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
-     * @param tempBuffer bytebuffer to use for writing
+     * @param buffer bytebuffer to use for writing
      * @return the number of bytes copied
      * @throws IOException on failure
      */
@@ -222,23 +222,19 @@ public class SharedBytes extends AbstractRefCounted {
         InputStream input,
         int fileChannelPos,
         IntConsumer progressUpdater,
-        ByteBuffer tempBuffer
+        ByteBuffer buffer
     ) throws IOException {
-        assert tempBuffer.position() == 0 : "expecting empty temp buffer";
-        assert tempBuffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
-        assert tempBuffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
+        assert buffer.position() == 0 : "expecting empty temp buffer";
+        assert buffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
+        assert buffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
         int bytesCopied = 0;
         while (true) {
-            final int bytesRead = Streams.read(input, tempBuffer, tempBuffer.remaining());
-            if (tempBuffer.position() % PAGE_SIZE != 0 && bytesRead != -1) {
-                // we need to keep buffering to PAGE_SIZE multiples
-                continue;
-            }
-            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, tempBuffer);
-            progressUpdater.accept(bytesCopied);
-            if (bytesRead == -1) {
+            final int bytesRead = Streams.read(input, buffer, buffer.remaining());
+            if (bytesRead <= 0) {
                 break;
             }
+            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
+            progressUpdater.accept(bytesCopied);
         }
         return bytesCopied;
     }
@@ -253,9 +249,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @throws IOException on failure
      */
     public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
-        assert buffer.limit() % PAGE_SIZE == 0 : "expecting buffer with capacity multiple of PAGE_SIZE";
-        if (buffer.position() % PAGE_SIZE != 0) {
-            assert buffer.hasRemaining();
+        if (buffer.hasRemaining()) {
             // ensure the write is aligned on 4k boundaries (= page size)
             int adjustment = PAGE_SIZE - buffer.position() % PAGE_SIZE;
             buffer.put(zeroes, 0, adjustment);

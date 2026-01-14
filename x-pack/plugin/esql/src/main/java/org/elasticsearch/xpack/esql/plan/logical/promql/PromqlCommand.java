@@ -88,9 +88,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Expression timestamp
     ) {
         super(source, child);
-        if (promqlPlan instanceof PromqlPlan == false) {
-            throw new IllegalArgumentException("promqlPlan must be an instance of PromqlPlan");
-        }
         this.promqlPlan = promqlPlan;
         this.start = start;
         this.end = end;

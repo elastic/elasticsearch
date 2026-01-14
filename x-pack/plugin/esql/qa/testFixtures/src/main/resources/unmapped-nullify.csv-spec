@@ -198,16 +198,16 @@ foo:integer
 2
 ;
 
-# https://github.com/elastic/elasticsearch/pull/139797
-statsAggs-Ignore
+statsAggs
 required_capability: optional_fields
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo)
 ;
 
-s:long
+s:double
 null
 ;
 
@@ -223,17 +223,17 @@ foo:null
 null
 ;
 
-# https://github.com/elastic/elasticsearch/pull/139797
-statsAggs-Ignore
+statsAggsGrouped
 required_capability: optional_fields
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo) BY bar
 ;
 
-s:long | bar:null
-null   | null
+s:double | bar:null
+null     | null
 ;
 
 statsExpressions

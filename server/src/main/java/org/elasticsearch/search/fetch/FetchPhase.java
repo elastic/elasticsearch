@@ -100,24 +100,24 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
-        long circuitBreakerBytes = 0L;
+        long searchHitsBytesSize = 0L;
         try {
             SearchHitsWithBreakerBytes result = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
             hits = result.hits;
-            circuitBreakerBytes = result.circuitBreakerBytes;
+            searchHitsBytesSize = result.searchHitsBytesSize;
         } finally {
             try {
                 // Always finish profiling
                 ProfileResult profileResult = profiler.finish();
                 // Only set the shardResults if building search hits was successful
-                if (hits != null) {
-                    context.fetchResult().shardResult(hits, profileResult);
-                    context.fetchResult().setCircuitBreakerBytes(circuitBreakerBytes);
-                    hits = null;
-                } else if (circuitBreakerBytes > 0L) {
-                    // If hits is null, release immediately
-                    context.circuitBreaker().addWithoutBreaking(-circuitBreakerBytes);
-                }
+                    if (hits != null) {
+                        context.fetchResult().shardResult(hits, profileResult);
+                        context.fetchResult().setSearchHitsSizeBytes(searchHitsBytesSize);
+                        hits = null;
+                    } else {
+                        assert searchHitsBytesSize == 0L
+                            : "searchHitsBytesSize must be 0 when hits are null but was [" + searchHitsBytesSize + "]";
+                    }
             } finally {
                 if (hits != null) {
                     hits.decRef();
@@ -515,11 +515,11 @@ public final class FetchPhase {
 
     private static class SearchHitsWithBreakerBytes {
         final SearchHits hits;
-        final long circuitBreakerBytes;
+        final long searchHitsBytesSize;
 
-        SearchHitsWithBreakerBytes(SearchHits hits, long circuitBreakerBytes) {
+        SearchHitsWithBreakerBytes(SearchHits hits, long searchHitsBytesSize) {
             this.hits = hits;
-            this.circuitBreakerBytes = circuitBreakerBytes;
+            this.searchHitsBytesSize = searchHitsBytesSize;
         }
     }
 }

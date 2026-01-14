@@ -32,9 +32,6 @@ import static org.hamcrest.Matchers.is;
  */
 public class SearchServiceCircuitBreakerTests extends ESTestCase {
 
-    /**
-     * Test the generic circuit breaker release helper for FetchSearchResult.
-     */
     public void testReleaseCircuitBreakerForFetchResult() {
         AtomicLong breakerUsed = new AtomicLong(5000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
@@ -44,22 +41,19 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
 
         FetchSearchResult result = new FetchSearchResult();
         try {
-            result.setCircuitBreakerBytes(5000L);
+            result.setSearchHitsSizeBytes(5000L);
 
             fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
 
             assertThat(successCalled.get(), is(true));
             assertThat(failureCalled.get(), is(false));
             assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
         } finally {
             result.decRef();
         }
     }
 
-    /**
-     * Test the circuit breaker release helper for QueryFetchSearchResult.
-     */
     public void testReleaseCircuitBreakerForQueryFetchResult() {
         AtomicLong breakerUsed = new AtomicLong(3000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
@@ -70,7 +64,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult fetchResult = new FetchSearchResult();
         QueryFetchSearchResult queryFetchResult = null;
         try {
-            fetchResult.setCircuitBreakerBytes(3000L);
+            fetchResult.setSearchHitsSizeBytes(3000L);
 
             queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
 
@@ -79,7 +73,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
             assertThat(successCalled.get(), is(true));
             assertThat(failureCalled.get(), is(false));
             assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(fetchResult.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
         } finally {
             if (queryFetchResult != null) {
                 queryFetchResult.decRef();
@@ -89,9 +83,6 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         }
     }
 
-    /**
-     * Test the circuit breaker release helper for ScrollQueryFetchSearchResult.
-     */
     public void testReleaseCircuitBreakerForScrollResult() {
         AtomicLong breakerUsed = new AtomicLong(4000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
@@ -102,7 +93,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult fetchResult = new FetchSearchResult();
         ScrollQueryFetchSearchResult scrollResult = null;
         try {
-            fetchResult.setCircuitBreakerBytes(4000L);
+            fetchResult.setSearchHitsSizeBytes(4000L);
 
             QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
             scrollResult = new ScrollQueryFetchSearchResult(queryFetchResult, null);
@@ -112,7 +103,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
             assertThat(successCalled.get(), is(true));
             assertThat(failureCalled.get(), is(false));
             assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(fetchResult.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
         } finally {
             if (scrollResult != null) {
                 scrollResult.decRef();
@@ -122,10 +113,6 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         }
     }
 
-    /**
-     * Test that circuit breaker release is safe on failure path.
-     * On failure, there's no result to extract, so nothing to release.
-     */
     public void testReleaseCircuitBreakerOnFailure() {
         AtomicLong breakerUsed = new AtomicLong(0);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
@@ -140,9 +127,6 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         assertThat(breakerUsed.get(), equalTo(0L));
     }
 
-    /**
-     * Test extractor returns null (no FetchSearchResult present).
-     */
     public void testExtractorReturnsNull() {
         AtomicLong breakerUsed = new AtomicLong(0);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
@@ -157,34 +141,28 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         // No breaker to release, should complete normally
     }
 
-    /**
-     * Test multiple releases are safe (idempotent).
-     */
     public void testMultipleReleasesAreIdempotent() {
         AtomicLong breakerUsed = new AtomicLong(2000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
 
         FetchSearchResult result = new FetchSearchResult();
         try {
-            result.setCircuitBreakerBytes(2000L);
+            result.setSearchHitsSizeBytes(2000L);
 
             // First release
             result.releaseCircuitBreakerBytes(breaker);
             assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
 
             // Next release - should be no-op
             result.releaseCircuitBreakerBytes(breaker);
             assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
         } finally {
             result.decRef();
         }
     }
 
-    /**
-     * Test with large allocation.
-     */
     public void testLargeAllocation() {
         long largeBytes = randomLongBetween(1_000_000, 10_000_000);
         AtomicLong breakerUsed = new AtomicLong(largeBytes);
@@ -195,21 +173,18 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
 
         FetchSearchResult result = new FetchSearchResult();
         try {
-            result.setCircuitBreakerBytes(largeBytes);
+            result.setSearchHitsSizeBytes(largeBytes);
 
             fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
 
             assertThat(successCalled.get(), is(true));
             assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
         } finally {
             result.decRef();
         }
     }
 
-    /**
-     * Test multiple fetch results with different circuit breaker bytes.
-     */
     public void testMultipleFetchResults() {
         AtomicLong breakerUsed = new AtomicLong(6000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
@@ -219,9 +194,9 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult result3 = new FetchSearchResult();
 
         try {
-            result1.setCircuitBreakerBytes(1000L);
-            result2.setCircuitBreakerBytes(2000L);
-            result3.setCircuitBreakerBytes(3000L);
+            result1.setSearchHitsSizeBytes(1000L);
+            result2.setSearchHitsSizeBytes(2000L);
+            result3.setSearchHitsSizeBytes(3000L);
 
             result1.releaseCircuitBreakerBytes(breaker);
             assertThat(breakerUsed.get(), equalTo(5000L));

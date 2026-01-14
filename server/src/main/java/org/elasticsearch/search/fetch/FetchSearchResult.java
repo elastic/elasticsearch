@@ -28,7 +28,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
 
-    private transient long circuitBreakerBytes = 0L;
+    private transient long searchHitsSizeBytes = 0L;
 
     // client side counter
     private transient int counter;
@@ -87,18 +87,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
-    public void setCircuitBreakerBytes(long bytes) {
-        this.circuitBreakerBytes = bytes;
+    public void setSearchHitsSizeBytes(long bytes) {
+        this.searchHitsSizeBytes = bytes;
     }
 
-    public long getCircuitBreakerBytes() {
-        return circuitBreakerBytes;
+    public long getSearchHitsSizeBytes() {
+        return searchHitsSizeBytes;
     }
 
     public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
-        if (circuitBreakerBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-            circuitBreakerBytes = 0L;
+        if (searchHitsSizeBytes > 0L) {
+            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
+            searchHitsSizeBytes = 0L;
         }
     }
 

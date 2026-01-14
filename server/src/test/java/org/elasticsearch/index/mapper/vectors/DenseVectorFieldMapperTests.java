@@ -654,7 +654,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
-                b.field("quantize_bits", 4);
+                b.field("bits", 4);
                 b.endObject();
             }));
 

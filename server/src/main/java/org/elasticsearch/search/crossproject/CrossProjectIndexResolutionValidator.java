@@ -243,7 +243,17 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
-            return notFoundException;
+            // If no exception is found, we still need to check whether we have resolved to any indices when allowNoIndices is false.
+            // This is to ensure we throw 404 on standalone exclusion expressions like `-logs` or `-logs*`.
+            // This is because, unlike inclusions, exclusions are not checked in checkSingleRemoteExpression.
+            if (notFoundException == null
+                && indicesOptions.allowNoIndices() == false
+                && localResolvedExpressions.localIndicesIsEmpty()
+                && remoteResolvedExpressions.values().stream().allMatch(ResolvedIndexExpressions::localIndicesIsEmpty)) {
+                return new IndexNotFoundException("");
+            } else {
+                return notFoundException;
+            }
         } else {
             var firstException = localAuthorizationException != null
                 ? formatAuthorizationException(localAuthorizationException, localUnauthorizedIndices)

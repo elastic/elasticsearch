@@ -20,6 +20,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
@@ -67,6 +69,8 @@ public class IndexAbstractionResolver {
         return resolvedExpressionsBuilder.build();
     }
 
+    private static final Logger logger = LogManager.getLogger(IndexAbstractionResolver.class);
+
     public ResolvedIndexExpressions resolveIndexAbstractions(
         final List<String> indices,
         final IndicesOptions indicesOptions,
@@ -90,6 +94,7 @@ public class IndexAbstractionResolver {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
+            logger.info("--> rewrite [{}] to [{}] and [{}]", originalIndexExpression, indexRewriteResult.localExpression(), indexRewriteResult.remoteExpressions());
             final String localIndexExpression = indexRewriteResult.localExpression();
             if (localIndexExpression == null) {
                 // (there can be an exclusion without any local index expressions)

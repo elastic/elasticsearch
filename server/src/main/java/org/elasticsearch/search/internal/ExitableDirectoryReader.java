@@ -609,10 +609,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     // TODO This is temporary until we can move to Apache Lucene's bulk scoring interface
-    private static class ExitableBulkScorableSliceableFloatVectorValues extends ExitableBulkScorableFloatVectorValues implements HasIndexSlice {
+    private static class ExitableBulkScorableSliceableFloatVectorValues extends ExitableBulkScorableFloatVectorValues
+        implements
+            HasIndexSlice {
         private final HasIndexSlice slicer;
 
-        ExitableBulkScorableSliceableFloatVectorValues(FloatVectorValues vectorValues, BulkScorableFloatVectorValues bsfvv, HasIndexSlice slicer, QueryCancellation queryCancellation) {
+        ExitableBulkScorableSliceableFloatVectorValues(
+            FloatVectorValues vectorValues,
+            BulkScorableFloatVectorValues bsfvv,
+            HasIndexSlice slicer,
+            QueryCancellation queryCancellation
+        ) {
             super(vectorValues, bsfvv, queryCancellation);
             this.slicer = slicer;
         }

@@ -141,9 +141,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
-- class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
-  method: testSerializationOfSimple {TestCase=<boolean>}
-  issue: https://github.com/elastic/elasticsearch/issues/131334
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
@@ -183,9 +180,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
-  method: testCancelSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/134865
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/126748
@@ -231,15 +225,9 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
-  method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/137911
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/138055
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
-  method: testCancellingAuthorizationTaskRestartsIt
-  issue: https://github.com/elastic/elasticsearch/issues/138099
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
@@ -312,6 +300,63 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
+  method: testLongBytesRefHashWithMultiValuedFields
+  issue: https://github.com/elastic/elasticsearch/issues/140546
+- class: org.elasticsearch.compute.aggregation.TimeSeriesFirstDocIdDeduplicationTests
+  method: testSimpleToString
+  issue: https://github.com/elastic/elasticsearch/issues/140547
+- class: org.elasticsearch.compute.operator.RowInTableLookupOperatorTests
+  method: testSimpleToString
+  issue: https://github.com/elastic/elasticsearch/issues/140548
+- class: org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunctionTests
+  method: testSimpleToString
+  issue: https://github.com/elastic/elasticsearch/issues/140549
+- class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
+  method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
+  issue: https://github.com/elastic/elasticsearch/issues/140603
+- class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
+  method: testDatafeedWithCcsRemoteUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/140612
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140615
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
+  issue: https://github.com/elastic/elasticsearch/issues/138012
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140621
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/140624
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
+  method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/137911
+- class: org.elasticsearch.repositories.blobstore.testkit.rest.SnapshotRepoTestKitClientYamlTestSuiteIT
+  method: test {p0=/10_analyze/Analysis without details}
+  issue: https://github.com/elastic/elasticsearch/issues/140627
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisSuccessIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/140638
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140621
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/140658
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields
+  issue: https://github.com/elastic/elasticsearch/issues/140664
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testRecoveredOperations
+  issue: https://github.com/elastic/elasticsearch/issues/140665
+- class: org.elasticsearch.xpack.esql.parser.SetParserTests
+  method: testSetUnmappedFieldsWrongValue
+  issue: https://github.com/elastic/elasticsearch/issues/140673
 
 # Examples:
 #

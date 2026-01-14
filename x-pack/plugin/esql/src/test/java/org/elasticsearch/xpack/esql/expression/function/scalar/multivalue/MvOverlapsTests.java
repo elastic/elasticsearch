@@ -256,8 +256,8 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
     }
 
     protected static boolean containsAny(List<?> a, List<?> b) {
-        for(var entry : a) {
-            if(b.contains(entry)) {
+        for (var entry : a) {
+            if (b.contains(entry)) {
                 return true;
             }
         }

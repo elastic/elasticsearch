@@ -354,6 +354,9 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testRecoveredOperations
   issue: https://github.com/elastic/elasticsearch/issues/140665
+- class: org.elasticsearch.xpack.esql.parser.SetParserTests
+  method: testSetUnmappedFieldsWrongValue
+  issue: https://github.com/elastic/elasticsearch/issues/140673
 
 # Examples:
 #

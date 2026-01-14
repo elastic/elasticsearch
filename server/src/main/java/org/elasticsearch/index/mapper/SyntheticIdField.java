@@ -75,7 +75,7 @@ public final class SyntheticIdField extends Field {
             && TSDBSyntheticIdPostingsFormat.SUFFIX.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY));
     }
 
-    static class EmptyTokenStream extends TokenStream {
+    static final class EmptyTokenStream extends TokenStream {
         @Override
         public boolean incrementToken() {
             return false;

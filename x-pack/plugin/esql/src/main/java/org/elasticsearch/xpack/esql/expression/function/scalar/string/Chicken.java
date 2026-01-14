@@ -43,7 +43,7 @@ public class Chicken extends UnaryScalarFunction {
     // The chicken ASCII art (credit: cf)
     private static final String CHICKEN_ART = """
              \\
-              \\    __//
+              \\__//
               /.__.\\.
               \\ \\/ /
            '__/    \\

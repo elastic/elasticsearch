@@ -180,9 +180,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
-  method: testCancelSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/134865
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/126748
@@ -330,6 +327,21 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisSuccessIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/140638
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140621
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/140658
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields
+  issue: https://github.com/elastic/elasticsearch/issues/140664
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testRecoveredOperations
+  issue: https://github.com/elastic/elasticsearch/issues/140665
 
 # Examples:
 #

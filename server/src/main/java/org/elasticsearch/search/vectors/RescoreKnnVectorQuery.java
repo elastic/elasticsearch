@@ -32,6 +32,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -259,7 +260,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
-            List<ScoreDoc> results = new LinkedList<>();
+            List<ScoreDoc> results = new ArrayList<>(10);
             List<CheckedRunnable<IOException>> buffer = new LinkedList<>();
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
@@ -316,6 +317,10 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             return Objects.hash(innerQuery, getClass());
         }
 
+        /**
+         * Adds rescoring work to {@code buffer}. If {@code buffer} is non-empty after this call,
+         * the caller must run the queued {@link CheckedRunnable}s to materialize results into {@code queue}.
+         */
         private void rescoreIndividually(
             int docBase,
             FloatVectorValues knnVectorValues,

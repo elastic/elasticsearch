@@ -221,10 +221,10 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
-        public BulkVectorScorer bulkRescorer(float[] target) throws IOException {
+        public BulkVectorScorer bulkRescorer(float[] target, boolean prefetch) throws IOException {
             DocIndexIterator indexIterator = inner.iterator();
             RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
-            return inputSlice != null
+            return prefetch && inputSlice != null
                 ? new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES)
                 : new FloatBulkVectorScorer(randomScorer, indexIterator);
         }

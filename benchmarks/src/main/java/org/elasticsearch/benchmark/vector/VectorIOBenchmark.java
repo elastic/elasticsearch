@@ -281,7 +281,7 @@ public class VectorIOBenchmark {
                     continue;
                 }
                 var vectorValues = leaf.reader().getFloatVectorValues("vector");
-                var bulkRescorer = getBulkScorer(vectorValues).bulkRescorer(queryVector)
+                var bulkRescorer = getBulkScorer(vectorValues).bulkRescorer(queryVector, prefetch)
                     .bulkScore(new ArrayDocIdIterator(docs, leaf.docBase));
                 DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
                 bulkRescorer.nextDocsAndScores(docs.length, leaf.reader().getLiveDocs(), buffer);

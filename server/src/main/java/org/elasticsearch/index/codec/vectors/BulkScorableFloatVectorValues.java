@@ -25,5 +25,5 @@ public interface BulkScorableFloatVectorValues extends BulkScorableVectorValues 
      * Returns a {@link BulkVectorScorer} that can rescore against the provided {@code target} vector.
      * It will score to the highest fidelity possible, potentially sacrificing some speed.
      */
-    BulkVectorScorer bulkRescorer(float[] target) throws IOException;
+    BulkVectorScorer bulkRescorer(float[] target, boolean prefetch) throws IOException;
 }

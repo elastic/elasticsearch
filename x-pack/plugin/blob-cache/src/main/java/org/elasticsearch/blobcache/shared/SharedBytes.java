@@ -254,7 +254,7 @@ public class SharedBytes extends AbstractRefCounted {
             // ensure the write is aligned on 4k boundaries (= page size)
             final int remainder = buffer.position() % PAGE_SIZE;
             final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
-            buffer.put(zeroes, 0, adjustment);
+            buffer.put(ZEROES, 0, adjustment);
         }
         assert buffer.position() % PAGE_SIZE == 0 : "write is not page aligned, got " + buffer.position();
         return positionalWrite(fc, fileChannelPos, buffer);

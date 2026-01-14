@@ -162,3 +162,26 @@ ROW a = 3
 x:boolean
 false
 ;
+
+fixPresentOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS PRESENT(x)
+;
+
+PRESENT(x):boolean
+false
+;
+
+fixPresentOnChildLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| STATS PRESENT(null)
+;
+
+PRESENT(null):boolean
+false
+;
+

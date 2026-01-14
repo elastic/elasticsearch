@@ -74,9 +74,6 @@ Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
 
 ## 9.1.10 [elasticsearch-9.1.10-release-notes]
-```{applies_to}
-stack: ga 9.1.10
-```
 
 ### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
 

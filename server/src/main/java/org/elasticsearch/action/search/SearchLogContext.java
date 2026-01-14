@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import joptsimple.internal.Strings;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.action.ActionLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +49,12 @@ public class SearchLogContext extends ActionLoggerContext {
         return response.getHits().getTotalHits().value();
     }
 
-    public String getIndices() {
-        return Strings.join(request.indices(), ",");
+    public String getIndices(NamedWriteableRegistry namedWriteableRegistry) {
+        if (request.pointInTimeBuilder() == null) {
+            return Strings.join(request.indices(), ",");
+        } else {
+            final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
+            return Strings.join(searchContextId.getActualIndices(), ",");
+        }
     }
 }

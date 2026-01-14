@@ -13,14 +13,19 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ActionLoggingUtils;
 import org.junit.After;
@@ -83,7 +88,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     private static final String INDEX_NAME = "test_index";
 
     // Test _search
-    public void testSearchLog() throws Exception {
+    public void testSearchLog() {
         setupIndex();
 
         // Simple request
@@ -204,6 +209,31 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
                 fail("unexpected query logged: " + message.get("query"));
             }
         });
+    }
+
+    public void testPitSearch() {
+        setupIndex();
+
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(INDEX_NAME).keepAlive(TimeValue.THIRTY_SECONDS);
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        var pitId = response.getPointInTimeId();
+
+        assertSearchHitsWithoutFailures(
+            prepareSearch().setQuery(simpleQueryStringQuery("fox")).setPointInTime(new PointInTimeBuilder(pitId)),
+            "1"
+        );
+        var event = appender.getLastEventAndReset();
+        assertNotNull(event);
+        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+        ESLogMessage message = (ESLogMessage) event.getMessage();
+        var data = message.getIndexedReadOnlyStringMap();
+        assertThat(message.get("success"), equalTo("true"));
+        assertThat(message.get("type"), equalTo("search"));
+        assertThat(message.get("hits"), equalTo("1"));
+        assertThat(data.getValue("took"), greaterThan(0L));
+        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+        assertThat(message.get("query"), containsString("fox"));
+        assertThat(message.get("indices"), equalTo(INDEX_NAME));
     }
 
     private void setupIndex() {

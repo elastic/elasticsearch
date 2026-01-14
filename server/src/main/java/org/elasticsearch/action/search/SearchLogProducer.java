@@ -9,15 +9,24 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.index.SlowLogFields;
 
 public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext> {
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    SearchLogProducer(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
     @Override
     public ESLogMessage produce(SearchLogContext context, SlowLogFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
+        return msg.with("query", context.getQuery())
+            .with("indices", context.getIndices(namedWriteableRegistry))
+            .with("hits", context.getHits());
     }
 }

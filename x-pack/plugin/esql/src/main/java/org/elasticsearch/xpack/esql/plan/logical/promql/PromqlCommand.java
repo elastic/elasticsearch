@@ -274,28 +274,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             return;
         }
 
-        // Validate top-level expression
-        switch (p) {
-            case VectorBinaryOperator vectorBinaryOperator -> failures.add(
-                // TODO add support for top-level binary operators in TranslateTimeSeriesAggregate
-                // The limitation is in TS|STATS aggregation translation, not in PromQL support.
-                // We do support VectorBinaryArithmetic operators as nested expressions, but not at the top-level of a query.
-                fail(p, "top-level binary operators are not supported at this time [{}]", p.sourceText())
+        if (p instanceof RangeSelector && isRangeQuery()) {
+            failures.add(
+                fail(p, "invalid expression type \"range vector\" for range query, must be scalar or instant vector", p.sourceText())
             );
-            case RangeSelector rangeSelector -> {
-                if (isRangeQuery()) {
-                    failures.add(
-                        fail(
-                            p,
-                            "invalid expression type \"range vector\" for range query, must be scalar or instant vector",
-                            p.sourceText()
-                        )
-                    );
-                }
-            }
-            default -> {
-                // ok
-            }
         }
 
         // Validate entire plan

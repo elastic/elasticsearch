@@ -568,25 +568,33 @@ static inline void dot_int1_int4_inner_bulk(
 
     const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
     const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
+    const int8_t* a2 = safe_mapper_offset<2, mapper>(a, pitch, offsets, count);
+    const int8_t* a3 = safe_mapper_offset<3, mapper>(a, pitch, offsets, count);
 
     // Process a batch of 2 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
-    // execution units busy. For this "older" generation of x64 processors
-    // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
-    // is ideal -- more, and it starts to hurt performances due to bandwidth
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+    // execution units busy.
+    for (; c + 7 < count; c += 4) {
+        const int8_t* next_a0 = a + mapper(c + 4, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 5, offsets) * pitch;
+        const int8_t* next_a2 = a + mapper(c + 6, offsets) * pitch;
+        const int8_t* next_a3 = a + mapper(c + 7, offsets) * pitch;
 
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a1, lines_to_fetch);
+        prefetch(next_a2, lines_to_fetch);
+        prefetch(next_a3, lines_to_fetch);
 
         results[c + 0] = (f32_t)dot_int1_int4_inner(a0, query, length);
         results[c + 1] = (f32_t)dot_int1_int4_inner(a1, query, length);
+        results[c + 2] = (f32_t)dot_int1_int4_inner(a2, query, length);
+        results[c + 3] = (f32_t)dot_int1_int4_inner(a3, query, length);
 
         a0 = next_a0;
         a1 = next_a1;
+        a2 = next_a2;
+        a3 = next_a3;
     }
 
     // Tail-handling: remaining vectors

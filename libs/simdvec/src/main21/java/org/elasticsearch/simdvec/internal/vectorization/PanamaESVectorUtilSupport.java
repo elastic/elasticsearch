@@ -1156,18 +1156,12 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             VectorMask<Byte> mask = chunk.and(highBitsVec).eq(continuationVec);
             continuations += mask.trueCount();
         }
-        // tail
-//        if (i < bytesRef.length) {
-//            VectorMask<Byte> tailMask = PREFERRED_BYTE_SPECIES.indexInRange(i, length);
-//            ByteVector chunk = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, bytesRef.bytes, offset + i, tailMask);
-//            continuations += chunk.and(highBitsVec).eq(continuationVec).and(tailMask).trueCount();
-//        }
-//        continuations += ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset + loopBound, bytesRef.length - loopBound);
 
+        // tail
         for (int pos = bytesRef.offset + loopBound; pos < bytesRef.offset + bytesRef.length; pos++) {
             continuations += (bytesRef.bytes[pos] & highBits) == continuationByte ? 1 : 0;
         }
-
+        
         return bytesRef.length - continuations;
     }
 }

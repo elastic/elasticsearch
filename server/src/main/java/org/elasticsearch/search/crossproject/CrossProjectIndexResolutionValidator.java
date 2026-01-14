@@ -31,6 +31,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.isExclusionExpression;
 
 /**
  * Utility class for validating index resolution results in cross-project operations.
@@ -291,6 +292,11 @@ public class CrossProjectIndexResolutionValidator {
         String remoteExpression,
         IndicesOptions indicesOptions
     ) {
+        if (isExclusionExpression(projectAlias) || isExclusionExpression(resource)) {
+            logger.debug("Skipping check for excluded remote expression [{}:{}]", projectAlias, resource);
+            return null;
+        }
+
         ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
         /*
          * We look for an index in the linked projects only after we've ascertained that it does not exist

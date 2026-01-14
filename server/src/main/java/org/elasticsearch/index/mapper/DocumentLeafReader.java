@@ -242,7 +242,7 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public int maxDoc() {
-        throw new UnsupportedOperationException();
+        return 1;
     }
 
     @Override

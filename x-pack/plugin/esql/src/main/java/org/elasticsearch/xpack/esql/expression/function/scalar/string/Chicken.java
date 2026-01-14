@@ -42,8 +42,22 @@ public class Chicken extends UnaryScalarFunction {
     private static final int DEFAULT_WIDTH = 40;
     private static final int MAX_WIDTH = 76;
 
-    // The chicken ASCII art (credit: cf)
-    private static final String CHICKEN_ART = """
+    // Pre-allocated BytesRef constants for single characters to avoid allocations
+    private static final BytesRef UNDERSCORE = new BytesRef("_");
+    private static final BytesRef DASH = new BytesRef("-");
+    private static final BytesRef SPACE = new BytesRef(" ");
+    private static final BytesRef NEWLINE = new BytesRef("\n");
+    private static final BytesRef OPEN_ANGLE = new BytesRef("< ");
+    private static final BytesRef CLOSE_ANGLE = new BytesRef(" >");
+    private static final BytesRef OPEN_SLASH = new BytesRef("/ ");
+    private static final BytesRef CLOSE_BACKSLASH = new BytesRef(" \\");
+    private static final BytesRef OPEN_BACKSLASH = new BytesRef("\\ ");
+    private static final BytesRef CLOSE_SLASH = new BytesRef(" /");
+    private static final BytesRef OPEN_PIPE = new BytesRef("| ");
+    private static final BytesRef CLOSE_PIPE = new BytesRef(" |");
+
+    // The chicken ASCII art (credit: cf) - pre-allocated as BytesRef
+    private static final BytesRef CHICKEN_ART = new BytesRef("""
              \\
               \\__//
               /.__.\\.
@@ -53,7 +67,7 @@ public class Chicken extends UnaryScalarFunction {
              \\_____/
           _____|_|____
                " "
-        """;
+        """);
 
     @FunctionInfo(returnType = "keyword", description = """
         Returns a string with the input text wrapped in ASCII art of a chicken saying the message.
@@ -97,57 +111,86 @@ public class Chicken extends UnaryScalarFunction {
     @Evaluator
     static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef message) {
         String text = message.utf8ToString();
-        String result = buildChickenSay(text, DEFAULT_WIDTH);
-        scratch.grow(result.length());
         scratch.clear();
-        scratch.append(new BytesRef(result));
+        buildChickenSay(scratch, text, DEFAULT_WIDTH);
         return scratch.bytesRefView();
     }
 
     /**
-     * Builds the complete chicken say output with speech bubble and ASCII art.
+     * Builds the complete chicken say output with speech bubble and ASCII art,
+     * appending directly to the provided builder.
      */
-    static String buildChickenSay(String message, int maxWidth) {
+    static void buildChickenSay(BreakingBytesRefBuilder scratch, String message, int maxWidth) {
         // Clamp width
         int width = Math.min(maxWidth, MAX_WIDTH);
 
         // Wrap the message into lines
         List<String> lines = wrapText(message, width);
 
-        StringBuilder sb = new StringBuilder();
-
         // Calculate the actual width needed
         int bubbleWidth = lines.stream().mapToInt(String::length).max().orElse(0);
         bubbleWidth = Math.max(bubbleWidth, 2); // Minimum width
 
-        // Top border
-        sb.append(" ").append("_".repeat(bubbleWidth + 2)).append("\n");
+        // Top border: " " + "_".repeat(bubbleWidth + 2) + "\n"
+        scratch.append(SPACE);
+        appendRepeated(scratch, UNDERSCORE, bubbleWidth + 2);
+        scratch.append(NEWLINE);
 
         // Message lines
         if (lines.size() == 1) {
             // Single line: use < >
-            sb.append("< ").append(padRight(lines.get(0), bubbleWidth)).append(" >\n");
+            scratch.append(OPEN_ANGLE);
+            appendPadRight(scratch, lines.get(0), bubbleWidth);
+            scratch.append(CLOSE_ANGLE);
+            scratch.append(NEWLINE);
         } else {
             // Multi-line: use / \ for first/last, | | for middle
             for (int i = 0; i < lines.size(); i++) {
                 String line = lines.get(i);
                 if (i == 0) {
-                    sb.append("/ ").append(padRight(line, bubbleWidth)).append(" \\\n");
+                    scratch.append(OPEN_SLASH);
+                    appendPadRight(scratch, line, bubbleWidth);
+                    scratch.append(CLOSE_BACKSLASH);
                 } else if (i == lines.size() - 1) {
-                    sb.append("\\ ").append(padRight(line, bubbleWidth)).append(" /\n");
+                    scratch.append(OPEN_BACKSLASH);
+                    appendPadRight(scratch, line, bubbleWidth);
+                    scratch.append(CLOSE_SLASH);
                 } else {
-                    sb.append("| ").append(padRight(line, bubbleWidth)).append(" |\n");
+                    scratch.append(OPEN_PIPE);
+                    appendPadRight(scratch, line, bubbleWidth);
+                    scratch.append(CLOSE_PIPE);
                 }
+                scratch.append(NEWLINE);
             }
         }
 
-        // Bottom border
-        sb.append(" ").append("-".repeat(bubbleWidth + 2)).append("\n");
+        // Bottom border: " " + "-".repeat(bubbleWidth + 2) + "\n"
+        scratch.append(SPACE);
+        appendRepeated(scratch, DASH, bubbleWidth + 2);
+        scratch.append(NEWLINE);
 
         // Add the chicken
-        sb.append(CHICKEN_ART);
+        scratch.append(CHICKEN_ART);
+    }
 
-        return sb.toString();
+    /**
+     * Appends a BytesRef repeated n times to the builder.
+     */
+    private static void appendRepeated(BreakingBytesRefBuilder scratch, BytesRef ref, int count) {
+        for (int i = 0; i < count; i++) {
+            scratch.append(ref);
+        }
+    }
+
+    /**
+     * Appends a string to the builder, padded with spaces to reach the target width.
+     */
+    private static void appendPadRight(BreakingBytesRefBuilder scratch, String s, int width) {
+        scratch.append(new BytesRef(s));
+        int padding = width - s.length();
+        if (padding > 0) {
+            appendRepeated(scratch, SPACE, padding);
+        }
     }
 
     /**
@@ -178,16 +221,6 @@ public class Chicken extends UnaryScalarFunction {
         }
 
         return lines.isEmpty() ? List.of("") : lines;
-    }
-
-    /**
-     * Pads a string to the right with spaces to reach the target width.
-     */
-    static String padRight(String s, int width) {
-        if (s.length() >= width) {
-            return s;
-        }
-        return s + " ".repeat(width - s.length());
     }
 
     @Override

@@ -32,10 +32,10 @@ public final class MetadataBuffer implements MetadataWriter {
 
     private static final int DEFAULT_CAPACITY_BYTES = 64;
 
-    private static final int SINGLE_BYTE = 1;
-    private static final int MAX_VINT_BYTES = 5;
-    private static final int MAX_VLONG_BYTES = 9;
-    private static final int MAX_ZLONG_BYTES = 10;
+    private static final int SINGLE_BYTE = Byte.BYTES;
+    private static final int MAX_VINT_BYTES = Integer.BYTES + 1;
+    private static final int MAX_VLONG_BYTES = Long.BYTES + 1;
+    private static final int MAX_ZLONG_BYTES = Long.BYTES + 2;
 
     private byte[] buffer;
     private int size;

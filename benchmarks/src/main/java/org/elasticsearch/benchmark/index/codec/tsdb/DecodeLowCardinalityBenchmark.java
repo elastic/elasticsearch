@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.LowCardinalitySupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -31,7 +31,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for decoding increasing integer patterns.
+ * Benchmark for decoding low cardinality data patterns.
+ *
+ * <p>Parameterized by number of distinct values and Zipf skew to test how
+ * the decoder handles data with limited value diversity. Higher skew means
+ * the most frequent value dominates more strongly.
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -39,15 +43,18 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class DecodeIncreasingIntegerBenchmark {
+public class DecodeLowCardinalityBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "5", "10" })
+    private int distinctValues;
+
+    @Param({ "1", "2", "3" })
+    private double skew;
 
     private final AbstractTSDBCodecBenchmark decode;
 
-    public DecodeIncreasingIntegerBenchmark() {
+    public DecodeLowCardinalityBenchmark() {
         this.decode = new DecodeBenchmark();
     }
 
@@ -58,7 +65,9 @@ public class DecodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
+        decode.setupTrial(
+            LowCardinalitySupplier.builder(SEED, decode.getBlockSize()).withDistinctValues(distinctValues).withSkew(skew).build()
+        );
     }
 
     @Benchmark

@@ -1626,7 +1626,14 @@ public class RBACEngineTests extends ESTestCase {
             .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app", "all", "action:*"), Set.of("org:1"))
             .build();
 
-        final LimitedRole limitedRole = new LimitedRole(assignedRole, userRole);
+        final LimitedRole limitedRole;
+        if (randomBoolean()) {
+            limitedRole = new LimitedRole(assignedRole, userRole);
+        } else {
+            final Role otherRole = Role.builder(RESTRICTED_INDICES, "other").build();
+            limitedRole = new LimitedRole(new LimitedRole(assignedRole, otherRole), new LimitedRole(otherRole, userRole));
+        }
+
         when(authorizationInfo.getRole()).thenReturn(limitedRole);
 
         for (var unwrapRole : RoleReference.ApiKeyRoleType.values()) {

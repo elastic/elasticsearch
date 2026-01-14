@@ -167,7 +167,6 @@ public class IndexAbstractionResolver {
                         indexNameExpressionResolver,
                         includeDataStreams
                     )) {
-
                     DataStream dataStream = indexNameToDataStream.get(authorizedIndex);
                     if (dataStream != null) {
                         for (Index index : dataStream.getIndices()) {

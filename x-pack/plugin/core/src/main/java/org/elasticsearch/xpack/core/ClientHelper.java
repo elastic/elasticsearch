@@ -114,7 +114,7 @@ public final class ClientHelper {
         );
     }
 
-    public static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
+    private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
         Map<String, String> filteredHeaders,
         CheckedFunction<String, Authentication, IOException> authenticationReader,
         TransportVersion minNodeVersion

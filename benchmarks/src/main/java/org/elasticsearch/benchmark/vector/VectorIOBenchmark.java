@@ -111,7 +111,7 @@ public class VectorIOBenchmark {
         switch (readMethod) {
             case "DIRECT_IO":
                 var delegate = new MMapDirectory(Path.of(TEST_DIR));
-                dir = new FsDirectoryFactory.AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, 0);
+                dir = new FsDirectoryFactory.AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, 64);
                 break;
             case "MMAP":
                 var mmapDir = new MMapDirectory(Path.of(TEST_DIR));

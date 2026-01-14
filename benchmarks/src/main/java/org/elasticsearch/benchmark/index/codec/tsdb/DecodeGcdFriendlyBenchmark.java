@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.GcdFriendlySupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -31,7 +31,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for decoding increasing integer patterns.
+ * Benchmark for decoding GCD-friendly data patterns.
+ *
+ * <p>Parameterized by GCD value to test how the GCD compression stage handles
+ * different divisors: 1 (no GCD benefit), small primes (7, 127), powers of 2
+ * (64, 1024), and common values (100, 1000).
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -39,15 +43,15 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class DecodeIncreasingIntegerBenchmark {
+public class DecodeGcdFriendlyBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "1", "7", "64", "100", "127", "1000", "1024" })
+    private long gcd;
 
     private final AbstractTSDBCodecBenchmark decode;
 
-    public DecodeIncreasingIntegerBenchmark() {
+    public DecodeGcdFriendlyBenchmark() {
         this.decode = new DecodeBenchmark();
     }
 
@@ -58,7 +62,7 @@ public class DecodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
+        decode.setupTrial(GcdFriendlySupplier.builder(SEED, decode.getBlockSize()).withGcd(gcd).build());
     }
 
     @Benchmark

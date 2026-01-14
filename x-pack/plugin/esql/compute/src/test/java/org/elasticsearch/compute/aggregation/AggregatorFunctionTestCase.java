@@ -113,8 +113,17 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertSimpleOutput(input, result);
     }
 
+    /**
+     * Defines how large datasets are generated, should be overridden for complex types to reduce test runtime.
+     *
+     * @return the maximum number of rows to generate for tests
+     */
+    protected int maximumTestRowCount() {
+        return 100_000;
+    }
+
     public final void testIgnoresNulls() {
-        int end = between(1_000, 100_000);
+        int end = between(1_000, maximumTestRowCount());
         List<Page> results = new ArrayList<>();
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -134,8 +143,13 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertSimpleOutput(origInput, results);
     }
 
+    protected boolean supportsMultiValues() {
+        return true;
+    }
+
     public final void testMultivalued() {
-        int end = between(1_000, 100_000);
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
+        int end = between(1_000, maximumTestRowCount());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(
@@ -146,7 +160,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     public final void testMultivaluedWithNulls() {
-        int end = between(1_000, 100_000);
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
+        int end = between(1_000, maximumTestRowCount());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(

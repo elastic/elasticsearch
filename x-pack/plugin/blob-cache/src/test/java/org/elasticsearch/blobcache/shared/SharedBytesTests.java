@@ -77,11 +77,11 @@ public class SharedBytesTests extends ESTestCase {
             // write full region
             {
                 int bytesWritten = SharedBytes.copyToCacheFileAligned(
-                        sharedBytes.getFileChannel(region),
-                        new TestSlowByteArrayInputStream(fullRegionRandomData),
-                        0,
-                        writtenBytesCount -> {},
-                        tempBuffer
+                    sharedBytes.getFileChannel(region),
+                    new TestSlowByteArrayInputStream(fullRegionRandomData),
+                    0,
+                    writtenBytesCount -> {},
+                    tempBuffer
                 );
                 assertThat(bytesWritten, equalTo(fullRegionRandomData.length));
                 // read back region and verify whole region is written correctly
@@ -111,7 +111,7 @@ public class SharedBytesTests extends ESTestCase {
                 }
                 // assert padding is 0
                 for (int i = randomData.length; i < readRegionData.length; i++) {
-                    assertEquals((byte)0, readRegionData[i]);
+                    assertEquals((byte) 0, readRegionData[i]);
                 }
             }
         } finally {

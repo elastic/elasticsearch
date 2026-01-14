@@ -217,13 +217,8 @@ public class SharedBytes extends AbstractRefCounted {
      * @return the number of bytes copied
      * @throws IOException on failure
      */
-    public static int copyToCacheFileAligned(
-        IO fc,
-        InputStream input,
-        int fileChannelPos,
-        IntConsumer progressUpdater,
-        ByteBuffer buffer
-    ) throws IOException {
+    public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
+        throws IOException {
         assert buffer.position() == 0 : "expecting empty temp buffer";
         assert buffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
         assert buffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
@@ -249,7 +244,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @throws IOException on failure
      */
     public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
-        assert fileChannelPos % PAGE_SIZE == 0 : "only page-aligned writes allowed: "  + fileChannelPos;
+        assert fileChannelPos % PAGE_SIZE == 0 : "only page-aligned writes allowed: " + fileChannelPos;
         if (buffer.hasRemaining()) {
             // ensure the write is aligned on 4k boundaries (= page size)
             final int remainder = buffer.position() % PAGE_SIZE;

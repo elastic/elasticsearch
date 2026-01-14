@@ -47,8 +47,6 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
     private static final String INFERENCE_ID = "test-inference-id";
     private static final Map<String, Object> INFERENCE_ENDPOINT_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
 
-    private static boolean clustersConfigured = false;
-
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
@@ -71,10 +69,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
 
     @Before
     public void configureClusters() throws Exception {
-        if (clustersConfigured == false) {
-            setupTwoClusters();
-            clustersConfigured = true;
-        }
+        setupTwoClusters();
     }
 
     public void testRemoteIndex() {

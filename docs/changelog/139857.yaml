@@ -1,6 +1,0 @@
-pr: 139857
-summary: Reduce task match load
-area: Transform
-type: bug
-issues:
- - 139252

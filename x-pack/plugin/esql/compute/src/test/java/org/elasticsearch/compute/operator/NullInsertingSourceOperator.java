@@ -14,6 +14,9 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -107,6 +110,11 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
                 break;
             case FLOAT:
                 ((FloatBlock.Builder) into).appendFloat(((FloatBlock) from).getFloat(valueIndex));
+                break;
+            case EXPONENTIAL_HISTOGRAM:
+                ((ExponentialHistogramBlockBuilder) into).append(
+                    ((ExponentialHistogramBlock) from).getExponentialHistogram(valueIndex, new ExponentialHistogramScratch())
+                );
                 break;
             default:
                 throw new IllegalArgumentException("unknown block type " + elementType);

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -34,11 +35,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Replaces an aggregation function having a false/null filter with an EVAL node.
+ * Replaces an aggregation function with an EVAL node under 2 conditions.
+ *
+ * First, having a false/null filter
  * <pre>
  *     ... | STATS/INLINE STATS x = someAgg(y) WHERE FALSE {BY z} | ...
  *     =>
- *     ... | STATS/INLINE STATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
+ *     ... | EVAL x = NULL | KEEP x{, z} | ...
+ * </pre>
+ *
+ * Second, having an agg on a null value
+ * <pre>
+ *     ... | STATS/INLINE STATS x = someAgg(null) {BY z} | ...
+ *     =>
+ *     ... | EVAL x = NULL | KEEP x{, z} | ...
  * </pre>
  *
  * This rule is applied to both STATS' {@link Aggregate} and {@link InlineJoin} right-hand side {@link Aggregate} plans.
@@ -46,7 +56,9 @@ import java.util.List;
  * its right-hand side {@link Aggregate}.
  * Skipped in local optimizer: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
  */
-public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> implements OptimizerRules.CoordinatorOnly {
+public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan>
+    implements
+        OptimizerRules.CoordinatorOnly {
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         Aggregate aggregate;
@@ -69,11 +81,7 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
             List<NamedExpression> newProjections = new ArrayList<>(oldAggSize);
 
             for (var ne : aggregate.aggregates()) {
-                if (ne instanceof Alias alias
-                    && alias.child() instanceof AggregateFunction aggFunction
-                    && aggFunction.hasFilter()
-                    && aggFunction.filter() instanceof Literal literal
-                    && Boolean.FALSE.equals(literal.value())) {
+                if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFunction && shouldReplace(aggFunction)) {
 
                     Object value = mapNullToValue(aggFunction);
                     Alias newAlias = alias.replaceChild(Literal.of(aggFunction, value));
@@ -117,6 +125,14 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
             }
         }
         return plan;
+    }
+
+    private static boolean shouldReplace(AggregateFunction aggFunction) {
+        return hasFalseFilter(aggFunction) || DataType.isNull(aggFunction.field().dataType());
+    }
+
+    private static boolean hasFalseFilter(AggregateFunction aggFunction) {
+        return aggFunction.hasFilter() && aggFunction.filter() instanceof Literal literal && Boolean.FALSE.equals(literal.value());
     }
 
     private static Object mapNullToValue(AggregateFunction aggFunction) {

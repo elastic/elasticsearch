@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -61,5 +62,10 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
             output = List.of(FieldAttribute.timeSeriesAttribute(source()));
         }
         return output;
+    }
+
+    @Override
+    public FunctionType functionType() {
+        return FunctionType.WITHIN_SERIES_AGGREGATION;
     }
 }

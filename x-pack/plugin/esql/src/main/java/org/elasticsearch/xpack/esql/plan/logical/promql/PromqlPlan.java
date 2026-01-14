@@ -52,7 +52,7 @@ public interface PromqlPlan {
         return getReturnType(plan) == PromqlDataType.SCALAR;
     }
 
-    public static PromqlDataType getReturnType(LogicalPlan plan) {
+    static PromqlDataType getReturnType(LogicalPlan plan) {
         if (plan instanceof PromqlPlan promqlPlan) {
             return promqlPlan.returnType();
         }

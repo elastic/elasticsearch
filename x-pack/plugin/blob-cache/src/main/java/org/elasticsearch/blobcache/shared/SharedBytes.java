@@ -225,10 +225,10 @@ public class SharedBytes extends AbstractRefCounted {
         ByteBuffer tempBuffer
     ) throws IOException {
         assert tempBuffer.position() == 0 : "expecting empty temp buffer";
-        assert tempBuffer.limit() >= PAGE_SIZE : "undersized temp buffer";
-        int pageSizedLimit = tempBuffer.limit() - tempBuffer.limit() % PAGE_SIZE;
+        assert tempBuffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
+        assert tempBuffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
         while (true) {
-            if (Streams.read(input, tempBuffer, pageSizedLimit - tempBuffer.position()) <= 0) {
+            if (Streams.read(input, tempBuffer, tempBuffer.remaining()) <= 0) {
                 break;
             }
         }

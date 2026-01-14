@@ -119,10 +119,6 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
         }
     }
 
-    public static Map<String, Object> getTaskSettingsMapEmpty() {
-        return new HashMap<>();
-    }
-
     public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, @Nullable Boolean returnDocuments) {
         var map = new HashMap<String, Object>();
 

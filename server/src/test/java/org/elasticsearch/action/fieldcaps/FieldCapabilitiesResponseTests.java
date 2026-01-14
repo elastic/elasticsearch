@@ -164,10 +164,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            TransportVersion.minimumCompatible(),
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
             outResponse.getFailures().stream().flatMap(f -> Arrays.stream(f.getIndices())).toList(),

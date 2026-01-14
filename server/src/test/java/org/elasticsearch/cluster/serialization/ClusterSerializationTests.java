@@ -173,10 +173,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     }
 
     public void testSnapshotDeletionsInProgressSerialization() throws Exception {
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            TransportVersion.minimumCompatible(),
-            TransportVersion.current()
-        );
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
 
         boolean includeRestore = randomBoolean();
 

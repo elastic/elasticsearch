@@ -38,10 +38,7 @@ public class ClusterStateRequestTests extends ESTestCase {
                 .indices("testindex", "testindex2")
                 .indicesOptions(indicesOptions);
 
-            TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
-                TransportVersion.minimumCompatible(),
-                TransportVersion.current()
-            );
+            TransportVersion testVersion = TransportVersionUtils.randomCompatibleVersion(random());
             if (randomBoolean()) {
                 clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
             }

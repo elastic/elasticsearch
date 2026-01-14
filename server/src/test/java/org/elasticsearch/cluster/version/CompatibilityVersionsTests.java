@@ -33,9 +33,9 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testMinimumTransportVersions() {
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            TransportVersionUtils.getNextVersion(version1, true),
-            TransportVersion.current()
+        TransportVersion version2 = TransportVersionUtils.randomVersionSupporting(
+            random(),
+            TransportVersionUtils.getNextVersion(version1, true)
         );
 
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, Map.of());
@@ -79,9 +79,9 @@ public class CompatibilityVersionsTests extends ESTestCase {
      */
     public void testMinimumsAreMerged() {
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            TransportVersionUtils.getNextVersion(version1, true),
-            TransportVersion.current()
+        TransportVersion version2 = TransportVersionUtils.randomVersionSupporting(
+            random(),
+            TransportVersionUtils.getNextVersion(version1, true)
         );
 
         SystemIndexDescriptor.MappingsVersion v1 = new SystemIndexDescriptor.MappingsVersion(1, 1);
@@ -108,7 +108,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
         // should not throw
         CompatibilityVersions.ensureVersionsCompatibility(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(min, TransportVersion.current()), Map.of()),
+            new CompatibilityVersions(TransportVersionUtils.randomVersionSupporting(random(), min), Map.of()),
             compatibilityVersions
         );
 

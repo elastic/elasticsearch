@@ -1133,6 +1133,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support non-correlated subqueries in the FROM clause without implicit limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
@@ -1854,7 +1859,7 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tier" metadata field.
          */
-        METADATA_TIER_FIELD,
+        METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887

@@ -4770,10 +4770,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Literal limitLiteral = as(subqueryLimit.limit(), Literal.class);
-        assertEquals(1000, limitLiteral.value());
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         List<? extends NamedExpression> projections = subqueryProject.projections();
         assertEquals(13, projections.size()); // all fields from the two indices
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4790,10 +4787,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        limitLiteral = as(subqueryLimit.limit(), Literal.class);
-        assertEquals(1000, limitLiteral.value());
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         projections = subqueryProject.projections();
         assertEquals(13, projections.size()); // all fields from the two indices
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4880,10 +4874,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(4, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Literal limitLiteral = as(subqueryLimit.limit(), Literal.class);
-        assertEquals(1000, limitLiteral.value());
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4892,8 +4883,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4918,8 +4908,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(2), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4930,8 +4919,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(3), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(3), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4995,8 +4983,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(3, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -5010,8 +4997,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -5036,8 +5022,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(2), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -5064,27 +5049,24 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         Filter subqueryFilter = as(subquery.child(), Filter.class);
         unionAll = as(subqueryFilter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(0), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subquery = as(subqueryEval.child(), Subquery.class);
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
@@ -5106,8 +5088,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
@@ -5116,24 +5097,21 @@ public class AnalyzerTests extends ESTestCase {
         MetadataAttribute metadataAttribute = as(output.get(11), MetadataAttribute.class);
         assertEquals("_index", metadataAttribute.name());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         Filter subqueryFilter = as(subquery.child(), Filter.class);
         unionAll = as(subqueryFilter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(0), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
         output = subqueryIndex.output();
         assertEquals(2, output.size());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subquery = as(subqueryEval.child(), Subquery.class);
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
@@ -5170,14 +5148,12 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
@@ -5217,8 +5193,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(26, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5228,8 +5203,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5288,8 +5262,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(28, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5299,8 +5272,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5371,8 +5343,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(31, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5382,8 +5353,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5435,16 +5405,14 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(25, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         missingFieldEval = as(explicitCastingEval.child(), Eval.class);
@@ -5474,25 +5442,22 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(24, output.size());
         assertEquals(3, unionAll.children().size());
 
-        limit = as(unionAll.children().get(0), Limit.class);
-        Project project = as(limit.child(), Project.class);
-        Eval eval = as(project.child(), Eval.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(1), Limit.class);
-        project = as(limit.child(), Project.class);
-        eval = as(project.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         relation = as(subquery.child(), EsRelation.class);
         assertEquals("sample_data", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(2), Limit.class);
-        project = as(limit.child(), Project.class);
-        eval = as(project.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5516,16 +5481,14 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(26, output.size());
         assertEquals(3, unionAll.children().size());
 
-        limit = as(unionAll.children().get(0), Limit.class);
-        Project project = as(limit.child(), Project.class);
-        Eval eval = as(project.child(), Eval.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("sample_data", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(1), Limit.class);
-        project = as(limit.child(), Project.class);
-        eval = as(project.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         InlineStats inlineStats = as(subquery.child(), InlineStats.class);
@@ -5535,9 +5498,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(2), Limit.class);
-        project = as(limit.child(), Project.class);
-        eval = as(project.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5561,17 +5523,15 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(26, output.size());
         assertEquals(3, unionAll.children().size());
 
-        limit = as(unionAll.children().get(0), Limit.class);
-        Project project = as(limit.child(), Project.class);
-        Eval eval = as(project.child(), Eval.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(1), Limit.class);
-        project = as(limit.child(), Project.class);
-        eval = as(project.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         InlineStats inlineStats = as(subquery.child(), InlineStats.class);
@@ -5581,9 +5541,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(2), Limit.class);
-        project = as(limit.child(), Project.class);
-        eval = as(project.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5611,13 +5570,11 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(4, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         Subquery subquery = as(subqueryProject.child(), Subquery.class);
         Filter subqueryFilter = as(subquery.child(), Filter.class);
         MatchOperator matchOperator = as(subqueryFilter.condition(), MatchOperator.class);
@@ -5631,6 +5588,11 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testPruneEmptySubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
         LogicalPlan plan = analyze("""
             FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
             | WHERE match(client_ip,"127.0.0.1")
@@ -5646,13 +5608,13 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(15, output.size());
         // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
         assertEquals(2, unionAll.children().size());
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Project subqueryProject = as(subqueryLimit.child(), Project.class);
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), Project.class);
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         subqueryIndex = as(subquery.child(), EsRelation.class);

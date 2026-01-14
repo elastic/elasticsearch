@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
+package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -17,15 +17,13 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkTaskSettingsForTextEmbeddingModel;
-
 /**
- * Creates {@link AmazonBedrockEmbeddingsModel} instances from config maps
+ * Creates {@link AzureAiStudioEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonBedrockEmbeddingsModel> {
+public class AzureAiStudioEmbeddingsModelCreator implements ModelCreator<AzureAiStudioEmbeddingsModel> {
     @Override
-    public AmazonBedrockEmbeddingsModel createFromMaps(
+    public AzureAiStudioEmbeddingsModel createFromMaps(
         String inferenceId,
         TaskType taskType,
         String service,
@@ -35,7 +33,7 @@ public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonB
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var model = new AmazonBedrockEmbeddingsModel(
+        return new AzureAiStudioEmbeddingsModel(
             inferenceId,
             taskType,
             service,
@@ -45,14 +43,10 @@ public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonB
             secretSettings,
             context
         );
-        checkTaskSettingsForTextEmbeddingModel(model);
-        return model;
     }
 
     @Override
-    public AmazonBedrockEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var model = new AmazonBedrockEmbeddingsModel(config, secrets);
-        checkTaskSettingsForTextEmbeddingModel(model);
-        return model;
+    public AzureAiStudioEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return new AzureAiStudioEmbeddingsModel(config, secrets);
     }
 }

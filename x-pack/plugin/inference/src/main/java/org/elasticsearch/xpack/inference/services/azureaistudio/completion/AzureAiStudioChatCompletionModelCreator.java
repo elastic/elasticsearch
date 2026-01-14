@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
+package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -17,15 +17,13 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkTaskSettingsForTextEmbeddingModel;
-
 /**
- * Creates {@link AmazonBedrockEmbeddingsModel} instances from config maps
+ * Creates {@link AzureAiStudioChatCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonBedrockEmbeddingsModel> {
+public class AzureAiStudioChatCompletionModelCreator implements ModelCreator<AzureAiStudioChatCompletionModel> {
     @Override
-    public AmazonBedrockEmbeddingsModel createFromMaps(
+    public AzureAiStudioChatCompletionModel createFromMaps(
         String inferenceId,
         TaskType taskType,
         String service,
@@ -35,24 +33,11 @@ public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonB
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var model = new AmazonBedrockEmbeddingsModel(
-            inferenceId,
-            taskType,
-            service,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-        checkTaskSettingsForTextEmbeddingModel(model);
-        return model;
+        return new AzureAiStudioChatCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
     }
 
     @Override
-    public AmazonBedrockEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var model = new AmazonBedrockEmbeddingsModel(config, secrets);
-        checkTaskSettingsForTextEmbeddingModel(model);
-        return model;
+    public AzureAiStudioChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return new AzureAiStudioChatCompletionModel(config, secrets);
     }
 }

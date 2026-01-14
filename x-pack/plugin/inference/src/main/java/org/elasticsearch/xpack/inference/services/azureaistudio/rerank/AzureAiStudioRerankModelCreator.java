@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
+package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -17,15 +17,13 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkTaskSettingsForTextEmbeddingModel;
-
 /**
- * Creates {@link AmazonBedrockEmbeddingsModel} instances from config maps
+ * Creates {@link AzureAiStudioRerankModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonBedrockEmbeddingsModel> {
+public class AzureAiStudioRerankModelCreator implements ModelCreator<AzureAiStudioRerankModel> {
     @Override
-    public AmazonBedrockEmbeddingsModel createFromMaps(
+    public AzureAiStudioRerankModel createFromMaps(
         String inferenceId,
         TaskType taskType,
         String service,
@@ -35,24 +33,11 @@ public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonB
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var model = new AmazonBedrockEmbeddingsModel(
-            inferenceId,
-            taskType,
-            service,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-        checkTaskSettingsForTextEmbeddingModel(model);
-        return model;
+        return new AzureAiStudioRerankModel(inferenceId, serviceSettings, taskSettings, secretSettings, context);
     }
 
     @Override
-    public AmazonBedrockEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var model = new AmazonBedrockEmbeddingsModel(config, secrets);
-        checkTaskSettingsForTextEmbeddingModel(model);
-        return model;
+    public AzureAiStudioRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return new AzureAiStudioRerankModel(config, secrets);
     }
 }

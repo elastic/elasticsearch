@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkProviderForTask;
+
 /**
  * Factory class for creating {@link AmazonBedrockModel} instances based on task type.
  */
@@ -42,18 +44,22 @@ public class AmazonBedrockModelFactory implements ModelFactory<AmazonBedrockMode
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return ModelFactory.retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, service, context)
+        var model = ModelFactory.retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, service, context)
             .createFromMaps(inferenceId, taskType, service, serviceSettings, taskSettings, chunkingSettings, secretSettings, context);
+        checkProviderForTask(taskType, model.provider());
+        return model;
     }
 
     @Override
     public AmazonBedrockModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return ModelFactory.retrieveModelCreatorFromMapOrThrow(
+        var model = ModelFactory.retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
+        checkProviderForTask(config.getTaskType(), model.provider());
+        return model;
     }
 }

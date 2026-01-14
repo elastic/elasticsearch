@@ -65,8 +65,16 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
         return parser.parseQuery(e, params);
     }
 
+    EsqlStatement statement(String e) {
+        return statement(e, new QueryParams());
+    }
+
     EsqlStatement statement(String e, QueryParams params) {
         return parser.createStatement(e, params);
+    }
+
+    EsqlStatement unvalidatedStatement(String e, QueryParams params) {
+        return parser.unvalidatedStatement(e, params);
     }
 
     LogicalPlan processingCommand(String e) {
@@ -189,6 +197,15 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
             VerificationException.class,
             containsString(errorMessage),
             () -> parser.parseQuery(query)
+        );
+    }
+
+    void expectValidationError(String statement, String errorMessage) {
+        expectThrows(
+            "Statement [" + statement + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
+            ParsingException.class,
+            containsString(errorMessage),
+            () -> parser.createStatement(statement)
         );
     }
 

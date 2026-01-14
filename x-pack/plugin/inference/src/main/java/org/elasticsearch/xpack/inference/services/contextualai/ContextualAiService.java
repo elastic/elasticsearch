@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -48,8 +46,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
-
 /**
  * Contextual AI inference service for reranking tasks.
  * This service uses the Contextual AI REST API to perform document reranking.
@@ -61,26 +57,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     private static final TransportVersion CONTEXTUAL_AI_SERVICE = TransportVersion.fromName("contextual_ai_service");
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
-    private static final Map<TaskType, ContextualAiModelCreator> MODEL_CREATORS = Map.of(TaskType.RERANK, new ContextualAiModelCreator() {
-        @Override
-        public ContextualAiRerankModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new ContextualAiRerankModel(inferenceId, serviceSettings, taskSettings, secretSettings, context);
-        }
-
-        @Override
-        public ContextualAiRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-            return new ContextualAiRerankModel(config, secrets);
-        }
-    });
+    private static final ContextualAiModelFactory MODEL_FACTORY = new ContextualAiModelFactory();
 
     public ContextualAiService(
         HttpRequestSender.Factory factory,
@@ -142,11 +119,16 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var creator = MODEL_CREATORS.get(taskType);
-        if (creator == null) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return creator.createFromMaps(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, null, secretSettings, context);
+        return MODEL_FACTORY.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            null,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -172,16 +154,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
 
     @Override
     public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var creator = MODEL_CREATORS.get(config.getTaskType());
-        if (creator == null) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -267,10 +240,10 @@ public class ContextualAiService extends SenderService implements RerankingInfer
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
@@ -297,20 +270,5 @@ public class ContextualAiService extends SenderService implements RerankingInfer
                     .build();
             }
         );
-    }
-
-    private interface ContextualAiModelCreator extends ModelCreator {
-        ContextualAiModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        );
-
-        ContextualAiModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

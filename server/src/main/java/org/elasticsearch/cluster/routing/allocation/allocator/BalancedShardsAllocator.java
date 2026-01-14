@@ -873,10 +873,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
                         notPreferredLogger.debug(
-                            "Moving shard [{}] from [{}] to [{}] from a NOT_PREFERRED allocation: {}",
+                            "Moving shard [{}] from [{}] to [{}]; current assignment is NOT_PREFERRED: {}",
                             shardRouting,
-                            getNodeName(shardRouting.currentNodeId()),
-                            moveDecision.getTargetNode().getName(),
+                            getNodeDescription(shardRouting.currentNodeId()),
+                            getNodeDescription(moveDecision.getTargetNode()),
                             moveDecision.getCanRemainDecision()
                         );
                     }
@@ -884,7 +884,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
                 } else {
-                    logger.trace("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());
+                    notPreferredLogger.debug("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());
                 }
             }
 
@@ -1605,9 +1605,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return this.allocation;
         }
 
-        private String getNodeName(String nodeId) {
+        /**
+         * Return {nodeId}/{nodeName} for nodes still in the cluster, or just {nodeId} for nodes that have left
+         *
+         * @param nodeId The ID of the node
+         */
+        private String getNodeDescription(String nodeId) {
             DiscoveryNode discoveryNode = allocation.getClusterState().nodes().get(nodeId);
-            return discoveryNode != null ? discoveryNode.getName() : nodeId;
+            return discoveryNode != null ? getNodeDescription(discoveryNode) : nodeId;
+        }
+
+        private String getNodeDescription(DiscoveryNode node) {
+            return node.getId() + "/" + node.getName();
         }
     }
 

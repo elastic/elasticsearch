@@ -74,6 +74,7 @@ import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.mapping;
@@ -694,6 +695,51 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // The partition that balances on shard count only has an even distribution of shards
         assertThat(shardBalancedPartition.get("shardsOnly-1"), hasSize(3));
         assertThat(shardBalancedPartition.get("shardsOnly-2"), hasSize(3));
+    }
+
+    public void testPartitionedClusterWithSeparateThresholds() {
+        final var allocationService = new MockAllocationService(
+            prefixAllocationDeciders(),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(
+                BalancerSettings.DEFAULT,
+                TEST_WRITE_LOAD_FORECASTER,
+                new PrefixBalancingWeightsFactory(
+                    Map.of("1_threshold", new WeightFunction(1, 0, 0, 0, 1), "100_threshold", new WeightFunction(1, 0, 0, 0, 100))
+                )
+            ),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        // Make shard count even to simplify assertions
+        final int numberOfShards = randomIntBetween(20, 100) * 2;
+        final var clusterState = applyStartedShardsUntilNoChange(
+            createStateWithIndices(
+                List.of("1_threshold-1", "1_threshold-2", "100_threshold-1", "100_threshold-2"),
+                shardId -> prefix(shardId.getIndexName()) + "-1",
+                true,
+                IntStream.range(0, numberOfShards)
+                    .boxed()
+                    .flatMap(i -> Stream.of(anIndex("1_threshold-index-" + i), anIndex("100_threshold-index-" + i)))
+                    .toList()
+                    .toArray(IndexMetadata.Builder[]::new)
+            ),
+            allocationService
+        );
+
+        final var shardsPerNode = getShardsPerNode(clusterState);
+
+        // The partition with threshold 100 remains skewed
+        assertThat(
+            shardsPerNode.get("100_threshold-1").size() - shardsPerNode.get("100_threshold-2").size(),
+            equalTo(Math.min(numberOfShards, 100))
+        );
+
+        // The partition with threshold 1 has an even distribution of shards
+        assertThat(shardsPerNode.get("1_threshold-1").size(), equalTo(numberOfShards / 2));
+        assertThat(shardsPerNode.get("1_threshold-2").size(), equalTo(numberOfShards / 2));
     }
 
     public void testSkipDiskUsageComputation() {
@@ -1404,9 +1450,18 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         Function<ShardId, String> shardAllocator,
         IndexMetadata.Builder... indexMetadataBuilders
     ) {
+        return createStateWithIndices(nodeNames, shardAllocator, randomBoolean(), indexMetadataBuilders);
+    }
+
+    private static ClusterState createStateWithIndices(
+        List<String> nodeNames,
+        Function<ShardId, String> shardAllocator,
+        boolean allocateShards,
+        IndexMetadata.Builder... indexMetadataBuilders
+    ) {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        if (randomBoolean()) {
+        if (allocateShards == false) {
             // allocate all shards from scratch
             for (var index : indexMetadataBuilders) {
                 var indexMetadata = index.build();

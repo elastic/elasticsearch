@@ -41,10 +41,7 @@ public class CodePointCountBenchmark {
     }
 
     @Param({ "1", "10", "100", "1000" })
-    public int numCodePoints;
-
-    @Param({ "same-length", "varied-length" })
-    public String lengthMode;
+    public int avgNumCodePoints;
 
     @Param({ "ascii", "unicode" })
     public String type;
@@ -59,13 +56,10 @@ public class CodePointCountBenchmark {
         Random random = new Random(1);
 
         for (int i = 0; i < NUM_VALUES; i++) {
-            int currentLen = lengthMode.equals("same-length")
-                    ? numCodePoints
-                    : random.nextInt(numCodePoints + 1);
-
+            int numCodePoints = random.nextInt(avgNumCodePoints * 2);
             String s = type.equals("ascii")
-                ? UTF8StringBytesBenchmark.generateAsciiString(currentLen)
-                : UTF8StringBytesBenchmark.generateUTF8String(currentLen);
+                ? UTF8StringBytesBenchmark.generateAsciiString(numCodePoints)
+                : UTF8StringBytesBenchmark.generateUTF8String(numCodePoints);
             data[i] = new BytesRef(s);
         }
     }

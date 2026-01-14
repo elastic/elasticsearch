@@ -74,6 +74,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -834,7 +835,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         deleteRandomDocuments(docIdToIndex).forEach(docIdToIndex::remove);
 
         refresh(docIdToIndex.values().toArray(String[]::new));
-        Set<String> docsToVerify = randomSet(1, 3, () -> randomFrom(docIdToIndex.keySet()));
+        Set<String> docsToVerify = docIdToIndex.isEmpty()
+            ? Collections.emptySet()
+            : randomSet(1, 3, () -> randomFrom(docIdToIndex.keySet()));
         Map<String, Map<String, Object>> documentSourcesBeforeSnapshot = documentSourcesAsMaps(dataStreamName, docsToVerify);
 
         // create snapshot

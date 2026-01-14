@@ -300,11 +300,7 @@ public class IndexRequestTests extends ESTestCase {
         {
             Map<String, Map<String, String>> dynamicTemplateParams = createRandomDynamicTemplateParams(0, 10);
             indexRequest.setDynamicTemplateParams(dynamicTemplateParams);
-            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
-                random(),
-                IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS,
-                TransportVersion.current()
-            );
+            TransportVersion ver = TransportVersionUtils.randomOnOrAfter(random(), IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS);
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);

@@ -91,6 +91,10 @@ public class TransportVersionUtils {
         return VersionUtils.randomFrom(random, versions);
     }
 
+    public static TransportVersion randomOnOrAfter(Random random, TransportVersion minVersion) {
+        return RandomPicks.randomFrom(random, RELEASED_VERSIONS.stream().filter(v -> v.supports(minVersion)).toList());
+    }
+
     public static TransportVersion getPreviousVersion() {
         TransportVersion version = getPreviousVersion(TransportVersion.current());
         assert version.before(TransportVersion.current());

@@ -33,6 +33,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomOnOrAfter;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.contains;
 
@@ -217,7 +218,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.current()),
+                randomOnOrAfter(random(), getNextVersion(streamVersion)),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()

@@ -439,11 +439,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.minimumCompatible(),
-                TransportVersion.current()
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
             assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
         }
 
@@ -490,11 +486,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.minimumCompatible(),
-                TransportVersion.current()
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
         }
     }

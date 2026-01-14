@@ -23,5 +23,4 @@ module org.elasticsearch.aggs {
     opens org.elasticsearch.aggregations to org.elasticsearch.painless.spi; // whitelist resource access
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.aggregations.AggregationsPainlessExtension;
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.aggregations.AggregationsFeatures;
 }

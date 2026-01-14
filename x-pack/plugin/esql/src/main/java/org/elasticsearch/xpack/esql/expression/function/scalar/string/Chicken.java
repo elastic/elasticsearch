@@ -35,6 +35,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * similar to the classic "cowsay" command.
  */
 public class Chicken extends UnaryScalarFunction {
+    public static final String CHICKEN_EMOJI = "\uD83D\uDC14";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chicken", Chicken::new);
 
     private static final int DEFAULT_WIDTH = 40;

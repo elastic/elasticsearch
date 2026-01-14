@@ -422,7 +422,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
-                def(Chicken.class, Chicken::new, "chicken"),
+                def(Chicken.class, Chicken::new, "chicken", Chicken.CHICKEN_EMOJI),
                 def(Concat.class, Concat::new, "concat"),
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),

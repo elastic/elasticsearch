@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,7 +25,7 @@ import java.util.Objects;
  * Base class representing a PromQL vector selector.
  * A vector selector is defined by a set of label matchers and a point in time evaluation context.
  */
-public abstract sealed class Selector extends UnaryPlan permits InstantSelector, RangeSelector, LiteralSelector {
+public abstract sealed class Selector extends UnaryPlan implements PromqlPlan permits InstantSelector, RangeSelector, LiteralSelector {
     // implements TelemetryAware
 
     // in Promql this is the __name__ label however for now, this gets mapped to an exact field

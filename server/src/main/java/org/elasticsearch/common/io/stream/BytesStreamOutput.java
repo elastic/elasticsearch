@@ -23,8 +23,28 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
- * bytes, which avoids frequent reallocation &amp; copying of the internal data.
+ * A @link {@link StreamOutput} that accumulates the resulting data in memory, using {@link BigArrays} to avoids frequent reallocation &amp;
+ * copying of the internal data once the resulting data grows large enough whilst avoiding excessive overhead in the final result for small
+ * objects.
+ * <p>
+ * A {@link BytesStreamOutput} accumulates data using a non-recycling {@link BigArrays} and, as with an {@link OutputStreamStreamOutput}, it
+ * uses a thread-locally-cached buffer for some of its writes and pushes data to the underlying array in small chunks, causing frequent
+ * calls to {@link BigArrays#resize}. If the array is large enough (≥16kiB) then the resize operations happen in-place, allocating a new
+ * 16kiB {@code byte[]} and appending it to the array, but for smaller arrays these resize operations allocate a completely fresh
+ * {@code byte[]} into which they copy the entire contents of the old one.
+ * <p>
+ * {@link BigArrays#resize} grows smaller arrays more slowly than a {@link ByteArrayOutputStream}, with a target of 12.5% overhead rather
+ * than 100%, which means that a sequence of smaller writes causes more allocations and copying overall. It may be worth adding a
+ * {@link BufferedStreamOutput} wrapper to reduce the frequency of the resize operations, especially if a suitable buffer is already
+ * allocated and available.
+ * <p>
+ * The resulting {@link BytesReference} is a view over the underlying {@code byte[]} pages and involves no significant extra allocation to
+ * obtain. It is oversized: The worst case for overhead is when the data is one byte more than a 16kiB page and therefore the result must
+ * retain two pages even though all but one byte of the second page is unused. For smaller objects the overhead will be 12.5%.
+ * <p>
+ * Any memory allocated in this way is untracked by the {@link org.elasticsearch.common.breaker} subsystem unless the caller takes steps to
+ * add this tracking themselves.
+ *
  */
 public class BytesStreamOutput extends BytesStream {
 

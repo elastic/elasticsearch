@@ -447,7 +447,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         // PromQL expects early validation of the tree so let's do it here
         PromqlDataType expectedInputType = metadata.functionType().inputType();
         PromqlDataType actualInputType = PromqlPlan.getReturnType(child);
-        if (expectedInputType != null && actualInputType != expectedInputType) {
+        if (actualInputType != expectedInputType) {
             throw new ParsingException(
                 child.source(),
                 "expected type {} in call to function [{}], got {}",

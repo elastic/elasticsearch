@@ -1093,6 +1093,14 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    // Returns the size of the bytesRefBlockHash depending on the underlying implementation.
+    static String byteRefBlockHashSize() {
+        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
+            return "213112b";
+        }
+        return "483b";
+    }
+
     public void testLongBytesRefHashWithMultiValuedFields() {
         try (
             LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(8);
@@ -1144,7 +1152,12 @@ public class BlockHashTests extends BlockHashTestCase {
                 } else {
                     assertThat(
                         ordsAndKeys.description(),
-                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=213112b}")
+                        equalTo(
+                            "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=%size%}".replace(
+                                "%size%",
+                                byteRefBlockHashSize()
+                            )
+                        )
                     );
                     assertOrds(
                         ordsAndKeys.ords(),

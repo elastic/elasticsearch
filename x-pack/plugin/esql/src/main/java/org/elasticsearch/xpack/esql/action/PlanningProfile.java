@@ -99,12 +99,12 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
             && Objects.equals(dependencyResolutionMarker, that.dependencyResolutionMarker)
             && Objects.equals(analysisMarker, that.analysisMarker)
-            && fieldCapsCalls.get() == that.fieldCapsCalls.get();
+            && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker, fieldCapsCalls);
+        return Objects.hash(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker, fieldCapsCalls.get());
     }
 
     @Override

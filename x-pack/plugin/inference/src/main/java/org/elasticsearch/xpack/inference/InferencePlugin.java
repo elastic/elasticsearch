@@ -227,7 +227,8 @@ public class InferencePlugin extends Plugin
         TimeValue.timeValueSeconds(10),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
     );
 
     public static final LicensedFeature.Momentary INFERENCE_API_FEATURE = LicensedFeature.momentary(

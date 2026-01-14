@@ -227,18 +227,20 @@ public class SharedBytes extends AbstractRefCounted {
         assert tempBuffer.position() == 0 : "expecting empty temp buffer";
         assert tempBuffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
         assert tempBuffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
+        int bytesCopied = 0;
         while (true) {
-            if (Streams.read(input, tempBuffer, tempBuffer.remaining()) <= 0) {
+            final int bytesRead = Streams.read(input, tempBuffer, tempBuffer.remaining());
+            if (tempBuffer.position() % PAGE_SIZE != 0 && bytesRead != -1) {
+                // we need to keep buffering to PAGE_SIZE multiples
+                continue;
+            }
+            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, tempBuffer);
+            progressUpdater.accept(bytesCopied);
+            if (bytesRead == -1) {
                 break;
             }
         }
-        if (tempBuffer.position() > 0) {
-            int bytesCopied = copyBufferToCacheFileAligned(fc, fileChannelPos, tempBuffer);
-            progressUpdater.accept(bytesCopied);
-            return bytesCopied;
-        } else {
-            return 0;
-        }
+        return bytesCopied;
     }
 
     /**

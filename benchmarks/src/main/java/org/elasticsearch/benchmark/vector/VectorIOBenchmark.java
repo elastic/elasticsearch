@@ -21,14 +21,11 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
-import org.apache.lucene.search.DocAndFloatFeatureBuffer;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
-import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.logging.LogManager;
@@ -97,9 +94,6 @@ public class VectorIOBenchmark {
 
     @Param({ "MMAP" })
     private String readMethod;
-
-    @Param({ "true", "false" })
-    private boolean bulk;
 
     @Param({ "false" })
     private boolean inMemory;
@@ -213,14 +207,10 @@ public class VectorIOBenchmark {
                 }
                 Arrays.sort(docs);
 
-                if (bulk) {
-                    return scoreBulk(docs);
-                } else {
-                    if (prefetch) {
-                        prefetch(docs);
-                    }
-                    return scoreIndividually(docs);
+                if (prefetch) {
+                    prefetch(docs);
                 }
+                return scoreIndividually(docs);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -250,52 +240,6 @@ public class VectorIOBenchmark {
             }
         }
 
-        private int[] findBoundary(int[] docs, int docBase, int docEnd) {
-            int start = Arrays.binarySearch(docs, docBase);
-            if (start < 0) {
-                start = -start - 1;
-            }
-            if (start >= docs.length) {
-                return new int[0];
-            }
-            int end = Arrays.binarySearch(docs, docEnd);
-            if (end < 0) {
-                end = -end - 1;
-            }
-            return Arrays.copyOfRange(docs, start, end);
-        }
-
-        private BulkScorableFloatVectorValues getBulkScorer(FloatVectorValues values) throws IOException {
-            if (values instanceof BulkScorableFloatVectorValues bulk) {
-                return bulk;
-            }
-            throw new IllegalStateException("Instance is not compatible with bulk scoring");
-        }
-
-        public double scoreBulk(int[] docs) throws IOException {
-            double res = 0;
-            int total = 0;
-            for (var leaf : reader.leaves()) {
-                var segDocs = findBoundary(docs, leaf.docBase, leaf.docBase + leaf.reader().numDocs());
-                if (segDocs.length == 0) {
-                    continue;
-                }
-                var vectorValues = leaf.reader().getFloatVectorValues("vector");
-                var bulkRescorer = getBulkScorer(vectorValues).bulkRescorer(queryVector, prefetch)
-                    .bulkScore(new ArrayDocIdIterator(docs, leaf.docBase));
-                DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
-                bulkRescorer.nextDocsAndScores(docs.length, leaf.reader().getLiveDocs(), buffer);
-                for (int i = 0; i < buffer.size; i++) {
-                    res += buffer.features[i];
-                }
-                total += buffer.size;
-            }
-            if (total != numRead) {
-                throw new IllegalStateException("Total scored is less than " + numRead + " " + total);
-            }
-            return res;
-        }
-
         public double scoreIndividually(int[] docs) throws IOException {
             int seg = ReaderUtil.subIndex(docs[0], reader.leaves());
             var leaf = reader.leaves().get(seg);
@@ -319,56 +263,6 @@ public class VectorIOBenchmark {
                 res += scorer.score();
             }
             return res;
-        }
-    }
-
-    private static class ArrayDocIdIterator extends DocIdSetIterator {
-        final int[] docs;
-        final int docBase;
-        int pos = -1;
-
-        private ArrayDocIdIterator(int[] docs, int docBase) {
-            this.docs = docs;
-            this.docBase = docBase;
-        }
-
-        @Override
-        public int docID() {
-            if (pos == -1) {
-                return -1;
-            }
-            if (pos >= docs.length) {
-                return NO_MORE_DOCS;
-            }
-            return docs[pos] - docBase;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            if (++pos >= docs.length) {
-                return NO_MORE_DOCS;
-            }
-            return docs[pos] - docBase;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            if (pos > docs.length) {
-                return NO_MORE_DOCS;
-            }
-            pos = Arrays.binarySearch(docs, Math.max(pos, 0), docs.length, target + docBase);
-            if (pos < 0) {
-                pos = -pos - 1;
-            }
-            if (pos >= docs.length) {
-                return NO_MORE_DOCS;
-            }
-            return docs[pos] - docBase;
-        }
-
-        @Override
-        public long cost() {
-            return docs.length;
         }
     }
 }

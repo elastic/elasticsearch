@@ -33,7 +33,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 
 import java.io.IOException;
 
@@ -531,112 +530,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
     private static FloatVectorValues wrapIfNeeded(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
         if (queryCancellation.isEnabled()) {
-            if (vectorValues instanceof BulkScorableFloatVectorValues bsfvv) {
-                if (vectorValues instanceof HasIndexSlice slice) {
-                    return new ExitableBulkScorableSliceableFloatVectorValues(vectorValues, bsfvv, slice, queryCancellation);
-                }
-                return new ExitableBulkScorableFloatVectorValues(vectorValues, bsfvv, queryCancellation);
-            } else if (vectorValues instanceof HasIndexSlice) {
+            if (vectorValues instanceof HasIndexSlice) {
                 return new ExitableSliceableFloatVectorValues(vectorValues, queryCancellation);
             } else {
                 return new ExitableFloatVectorValues(vectorValues, queryCancellation);
             }
         } else {
             return vectorValues;
-        }
-    }
-
-    // TODO This is temporary until we can move to Apache Lucene's bulk scoring interface
-    private static class ExitableBulkScorableFloatVectorValues extends FilterFloatVectorValues implements BulkScorableFloatVectorValues {
-        final QueryCancellation queryCancellation;
-        final BulkScorableFloatVectorValues bsfvv;
-
-        ExitableBulkScorableFloatVectorValues(
-            FloatVectorValues vectorValues,
-            BulkScorableFloatVectorValues bsfvv,
-            QueryCancellation queryCancellation
-        ) {
-            super(vectorValues);
-            this.queryCancellation = queryCancellation;
-            this.queryCancellation.checkCancelled();
-            this.bsfvv = bsfvv;
-        }
-
-        @Override
-        public VectorScorer scorer(float[] target) throws IOException {
-            VectorScorer scorer = in.scorer(target);
-            if (scorer == null) {
-                return null;
-            }
-            DocIdSetIterator scorerIterator = scorer.iterator();
-            return new VectorScorer() {
-                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
-
-                @Override
-                public float score() throws IOException {
-                    return scorer.score();
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-            };
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return createExitableIterator(in.iterator(), queryCancellation);
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            assert in instanceof BulkScorableFloatVectorValues;
-            FloatVectorValues copy = this.in.copy();
-            BulkScorableFloatVectorValues bulkScorableCopy = (BulkScorableFloatVectorValues) copy;
-            return new ExitableBulkScorableFloatVectorValues(copy, bulkScorableCopy, queryCancellation);
-        }
-
-        @Override
-        public BulkVectorScorer bulkScorer(float[] target) throws IOException {
-            return bsfvv.bulkScorer(target);
-        }
-
-        @Override
-        public BulkVectorScorer bulkRescorer(float[] target, boolean prefetch) throws IOException {
-            return bsfvv.bulkRescorer(target, prefetch);
-        }
-    }
-
-    // TODO This is temporary until we can move to Apache Lucene's bulk scoring interface
-    private static class ExitableBulkScorableSliceableFloatVectorValues extends ExitableBulkScorableFloatVectorValues
-        implements
-            HasIndexSlice {
-        private final HasIndexSlice slicer;
-
-        ExitableBulkScorableSliceableFloatVectorValues(
-            FloatVectorValues vectorValues,
-            BulkScorableFloatVectorValues bsfvv,
-            HasIndexSlice slicer,
-            QueryCancellation queryCancellation
-        ) {
-            super(vectorValues, bsfvv, queryCancellation);
-            this.slicer = slicer;
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            assert in instanceof BulkScorableFloatVectorValues;
-            assert in instanceof HasIndexSlice;
-            var copy = this.in.copy();
-            var bulkScorableCopy = (BulkScorableFloatVectorValues) copy;
-            var slicerCopy = (HasIndexSlice) copy;
-            return new ExitableBulkScorableSliceableFloatVectorValues(copy, bulkScorableCopy, slicerCopy, queryCancellation);
-        }
-
-        @Override
-        public IndexInput getSlice() {
-            return slicer.getSlice();
         }
     }
 

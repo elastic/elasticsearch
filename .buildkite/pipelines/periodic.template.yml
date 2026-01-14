@@ -127,7 +127,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - adoptopenjdk17
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -163,7 +163,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - adoptopenjdk17
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp

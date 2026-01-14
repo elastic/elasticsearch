@@ -269,12 +269,7 @@ abstract class FetchPhaseDocsIterator {
                     throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
                 }
 
-                SearchHit[] chunkHits = fetchChunkInScoreOrder(
-                    indexReader,
-                    docIds,
-                    chunkStart,
-                    chunkEnd
-                );
+                SearchHit[] chunkHits = fetchChunkInScoreOrder(indexReader, docIds, chunkStart, chunkEnd);
 
                 SearchHits chunk = createSearchHits(Arrays.asList(chunkHits), totalHits, maxScore);
                 long sequenceStart = chunkStart;
@@ -327,12 +322,7 @@ abstract class FetchPhaseDocsIterator {
      * Fetches only the documents for a single chunk, returning them in score order.
      * Internally sorts by docId for efficient Lucene access within the chunk.
      */
-    private SearchHit[] fetchChunkInScoreOrder(
-        IndexReader indexReader,
-        int[] allDocIds,
-        int start,
-        int end
-    ) throws IOException {
+    private SearchHit[] fetchChunkInScoreOrder(IndexReader indexReader, int[] allDocIds, int start, int end) throws IOException {
         int chunkSize = end - start;
 
         // docIds is in score order (top docs order). We sort by docId only for efficient Lucene access,

@@ -10,8 +10,11 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+
+import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -454,5 +457,31 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int indexOf(byte[] bytes, int offset, int length, byte marker) {
         return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    @Override
+    public int codePointCount(BytesRef bytesRef) {
+        int pos = bytesRef.offset;
+        int limit = bytesRef.offset + bytesRef.length;
+        int continuations = 0;
+
+        for (; pos <= limit - 8; pos += 8) {
+            long data = (long) VH_NATIVE_LONG.get(bytesRef.bytes, pos);
+            long high = data & 0x8080808080808080L;
+            // If all bytes start with 0, they are all ascii, so the block can be skipped.
+            if (high != 0) {
+                // Set the high bit in `mask` if the high bit in data is set and the second bit is not set
+                long mask = high & (~data << 1);
+                continuations += Long.bitCount(mask);
+            }
+        }
+
+        // Last 7 or fewer bytes
+        while (pos < limit) {
+            continuations += (bytesRef.bytes[pos] & 0xC0) == 0x80 ? 1 : 0;
+            pos++;
+        }
+
+        return bytesRef.length - continuations;
     }
 }

@@ -342,9 +342,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisSuccessIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/140638
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/*
-  issue: https://github.com/elastic/elasticsearch/issues/140639
 
 # Examples:
 #

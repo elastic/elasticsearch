@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -60,7 +59,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -101,155 +99,11 @@ public class ElasticInferenceService extends SenderService {
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING
     );
-    private static final Map<TaskType, ElasticInferenceServiceModelCreator> MODEL_CREATORS;
-
-    static {
-        ElasticInferenceServiceModelCreator completionModelCreator = new ElasticInferenceServiceModelCreator() {
-            @Override
-            public ElasticInferenceServiceCompletionModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-                ConfigurationParseContext context
-            ) {
-                return new ElasticInferenceServiceCompletionModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    elasticInferenceServiceComponents,
-                    context
-                );
-            }
-
-            @Override
-            public ElasticInferenceServiceCompletionModel createFromModelConfigurationsAndSecrets(
-                ModelConfigurations config,
-                ModelSecrets secrets,
-                ElasticInferenceServiceComponents elasticInferenceServiceComponents
-            ) {
-                return new ElasticInferenceServiceCompletionModel(config, secrets, elasticInferenceServiceComponents);
-            }
-        };
-        MODEL_CREATORS = Map.of(TaskType.SPARSE_EMBEDDING, new ElasticInferenceServiceModelCreator() {
-            @Override
-            public ElasticInferenceServiceSparseEmbeddingsModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-                ConfigurationParseContext context
-            ) {
-                return new ElasticInferenceServiceSparseEmbeddingsModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    elasticInferenceServiceComponents,
-                    context,
-                    chunkingSettings
-                );
-            }
-
-            @Override
-            public ElasticInferenceServiceSparseEmbeddingsModel createFromModelConfigurationsAndSecrets(
-                ModelConfigurations config,
-                ModelSecrets secrets,
-                ElasticInferenceServiceComponents elasticInferenceServiceComponents
-            ) {
-                return new ElasticInferenceServiceSparseEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
-            }
-        },
-            TaskType.CHAT_COMPLETION,
-            completionModelCreator,
-            TaskType.COMPLETION,
-            completionModelCreator,
-            TaskType.RERANK,
-            new ElasticInferenceServiceModelCreator() {
-                @Override
-                public ElasticInferenceServiceRerankModel createFromMaps(
-                    String inferenceId,
-                    TaskType taskType,
-                    Map<String, Object> serviceSettings,
-                    Map<String, Object> taskSettings,
-                    ChunkingSettings chunkingSettings,
-                    Map<String, Object> secretSettings,
-                    ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-                    ConfigurationParseContext context
-                ) {
-                    return new ElasticInferenceServiceRerankModel(
-                        inferenceId,
-                        taskType,
-                        NAME,
-                        serviceSettings,
-                        taskSettings,
-                        secretSettings,
-                        elasticInferenceServiceComponents,
-                        context
-                    );
-                }
-
-                @Override
-                public ElasticInferenceServiceRerankModel createFromModelConfigurationsAndSecrets(
-                    ModelConfigurations config,
-                    ModelSecrets secrets,
-                    ElasticInferenceServiceComponents elasticInferenceServiceComponents
-                ) {
-                    return new ElasticInferenceServiceRerankModel(config, secrets, elasticInferenceServiceComponents);
-                }
-            },
-            TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceModelCreator() {
-                @Override
-                public ElasticInferenceServiceDenseTextEmbeddingsModel createFromMaps(
-                    String inferenceId,
-                    TaskType taskType,
-                    Map<String, Object> serviceSettings,
-                    Map<String, Object> taskSettings,
-                    ChunkingSettings chunkingSettings,
-                    Map<String, Object> secretSettings,
-                    ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-                    ConfigurationParseContext context
-                ) {
-                    return new ElasticInferenceServiceDenseTextEmbeddingsModel(
-                        inferenceId,
-                        taskType,
-                        NAME,
-                        serviceSettings,
-                        taskSettings,
-                        secretSettings,
-                        elasticInferenceServiceComponents,
-                        context,
-                        chunkingSettings
-                    );
-                }
-
-                @Override
-                public ElasticInferenceServiceDenseTextEmbeddingsModel createFromModelConfigurationsAndSecrets(
-                    ModelConfigurations config,
-                    ModelSecrets secrets,
-                    ElasticInferenceServiceComponents elasticInferenceServiceComponents
-                ) {
-                    return new ElasticInferenceServiceDenseTextEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
-                }
-            }
-        );
-    }
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
+    private final ElasticInferenceServiceModelFactory modelFactory;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -273,6 +127,7 @@ public class ElasticInferenceService extends SenderService {
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+        this.modelFactory = new ElasticInferenceServiceModelFactory(elasticInferenceServiceComponents);
     }
 
     public void init() {
@@ -463,7 +318,6 @@ public class ElasticInferenceService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                elasticInferenceServiceComponents,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -505,29 +359,23 @@ public class ElasticInferenceService extends SenderService {
         );
     }
 
-    private static ElasticInferenceServiceModel createModel(
+    private ElasticInferenceServiceModel createModel(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context
     ) {
-
-        var creator = MODEL_CREATORS.get(taskType);
-        if (creator == null) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return creator.createFromMaps(
+        return modelFactory.createFromMaps(
             inferenceEntityId,
             taskType,
+            NAME,
             serviceSettings,
             taskSettings,
             chunkingSettings,
             secretSettings,
-            elasticInferenceServiceComponents,
             context
         );
     }
@@ -560,16 +408,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var creator = MODEL_CREATORS.get(config.getTaskType());
-        if (creator == null) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return creator.createFromModelConfigurationsAndSecrets(config, secrets, elasticInferenceServiceComponents);
+        return modelFactory.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -605,7 +444,6 @@ public class ElasticInferenceService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            elasticInferenceServiceComponents,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -680,24 +518,5 @@ public class ElasticInferenceService extends SenderService {
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
             .build();
-    }
-
-    private interface ElasticInferenceServiceModelCreator {
-        ElasticInferenceServiceModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-            ConfigurationParseContext context
-        );
-
-        ElasticInferenceServiceModel createFromModelConfigurationsAndSecrets(
-            ModelConfigurations config,
-            ModelSecrets secrets,
-            ElasticInferenceServiceComponents elasticInferenceServiceComponents
-        );
     }
 }

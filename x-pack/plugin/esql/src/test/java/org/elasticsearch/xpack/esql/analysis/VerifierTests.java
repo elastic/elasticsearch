@@ -859,6 +859,48 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * Test that null comparisons are valid and don't produce type incompatibility errors.
+     * Null should be compatible with any type in binary comparisons.
+     */
+    public void testNullComparisonValidation() {
+        // null compared with numeric types (all comparison operators)
+        query("from test | where emp_no == null");
+        query("from test | where null == emp_no");
+        query("from test | where emp_no != null");
+        query("from test | where emp_no > null");
+        query("from test | where emp_no < null");
+        query("from test | where emp_no >= null");
+        query("from test | where emp_no <= null");
+
+        // null compared with string types
+        query("from test | where first_name == null");
+        query("from test | where null != first_name");
+
+        // null compared with datetime
+        query("from test | where hire_date == null");
+        query("from test | where null > hire_date");
+
+        // ROW with null comparisons
+        query("ROW x = null, y = \"foo\" | WHERE x == y");
+        query("ROW x = null, y = 1 | WHERE x > y");
+        query("ROW x = null, y = 1 | WHERE x < y");
+        query("ROW x = null, y = 1 | WHERE x >= y");
+        query("ROW x = null, y = 1 | WHERE x <= y");
+        query("ROW x = null, y = 1 | WHERE x != y");
+
+        // Two nulls comparison
+        query("ROW x = null, y = null | WHERE x == y");
+
+        // null on both left and right sides with EVAL
+        query("ROW x = null, y = 1 | EVAL result = x == y");
+        query("ROW x = 1, y = null | EVAL result = x == y");
+
+        // null with different types should all pass validation
+        query("from test | where null == salary");
+        query("from test | where null == languages");
+    }
+
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
@@ -872,11 +914,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
             error("from test | where emp_no == ?", "foo")
-        );
-
-        assertEquals(
-            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [null]",
-            error("from test | where emp_no == ?", new Object[] { null })
         );
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -89,6 +90,7 @@ public class PlanWritables {
             LocalRelation.ENTRY,
             Limit.ENTRY,
             Lookup.ENTRY,
+            MMR.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,

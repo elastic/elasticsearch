@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -1409,6 +1410,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }
+    }
+
+    public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
+        Source source = source(ctx);
+        Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
+        Expression limit = expression(ctx.limitValue);
+        // TODO - query vector
+        // TODO - lambda
+        return input -> new MMR(source, input, diversifyField, limit, null, null);
+    }
+
+    private Attribute visitMmrQueryVector() {
+        return null;
     }
 
     /**

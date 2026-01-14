@@ -816,6 +816,46 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrQueryVectorConstantParam}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorConstantParam(EsqlBaseParser.MmrQueryVectorConstantParamContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrQueryVectorConstantParam}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorConstantParam(EsqlBaseParser.MmrQueryVectorConstantParamContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrQueryVectorTextEmbeddingParam}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorTextEmbeddingParam(EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrQueryVectorTextEmbeddingParam}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorTextEmbeddingParam(EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrQueryVectorParameter}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrQueryVectorParameter}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

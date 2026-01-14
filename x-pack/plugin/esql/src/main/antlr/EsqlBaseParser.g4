@@ -71,6 +71,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -375,3 +376,20 @@ setField
     : identifier ASSIGN constant
     ;
 
+mmrQueryVectorConstantParam
+    : OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET
+    ;
+
+mmrQueryVectorTextEmbeddingParam
+    : TEXT_EMBEDDING LP QUOTED_STRING COMMA QUOTED_STRING RP
+    ;
+
+mmrQueryVectorParameter
+    : (NAMED_OR_POSITIONAL_PARAM | mmrQueryVectorConstantParam | mmrQueryVectorTextEmbeddingParam)?
+    ;
+
+mmrCommand
+    : DEV_MMR diversifyField=qualifiedName LIMIT limitValue=integerValue
+    ;
+//     : DEV_MMR (queryVector=mmrQueryVectorParameter ON) diversifyField=qualifiedName LIMIT limit=constant commandNamedParameters
+//    ;

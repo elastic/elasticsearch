@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -528,6 +529,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
+                case MMR mmr -> resolveMMR(mmr, childrenOutput);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
@@ -639,6 +641,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return p;
+        }
+
+        private LogicalPlan resolveMMR(MMR mmr, List<Attribute> childrenOutput) {
+            if (mmr.diversifyField() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                if (resolved instanceof UnresolvedAttribute stillUnresolved) {
+                    resolved = stillUnresolved.withUnresolvedMessage(
+                        stillUnresolved.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
+                    );
+                } else {
+                    if (resolved.dataType().equals(DENSE_VECTOR) == false) {
+                        // we can only work on dense vector types at the moment
+                    }
+                }
+                return new MMR(mmr.source(), mmr.child(), mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.lambdaValue());
+            }
+            return mmr;
         }
 
         private LogicalPlan resolveLookup(Lookup l, List<Attribute> childrenOutput) {

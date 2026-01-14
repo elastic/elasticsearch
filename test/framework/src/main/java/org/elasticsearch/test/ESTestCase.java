@@ -2813,6 +2813,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Join the given {@link Thread} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the thread is indeed completed before the timeout.
+     */
+    public static void safeJoin(Thread t) {
+        try {
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
+            assertFalse("safeJoin: Thread is still running after the timeout", t.isAlive());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeJoin: interrupted waiting for Thread to die");
+        }
+    }
+
+    /**
      * Wait for all tasks currently running or enqueued on the given executor to complete.
      */
     public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {

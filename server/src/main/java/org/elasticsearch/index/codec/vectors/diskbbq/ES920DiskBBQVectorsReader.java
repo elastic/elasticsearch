@@ -363,7 +363,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                 queryCorrections.additionalCorrection(),
                 similarityFunction,
                 centroidDp,
-                scores
+                scores,
+                ES92Int7VectorsScorer.BULK_SIZE
             );
             for (int j = 0; j < ES92Int7VectorsScorer.BULK_SIZE; j++) {
                 neighborQueue.add(scoresOffset + i + j, scores[j]);

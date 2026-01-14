@@ -14,12 +14,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class Subquery extends UnaryPlan {
+public class Subquery extends UnaryPlan implements PromqlPlan {
     private final Literal range;
     private final Literal resolution;
     private final Evaluation evaluation;
@@ -86,5 +88,10 @@ public class Subquery extends UnaryPlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new EsqlIllegalArgumentException("should not be serialized");
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.RANGE_VECTOR;
     }
 }

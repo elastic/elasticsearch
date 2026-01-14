@@ -39,6 +39,9 @@ $$$cluster-routing-allocation-enable$$$
 
 This setting only affects future allocations, and does not re-allocate or un-allocate currently allocated shards. It also does not affect the recovery of local primary shards when restarting a node. A restarted node that has a copy of an unassigned primary shard will recover that primary immediately, assuming that its allocation id matches one of the active allocation ids in the cluster state.
 
+::::{note}
+When cluster.routing.allocation.enable setting is set to none, this does not block ingestion but will prevent new indices from creating(including the indices getting created using ILM Rollover) as it prevents all primaries and their replicas from allocating to nodes within the cluster.
+::::
 
 $$$cluster-routing-allocation-same-shard-host$$$
 

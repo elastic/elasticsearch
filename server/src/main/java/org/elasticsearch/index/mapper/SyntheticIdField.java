@@ -37,6 +37,11 @@ public final class SyntheticIdField extends Field {
         public void end() {
             // The underlying attributes are null, hence we just do a no-op
         }
+
+        @Override
+        public void reset() {
+            clearAttributes();
+        }
     };
 
     private static final FieldType TYPE;

@@ -11,6 +11,8 @@ package org.elasticsearch.common.util;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 public class ArrayUtils {
 
@@ -142,4 +144,7 @@ public class ArrayUtils {
         }
     }
 
+    public static DoubleStream stream(float[] floatArray) {
+        return IntStream.range(0, floatArray.length).mapToDouble(i -> floatArray[i]);
+    }
 }

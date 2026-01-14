@@ -93,11 +93,9 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
 
     @Override
     public StoredFieldsReader getMergeInstance() {
-        try {
-            return open(directory, segmentInfo, fieldInfos, context);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        var message = "Synthetic id should never be merged";
+        assert false : message;
+        throw new UnsupportedOperationException(message);
     }
 
     @Override

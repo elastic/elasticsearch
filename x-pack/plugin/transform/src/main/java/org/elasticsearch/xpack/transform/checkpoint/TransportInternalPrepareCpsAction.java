@@ -19,7 +19,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,12 +48,18 @@ public class TransportInternalPrepareCpsAction extends TransportAction<
             return;
         }
 
+        if (transformConfig.getHeaders().containsKey("_security_serverless_request_scoped_credential")) {
+            logger.warn("Transform config contains serverless credential header, skipping...");
+            listener.onResponse(InternalPrepareCpsAction.Response.INSTANCE);
+            return;
+        }
+
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Map<String, String> previousHeaders = transformConfig.getHeaders();
         final Map<String, String> currentHeaders = ClientHelper.filterSecurityHeaders(threadContext.getHeaders());
         final Map<String, String> mergedHeaders = new HashMap<>(previousHeaders);
         mergedHeaders.putAll(currentHeaders);
-        mergedHeaders.remove(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY);
+        // mergedHeaders.remove(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY);
 
         logger.info("Previous headers: {} and current headers {}", previousHeaders, currentHeaders);
         transformConfig.setHeaders(Map.copyOf(mergedHeaders));

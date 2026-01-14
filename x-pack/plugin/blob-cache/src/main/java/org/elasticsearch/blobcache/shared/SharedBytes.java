@@ -255,8 +255,7 @@ public class SharedBytes extends AbstractRefCounted {
             assert buffer.hasRemaining();
             // ensure the write is aligned on 4k boundaries (= page size)
             int adjustment = PAGE_SIZE - buffer.position() % PAGE_SIZE;
-            buffer.put(buffer.position(), zeroes, 0, adjustment);
-            buffer.position(buffer.position() + adjustment);
+            buffer.put(zeroes, 0, adjustment);
         }
         assert buffer.position() % PAGE_SIZE == 0;
         return positionalWrite(fc, fileChannelPos, buffer);

@@ -149,10 +149,16 @@ public class EsqlCapabilities {
          * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
          */
         STRING_LITERAL_AUTO_CASTING_EXTENDED,
+
         /**
          * Support for metadata fields.
          */
         METADATA_FIELDS,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings).
+         */
+        OPTIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1814,11 +1820,6 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/137544
          */
         FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
-
-        /**
-         * Support for requesting the "_tier" metadata field.
-         */
-        METADATA_TIER_FIELD,
 
         /**
          * Enrich works with dense_vector fields

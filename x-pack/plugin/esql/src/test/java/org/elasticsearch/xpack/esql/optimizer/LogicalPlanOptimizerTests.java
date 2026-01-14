@@ -7600,13 +7600,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
-        assertThat(aggsByTsid.aggregates(), hasSize(2));
-        assertNull(aggsByTsid.timeBucket());
-        Eval addEval = as(aggsByTsid.child(), Eval.class);
+        Eval addEval = as(finalAggs.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
-        EsRelation relation = as(addEval.child(), EsRelation.class);
+        TimeSeriesAggregate aggsByTsid = as(addEval.child(), TimeSeriesAggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2));
+        assertNull(aggsByTsid.timeBucket());
+
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
@@ -7615,14 +7616,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         Max maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), Max.class);
         assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
-        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(addEval.fields().get(0).id()));
         assertThat(finalAggs.groupings(), empty());
 
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        LastOverTime lastCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), LastOverTime.class);
-        assertThat(Expressions.attribute(lastCost.field()).id(), equalTo(addEval.fields().get(0).id()));
-        assertThat(Expressions.attribute(add.left()).name(), equalTo("network.cost"));
+        Alias lastCostAlias = as(aggsByTsid.aggregates().get(1), Alias.class);
+        LastOverTime lastCost = as(Alias.unwrap(lastCostAlias), LastOverTime.class);
+        assertThat(lastCostAlias.id(), equalTo(Expressions.attribute(add.left()).id()));
+        as(add.left(), ReferenceAttribute.class);
         assertThat(add.right().fold(FoldContext.small()), equalTo(0.2));
     }
 
@@ -7669,11 +7671,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
-        var unpackCluster = as(Alias.unwrap(eval.fields().get(0)), UnpackDimension.class);
+        var unpackCluster = as(Alias.unwrap(eval.fields().get(1)), UnpackDimension.class);
         assertThat(Expressions.name(unpackCluster), equalTo("cluster"));
-        var unpackPod = as(Alias.unwrap(eval.fields().get(1)), UnpackDimension.class);
+        var unpackPod = as(Alias.unwrap(eval.fields().get(2)), UnpackDimension.class);
         assertThat(Expressions.name(unpackPod), equalTo("pod"));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAggs.aggregates().get(1).id()));
@@ -7733,7 +7735,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         Eval packDimensions = as(finalAgg.child(), Eval.class);
@@ -7799,7 +7801,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         Eval packDimensions = as(finalAgg.child(), Eval.class);
@@ -7842,8 +7844,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval evalDiv = as(topN.child(), Eval.class);
         assertThat(evalDiv.fields(), hasSize(2));
-        as(Alias.unwrap(evalDiv.fields().get(0)), UnpackDimension.class);
-        Div div = as(Alias.unwrap(evalDiv.fields().get(1)), Div.class);
+        as(Alias.unwrap(evalDiv.fields().get(1)), UnpackDimension.class);
+        Div div = as(Alias.unwrap(evalDiv.fields().get(0)), Div.class);
 
         Aggregate finalAgg = as(evalDiv.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -8032,8 +8034,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
         assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
-        DateTrunc dateTrunc = as(Alias.unwrap(evalBucket.fields().get(0)), DateTrunc.class);
-        assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        Expression bucketFunction = Alias.unwrap(evalBucket.fields().get(0));
+        if (bucketFunction instanceof Bucket bucket) {
+            // if the date_trunc isn't defined in a nested EVAL, it will be a Bucket function here
+            assertThat(as(bucket.buckets(), Literal.class).value(), equalTo(Duration.ofMinutes(1)));
+            assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        } else if (bucketFunction instanceof DateTrunc dateTrunc) {
+            assertThat(as(dateTrunc.interval(), Literal.class).value(), equalTo(Duration.ofMinutes(1)));
+            assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        } else {
+            fail("Expected Bucket or DateTrunc function");
+        }
         assertTrue(lastOverTime.hasFilter());
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
@@ -10035,7 +10046,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     STATS max(network.cost), count(network.eth0.rx)
                     """)))
             ).getMessage(),
-            containsString("the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present")
+            containsString(
+                "second argument of [implicit time-series aggregation function (LastOverTime) for network.cost] "
+                    + "must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
+            )
+        );
+
+        assertThat(
+            expectThrows(
+                VerificationException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(last_over_time(network.cost)), count(last_over_time(network.eth0.rx))
+                    """)))
+            ).getMessage(),
+            containsString(
+                "second argument of [last_over_time(network.cost)] must be [date_nanos or datetime], "
+                    + "found value [@timestamp] type [keyword]"
+            )
+        );
+
+        assertThat(
+            expectThrows(
+                VerificationException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(max_over_time(network.cost)), count(count_over_time(network.eth0.rx))
+                    """)))
+            ).getMessage(),
+            containsString("the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [keyword]")
         );
 
         assertThat(
@@ -10047,7 +10088,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
                     """)))
             ).getMessage(),
-            containsString("the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present")
+            containsString(
+                "second argument of [implicit time-series aggregation function (LastOverTime) for "
+                    + "network.eth0.currently_connected_clients] must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
+            )
         );
 
         var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""

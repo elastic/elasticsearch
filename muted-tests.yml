@@ -297,18 +297,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/140127
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testLongBytesRefHashWithMultiValuedFields
-  issue: https://github.com/elastic/elasticsearch/issues/140546
-- class: org.elasticsearch.compute.aggregation.TimeSeriesFirstDocIdDeduplicationTests
-  method: testSimpleToString
-  issue: https://github.com/elastic/elasticsearch/issues/140547
-- class: org.elasticsearch.compute.operator.RowInTableLookupOperatorTests
-  method: testSimpleToString
-  issue: https://github.com/elastic/elasticsearch/issues/140548
-- class: org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunctionTests
-  method: testSimpleToString
-  issue: https://github.com/elastic/elasticsearch/issues/140549
 - class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
   method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
   issue: https://github.com/elastic/elasticsearch/issues/140603

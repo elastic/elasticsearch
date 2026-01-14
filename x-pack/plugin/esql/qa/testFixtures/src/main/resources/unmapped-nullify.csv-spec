@@ -207,7 +207,7 @@ ROW x = 1
 | STATS s = SUM(foo)
 ;
 
-s:long
+s:double
 null
 ;
 
@@ -223,7 +223,7 @@ foo:null
 null
 ;
 
-statsAggs
+statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_agg_on_null_by_replacing_with_eval
 
@@ -232,7 +232,7 @@ ROW x = 1
 | STATS s = SUM(foo) BY bar
 ;
 
-s:long | bar:null
+s:double | bar:null
 null   | null
 ;
 

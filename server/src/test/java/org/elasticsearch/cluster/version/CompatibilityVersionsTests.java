@@ -32,11 +32,8 @@ public class CompatibilityVersionsTests extends ESTestCase {
     }
 
     public void testMinimumTransportVersions() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionSupporting(
-            random(),
-            TransportVersionUtils.getNextVersion(version1, true)
-        );
+        TransportVersion version1 = TransportVersion.minimumCompatible();
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion(random());
 
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, Map.of());
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2, Map.of());

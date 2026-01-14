@@ -1859,7 +1859,7 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tier" metadata field.
          */
-        METADATA_TIER_FIELD,
+        METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887

@@ -175,3 +175,5 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+
+TEXT_EMBEDDING: 'text_embedding';

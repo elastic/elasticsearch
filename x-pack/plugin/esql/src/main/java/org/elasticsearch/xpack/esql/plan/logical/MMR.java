@@ -18,23 +18,26 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class MMR extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MMR", MMR::new);
+    public static final String LAMBDA_OPTION_NAME = "lambda";
+    private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
 
     private final Attribute diversifyField;
-    private final Attribute queryVector;
-    private final Attribute lambdaValue;
-    private final Expression limit;
+    private final int limit;
+    private Attribute queryVector;
+    private Expression lambdaValue;
 
     public MMR(
         Source source,
         LogicalPlan child,
         Attribute diversifyField,
-        Expression limit,
+        int limit,
         @Nullable Attribute queryVector,
-        @Nullable Attribute lambdaValue
+        @Nullable Expression lambdaValue
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
@@ -46,16 +49,16 @@ public class MMR extends UnaryPlan {
     public MMR(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
         this.diversifyField = in.readNamedWriteable(Attribute.class);
-        this.limit = in.readNamedWriteable(Expression.class);
+        this.limit = in.readInt();
         this.queryVector = in.readOptionalNamedWriteable(Attribute.class);
-        this.lambdaValue = in.readOptionalNamedWriteable(Attribute.class);
+        this.lambdaValue = in.readOptionalNamedWriteable(Expression.class);
     }
 
     public Attribute diversifyField() {
         return diversifyField;
     }
 
-    public Expression limit() {
+    public int limit() {
         return limit;
     }
 
@@ -63,7 +66,11 @@ public class MMR extends UnaryPlan {
         return queryVector;
     }
 
-    public Attribute lambdaValue() {
+    public void setLambdaValue(Expression lambdaValue) {
+        this.lambdaValue = lambdaValue;
+    }
+
+    public Expression lambdaValue() {
         return lambdaValue;
     }
 
@@ -92,7 +99,7 @@ public class MMR extends UnaryPlan {
         source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(this.diversifyField);
-        out.writeNamedWriteable(this.limit);
+        out.writeInt(limit);
         if (this.queryVector != null) {
             out.writeOptionalNamedWriteable(queryVector);
         }
@@ -120,4 +127,9 @@ public class MMR extends UnaryPlan {
     public int hashCode() {
         return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, lambdaValue);
     }
+
+    public List<String> validOptionNames() {
+        return VALID_MMR_OPTION_NAMES;
+    }
+
 }

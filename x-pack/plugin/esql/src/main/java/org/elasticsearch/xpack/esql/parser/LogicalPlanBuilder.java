@@ -1428,10 +1428,48 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
         Source source = source(ctx);
         Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
-        Expression limit = expression(ctx.limitValue);
+        Object limitValue = visitIntegerValue(ctx.limitValue).value();
+        if (limitValue instanceof Integer limit) {
+            return input -> (applyMMROptions(new MMR(source, input, diversifyField, limit, null, null), ctx.commandNamedParameters()));
+        } else {
+            throw new ParsingException(source(ctx), "Invalid parameter value for limit [{}]", ctx.limitValue.getText());
+        }
+
         // TODO - query vector
-        // TODO - lambda
-        return input -> new MMR(source, input, diversifyField, limit, null, null);
+    }
+
+    private MMR applyMMROptions(MMR mmrCommand, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
+
+        if (optionsExpression == null || optionsExpression.containsKey(MMR.LAMBDA_OPTION_NAME) == false) {
+            throw new ParsingException(mmrCommand.source(), "Missing mandatory option [{}] in MMR", MMR.LAMBDA_OPTION_NAME);
+        }
+
+        Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+
+        Expression lambdaValue = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
+        if (lambdaValue != null) {
+            if (lambdaValue.dataType() != DataType.DOUBLE) {
+                throw new ParsingException(
+                    mmrCommand.source(),
+                    "Option [{}] in <NNR> must be a floating point number",
+                    MMR.LAMBDA_OPTION_NAME
+                );
+            }
+
+            mmrCommand.setLambdaValue(lambdaValue);
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Invalid option [{}] in <NNR>, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                mmrCommand.validOptionNames()
+            );
+        }
+
+        return mmrCommand;
     }
 
     /**

@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
  * Interface for writing variable-length encoded metadata.
+ * <p>
+ * Methods mirror Lucene's DataOutput for easy delegation.
  */
 public interface MetadataWriter {
 
@@ -38,6 +40,13 @@ public interface MetadataWriter {
     void writeVLong(long value);
 
     /**
+     * Writes a signed integer using zig-zag encoding (1-5 bytes).
+     *
+     * @param value the signed integer to write
+     */
+    void writeZInt(int value);
+
+    /**
      * Writes a signed long using zig-zag encoding (1-10 bytes).
      *
      * @param value the signed long to write
@@ -45,7 +54,7 @@ public interface MetadataWriter {
     void writeZLong(long value);
 
     /**
-     * Clears the buffer for reuse, resetting position and size to zero.
+     * Clears the buffer for reuse, resetting size to zero.
      */
     void clear();
 

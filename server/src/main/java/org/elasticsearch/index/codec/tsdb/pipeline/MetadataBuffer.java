@@ -34,6 +34,7 @@ public final class MetadataBuffer implements MetadataWriter {
 
     private static final int SINGLE_BYTE = Byte.BYTES;
     private static final int MAX_VINT_BYTES = Integer.BYTES + 1;
+    private static final int MAX_ZINT_BYTES = Integer.BYTES + 1;
     private static final int MAX_VLONG_BYTES = Long.BYTES + 1;
     private static final int MAX_ZLONG_BYTES = Long.BYTES + 2;
 
@@ -95,6 +96,20 @@ public final class MetadataBuffer implements MetadataWriter {
             grow(MAX_VLONG_BYTES);
         }
         writeVarLong(value);
+    }
+
+    /**
+     * Writes a signed integer using zig-zag encoding followed by variable-length encoding.
+     * Efficient for values with small absolute magnitude.
+     *
+     * @param value the signed integer to write
+     */
+    @Override
+    public void writeZInt(final int value) {
+        if (size + MAX_ZINT_BYTES > buffer.length) {
+            grow(MAX_ZINT_BYTES);
+        }
+        writeVarLong(ByteUtils.zigZagEncode(value) & 0xFFFFFFFFL);
     }
 
     /**

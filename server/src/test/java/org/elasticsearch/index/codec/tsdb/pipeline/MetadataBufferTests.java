@@ -198,6 +198,42 @@ public class MetadataBufferTests extends ESTestCase {
         }
     }
 
+    public void testWriteRandomZInts() throws IOException {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int numValues = randomIntBetween(100, 500);
+        final int[] values = new int[numValues];
+
+        // WHEN
+        for (int i = 0; i < numValues; i++) {
+            values[i] = randomInt();
+            buffer.writeZInt(values[i]);
+        }
+
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
+        for (int i = 0; i < numValues; i++) {
+            assertEquals(values[i], input.readZInt());
+        }
+    }
+
+    public void testZIntBoundaryValues() throws IOException {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int[] boundaryValues = { 0, 1, -1, 63, -64, 64, -65, 8191, -8192, Integer.MAX_VALUE, Integer.MIN_VALUE };
+
+        // WHEN
+        for (final int value : boundaryValues) {
+            buffer.writeZInt(value);
+        }
+
+        // THEN
+        final ByteArrayDataInput input = new ByteArrayDataInput(buffer.toByteArray());
+        for (final int expected : boundaryValues) {
+            assertEquals(expected, input.readZInt());
+        }
+    }
+
     public void testRandomMixedTypes() throws IOException {
         // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
@@ -207,7 +243,7 @@ public class MetadataBufferTests extends ESTestCase {
 
         // WHEN
         for (int i = 0; i < numOperations; i++) {
-            final int type = randomIntBetween(0, 3);
+            final int type = randomIntBetween(0, 4);
             types[i] = type;
             switch (type) {
                 case 0 -> {
@@ -226,6 +262,11 @@ public class MetadataBufferTests extends ESTestCase {
                     buffer.writeVLong(v);
                 }
                 case 3 -> {
+                    final int v = randomInt();
+                    expected[i] = v;
+                    buffer.writeZInt(v);
+                }
+                case 4 -> {
                     final long v = randomLong();
                     expected[i] = v;
                     buffer.writeZLong(v);
@@ -240,7 +281,8 @@ public class MetadataBufferTests extends ESTestCase {
                 case 0 -> assertEquals((byte) expected[i], input.readByte());
                 case 1 -> assertEquals((int) expected[i], input.readVInt());
                 case 2 -> assertEquals((long) expected[i], input.readVLong());
-                case 3 -> assertEquals((long) expected[i], input.readZLong());
+                case 3 -> assertEquals((int) expected[i], input.readZInt());
+                case 4 -> assertEquals((long) expected[i], input.readZLong());
             }
         }
     }
@@ -449,12 +491,13 @@ public class MetadataBufferTests extends ESTestCase {
 
         // WHEN
         for (int i = 0; i < numOperations; i++) {
-            final int type = randomIntBetween(0, 3);
+            final int type = randomIntBetween(0, 4);
             switch (type) {
                 case 0 -> buffer.writeByte(randomByte());
                 case 1 -> buffer.writeVInt(randomIntBetween(0, Integer.MAX_VALUE));
                 case 2 -> buffer.writeVLong(randomLongBetween(0, Long.MAX_VALUE));
-                case 3 -> buffer.writeZLong(randomLong());
+                case 3 -> buffer.writeZInt(randomInt());
+                case 4 -> buffer.writeZLong(randomLong());
             }
         }
 

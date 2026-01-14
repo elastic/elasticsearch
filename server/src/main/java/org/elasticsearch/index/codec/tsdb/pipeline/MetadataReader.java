@@ -38,6 +38,13 @@ public interface MetadataReader {
     long readVLong();
 
     /**
+     * Reads a signed integer that was written using zig-zag encoding (1-5 bytes).
+     *
+     * @return the signed integer value
+     */
+    int readZInt();
+
+    /**
      * Reads a signed long that was written using zig-zag encoding (1-10 bytes).
      *
      * @return the signed long value

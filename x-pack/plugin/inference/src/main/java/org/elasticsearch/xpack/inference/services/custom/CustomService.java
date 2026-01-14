@@ -59,7 +59,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -79,6 +78,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         TaskType.RERANK,
         TaskType.COMPLETION
     );
+    private static final CustomModelFactory MODEL_FACTORY = new CustomModelFactory();
 
     public CustomService(
         HttpRequestSender.Factory factory,
@@ -212,10 +212,16 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
-        if (SUPPORTED_TASK_TYPES.contains(taskType) == false) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, chunkingSettings, context);
+        return MODEL_FACTORY.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -243,21 +249,13 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     @Override
     public CustomModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType()) == false) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return new CustomModel(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
         if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             /*
-             * There's a sutle difference between how the chunking settings are parsed for the request context vs the persistent context.
+             * There's a subtle difference between how the chunking settings are parsed for the request context vs the persistent context.
              * For persistent context, to support backwards compatibility, if the chunking settings are not present, removeFromMap will
              * return null which results in the older word boundary chunking settings being used as the default.
              * For request context, removeFromMapOrDefaultEmpty returns an empty map which results in the newer sentence boundary chunking
@@ -405,10 +403,10 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
                 // TODO revisit this

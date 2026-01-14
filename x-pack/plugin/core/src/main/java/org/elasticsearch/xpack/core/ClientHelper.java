@@ -63,12 +63,7 @@ public final class ClientHelper {
         AuthenticationServiceField.RUN_AS_USER_HEADER,
         AuthenticationField.AUTHENTICATION_KEY,
         SecondaryAuthentication.THREAD_CTX_KEY,
-        // not clear that we want this vs. dedicated client helper methods
-        AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY,
-        // Hack hack hack
-        "_security_serverless_authenticating_token",
-        "_security_serverless_request_scoped_credential",
-        "_security_serverless_authorized_projects"
+        "_security_serverless_request_scoped_credential"
     );
 
     /**
@@ -119,7 +114,7 @@ public final class ClientHelper {
         );
     }
 
-    private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
+    public static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
         Map<String, String> filteredHeaders,
         CheckedFunction<String, Authentication, IOException> authenticationReader,
         TransportVersion minNodeVersion

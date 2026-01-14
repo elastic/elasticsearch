@@ -18,7 +18,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +42,7 @@ public class TransportInternalPrepareCpsAction extends TransportAction<
         InternalPrepareCpsAction.Request request,
         ActionListener<InternalPrepareCpsAction.Response> listener
     ) {
-        final var transformConfig = request.getTransformConfig();
+        final TransformConfig transformConfig = request.getTransformConfig();
         if (transformConfig == null) {
             listener.onFailure(new IllegalStateException("InternalPrepareCpsAction must be executed locally"));
             return;
@@ -56,12 +56,18 @@ public class TransportInternalPrepareCpsAction extends TransportAction<
 
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Map<String, String> previousHeaders = transformConfig.getHeaders();
-        final Map<String, String> currentHeaders = ClientHelper.filterSecurityHeaders(threadContext.getHeaders());
+        final String securityServerlessRequestScopedCredential = threadContext.getHeaders()
+            .get("_security_serverless_request_scoped_credential");
         final Map<String, String> mergedHeaders = new HashMap<>(previousHeaders);
-        mergedHeaders.putAll(currentHeaders);
-        // mergedHeaders.remove(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY);
+        if (securityServerlessRequestScopedCredential != null) {
+            final Map<String, String> requestScopedCredential = Map.of(
+                "_security_serverless_request_scoped_credential",
+                securityServerlessRequestScopedCredential
+            );
+            mergedHeaders.putAll(requestScopedCredential);
+        }
 
-        logger.info("Previous headers: {} and current headers {}", previousHeaders, currentHeaders);
+        logger.info("Previous headers: {} and current headers {}", previousHeaders, mergedHeaders);
         transformConfig.setHeaders(Map.copyOf(mergedHeaders));
 
         listener.onResponse(InternalPrepareCpsAction.Response.INSTANCE);

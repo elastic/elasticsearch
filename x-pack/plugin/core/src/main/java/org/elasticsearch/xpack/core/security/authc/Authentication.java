@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.BufferedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -233,6 +234,13 @@ public final class Authentication implements ToXContentObject {
         return authenticatingSubject;
     }
 
+    public Authentication copyWithMetadataField(String key, Object value) {
+        Objects.requireNonNull(key);
+        Map<String, Object> newMetadata = new HashMap<>(authenticatingSubject.getMetadata());
+        newMetadata.put(key, value);
+        return copyWithMetadata(Collections.unmodifiableMap(newMetadata));
+    }
+
     /**
      * Get the {@link Subject} that the authentication effectively represents. It may not be the authenticating subject
      * because the authentication subject can run-as another subject.
@@ -243,6 +251,12 @@ public final class Authentication implements ToXContentObject {
 
     public AuthenticationType getAuthenticationType() {
         return type;
+    }
+
+    @Nullable
+    public SecureString getCloudToken() {
+        String o = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY);
+        return o != null ? new SecureString(o) : null;
     }
 
     /**

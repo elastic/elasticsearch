@@ -130,65 +130,67 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
-        try {
-            ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
-            ActionListener<Map<String, long[]>> groupedListener = listener;
+        InternalPrepareCps.execute(client, transformConfig, ActionListener.wrap(v -> {
+            try {
+                ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
+                ActionListener<Map<String, long[]>> groupedListener = listener;
 
-            if (resolvedIndexes.numClusters() == 0) {
-                var indices = String.join(",", transformConfig.getSource().getIndex());
-                listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
-                return;
-            }
+                if (resolvedIndexes.numClusters() == 0) {
+                    var indices = String.join(",", transformConfig.getSource().getIndex());
+                    listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
+                    return;
+                }
 
-            if (resolvedIndexes.numClusters() > 1) {
-                ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
-                    listener.onResponse(
-                        indexCheckpoints.stream()
-                            .flatMap(m -> m.entrySet().stream())
-                            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()))
+                if (resolvedIndexes.numClusters() > 1) {
+                    ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
+                        listener.onResponse(
+                            indexCheckpoints.stream()
+                                .flatMap(m -> m.entrySet().stream())
+                                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()))
+                        );
+                    }, listener::onFailure);
+
+                    groupedListener = new GroupedActionListener<>(resolvedIndexes.numClusters(), mergeMapsListener);
+                }
+
+                final var threadContext = client.threadPool().getThreadContext();
+
+                if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
+                    getCheckpointsFromOneCluster(
+                        threadContext,
+                        CheckpointClient.local(client),
+                        timeout,
+                        transformConfig.getHeaders(),
+                        resolvedIndexes.getLocalIndices().toArray(new String[0]),
+                        transformConfig.getSource().getQueryConfig().getQuery(),
+                        RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                        groupedListener
                     );
-                }, listener::onFailure);
+                }
 
-                groupedListener = new GroupedActionListener<>(resolvedIndexes.numClusters(), mergeMapsListener);
+                for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
+                    String cluster = remoteIndex.getKey();
+                    getCheckpointsFromOneCluster(
+                        threadContext,
+                        CheckpointClient.remote(
+                            client.getRemoteClusterClient(
+                                cluster,
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                            )
+                        ),
+                        timeout,
+                        transformConfig.getHeaders(),
+                        remoteIndex.getValue().toArray(new String[0]),
+                        transformConfig.getSource().getQueryConfig().getQuery(),
+                        cluster,
+                        groupedListener
+                    );
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
-
-            final var threadContext = client.threadPool().getThreadContext();
-
-            if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
-                getCheckpointsFromOneCluster(
-                    threadContext,
-                    CheckpointClient.local(client),
-                    timeout,
-                    transformConfig.getHeaders(),
-                    resolvedIndexes.getLocalIndices().toArray(new String[0]),
-                    transformConfig.getSource().getQueryConfig().getQuery(),
-                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                    groupedListener
-                );
-            }
-
-            for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
-                String cluster = remoteIndex.getKey();
-                getCheckpointsFromOneCluster(
-                    threadContext,
-                    CheckpointClient.remote(
-                        client.getRemoteClusterClient(
-                            cluster,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                        )
-                    ),
-                    timeout,
-                    transformConfig.getHeaders(),
-                    remoteIndex.getValue().toArray(new String[0]),
-                    transformConfig.getSource().getQueryConfig().getQuery(),
-                    cluster,
-                    groupedListener
-                );
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        }, listener::onFailure));
     }
 
     private void getCheckpointsFromOneCluster(

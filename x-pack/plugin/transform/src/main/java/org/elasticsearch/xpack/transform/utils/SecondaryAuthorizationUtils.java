@@ -16,10 +16,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
+import java.io.IOException;
 import java.util.Map;
 
 public final class SecondaryAuthorizationUtils {
@@ -38,29 +40,32 @@ public final class SecondaryAuthorizationUtils {
     ) {
         SetOnce<Map<String, String>> filteredHeadersHolder = new SetOnce<>();
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            ThreadContext threadContext = threadPool.getThreadContext();
-            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
-
-            // hackery for illustrative purposes only: we'd actually need to exchange the cloud credential for an internal API key via
-            // a grant API key call to UIAM instead
-            if (securityContext != null
-                && securityContext.getAuthentication() != null
-                && securityContext.getAuthentication().isCloudApiKey()) {
-
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            final Authentication authentication = securityContext.getAuthentication();
+            if (authentication != null && authentication.isCloudApiKey()) {
                 Object t = threadContext.getTransient("_security_serverless_authenticating_token");
                 if (t instanceof AuthenticationToken tok) {
                     Object creds = tok.credentials();
                     if (creds instanceof SecureString secure) {
-                        String raw = secure.toString();
-                        if (raw.isEmpty() == false) {
-                            filteredHeadersHolder.set(Map.of(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY, raw));
+                        String rawCredential = secure.toString();
+                        try {
+                            Map<String, String> filteredHeaders = Map.of(
+                                AuthenticationField.AUTHENTICATION_KEY,
+                                authentication.copyWithMetadataField(
+                                    AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY,
+                                    rawCredential
+                                ).encode()
+                            );
+                            filteredHeadersHolder.set(filteredHeaders);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
                         }
                     }
                 }
             } else {
+                Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
                 filteredHeadersHolder.set(filteredHeaders);
             }
-
         });
         return filteredHeadersHolder.get();
     }

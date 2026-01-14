@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -261,6 +262,10 @@ public class BlockTestUtils {
         }
         if (builder instanceof ExponentialHistogramBlockBuilder b && value instanceof ExponentialHistogram histogram) {
             b.append(histogram);
+            return;
+        }
+        if (builder instanceof TDigestBlockBuilder b && value instanceof TDigestHolder histogram) {
+            b.appendTDigest(histogram);
             return;
         }
         if (value instanceof List<?> l && l.isEmpty()) {

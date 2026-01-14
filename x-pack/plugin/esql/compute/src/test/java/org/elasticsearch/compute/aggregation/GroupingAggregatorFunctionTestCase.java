@@ -300,6 +300,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         case INT -> 1;
                         case LONG -> 1L;
                         case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
+                        case TDIGEST -> BlockTestUtils.randomTDigest();
                         default -> throw new UnsupportedOperationException();
                     });
                 }

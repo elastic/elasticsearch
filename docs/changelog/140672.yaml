@@ -1,0 +1,5 @@
+pr: 140672
+summary: Implementing rerank on multi values
+area: ES|QL
+type: enhancement
+issues: []

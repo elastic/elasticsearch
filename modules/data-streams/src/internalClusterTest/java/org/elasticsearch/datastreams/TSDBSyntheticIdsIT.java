@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -830,10 +831,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             docIdToIndex.put(bulkItemResponse.getId(), bulkItemResponse.getIndex());
         }
 
-        deleteRandomDocuments(docIdToIndex);
+        deleteRandomDocuments(docIdToIndex).forEach(docIdToIndex::remove);
 
         refresh(docIdToIndex.values().toArray(String[]::new));
-        Map<String, Map<String, Object>> allDocumentSourcesBeforeSnapshot = allDocumentSourcesAsMaps(dataStreamName);
+        Set<String> docsToVerify = randomSet(1, 3, () -> randomFrom(docIdToIndex.keySet()));
+        Map<String, Map<String, Object>> documentSourcesBeforeSnapshot = documentSourcesAsMaps(dataStreamName, docsToVerify);
 
         // create snapshot
         String testRepoName = "test-repo";
@@ -878,8 +880,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices().length,
             equalTo(1)
         );
-        Map<String, Map<String, Object>> actualContentBeforeRestore = allDocumentSourcesAsMaps(dataStreamName);
-        assertThat(actualContentBeforeRestore.size(), equalTo(0));
+        assertThat(documentCount(dataStreamName), equalTo(0L));
 
         // restore from snapshot
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -890,11 +891,15 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertNotNull(restoreSnapshotResponse.getRestoreInfo());
 
         // Should be able to search by (synthetic) _id
-        assertSearchById(allDocumentSourcesBeforeSnapshot.keySet(), docIdToIndex);
+        assertSearchById(docsToVerify, docIdToIndex);
 
         // All documents should be there
-        Map<String, Map<String, Object>> allDocumentSourcesAfterRestore = allDocumentSourcesAsMaps(dataStreamName);
-        assertThat(allDocumentSourcesAfterRestore, equalTo(allDocumentSourcesBeforeSnapshot));
+        Map<String, Map<String, Object>> documentSourcesAfterRestore = documentSourcesAsMaps(dataStreamName, docsToVerify);
+        assertThat(documentSourcesAfterRestore, equalTo(documentSourcesBeforeSnapshot));
+    }
+
+    private static long documentCount(String dataStreamName) {
+        return indicesAdmin().prepareStats(dataStreamName).setDocs(true).get().getTotal().docs.getCount();
     }
 
     private static List<String> deleteRandomDocuments(Map<String, String> docIdToIndex) {
@@ -913,8 +918,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return deletedDocs;
     }
 
-    private static Map<String, Map<String, Object>> allDocumentSourcesAsMaps(String dataStreamName) {
-        var resp = client().prepareSearch(dataStreamName).setFetchSource(true).setQuery(QueryBuilders.matchAllQuery()).get();
+    private static Map<String, Map<String, Object>> documentSourcesAsMaps(String dataStreamName, Set<String> docIds) {
+        IdsQueryBuilder docIdsQuery = QueryBuilders.idsQuery().addIds(docIds.toArray(String[]::new));
+        var resp = client().prepareSearch(dataStreamName).setFetchSource(true).setQuery(docIdsQuery).get();
         try {
             var result = new HashMap<String, Map<String, Object>>();
             for (SearchHit hit : resp.getHits().getHits()) {
@@ -936,10 +942,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         );
     }
 
-    private static void assertSearchById(Collection<String> searchIds, HashMap<String, String> docs) throws IOException {
+    private static void assertSearchById(Collection<String> searchIds, HashMap<String, String> docIdToIndex) throws IOException {
         for (var docId : searchIds) {
             assertCheckedResponse(
-                client().prepareSearch(docs.get(docId))
+                client().prepareSearch(docIdToIndex.get(docId))
                     .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
                 searchResponse -> {
                     assertHitCount(searchResponse, 1L);

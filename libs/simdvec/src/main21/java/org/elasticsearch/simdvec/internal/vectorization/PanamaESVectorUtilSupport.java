@@ -1161,7 +1161,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         for (int pos = bytesRef.offset + loopBound; pos < bytesRef.offset + bytesRef.length; pos++) {
             continuations += (bytesRef.bytes[pos] & highBits) == continuationByte ? 1 : 0;
         }
-        
+
         return bytesRef.length - continuations;
     }
 }

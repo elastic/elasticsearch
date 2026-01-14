@@ -13,7 +13,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -447,9 +446,9 @@ public class ESVectorUtil {
      * @return the number of code points in the bytes ref
      */
     public static int codePointCount(BytesRef bytesRef) {
-//        if (bytesRef.length < 16) {
-//            return UnicodeUtil.codePointCount(bytesRef);
-//        }
+        // if (bytesRef.length < 16) {
+        // return UnicodeUtil.codePointCount(bytesRef);
+        // }
         Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
         return IMPL.codePointCount(bytesRef);
     }

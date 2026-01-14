@@ -48,8 +48,15 @@ public class WeightFunction {
     private final float theta1;
     private final float theta2;
     private final float theta3;
+    private final float threshold;
 
-    public WeightFunction(float shardBalance, float indexBalance, float writeLoadBalance, float diskUsageBalance) {
+    public WeightFunction(
+        float shardBalance,
+        float indexBalance,
+        float writeLoadBalance,
+        float diskUsageBalance,
+        float threshold
+    ) {
         float sum = shardBalance + indexBalance + writeLoadBalance + diskUsageBalance;
         if (sum <= 0.0f) {
             throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -58,6 +65,7 @@ public class WeightFunction {
         theta1 = indexBalance / sum;
         theta2 = writeLoadBalance / sum;
         theta3 = diskUsageBalance / sum;
+        this.threshold = threshold;
     }
 
     // Visible for testing
@@ -164,5 +172,14 @@ public class WeightFunction {
             return totalSizeInBytes;
         }
         return shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
+    }
+
+    /**
+     * Get the balancing threshold to apply when using these balancing weights
+     *
+     * @return The balancer threshold
+     */
+    float getThreshold() {
+        return threshold;
     }
 }

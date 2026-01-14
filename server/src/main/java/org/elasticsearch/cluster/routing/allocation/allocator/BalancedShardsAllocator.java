@@ -301,7 +301,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final RoutingNodes routingNodes;
         private final Metadata metadata;
 
-        private final float threshold;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
@@ -320,7 +319,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            this.threshold = balancingWeights.getThreshold();
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = balancingWeights.diskUsageIgnored()
@@ -518,7 +516,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    final float localThreshold = sorter.minWeightDelta() * threshold;
+                    final float localThreshold = sorter.minWeightDelta() * sorter.getWeightFunction().getThreshold();
                     boolean deltaAboveThreshold = lessThan(currentDelta, localThreshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
@@ -637,7 +635,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
-                final float localThreshold = sorter.minWeightDelta() * threshold;
+                final float localThreshold = sorter.minWeightDelta() * sorter.getWeightFunction().getThreshold();
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
                     final ModelNode maxNode = modelNodes[highIdx];

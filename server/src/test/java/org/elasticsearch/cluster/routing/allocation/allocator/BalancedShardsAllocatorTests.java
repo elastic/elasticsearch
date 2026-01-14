@@ -638,7 +638,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 BalancerSettings.DEFAULT,
                 TEST_WRITE_LOAD_FORECASTER,
                 new PrefixBalancingWeightsFactory(
-                    Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0), "weightsOnly", new WeightFunction(0, 0, 1, 0))
+                    Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0, 1), "weightsOnly", new WeightFunction(0, 0, 1, 0, 1))
                 )
             ),
             EmptyClusterInfoService.INSTANCE,
@@ -700,7 +700,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var modelNodesRef = new AtomicReference<BalancedShardsAllocator.ModelNode[]>();
         final var balancerRef = new AtomicReference<BalancedShardsAllocator.Balancer>();
         // Intentionally configure disk weight factor to be non-zero so that the test would fail if disk usage is not ignored
-        final var weightFunction = new WeightFunction(1, 1, 1, 1);
+        final var weightFunction = new WeightFunction(1, 1, 1, 1, 1);
         final var allocator = new BalancedShardsAllocator(
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
@@ -743,11 +743,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 @Override
                 public boolean diskUsageIgnored() {
                     return true; // This makes the computation ignore disk usage
-                }
-
-                @Override
-                public float getThreshold() {
-                    return BalancerSettings.DEFAULT.getThreshold();
                 }
             }
         );
@@ -1279,7 +1274,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         private static class NodeNameDrivenWeightFunction extends WeightFunction {
 
             NodeNameDrivenWeightFunction() {
-                super(1.0f, 1.0f, 1.0f, 1.0f);
+                super(1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
             }
 
             @Override
@@ -1335,11 +1330,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public boolean diskUsageIgnored() {
                 return true;
-            }
-
-            @Override
-            public float getThreshold() {
-                return BalancerSettings.DEFAULT.getThreshold();
             }
         }
 
@@ -1550,11 +1540,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public boolean diskUsageIgnored() {
                 return true;
-            }
-
-            @Override
-            public float getThreshold() {
-                return BalancerSettings.DEFAULT.getThreshold();
             }
         }
     }

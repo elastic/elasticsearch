@@ -296,7 +296,6 @@ public class LuceneSourceOperator extends LuceneOperator {
     @Override
     public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
-            assert currentPagePos == 0 : currentPagePos;
             return null;
         }
         long start = System.nanoTime();

@@ -7,7 +7,7 @@ applies_to:
 
 # Better Binary Quantization (BBQ) [bbq]
 
-Better Binary Quantization (BBQ) is an advanced vector quantization method, designed for large-scale similarity search. BBQ is a form of lossy compression for [`dense_vector` fields](docs-content://reference/elasticsearch/mapping-reference/dense-vector.md) that enables efficient storage and retrieval of large numbers of vectors, while keeping results close to those from the original uncompressed vectors.
+Better Binary Quantization (BBQ) is an advanced vector quantization method, designed for large-scale similarity search. BBQ is a form of lossy compression for [`dense_vector` fields](elasticsearch://reference/elasticsearch/mapping-reference/dense-vector.md) that enables efficient storage and retrieval of large numbers of vectors, while keeping results close to those from the original uncompressed vectors.
 
 BBQ offers significant improvements over scalar quantization by relying on optimized `bit` level computations to reduce memory usage and computational costs while maintaining high search relevance using pre-computed corrective factors. BBQ is designed to work in combination with [oversampling](#bbq-oversampling) and reranking, and is compatible with various [vector search algorithms](#bbq-vector-search-algorithms), such as [HNSW](#bbq-hnsw) and [brute force (flat)](#bbq-flat).
 
@@ -267,5 +267,5 @@ You can change oversampling from the default 3× to another value. Refer to [Ove
 
 - [Better Binary Quantization (BBQ) in Lucene and {{es}}](https://www.elastic.co/search-labs/blog/better-binary-quantization-lucene-elasticsearch) - Learn how BBQ works, its benefits, and how it reduces memory usage while preserving search accuracy.
 - [Introducing a new vector storage format: DiskBBQ](https://www.elastic.co/search-labs/blog/diskbbq-elasticsearch-introduction) - Learn how DiskBBQ improves vector search in low-memory environments and compares to HNSW in speed and cost-effectiveness. 
-- [Dense vector field type](docs-content://reference/elasticsearch/mapping-reference/dense-vector.md) - Find code examples for using `bbq_hnsw` `index_type`.
+- [Dense vector field type](elasticsearch://reference/elasticsearch/mapping-reference/dense-vector.md) - Find code examples for using `bbq_hnsw` `index_type`.
 - [kNN search](docs-content://solutions/search/vector/knn.md) - Learn about the search algorithm that BBQ works with.

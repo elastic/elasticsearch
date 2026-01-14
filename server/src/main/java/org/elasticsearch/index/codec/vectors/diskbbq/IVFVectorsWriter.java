@@ -207,6 +207,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // wrap centroids with a supplier
             final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
                 centroidAssignments.centroids(),
+                centroidAssignments.globalCentroid(),
                 fieldWriter.fieldInfo.getVectorDimension()
             );
             // write posting lists

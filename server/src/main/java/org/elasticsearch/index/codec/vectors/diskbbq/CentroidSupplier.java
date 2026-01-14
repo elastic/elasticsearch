@@ -24,6 +24,10 @@ public interface CentroidSupplier {
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
+    default float[] getParentCentroid(int centroidOrdinal) throws IOException {
+        return null;
+    }
+
     FloatVectorValues asFloatVectorValues() throws IOException;
 
     static CentroidSupplier fromArray(float[][] centroids, int dims) {
@@ -36,6 +40,30 @@ public interface CentroidSupplier {
             @Override
             public float[] centroid(int centroidOrdinal) {
                 return centroids[centroidOrdinal];
+            }
+
+            @Override
+            public FloatVectorValues asFloatVectorValues() {
+                return KmeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
+            }
+        };
+    }
+
+    static CentroidSupplier fromArray(float[][] centroids, float[] globalCentroid, int dims) {
+        return new CentroidSupplier() {
+            @Override
+            public int size() {
+                return centroids.length;
+            }
+
+            @Override
+            public float[] centroid(int centroidOrdinal) {
+                return centroids[centroidOrdinal];
+            }
+
+            @Override
+            public float[] getParentCentroid(int centroidOrdinal) {
+                return globalCentroid;
             }
 
             @Override

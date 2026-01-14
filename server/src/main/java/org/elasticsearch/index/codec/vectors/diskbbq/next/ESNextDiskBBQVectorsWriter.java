@@ -146,10 +146,15 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);
+            // TODO ASYMMETRIC WRITE
+            // PUT DOWN THE CENTROID ORDINAL SO WE CAN MAP IT TO THE PARENT DURING QUERYING
+            // TODO ASYMMETRIC REMOVE WE SHOULDN"T NEED THIS
             buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
+            // TODO ASYMMETRIC REMOVE WE SHOULDN"T NEED THIS
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
             // write centroid dot product for quantizing the query vectors
+            // TODO ASYMMETRIC REMOVE
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             int size = cluster.length;
             // write docIds
@@ -164,7 +169,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             for (int j = 0; j < size; j++) {
                 docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
             }
-            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
+            onHeapQuantizedVectors.reset(centroid, centroidSupplier.getParentCentroid(c), size, ord -> cluster[clusterOrds[ord]]);
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ESNextOSQVectorsScorer.BULK_SIZE);
             postingsOutput.writeByte(encoding);
             bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
@@ -215,6 +220,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
                 float[] centroid = centroidSupplier.centroid(c);
+                float[] parentCentroid = centroidSupplier.getParentCentroid(c);
                 float[] vector = floatVectorValues.vectorValue(i);
                 boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != NO_SOAR_ASSIGNMENT;
                 OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
@@ -224,12 +230,36 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     quantEncoding.bits(),
                     centroid
                 );
+                // TODO HACK FOR ASYMMETRIC QUANTIZATION DOT PRODUCT ONLY
+                // MUST BE CENTERED ON OWN CENTROID
+                if (parentCentroid != null) {
+                    float dotWithParent = VectorUtil.dotProduct(scratch, parentCentroid);
+                    result = new OptimizedScalarQuantizer.QuantizationResult(
+                        result.lowerInterval(),
+                        result.upperInterval(),
+                        dotWithParent,
+                        result.quantizedComponentSum()
+                    );
+                }
                 quantEncoding.pack(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
+                    float[] overspillCentroid = centroidSupplier.centroid(s);
+                    float[] overspillParentCentroid = centroidSupplier.getParentCentroid(s);
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), centroidSupplier.centroid(s));
+                    result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), overspillCentroid);
+                    // TODO HACK FOR ASYMMETRIC QUANTIZATION DOT PRODUCT ONLY
+                    // MUST BE CENTERED
+                    if (overspillParentCentroid != null) {
+                        float dotWithParent = VectorUtil.dotProduct(scratch, overspillParentCentroid);
+                        result = new OptimizedScalarQuantizer.QuantizationResult(
+                            result.lowerInterval(),
+                            result.upperInterval(),
+                            dotWithParent,
+                            result.quantizedComponentSum()
+                        );
+                    }
                     quantEncoding.pack(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
@@ -303,10 +333,15 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 boolean[] isOverspill = isOverspillByCluster[c];
                 long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
                 offsets.add(offset);
+                // TODO ASYMMETRIC WRITE
+                // PUT DOWN THE CENTROID ORDINAL SO WE CAN MAP IT TO THE PARENT DURING QUERYING
                 // write raw centroid for quantizing the query vectors
+                // TODO ASYMMETRIC REMOVE
                 buffer.asFloatBuffer().put(centroid);
+                // TODO ASYMMETRIC REMOVE
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
                 // write centroid dot product for quantizing the query vectors
+                // TODO ASYMMETRIC REMOVE
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
                 // write docIds
                 int size = cluster.length;
@@ -383,7 +418,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         float[] globalCentroid
     ) {
-        return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
+        return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo, globalCentroid);
     }
 
     @Override
@@ -639,13 +674,15 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final int numCentroids;
         private final int dimension;
         private final float[] scratch;
+        private final float[] globalCentroid;
         private int currOrd = -1;
 
-        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
+        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info, float[] globalCentroid) {
             this.centroidsInput = centroidsInput;
             this.numCentroids = numCentroids;
             this.dimension = info.getVectorDimension();
             this.scratch = new float[dimension];
+            this.globalCentroid = globalCentroid;
         }
 
         @Override
@@ -662,6 +699,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;
+        }
+
+        @Override
+        public float[] getParentCentroid(int ordinal) {
+            return globalCentroid;
         }
 
         @Override
@@ -732,7 +774,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final float[] floatVectorScratch;
         private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
-        private float[] currentCentroid;
+        private float[] currentCentroid, currentParentCentroid;
         private IntToIntFunction ordTransformer = null;
         private int currOrd = -1;
         private int count;
@@ -750,13 +792,15 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             this.floatVectorScratch = new float[dimension];
             this.quantizedVectorScratch = new int[encoding.discretizedDimensions(dimension)];
             this.corrections = null;
+            this.currentParentCentroid = null;
         }
 
-        private void reset(float[] centroid, int count, IntToIntFunction ordTransformer) {
+        private void reset(float[] centroid, float[] currentParentCentroid, int count, IntToIntFunction ordTransformer) {
             this.currentCentroid = centroid;
             this.ordTransformer = ordTransformer;
             this.currOrd = -1;
             this.count = count;
+            this.currentParentCentroid = currentParentCentroid;
         }
 
         @Override
@@ -773,6 +817,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
             corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, encoding.bits(), currentCentroid);
+            // TODO HACK, assumes asymmetric centroid quantization, adjust corrections
+            // THIS IS ONLY FOR DOT PRODUCT
+            if (currentParentCentroid != null) {
+                float centeredParentDot = VectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
+                corrections = new OptimizedScalarQuantizer.QuantizationResult(
+                    corrections.lowerInterval(),
+                    corrections.upperInterval(),
+                    centeredParentDot,
+                    corrections.quantizedComponentSum()
+                );
+            }
             encoding.pack(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }

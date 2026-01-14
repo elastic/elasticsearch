@@ -329,7 +329,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
+            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset(), offsetAndLength.score());
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -342,7 +342,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-                scorer.resetPostingsScorer(offsetAndLength.offset());
+                scorer.resetPostingsScorer(offsetAndLength.offset(), offsetAndLength.score());
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -461,7 +461,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    public record CentroidOffsetAndLength(long offset, long length) {}
+    public record CentroidOffsetAndLength(long offset, long length, float score) {}
 
     public interface CentroidIterator {
         boolean hasNext();
@@ -471,7 +471,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
-        int resetPostingsScorer(long offset) throws IOException;
+        int resetPostingsScorer(long offset, float score) throws IOException;
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

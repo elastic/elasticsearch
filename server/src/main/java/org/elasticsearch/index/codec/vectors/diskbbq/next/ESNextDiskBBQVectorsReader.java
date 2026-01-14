@@ -296,11 +296,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = neighborQueue.pop();
+                long centroidOrdAndScore = neighborQueue.popRaw();
+                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdAndScore);
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new CentroidOffsetAndLength(postingListOffset, postingListLength, score);
             }
         };
     }
@@ -402,17 +404,19 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = nextCentroid();
+                long centroidOrdAndScore = nextCentroid();
+                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdAndScore);
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new CentroidOffsetAndLength(postingListOffset, postingListLength, score);
             }
 
-            private int nextCentroid() throws IOException {
+            private long nextCentroid() throws IOException {
                 if (currentParentQueue.size() > 0) {
                     // return next centroid and maybe add a children from the current parent queue
-                    return neighborQueue.popAndAddRaw(currentParentQueue.popRaw());
+                    return neighborQueue.popRawAndAddRaw(currentParentQueue.popRaw());
                 } else if (parentsQueue.size() > 0) {
                     // current parent queue is empty, populate it again with the next parent
                     int pop = parentsQueue.pop();
@@ -432,7 +436,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     );
                     return nextCentroid();
                 } else {
-                    return neighborQueue.pop();
+                    return neighborQueue.popRaw();
                 }
             }
         };
@@ -545,7 +549,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
-        return new MemorySegmentPostingsVisitor(target, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
+        // TODO HACKIT globalCentroid isn't the real parent centroid
+        return new MemorySegmentPostingsVisitor(target, entry.globalCentroid(), quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
     }
 
     @Override
@@ -574,7 +579,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         int vectors;
         boolean quantized = false;
         float centroidDp;
-        final float[] centroid;
+        final float[] centroid, queryCentroid;
+        float centroidDistance;
         long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
 
@@ -589,6 +595,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
         MemorySegmentPostingsVisitor(
             float[] target,
+            float[] queryCentroid,
             ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
             IndexInput indexInput,
             FieldEntry entry,
@@ -601,6 +608,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             this.entry = entry;
             this.fieldInfo = fieldInfo;
             this.acceptDocs = acceptDocs;
+            this.queryCentroid = queryCentroid;
             centroid = new float[fieldInfo.getVectorDimension()];
             scratch = new float[target.length];
             final int discretizedDimensions = quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension());
@@ -608,7 +616,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             quantizedQueryScratch = new byte[quantEncoding.getQueryPackedLength(fieldInfo.getVectorDimension())];
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
-            quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
+            quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
@@ -619,15 +627,21 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         @Override
-        public int resetPostingsScorer(long offset) throws IOException {
+        public int resetPostingsScorer(long offset, float score) throws IOException {
             quantized = false;
             indexInput.seek(offset);
+            // TODO ASSYMETRIC READ
+            // READ IN THE CENTROID ORDINAL INTEGER
             indexInput.readFloats(centroid, 0, centroid.length);
+            // TODO ASYMMETRIC REMOVE
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
+            // TODO HACK asymmetric scoring
+            centroidDp = 0f;
             vectors = indexInput.readVInt();
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
+            centroidDistance = score - 1;
             return vectors;
         }
 
@@ -658,7 +672,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                        centroidDistance,
                         fieldInfo.getVectorSimilarityFunction(),
                         centroidDp,
                         correctionsLower[j],
@@ -731,9 +745,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                        centroidDistance,
                         fieldInfo.getVectorSimilarityFunction(),
-                        centroidDp,
+                        0f,
                         scores
                     );
                 }
@@ -759,9 +773,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                        centroidDistance,
                         fieldInfo.getVectorSimilarityFunction(),
-                        centroidDp,
+                        0f,
                         correctiveValues[0],
                         correctiveValues[1],
                         quantizedComponentSum,
@@ -781,11 +795,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         private void quantizeQueryIfNecessary() {
-            if (quantized == false) {
+            if (queryCorrections == null) {
                 assert fieldInfo.getVectorSimilarityFunction() != COSINE || VectorUtil.isUnitVector(target);
-                queryCorrections = quantizer.scalarQuantize(target, scratch, quantizationScratch, quantEncoding.queryBits(), centroid);
+                queryCorrections = quantizer.scalarQuantize(target, scratch, quantizationScratch, quantEncoding.queryBits(), queryCentroid);
                 quantEncoding.packQuery(quantizationScratch, quantizedQueryScratch);
-                quantized = true;
             }
         }
     }

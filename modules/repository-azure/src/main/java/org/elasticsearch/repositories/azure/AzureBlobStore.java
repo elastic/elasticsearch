@@ -1107,7 +1107,9 @@ public class AzureBlobStore implements BlobStore {
             Flux<ByteBuf> byteBufFlux = client.downloadWithResponse(range, downloadRetryOptions, requestConditions, false)
                 .flux()
                 .concatMap(response -> {
-                    eTagRef.set(response.getDeserializedHeaders().getETag());
+                    if (eTagRef.compareAndSet(null, response.getDeserializedHeaders().getETag()) == false) {
+                        assert eTagRef.get().equals(response.getDeserializedHeaders().getETag()) : "Got multiple, differing ETags?!";
+                    }
                     return response.getValue();
                 }) // it's important to use concatMap, since flatMap doesn't provide ordering
                    // guarantees and that's not fun to debug :(

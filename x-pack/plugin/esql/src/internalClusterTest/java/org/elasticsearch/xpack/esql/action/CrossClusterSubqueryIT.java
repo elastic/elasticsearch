@@ -493,7 +493,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithLookupJoin() {
+    public void testSubqueryWithLookupJoinInSubquery() {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -521,17 +521,26 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
         }
+    }
 
-        // lookup join in main query after subqueries is not supported yet, because there is remote index pattern and limit,
-        // refer to LookupJoin.checkRemoteJoin
-        // TODO remove the limit added for subqueries
+    public void testSubqueryWithLookupJoinInMainQuery() {
+        assumeTrue(
+            "Requires subquery in FROM command with implicit LIMIT removed",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+
+        // lookup join in main query after subqueries is not supported yet, as UnionAll is executed on the coordinating node
+        // TODO lookup join cannot be executed after UnionAll, either rewrite the query or wait until this limitation is lifted
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
             |  LOOKUP JOIN values_lookup on v == lookup_key
             """, randomBoolean()));
         assertThat(
             ex.getMessage(),
-            containsString("LOOKUP JOIN with remote indices can't be executed after [FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)]")
+            containsString("LOOKUP JOIN with remote indices can't be executed after [logs-*,(FROM c*:logs-*), (FROM r*:logs-*)]")
         );
     }
 
@@ -567,28 +576,41 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
         }
+    }
 
-        // inline stats in main query after subqueries is not supported yet, because there is limit
-        // TODO remove the limit added for subqueries
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+    public void testSubqueryWithInlineStatsInMainQuery() {
+        assumeTrue(
+            "Requires subquery in FROM command with implicit LIMIT removed",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        // inline stats in main query after subqueries is supported
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
-            |  INLINE STATS sum = sum(v)
-            """, randomBoolean()));
-        String errorMessage = ex.getMessage();
-        assertThat(
-            errorMessage,
-            containsString(
-                "INLINE STATS after subquery is not supported, "
-                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-            )
-        );
-        assertThat(
-            errorMessage,
-            containsString(
-                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS sum = sum(v)] after [FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)]"
-            )
-        );
+            | INLINE STATS sum = sum(v) BY tag
+            | DROP const, id
+            | SORT tag, v
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("tag", "sum", "v"));
+            int tagIndex = columns.indexOf("tag");
+            int vIndex = columns.indexOf("v");
+            int sumIndex = columns.indexOf("sum");
+            List<List<Object>> values = getValuesList(resp);
+            for (int i = 0; i < values.size(); i++) {
+                var row = values.get(i);
+                if (i < 10) {
+                    assertEquals(45L, row.get(sumIndex));
+                    assertEquals("local", row.get(tagIndex));
+                    assertEquals((long) i, row.get(vIndex));
+                } else {
+                    assertEquals(570L, row.get(sumIndex));
+                    assertEquals("remote", row.get(tagIndex));
+                }
+            }
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testSubqueryWithFilterInRequest() {

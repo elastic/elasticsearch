@@ -104,7 +104,14 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker, fieldCapsCalls.get());
+        return Objects.hash(
+            planningMarker,
+            parsingMarker,
+            preAnalysisMarker,
+            dependencyResolutionMarker,
+            analysisMarker,
+            fieldCapsCalls.get()
+        );
     }
 
     @Override

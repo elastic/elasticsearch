@@ -32,16 +32,6 @@ public final class SyntheticIdField extends Field {
         public boolean incrementToken() {
             return false;
         }
-
-        @Override
-        public void end() {
-            // The underlying attributes are null, hence we just do a no-op
-        }
-
-        @Override
-        public void reset() {
-            clearAttributes();
-        }
     };
 
     private static final FieldType TYPE;
@@ -72,7 +62,11 @@ public final class SyntheticIdField extends Field {
 
     @Override
     public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
-        return EMPTY_TOKEN_STREAM;
+        if (reuse != null) {
+            assert reuse instanceof EmptyTokenStream : reuse;
+            return reuse; // will be reset before reuse
+        }
+        return new EmptyTokenStream();
     }
 
     @Override
@@ -86,5 +80,22 @@ public final class SyntheticIdField extends Field {
             && SyntheticIdField.ENABLED_ATTRIBUTE_VALUE.equals(attributes.get(ENABLED_ATTRIBUTE_KEY))
             && TSDBSyntheticIdPostingsFormat.FORMAT_NAME.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY))
             && TSDBSyntheticIdPostingsFormat.SUFFIX.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY));
+    }
+
+    static class EmptyTokenStream extends TokenStream {
+        @Override
+        public boolean incrementToken() {
+            return false;
+        }
+
+        @Override
+        public void end() {
+            // The underlying attributes are null, hence we just do a no-op
+        }
+
+        @Override
+        public void reset() {
+            clearAttributes();
+        }
     }
 }

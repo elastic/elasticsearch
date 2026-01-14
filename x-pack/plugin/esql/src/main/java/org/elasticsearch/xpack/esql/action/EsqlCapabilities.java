@@ -1296,6 +1296,15 @@ public class EsqlCapabilities {
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
 
         /**
+         * Fix for multi-value constant propagation after GROUP BY.
+         * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
+         * it into single values. Propagating the original multi-value literal after the Aggregate would
+         * incorrectly treat the field as still being multi-valued.
+         * https://github.com/elastic/elasticsearch/issues/135926
+         */
+        FIX_STATS_MV_CONSTANT_FOLD,
+
+        /**
          * Fix for circular reference in alias chains during PushDownEnrich and aggregate deduplication.
          * Prevents "Potential cycle detected" errors when aliases reference each other.
          * https://github.com/elastic/elasticsearch/issues/138346

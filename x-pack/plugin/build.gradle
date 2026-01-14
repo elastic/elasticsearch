@@ -122,6 +122,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test update model alias on pytorch model to undeployed model", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test update deployment with low priority to multiple allocations", "Low priority deployments must have one allocation")
   task.skipTest("ml/job_cat_apis/Test cat anomaly detector jobs", "Flush API is deprecated")
   task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "Flush API is deprecated")
   task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")

@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
@@ -30,7 +28,6 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -40,13 +37,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionCreator;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -60,7 +55,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -69,11 +63,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.chatCompletionProviderHasTopKParameter;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getEmbeddingsMaxBatchSize;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.providerAllowsTaskType;
 
 /**
  * TODO we should remove AmazonBedrockService's dependency on SenderService. Bedrock leverages its own SDK with handles sending requests
@@ -98,83 +89,7 @@ public class AmazonBedrockService extends SenderService {
         InputType.INTERNAL_SEARCH,
         InputType.UNSPECIFIED
     );
-
-    private static final Map<TaskType, AmazonBedrockModelCreator> MODEL_CREATORS = Map.of(
-        TaskType.TEXT_EMBEDDING,
-        new AmazonBedrockModelCreator() {
-            @Override
-            public AmazonBedrockEmbeddingsModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                @Nullable Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                var model = new AmazonBedrockEmbeddingsModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
-                checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
-                checkTaskSettingsForTextEmbeddingModel(model);
-                return model;
-            }
-
-            @Override
-            public AmazonBedrockEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                var model = new AmazonBedrockEmbeddingsModel(config, secrets);
-                checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
-                checkTaskSettingsForTextEmbeddingModel(model);
-                return model;
-            }
-        },
-        TaskType.COMPLETION,
-        new AmazonBedrockModelCreator() {
-            @Override
-            public AmazonBedrockChatCompletionModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                @Nullable ChunkingSettings chunkingSettings,
-                @Nullable Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                var model = new AmazonBedrockChatCompletionModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    context
-                );
-                checkProviderForTask(TaskType.COMPLETION, model.provider());
-                checkChatCompletionProviderForTopKParameter(model);
-                return model;
-            }
-
-            @Override
-            public AmazonBedrockChatCompletionModel createFromModelConfigurationsAndSecrets(
-                ModelConfigurations config,
-                ModelSecrets secrets
-            ) {
-                var model = new AmazonBedrockChatCompletionModel(config, secrets);
-                checkProviderForTask(TaskType.COMPLETION, model.provider());
-                checkChatCompletionProviderForTopKParameter(model);
-                return model;
-            }
-        }
-    );
+    private static final AmazonBedrockModelFactory MODEL_FACTORY = new AmazonBedrockModelFactory();
 
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
@@ -329,16 +244,7 @@ public class AmazonBedrockService extends SenderService {
 
     @Override
     public AmazonBedrockModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var creator = MODEL_CREATORS.get(config.getTaskType());
-        if (creator == null) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -381,11 +287,7 @@ public class AmazonBedrockService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var creator = MODEL_CREATORS.get(taskType);
-        if (creator == null) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return creator.createFromMaps(
+        return MODEL_FACTORY.createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -430,38 +332,6 @@ public class AmazonBedrockService extends SenderService {
             return new AmazonBedrockEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
             throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
-        }
-    }
-
-    private static void checkProviderForTask(TaskType taskType, AmazonBedrockProvider provider) {
-        if (providerAllowsTaskType(provider, taskType) == false) {
-            throw new ElasticsearchStatusException(
-                Strings.format("The [%s] task type for provider [%s] is not available", taskType, provider),
-                RestStatus.BAD_REQUEST
-            );
-        }
-    }
-
-    private static void checkTaskSettingsForTextEmbeddingModel(AmazonBedrockEmbeddingsModel model) {
-        if (model.provider() != AmazonBedrockProvider.COHERE && model.getTaskSettings().truncation() != null) {
-            throw new ElasticsearchStatusException(
-                "The [{}] task type for provider [{}] does not allow [truncate] field",
-                RestStatus.BAD_REQUEST,
-                TaskType.TEXT_EMBEDDING,
-                model.provider()
-            );
-        }
-    }
-
-    private static void checkChatCompletionProviderForTopKParameter(AmazonBedrockChatCompletionModel model) {
-        var taskSettings = model.getTaskSettings();
-        if (taskSettings.topK() != null) {
-            if (chatCompletionProviderHasTopKParameter(model.provider()) == false) {
-                throw new ElasticsearchStatusException(
-                    Strings.format("The [%s] task parameter is not available for provider [%s]", TOP_K_FIELD, model.provider()),
-                    RestStatus.BAD_REQUEST
-                );
-            }
         }
     }
 
@@ -546,20 +416,5 @@ public class AmazonBedrockService extends SenderService {
                     .build();
             }
         );
-    }
-
-    private interface AmazonBedrockModelCreator extends ModelCreator {
-        AmazonBedrockModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            @Nullable ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        );
-
-        AmazonBedrockModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

@@ -13,14 +13,14 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ai21.Ai21ModelCreator;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
 /**
- * Creator class for Ai21ChatCompletionModel instances.
+ * Creates {@link Ai21ChatCompletionModel} instances from config maps or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class Ai21ChatCompletionModelCreator implements Ai21ModelCreator {
+public class Ai21ChatCompletionModelCreator implements ModelCreator<Ai21ChatCompletionModel> {
     @Override
     public Ai21ChatCompletionModel createFromMaps(
         String inferenceId,

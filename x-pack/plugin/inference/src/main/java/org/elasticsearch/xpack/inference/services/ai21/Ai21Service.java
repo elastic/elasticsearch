@@ -75,6 +75,7 @@ public class Ai21Service extends SenderService {
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
     );
+    private static final Ai21ModelFactory MODEL_FACTORY = new Ai21ModelFactory();
 
     public Ai21Service(
         HttpRequestSender.Factory factory,
@@ -209,7 +210,7 @@ public class Ai21Service extends SenderService {
 
     @Override
     public Ai21Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return Ai21ModelFactory.createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -237,7 +238,7 @@ public class Ai21Service extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return Ai21ModelFactory.createFromMaps(inferenceId, taskType, NAME, serviceSettings, null, null, secretSettings, context);
+        return MODEL_FACTORY.createFromMaps(inferenceId, taskType, NAME, serviceSettings, null, null, secretSettings, context);
     }
 
     private Ai21Model createModelFromPersistent(

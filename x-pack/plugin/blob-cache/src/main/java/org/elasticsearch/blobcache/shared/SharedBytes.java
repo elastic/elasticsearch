@@ -251,6 +251,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @throws IOException on failure
      */
     public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
+        assert buffer.limit() % PAGE_SIZE == 0 : "expecting buffer with capacity multiple of PAGE_SIZE";
         if (buffer.position() % PAGE_SIZE != 0) {
             assert buffer.hasRemaining();
             // ensure the write is aligned on 4k boundaries (= page size)

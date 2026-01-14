@@ -228,7 +228,7 @@ abstract class FetchPhaseDocsIterator {
     void iterateAsync(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
-        int[] docIds,
+        int[] docIds,  // in score order
         FetchPhaseResponseChunk.Writer chunkWriter,
         int chunkSize,
         RefCountingListener chunkCompletionRefs,
@@ -244,17 +244,6 @@ abstract class FetchPhaseDocsIterator {
             return;
         }
 
-        // docIds is in score order (top docs order). We sort by docId only for efficient Lucene access,
-        // but we MUST preserve score-order positions for correct streaming sequence numbers.
-        DocIdToIndex[] sortedDocs = new DocIdToIndex[docIds.length];
-        for (int i = 0; i < docIds.length; i++) {
-            sortedDocs[i] = new DocIdToIndex(docIds[i], i); // index == score-position
-        }
-        Arrays.sort(sortedDocs);
-
-        // Pre-compute all docs per leaf
-        Map<Integer, int[]> docsInLeafByOrd = precomputeDocsPerLeaf(sortedDocs, indexReader);
-
         // Semaphore controls backpressure, each in-flight chunk holds one permit.
         // When maxInFlightChunks are in flight, we block until an ACK releases a permit.
         Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
@@ -264,36 +253,12 @@ abstract class FetchPhaseDocsIterator {
         ShardId shardId = shardTarget.getShardId();
         int totalDocs = docIds.length;
 
-        // Leaf reader state - maintained across iterations for efficiency.
-        // Only changes when we cross into a new segment.
-        int currentLeafOrd = -1;
-        LeafReaderContext currentCtx = null;
-
-        // Fetch all hits in docID order, and place them into an array keyed by score-position.
-        // Guarantees that subsequent chunking/sequence numbers are contiguous and correct.
-        final SearchHit[] hitsByScorePos = new SearchHit[totalDocs];
-
         try {
-            for (int i = 0; i < sortedDocs.length; i++) {
-                int docId = sortedDocs[i].docId;
-                int originalIndex = sortedDocs[i].index; // score-position
-
-                int leafOrd = ReaderUtil.subIndex(docId, indexReader.leaves());
-                if (leafOrd != currentLeafOrd) {
-                    currentLeafOrd = leafOrd;
-                    currentCtx = indexReader.leaves().get(leafOrd);
-                    // Use pre-computed array with all docs for this leaf
-                    setNextReader(currentCtx, docsInLeafByOrd.get(leafOrd));
-                }
-                hitsByScorePos[originalIndex] = nextDoc(docId);
-            }
-
-            // Stream chunks in score order. sequenceStart is the score-position offset of the chunk.
+            // Process in SCORE-ORDER chunks (not all at once)
             for (int chunkStart = 0; chunkStart < totalDocs; chunkStart += chunkSize) {
                 int chunkEnd = Math.min(chunkStart + chunkSize, totalDocs);
                 boolean isLast = (chunkEnd == totalDocs);
 
-                // Check cancellation at chunk boundaries for responsive task cancellation
                 if (isCancelled.get()) {
                     throw new TaskCancelledException("cancelled");
                 }
@@ -304,12 +269,15 @@ abstract class FetchPhaseDocsIterator {
                     throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
                 }
 
-                SearchHit[] orderedHits = Arrays.copyOfRange(hitsByScorePos, chunkStart, chunkEnd);
-                SearchHits chunk = createSearchHits(Arrays.asList(orderedHits), totalHits, maxScore);
-                long sequenceStart = chunkStart;
+                SearchHit[] chunkHits = fetchChunkInScoreOrder(
+                    indexReader,
+                    docIds,
+                    chunkStart,
+                    chunkEnd
+                );
 
-                // Transfer ownership of the hits in this chunk to SearchHits to avoid leaks.
-                Arrays.fill(hitsByScorePos, chunkStart, chunkEnd, null);
+                SearchHits chunk = createSearchHits(Arrays.asList(chunkHits), totalHits, maxScore);
+                long sequenceStart = chunkStart;
 
                 if (isLast) {
                     // Hold back last chunk - caller sends it after all ACKs received
@@ -342,9 +310,7 @@ abstract class FetchPhaseDocsIterator {
             // Final failure check after all chunks sent
             Throwable failure = sendFailure.get();
             if (failure != null) {
-                if (lastChunk != null) {
-                    lastChunk.decRef();
-                }
+                if (lastChunk != null) lastChunk.decRef();
                 throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
             }
 
@@ -352,13 +318,47 @@ abstract class FetchPhaseDocsIterator {
             listener.onResponse(new IterateResult(new SearchHit[0], lastChunk, lastChunkSeqStart));
         } catch (Exception e) {
             // Clean up last chunk on any failure
-            if (lastChunk != null) {
-                lastChunk.decRef();
-            }
-            // Release any hits that were created but never transferred into a SearchHits owner.
-            purgeSearchHits(hitsByScorePos);
+            if (lastChunk != null) lastChunk.decRef();
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Fetches only the documents for a single chunk, returning them in score order.
+     * Internally sorts by docId for efficient Lucene access within the chunk.
+     */
+    private SearchHit[] fetchChunkInScoreOrder(
+        IndexReader indexReader,
+        int[] allDocIds,
+        int start,
+        int end
+    ) throws IOException {
+        int chunkSize = end - start;
+
+        // docIds is in score order (top docs order). We sort by docId only for efficient Lucene access,
+        // but we have preserve score-order positions for correct streaming sequence numbers.
+        DocIdToIndex[] docs = new DocIdToIndex[chunkSize];
+        for (int i = 0; i < chunkSize; i++) {
+            docs[i] = new DocIdToIndex(allDocIds[start + i], i);
+        }
+        Arrays.sort(docs);
+
+        // Pre-compute all docs per leaf
+        Map<Integer, int[]> docsInLeafByOrd = precomputeDocsPerLeaf(docs, indexReader);
+
+        // Fetch in docId order, place in score-order position
+        SearchHit[] hits = new SearchHit[chunkSize];
+        int currentLeafOrd = -1;
+        for (DocIdToIndex doc : docs) {
+            int leafOrd = ReaderUtil.subIndex(doc.docId, indexReader.leaves());
+            if (leafOrd != currentLeafOrd) {
+                currentLeafOrd = leafOrd;
+                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+                setNextReader(ctx, docsInLeafByOrd.get(leafOrd));
+            }
+            hits[doc.index] = nextDoc(doc.docId);
+        }
+        return hits;
     }
 
     /**

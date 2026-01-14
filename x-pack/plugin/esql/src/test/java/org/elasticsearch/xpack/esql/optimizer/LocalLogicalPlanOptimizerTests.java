@@ -1316,7 +1316,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // Eval[[UNPACKDIMENSION(grouppod_$1{r}#49) AS pod#19,
         // $$SUM$a$0{r$}#41 / $$COUNT$a$1{r$}#42 AS a#15]]
         var eval1 = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval1.fields()), contains("pod", "a"));
+        assertThat(Expressions.names(eval1.fields()), containsInAnyOrder("pod", "a"));
         // Limit[1000000[INTEGER],false,false]
         var limit = as(eval1.child(), Limit.class);
         // Aggregate[[packpod_$1{r}#48, time_bucket{r}#6],

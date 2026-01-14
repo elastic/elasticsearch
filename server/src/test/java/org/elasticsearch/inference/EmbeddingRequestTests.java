@@ -21,7 +21,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 
 public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<EmbeddingRequest> {
@@ -40,6 +43,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -60,6 +64,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -78,6 +83,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -106,6 +112,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -140,6 +147,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -173,6 +181,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -189,6 +198,46 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.UNSPECIFIED));
+            assertThat(request.taskSettings(), anEmptyMap());
+        }
+    }
+
+    public void testParser_withTaskSettings() throws IOException {
+        var requestJson = """
+            {
+                "input": "some text input",
+                "task_settings": {
+                  "field_one": "value_one",
+                  "field_two": 123
+                }
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = EmbeddingRequest.PARSER.apply(parser, null);
+            var expectedInputs = List.of(
+                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input")))
+            );
+            assertThat(request.inputs(), is(expectedInputs));
+            assertThat(request.inputType(), is(InputType.UNSPECIFIED));
+            assertThat(request.taskSettings(), is(Map.of("field_one", "value_one", "field_two", 123)));
+        }
+    }
+
+    public void testParser_withEmptyTaskSettings() throws IOException {
+        var requestJson = """
+            {
+                "input": "some text input",
+                "task_settings": {}
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = EmbeddingRequest.PARSER.apply(parser, null);
+            var expectedInputs = List.of(
+                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input")))
+            );
+            assertThat(request.inputs(), is(expectedInputs));
+            assertThat(request.inputType(), is(InputType.UNSPECIFIED));
+            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -203,7 +252,11 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public static EmbeddingRequest createRandom() {
-        return new EmbeddingRequest(randomEmbeddingContents(), randomFrom(InputType.values()));
+        return new EmbeddingRequest(
+            randomEmbeddingContents(),
+            randomFrom(InputType.values()),
+            Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))
+        );
     }
 
     private static List<InferenceStringGroup> randomEmbeddingContents() {
@@ -216,21 +269,27 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
 
     @Override
     protected EmbeddingRequest mutateInstance(EmbeddingRequest instance) throws IOException {
-        if (randomBoolean()) {
-            var embeddingContents = instance.inputs();
-            return new EmbeddingRequest(
-                randomValueOtherThan(embeddingContents, EmbeddingRequestTests::randomEmbeddingContents),
-                instance.inputType()
+        var embeddingContents = instance.inputs();
+        var inputType = instance.inputType();
+        var taskSettings = instance.taskSettings();
+        switch (randomInt(2)) {
+            case 0 -> embeddingContents = randomValueOtherThan(embeddingContents, EmbeddingRequestTests::randomEmbeddingContents);
+            case 1 -> inputType = randomValueOtherThan(inputType, () -> randomFrom(InputType.values()));
+            case 2 -> taskSettings = randomValueOtherThan(
+                taskSettings,
+                () -> Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))
             );
-        } else {
-            InputType inputType = instance.inputType();
-            return new EmbeddingRequest(instance.inputs(), randomValueOtherThan(inputType, () -> randomFrom(InputType.values())));
         }
+        return new EmbeddingRequest(embeddingContents, inputType, taskSettings);
     }
 
     @Override
     protected EmbeddingRequest mutateInstanceForVersion(EmbeddingRequest instance, TransportVersion version) {
-        return instance;
+        if (version.supports(JINA_AI_EMBEDDING_TASK_ADDED)) {
+            return instance;
+        } else {
+            return new EmbeddingRequest(instance.inputs(), instance.inputType(), Map.of());
+        }
     }
 
     @Override

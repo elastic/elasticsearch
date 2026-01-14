@@ -235,13 +235,13 @@ label_to_areas:
 # Product-specific label blockers (optional)
 # Maps product IDs to lists of labels that prevent changelog creation for that product
 # If you run the changelog add command with the --prs option and a PR has any of these labels, the changelog is not created
-add_blockers:
-  elasticsearch,cloud-serverless:
-    - ">non-issue"
-    - ">test"
-    - ">refactoring"
-    - ":Delivery/Build"
-    - ":Delivery/Tooling"
+# add_blockers:
+#   elasticsearch,cloud-serverless:
+#     - ">non-issue"
+#     - ">test"
+#     - ">refactoring"
+#     - ":Delivery/Build"
+#     - ":Delivery/Tooling"
 
 render_blockers:
   cloud-serverless:

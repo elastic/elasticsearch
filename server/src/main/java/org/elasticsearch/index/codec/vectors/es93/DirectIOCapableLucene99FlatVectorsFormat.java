@@ -162,8 +162,8 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
                 return vectorValues;
             }
             FieldInfo info = state.fieldInfos.fieldInfo(field);
-            return vectorValues instanceof HasIndexSlice
-                ? new RescorerOffHeapVectorValuesWithSlice(vectorValues, info.getVectorSimilarityFunction(), vectorScorer)
+            return vectorValues instanceof HasIndexSlice slicer
+                ? new SliceableRescorerOffHeapVectorValues(vectorValues, slicer, info.getVectorSimilarityFunction(), vectorScorer)
                 : new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer);
         }
 
@@ -247,25 +247,25 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
     }
 
-    static class RescorerOffHeapVectorValuesWithSlice extends RescorerOffHeapVectorValues implements HasIndexSlice {
+    static class SliceableRescorerOffHeapVectorValues extends RescorerOffHeapVectorValues implements HasIndexSlice {
         private final HasIndexSlice slicer;
 
-        RescorerOffHeapVectorValuesWithSlice(
+        SliceableRescorerOffHeapVectorValues(
             FloatVectorValues inner,
+            HasIndexSlice slicer,
             VectorSimilarityFunction similarityFunction,
             FlatVectorsScorer scorer
         ) {
             super(inner, similarityFunction, scorer);
-            if (inner instanceof HasIndexSlice slicer) {
-                this.slicer = slicer;
-            } else {
-                throw new IllegalArgumentException("Must be of type HasIndexSlice");
-            }
+            this.slicer = slicer;
         }
 
         @Override
         public RescorerOffHeapVectorValues copy() throws IOException {
-            return new RescorerOffHeapVectorValuesWithSlice(inner.copy(), similarityFunction, scorer);
+            assert slicer instanceof RescorerOffHeapVectorValues;
+            var innerCopy = inner.copy();
+            var slicerCopy = (HasIndexSlice) innerCopy;
+            return new SliceableRescorerOffHeapVectorValues(innerCopy, slicerCopy, similarityFunction, scorer);
         }
 
         @Override

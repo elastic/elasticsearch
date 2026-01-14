@@ -12,7 +12,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.NavigableSet;

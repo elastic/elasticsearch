@@ -285,6 +285,25 @@ public class SearchTransportService {
         );
     }
 
+    /**
+     * Sends a fetch request to retrieve documents from a data node.
+     *
+     * <p>This method decides between two fetch strategies:
+     * <ul>
+     *   <li><b>Chunked fetch</b>: Results are streamed back in chunks.</li>
+     *   <li><b>Traditional fetch</b>: All results returned in a single response.</li>
+     * </ul>
+     *
+     * <p>For chunked fetch, the request is routed through {@link TransportFetchPhaseCoordinationAction}
+     * on the local (coordinator) node, which registers a response stream before forwarding to the data node.
+     * The data node then streams chunks back via {@link TransportFetchPhaseResponseChunkAction}.
+     *
+     * @param connection      the transport connection to the data node
+     * @param shardFetchRequest the fetch request containing doc IDs to retrieve
+     * @param context         the search context for this async action
+     * @param shardTarget     identifies the shard being fetched from
+     * @param listener        callback for the fetch result
+     */
     public void sendExecuteFetch(
         Transport.Connection connection,
         ShardFetchSearchRequest shardFetchRequest,
@@ -300,8 +319,8 @@ public class SearchTransportService {
         boolean isScrollOrReindex = context.getRequest().scroll() != null
             || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
 
-        if (logger.isTraceEnabled()) {
-            logger.info(
+        if (logger.isDebugEnabled()) {
+            logger.debug(
                 "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
                     + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
                     + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
@@ -316,18 +335,26 @@ public class SearchTransportService {
             );
         }
 
+        // Determine if chunked fetch can be used for this request, checking
+        // 1. Feature flag enabled
+        // 2. Data node supports CHUNKED_FETCH_PHASE transport version
+        // 3. Not a cross-cluster search (CCS)
+        // 4. Not a scroll or reindex operation
         if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
+            // Route through local TransportFetchPhaseCoordinationAction
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
 
-            // Capture headers from current ThreadContext
+            // Capture ThreadContext headers (security credentials etc.) to propagate
+            // through the local coordination action. ThreadContext is thread-local and would be
+            // lost when the coordination action executes on a different thread/executor.
+            // This is required for authentication/authorization where applied.
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
-            logger.info("sendExecuteFetch ThreadContext headers: {}", threadContext.getHeaders().keySet());
 
+            // Extract index info for IndicesRequest implementation - required for security authorization
             final var shardReq = shardFetchRequest.getShardSearchRequest();
-            final String concreteIndex = shardReq.shardId().getIndexName();
-            final String[] indices = new String[] { concreteIndex };
+            final String[] indices = new String[] { shardReq.shardId().getIndexName() };
             final var indicesOptions = shardReq.indicesOptions();
 
             transportService.sendChildRequest(
@@ -351,7 +378,6 @@ public class SearchTransportService {
         } else {
             sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);
         }
-
     }
 
     public void sendExecuteFetchScroll(
@@ -621,11 +647,14 @@ public class SearchTransportService {
             namedWriteableRegistry
         );
 
+        /**
+         * Handler for fetch requests on the data node side.
+         *
+         * <p>When chunked fetch is used, creates a {@link FetchPhaseResponseChunk.Writer} that
+         * sends chunks back to the coordinator via {@link TransportFetchPhaseResponseChunkAction}.
+         * The writer preserves the ThreadContext to maintain security headers across async chunk sends.
+         */
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-
-            ThreadContext threadContext3 = transportService.getThreadPool().getThreadContext();
-            logger.info("DataNode handler ThreadContext headers: {}", threadContext3.getHeaders().keySet());
-
             boolean fetchPhaseChunkedEnabled = searchService.fetchPhaseChunked();
             boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
                 && fetchSearchReq.getCoordinatingNode() != null;
@@ -651,8 +680,8 @@ public class SearchTransportService {
                 }
             }
 
-            if (logger.isTraceEnabled()) {
-                logger.info(
+            if (logger.isDebugEnabled()) {
+                logger.debug(
                     "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
                         + "canConnectToCoordinator={}, channelVersion={}",
                     fetchPhaseChunkedEnabled,
@@ -665,22 +694,29 @@ public class SearchTransportService {
 
             FetchPhaseResponseChunk.Writer chunkWriter = null;
 
-            // Only use chunked fetch if all conditions are met
+            // Decides whether to use chunked or traditional fetch based on:
+            // 1. Feature flag enabled on this node
+            // 2. Channel transport version supports chunked fetch
+            // 3. Request includes coordinator node info (set by coordinator when using chunked path)
+            // 4. Can establish connection back to coordinator (fails for CCS scenarios)
+            // Double checking here, already checking on the coord side, to ensure compatibility even if coordinator and data node
+            // have different feature flag states or versions.
             if (fetchPhaseChunkedEnabled && versionSupported && canConnectToCoordinator && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 
                 final var shardReq = fetchSearchReq.getShardSearchRequest();
                 assert shardReq != null;
-                final String concreteIndex = shardReq.shardId().getIndexName();
-                final String[] indices = new String[] { concreteIndex };
+                final String[] indices = new String[] { shardReq.shardId().getIndexName() };
                 final IndicesOptions indicesOptions = shardReq.indicesOptions();
 
-                /// Capture the current ThreadContext to preserve authentication headers
+                // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
                     .getThreadContext()
                     .newRestorableContext(true);
 
+                // Create chunk writer that sends each chunk to the coordinator's TransportFetchPhaseResponseChunkAction endpoint.
+                // The coordinator accumulates chunks in a FetchPhaseResponseStream and sends ACKs.
                 chunkWriter = (responseChunk, listener) -> {
                     // Restore the ThreadContext before sending the chunk
                     try (ThreadContext.StoredContext ignored = contextSupplier.get()) {

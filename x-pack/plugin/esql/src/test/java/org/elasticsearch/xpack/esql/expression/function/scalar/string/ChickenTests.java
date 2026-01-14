@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,7 +25,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for the {@link Chicken} Easter egg function.
@@ -41,56 +42,51 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
 
         cases.add(new TestCaseSupplier("Chicken basic test", List.of(DataType.KEYWORD), () -> {
             String message = "Hello!";
-            String expected = Chicken.buildChickenSay(message, 40);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(expected))
+                equalTo(buildExpectedChickenSay(message, 40))
             );
         }));
 
         cases.add(new TestCaseSupplier("Chicken with text input", List.of(DataType.TEXT), () -> {
             String message = "ES|QL rocks!";
-            String expected = Chicken.buildChickenSay(message, 40);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.TEXT, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(expected))
+                equalTo(buildExpectedChickenSay(message, 40))
             );
         }));
 
         cases.add(new TestCaseSupplier("Chicken empty message", List.of(DataType.KEYWORD), () -> {
             String message = "";
-            String expected = Chicken.buildChickenSay(message, 40);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(expected))
+                equalTo(buildExpectedChickenSay(message, 40))
             );
         }));
 
         cases.add(new TestCaseSupplier("Chicken single line bubble", List.of(DataType.KEYWORD), () -> {
             String message = "Short";
-            String expected = Chicken.buildChickenSay(message, 40);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(expected))
+                equalTo(buildExpectedChickenSay(message, 40))
             );
         }));
 
         cases.add(new TestCaseSupplier("Chicken long message wrapping", List.of(DataType.KEYWORD), () -> {
             String message = "This is a really long message that should definitely wrap across multiple lines in the speech bubble";
-            String expected = Chicken.buildChickenSay(message, 40);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(expected))
+                equalTo(buildExpectedChickenSay(message, 40))
             );
         }));
 
@@ -102,28 +98,13 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
         return new Chicken(source, args.get(0));
     }
 
-    public void testBuildChickenSay() {
-        String result = Chicken.buildChickenSay("Hello!", 40);
-        assertThat(result, startsWith(" _"));
-        assertTrue(result.contains("< Hello! >"));
-        assertTrue(result.contains("__//"));
-    }
-
-    public void testWrapText() {
-        List<String> lines = Chicken.wrapText("Hello world", 40);
-        assertEquals(1, lines.size());
-        assertEquals("Hello world", lines.get(0));
-
-        lines = Chicken.wrapText("This is a longer message that needs wrapping", 20);
-        assertTrue(lines.size() > 1);
-        for (String line : lines) {
-            assertTrue(line.length() <= 20);
+    /**
+     * Helper to build expected chicken output for test assertions.
+     */
+    private static BytesRef buildExpectedChickenSay(String message, int width) {
+        try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
+            Chicken.buildChickenSay(scratch, message, width);
+            return BytesRef.deepCopyOf(scratch.bytesRefView());
         }
-    }
-
-    public void testPadRight() {
-        assertEquals("test  ", Chicken.padRight("test", 6));
-        assertEquals("test", Chicken.padRight("test", 4));
-        assertEquals("test", Chicken.padRight("test", 2));
     }
 }

@@ -91,11 +91,12 @@ required_capability: ts_command_v0
 TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
  | STATS avg = AVG(to_tdigest(responseTime)) 
+ | EVAL avg = ROUND(avg, 7)
  | KEEP avg
 ;
 
-min:double
-2.17E-4
+avg:double
+0.0993245
 ;
 
 // -----------------------------------------

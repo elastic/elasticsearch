@@ -783,6 +783,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             .removeIf(
                 entry -> entry.getKey().equalsIgnoreCase("authorization")
                     || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
+                    || entry.getKey().equalsIgnoreCase("es-secondary-x-client-authentication")
                     || entry.getKey().equalsIgnoreCase("ES-Client-Authentication")
                     || entry.getKey().equalsIgnoreCase("X-Client-Authentication")
             );

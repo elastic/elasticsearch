@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -359,5 +360,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } else {
             return between(1, 16 * 1024);
         }
+    }
+
+    // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
+    protected final String byteRefBlockHashSize() {
+        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
+            return "213112b";
+        }
+        return "392b";
     }
 }

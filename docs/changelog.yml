@@ -235,49 +235,49 @@ label_to_areas:
 # Product-specific label blockers (optional)
 # Maps product IDs to lists of labels that prevent changelog creation for that product
 # If you run the changelog add command with the --prs option and a PR has any of these labels, the changelog is not created
-# add_blockers:
-#   elasticsearch,cloud-serverless:
-#     - ">non-issue"
-#     - ">test"
-#     - ">refactoring"
-#     - ":Delivery/Build"
-#     - ":Delivery/Tooling"
+add_blockers:
+  elasticsearch,cloud-serverless:
+    - ">non-issue"
+    - ">test"
+    - ">refactoring"
+    - ":Delivery/Build"
+    - ":Delivery/Tooling"
 
-render_blockers:
-  cloud-serverless:
-    areas:
-      - Allocation
-      - Audit
-      - Authentication
-      - Autoscaling
-      - CCR
-      - CCS
-      - "Cluster Coordination"
-      - Codec
-      - "Discovery-Plugins"
-      - Engine
-      - FIPS
-      - Health
-      - "ILM+SLM"
-      - "IdentityProvider"
-      - "Infra/CLI"
-      - "Circuit Breakers"
-      - "Infra/Core"
-      - "Infra/Entitlements"
-      - "Infra/Logging"
-      - "Infra/Metrics"
-      - "Infra/Node Lifecycle"
-      - "Infra/Plugins"
-      - "Infra/Transport API"
-      - License
-      - Monitoring
-      - Packaging
-      - Searchable Snapshots
-      - "Snapshot/Restore"
-      - Stats
-      - Watcher
-    types:
-      - docs
-  elasticsearch:
-    types:
-      - docs
+# render_blockers:
+#   cloud-serverless:
+#     areas:
+#       - Allocation
+#       - Audit
+#       - Authentication
+#       - Autoscaling
+#       - CCR
+#       - CCS
+#       - "Cluster Coordination"
+#       - Codec
+#       - "Discovery-Plugins"
+#       - Engine
+#       - FIPS
+#       - Health
+#       - "ILM+SLM"
+#       - "IdentityProvider"
+#       - "Infra/CLI"
+#       - "Circuit Breakers"
+#       - "Infra/Core"
+#       - "Infra/Entitlements"
+#       - "Infra/Logging"
+#       - "Infra/Metrics"
+#       - "Infra/Node Lifecycle"
+#       - "Infra/Plugins"
+#       - "Infra/Transport API"
+#       - License
+#       - Monitoring
+#       - Packaging
+#       - Searchable Snapshots
+#       - "Snapshot/Restore"
+#       - Stats
+#       - Watcher
+#     types:
+#       - docs
+#   elasticsearch:
+#     types:
+#       - docs

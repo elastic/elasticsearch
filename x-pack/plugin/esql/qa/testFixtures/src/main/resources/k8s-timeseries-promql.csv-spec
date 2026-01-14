@@ -3,7 +3,7 @@
 // This makes it easy to verify that PromQL and TS produce the same results for the same functionality where applicable
 // and helps to ensure we have the same test coverage for PromQL vs TS|STATS.
 promql_start_end_step
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
   sum(avg_over_time(network.cost[5m]))
 );
@@ -13,7 +13,7 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 ;
 
 no_parentheses
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" sum(avg_over_time(network.cost[5m]));
 
 sum(avg_over_time(network.cost[5m])):double | step:date
@@ -21,7 +21,7 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 ;
 
 not_equals_filter
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | SORT cluster;
 
@@ -31,7 +31,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 equals_filter
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="prod"}))
 | SORT cluster;
 
@@ -40,7 +40,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 not_regex_filter
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
 | SORT cluster;
 
@@ -50,7 +50,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 regex_filter
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=~"pr.d"}))
 | SORT cluster;
 
@@ -59,7 +59,7 @@ cost:double | step:datetime            | cluster:keyword
 ;
 
 range_selector_different_from_step
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 required_capability: time_series_window_v1
 PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" sum by (pod) (avg_over_time(events_received[10m]))
 | SORT pod
@@ -71,3 +71,134 @@ sum by (pod) (avg_over_time(events_received[10m])):double | step:datetime       
 26.5                                                      | 2024-05-10T00:10:00.000Z | two
 ;
 
+// value transformation functions
+ceil
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h ceil=(ceil(sum(avg_over_time(network.cost[1h])) by (cluster)))
+| SORT cluster;
+
+ceil:double | step:datetime            | cluster:keyword
+19.0        | 2024-05-10T00:00:00.000Z | prod
+21.0        | 2024-05-10T00:00:00.000Z | qa
+18.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+ceil_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h ceil_scalar=(ceil(vector(3.14159)));
+
+ceil_scalar:double | step:datetime
+4.0                | 2024-05-10T00:00:00.000Z
+;
+
+abs_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h abs_scalar=(abs(vector(-3.14159)));
+
+abs_scalar:double | step:datetime
+3.14159           | 2024-05-10T00:00:00.000Z
+;
+
+exp_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h exp_scalar=(exp(vector(0.0)));
+
+exp_scalar:double | step:datetime
+1.0               | 2024-05-10T00:00:00.000Z
+;
+
+sqrt_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h sqrt_scalar=(sqrt(vector(4.0)));
+
+sqrt_scalar:double | step:datetime
+2.0                | 2024-05-10T00:00:00.000Z
+;
+
+log10_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h log10_scalar=(log10(vector(100.0)));
+
+log10_scalar:double | step:datetime
+2.0                 | 2024-05-10T00:00:00.000Z
+;
+
+floor_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h floor_scalar=(floor(vector(3.14159)));
+
+floor_scalar:double | step:datetime
+3.0                 | 2024-05-10T00:00:00.000Z
+;
+
+asin_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(asin(vector(0.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+acos_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(acos(vector(1.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+atan_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(atan(vector(0.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+cos_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(cos(vector(0.0)));
+
+result:double | step:datetime
+1.0           | 2024-05-10T00:00:00.000Z
+;
+
+cosh_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(cosh(vector(0.0)));
+
+result:double | step:datetime
+1.0           | 2024-05-10T00:00:00.000Z
+;
+
+sinh_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(sinh(vector(0.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+sin_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(sin(vector(0.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+tan_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(tan(vector(0.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+tanh_scalar
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h result=(tanh(vector(0.0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;

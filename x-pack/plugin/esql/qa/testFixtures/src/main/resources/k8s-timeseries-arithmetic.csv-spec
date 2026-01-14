@@ -1,7 +1,7 @@
 // scalar-scalar tests
 
 addition_scalar_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h sum=(1+1);
 
 sum:double | step:datetime           
@@ -33,7 +33,7 @@ network_in_bits:long | _timeseries:keyword                                      
 ;
 
 multiplication_metric_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)
 | SORT network_in_bits DESC;
 
@@ -71,7 +71,7 @@ network_in_bits:long | _timeseries:keyword                                      
 ;
 
 multiplication_within_series_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h network_in_bits=(last_over_time(network.total_bytes_in[1h]) * 8)
 | SORT network_in_bits DESC;
 
@@ -99,7 +99,7 @@ max_bits:long | step:datetime
 ;
 
 across_series_multiplication_metric_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max_bits=(
   max(network.total_bytes_in * 8)
 ) | SORT max_bits DESC;
@@ -120,7 +120,7 @@ max_bits:long | step:datetime
 ;
 
 multiplication_across_series_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max_bits=(
   max(network.total_bytes_in) * 8
 ) | SORT max_bits DESC;
@@ -143,7 +143,7 @@ max_bits:long | TBUCKET(1h):datetime     | cluster:keyword
 ;
 
 across_series_grouping_multiplication_within_series_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (last_over_time(network.total_bytes_in[1h]) * 8)
 ) | SORT max_bits DESC;
@@ -168,7 +168,7 @@ max_bits:long | TBUCKET(1h):date         | cluster:keyword
 ;
 
 across_series_grouping_multiplication_metric_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (network.total_bytes_in * 8)
 ) | SORT max_bits DESC;
@@ -193,7 +193,7 @@ max_bits:long | step:datetime            | cluster:keyword
 ;
 
 multiplication_across_series_grouping_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (network.total_bytes_in) * 8
 ) | SORT max_bits DESC;
@@ -218,7 +218,7 @@ max_bits:long | step:datetime            | cluster:keyword
 ;
 
 multiplication_across_series_grouping_within_series_scalar_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (last_over_time(network.total_bytes_in[1h])) * 8
 )
@@ -240,7 +240,7 @@ max:long
 ;
 
 addition_scalar_inner_and_outer_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max=(10 + max(10 + network.total_bytes_in))
 | KEEP max;
 
@@ -273,7 +273,7 @@ in_n_out:long | _timeseries:keyword                                             
 ;
 
 addition_metric_metric_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h in_n_out=(network.eth0.rx + network.eth0.tx)
 | SORT in_n_out DESC;
 
@@ -304,7 +304,7 @@ div:long | step:datetime            | cluster:keyword
 ;
 
 division_metric_metric_grouping_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h div=(
   max by (cluster) (network.total_bytes_in / network.total_bytes_in)
 )
@@ -329,7 +329,7 @@ div:long | step:datetime            | cluster:keyword
 ;
 
 division_metric_metric_grouping_filtering_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h div=(
   max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster!="staging"})
 ) | SORT cluster;
@@ -356,7 +356,7 @@ div:double | step:datetime            | cluster:keyword
 ;
 
 division_within_series_grouping_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h div=(
   max by (cluster) (rate(network.total_bytes_in[1h]) / rate(network.total_bytes_in[1h]))
 ) | SORT cluster;
@@ -386,7 +386,7 @@ ratio:double | step:datetime            | cluster:keyword
 ;
 
 tx_ratio_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h ratio=(
   max by (cluster) (
     network.eth0.tx /

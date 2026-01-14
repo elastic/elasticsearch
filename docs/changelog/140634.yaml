@@ -1,5 +1,0 @@
-pr: 140634
-summary: Add handling for secondary X-Client-Authentication header
-area: Authentication
-type: enhancement
-issues: []

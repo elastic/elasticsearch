@@ -12,8 +12,8 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.TimestampLikeSupplier;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,7 +32,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for encoding increasing integer patterns.
+ * Benchmark for encoding timestamp-like data patterns.
+ *
+ * <p>Parameterized by jitter probability to test how delta encoding handles
+ * varying degrees of timestamp regularity. Lower jitter means more consistent
+ * deltas (better compression), higher jitter simulates irregular sampling.
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -40,15 +44,16 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class EncodeIncreasingIntegerBenchmark {
+public class EncodeTimestampLikeBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "0.0", "0.1", "0.2", "0.5" })
+    private double jitterProbability;
 
     private final AbstractTSDBCodecBenchmark encode;
+    private TimestampLikeSupplier supplier;
 
-    public EncodeIncreasingIntegerBenchmark() {
+    public EncodeTimestampLikeBenchmark() {
         this.encode = new EncodeBenchmark();
     }
 
@@ -59,7 +64,8 @@ public class EncodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        encode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
+        supplier = TimestampLikeSupplier.builder(SEED, encode.getBlockSize()).withJitterProbability(jitterProbability).build();
+        encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
     }
@@ -82,6 +88,6 @@ public class EncodeIncreasingIntegerBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

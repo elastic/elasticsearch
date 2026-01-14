@@ -20,8 +20,12 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
@@ -41,6 +45,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
@@ -65,6 +70,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -72,6 +78,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
@@ -82,12 +89,17 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -2101,6 +2113,117 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         // then
         assertThat(fieldType.omitNorms(), is(false));
+    }
+
+    public void testConditionalBlockLoader() throws IOException {
+        int numDocs = between(5, 100);
+        List<Object> textValues = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int numValues = between(1, 2);
+            if (numValues == 1) {
+                textValues.add(randomAlphaOfLength(between(1, 512)));
+            } else {
+                Set<String> subs = new HashSet<>();
+                for (int v = 0; v < numValues; v++) {
+                    subs.add(randomAlphaOfLength(between(1, 512)));
+                }
+                textValues.add(subs);
+            }
+        }
+        for (int ignoreAbove : List.of(5, 20, 128, 256, 512, 1000, Integer.MAX_VALUE)) {
+            final int ignoreAboveFinal = ignoreAbove;
+            var mapping = mapping(b -> {
+                b.startObject("name");
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.field("ignore_above", ignoreAboveFinal);
+                b.endObject();
+                b.endObject();
+                b.endObject();
+            });
+            try (MapperService mapperService = createSytheticSourceMapperService(mapping); Directory directory = newDirectory()) {
+                IndexWriterConfig conf = new IndexWriterConfig();
+                conf.setMergePolicy(NoMergePolicy.INSTANCE);
+                IndexWriter iw = new IndexWriter(directory, conf);
+                DocumentMapper mapper = mapperService.documentMapper();
+                for (Object v : textValues) {
+                    var source = source(b -> { b.field("name", v); });
+                    ParsedDocument doc = mapper.parse(source);
+                    iw.addDocument(doc.rootDoc());
+                }
+                iw.close();
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    LeafReaderContext ctx = reader.leaves().get(0);
+                    BlockLoader blockLoader = mapperService.fieldType("name")
+                        .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+                        });
+                    Predicate<Object> exceedIgnoreAbove = v -> {
+                        if (v instanceof Collection<?> ls) {
+                            return ls.stream().anyMatch(s -> s.toString().length() > ignoreAbove);
+                        } else {
+                            return v.toString().length() > ignoreAbove;
+                        }
+                    };
+                    final TestBlock testBlock;
+                    if (textValues.stream().anyMatch(exceedIgnoreAbove)) {
+                        assertNull(blockLoader.columnAtATimeReader(ctx));
+                        assertFalse(blockLoader.rowStrideStoredFieldSpec().noRequirements());
+                        var rowReader = blockLoader.rowStrideReader(ctx);
+                        StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
+                        SourceLoader.Leaf leafSourceLoader = null;
+                        if (storedFieldsSpec.requiresSource()) {
+                            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+                            leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
+                            storedFieldsSpec = storedFieldsSpec.merge(
+                                new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
+                            );
+                        }
+                        var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                            StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                            leafSourceLoader
+                        );
+                        try (var builder = blockLoader.builder(TestBlock.factory(), numDocs)) {
+                            for (int doc = 0; doc < textValues.size(); doc++) {
+                                Object values = textValues.get(doc);
+                                storedFields.advanceTo(doc);
+                                rowReader.read(doc, storedFields, builder);
+                                final boolean fallback = exceedIgnoreAbove.test(values);
+                                assertThat(
+                                    "doc=" + doc + " values=" + values + " ignore_above=" + ignoreAbove,
+                                    storedFields.loaded(),
+                                    equalTo(fallback)
+                                );
+                            }
+                            testBlock = (TestBlock) builder.build();
+                        }
+                    } else {
+                        var columnReader = blockLoader.columnAtATimeReader(ctx);
+                        assertNotNull(columnReader);
+                        testBlock = (TestBlock) columnReader.read(
+                            TestBlock.factory(),
+                            TestBlock.docs(IntStream.range(0, numDocs).toArray()),
+                            0,
+                            randomBoolean()
+                        );
+                    }
+                    for (int i = 0; i < textValues.size(); i++) {
+                        Object expected = textValues.get(i);
+                        if (expected instanceof Collection<?> ls) {
+                            expected = ls.stream().map(v -> new BytesRef(v.toString())).sorted().toList();
+                        } else {
+                            expected = new BytesRef(expected.toString());
+                        }
+                        if (testBlock.get(i) instanceof Collection<?> c) {
+                            assertThat(c.stream().sorted().toList(), equalTo(expected));
+                        } else {
+                            assertThat(testBlock.get(i), equalTo(expected));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override

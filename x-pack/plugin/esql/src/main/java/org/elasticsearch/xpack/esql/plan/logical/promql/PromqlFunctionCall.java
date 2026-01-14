@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -89,5 +90,12 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     @Override
     public List<Attribute> output() {
         return List.of();
+    }
+
+    public abstract FunctionType functionType();
+
+    @Override
+    public final PromqlDataType returnType() {
+        return functionType().outputType();
     }
 }

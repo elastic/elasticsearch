@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
@@ -443,14 +445,16 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         LogicalPlan child = (LogicalPlan) params.get(0);
 
         // PromQL expects early validation of the tree so let's do it here
-        if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
-            if (returnsRangeVector(child)) {
-                throw new ParsingException(source, "expected type instant vector in call to function [{}], got range vector", name);
-            }
-        } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
-            if (returnsRangeVector(child) == false) {
-                throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
-            }
+        PromqlDataType expectedInputType = metadata.functionType().inputType();
+        PromqlDataType actualInputType = PromqlPlan.getReturnType(child);
+        if (expectedInputType != null && actualInputType != expectedInputType) {
+            throw new ParsingException(
+                child.source(),
+                "expected type {} in call to function [{}], got {}",
+                expectedInputType,
+                name,
+                actualInputType
+            );
         }
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
@@ -486,6 +490,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
                 plan = new WithinSeriesAggregate(source, child, name, List.of());
                 // instant selector function - definitely no grouping
+            } else {
+                throw new ParsingException(source, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name);
             }
         }
         //

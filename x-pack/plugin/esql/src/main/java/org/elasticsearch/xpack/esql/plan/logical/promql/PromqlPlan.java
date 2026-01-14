@@ -52,9 +52,9 @@ public interface PromqlPlan {
         return getReturnType(plan) == PromqlDataType.SCALAR;
     }
 
-    private static PromqlDataType getReturnType(LogicalPlan plan) {
-        if (plan instanceof PromqlPlan hasReturnType) {
-            return hasReturnType.returnType();
+    public static PromqlDataType getReturnType(LogicalPlan plan) {
+        if (plan instanceof PromqlPlan promqlPlan) {
+            return promqlPlan.returnType();
         }
         throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
     }

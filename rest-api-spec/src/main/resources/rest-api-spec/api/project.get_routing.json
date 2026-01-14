@@ -1,14 +1,13 @@
 {
-  "project_routing.get": {
+  "project.get_routing": {
     "documentation": {
-      "url": null,
+      "url": "",
       "description": "Get named project routing expression"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+      "accept": ["application/json"]
     },
     "url": {
       "paths": [

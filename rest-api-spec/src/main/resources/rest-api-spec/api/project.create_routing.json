@@ -1,10 +1,10 @@
 {
-  "project_routing.create": {
+  "project.create_routing": {
     "documentation": {
-      "url": null,
+      "url": "",
       "description": "Create or update named project routing expression"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
       "accept": ["application/json"],

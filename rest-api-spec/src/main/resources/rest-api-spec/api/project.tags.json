@@ -16,10 +16,19 @@
         {
           "path": "/_project/tags",
           "methods": [
-            "GET"
+            "GET",
+            "POST"
           ]
         }
       ]
+    },
+    "params": {
+      "project_routing": {
+        "type": "string"
+      }
+    },
+    "body": {
+      "required": false
     }
   }
 }

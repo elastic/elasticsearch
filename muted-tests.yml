@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testItemFailures {p0=false p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/140778
+- class: org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampGroupingAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/140784
 
 # Examples:
 #

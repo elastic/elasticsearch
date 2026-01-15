@@ -32,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -111,18 +110,17 @@ final class CanMatchPreFilterSearchPhase {
         final int size = shardsIts.size();
         possibleMatches = new FixedBitSet(size);
         minAndMaxes = new MinAndMax<?>[size];
-        // we compute the shard index based on the natural order of the shards
+        // we compute a shard index based on the order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        final SearchShardIterator[] naturalOrder = new SearchShardIterator[size];
+        final SearchShardIterator[] shardOrder = new SearchShardIterator[size];
         int i = 0;
         for (SearchShardIterator shardsIt : shardsIts) {
-            naturalOrder[i++] = shardsIt;
+            shardOrder[i++] = shardsIt;
         }
-        Arrays.sort(naturalOrder);
-        final Map<SearchShardIterator, Integer> shardItIndexMap = Maps.newHashMapWithExpectedSize(naturalOrder.length);
-        for (int j = 0; j < naturalOrder.length; j++) {
-            shardItIndexMap.put(naturalOrder[j], j);
+        final Map<SearchShardIterator, Integer> shardItIndexMap = Maps.newHashMapWithExpectedSize(shardOrder.length);
+        for (int j = 0; j < shardOrder.length; j++) {
+            shardItIndexMap.put(shardOrder[j], j);
         }
         this.shardItIndexMap = shardItIndexMap;
     }
@@ -239,6 +237,8 @@ final class CanMatchPreFilterSearchPhase {
                 consumeResult(false, request);
             }
         }
+        // order matching shard by the natural order, so that search results will use that order
+        matchedShardLevelRequests.sort(null);
         if (matchedShardLevelRequests.isEmpty()) {
             listener.onResponse(getIterator(shardsIts));
         } else {

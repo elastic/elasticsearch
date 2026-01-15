@@ -116,6 +116,44 @@ public class ChickenArtBuilderTests extends ESTestCase {
         assertEquals("Hello 🐔 world", extractLine(message, lines.get(0)));
     }
 
+    public void testFromNameExact() {
+        // Test that fromName returns the correct chicken for each enum value
+        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toLowerCase()));
+    }
+
+    public void testFromNameCaseInsensitive() {
+        // Test case insensitivity
+        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toUpperCase()));
+        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toLowerCase()));
+    }
+
+    public void testFromNameBytesRef() {
+        // Test BytesRef variant
+        assertEquals(chicken, ChickenArtBuilder.fromName(new BytesRef(chicken.name().toLowerCase())));
+    }
+
+    public void testFromNameNull() {
+        assertNull(ChickenArtBuilder.fromName((String) null));
+        assertNull(ChickenArtBuilder.fromName((BytesRef) null));
+    }
+
+    public void testFromNameUnknown() {
+        assertNull(ChickenArtBuilder.fromName("unknown_style"));
+        assertNull(ChickenArtBuilder.fromName(""));
+    }
+
+    public void testAvailableStylesContainsChicken() {
+        String styles = ChickenArtBuilder.availableStyles();
+        assertTrue("Should contain current chicken style", styles.contains(chicken.name().toLowerCase()));
+    }
+
+    public void testRandomReturnsValidChicken() {
+        ChickenArtBuilder randomChicken = ChickenArtBuilder.random();
+        assertNotNull(randomChicken);
+        // Verify it can be looked up by name
+        assertEquals(randomChicken, ChickenArtBuilder.fromName(randomChicken.name()));
+    }
+
     /**
      * Helper method to extract a line from the original message using a LineRange.
      */

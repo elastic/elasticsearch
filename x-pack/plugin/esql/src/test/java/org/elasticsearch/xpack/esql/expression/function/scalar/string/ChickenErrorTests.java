@@ -27,11 +27,11 @@ public class ChickenErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Chicken(source, args.get(0));
+        return new Chicken(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "string"));
+        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> "string"));
     }
 }

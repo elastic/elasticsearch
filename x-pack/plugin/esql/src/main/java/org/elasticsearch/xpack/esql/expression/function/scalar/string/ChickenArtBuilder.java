@@ -12,7 +12,10 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
  * Collection of chicken ASCII art styles with builder functionality.
@@ -117,10 +120,21 @@ public enum ChickenArtBuilder {
     private static final int DEFAULT_WIDTH = 40;
     private static final int MAX_WIDTH = 76;
 
-    private final BytesRef ascii;
+    final BytesRef ascii;
 
     ChickenArtBuilder(String ascii) {
         this.ascii = new BytesRef(ascii);
+    }
+
+    // Lookup map for style names (case-insensitive)
+    private static final Map<String, ChickenArtBuilder> STYLE_MAP = java.util.Arrays.stream(values())
+        .collect(Collectors.toMap(c -> c.name().toLowerCase(Locale.ROOT), c -> c));
+
+    /**
+     * Returns a comma-separated list of all available style names.
+     */
+    public static String availableStyles() {
+        return java.util.Arrays.stream(values()).map(c -> c.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
     }
 
     /**
@@ -129,6 +143,28 @@ public enum ChickenArtBuilder {
     public static ChickenArtBuilder random() {
         ChickenArtBuilder[] values = values();
         return values[ThreadLocalRandom.current().nextInt(values.length)];
+    }
+
+    /**
+     * Looks up a chicken style by name (case-insensitive).
+     * Returns null if the style is not found.
+     */
+    public static ChickenArtBuilder fromName(String name) {
+        if (name == null) {
+            return null;
+        }
+        return STYLE_MAP.get(name.toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Looks up a chicken style by name from a BytesRef (case-insensitive).
+     * Returns null if the style is not found.
+     */
+    public static ChickenArtBuilder fromName(BytesRef name) {
+        if (name == null) {
+            return null;
+        }
+        return fromName(name.utf8ToString());
     }
 
     /**

@@ -34,26 +34,36 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
 
   private final EvalOperator.ExpressionEvaluator message;
 
+  private final EvalOperator.ExpressionEvaluator style;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public ChickenEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator message, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator message, EvalOperator.ExpressionEvaluator style,
+      DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.message = message;
+    this.style = style;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock messageBlock = (BytesRefBlock) message.eval(page)) {
-      BytesRefVector messageVector = messageBlock.asVector();
-      if (messageVector == null) {
-        return eval(page.getPositionCount(), messageBlock);
+      try (BytesRefBlock styleBlock = (BytesRefBlock) style.eval(page)) {
+        BytesRefVector messageVector = messageBlock.asVector();
+        if (messageVector == null) {
+          return eval(page.getPositionCount(), messageBlock, styleBlock);
+        }
+        BytesRefVector styleVector = styleBlock.asVector();
+        if (styleVector == null) {
+          return eval(page.getPositionCount(), messageBlock, styleBlock);
+        }
+        return eval(page.getPositionCount(), messageVector, styleVector).asBlock();
       }
-      return eval(page.getPositionCount(), messageVector).asBlock();
     }
   }
 
@@ -61,12 +71,15 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += message.baseRamBytesUsed();
+    baseRamBytesUsed += style.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock messageBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock messageBlock,
+      BytesRefBlock styleBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef messageScratch = new BytesRef();
+      BytesRef styleScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         switch (messageBlock.getValueCount(p)) {
           case 0:
@@ -79,19 +92,34 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
               result.appendNull();
               continue position;
         }
+        switch (styleBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
+        }
         BytesRef message = messageBlock.getBytesRef(messageBlock.getFirstValueIndex(p), messageScratch);
-        result.appendBytesRef(Chicken.process(this.scratch, message));
+        BytesRef style = styleBlock.getBytesRef(styleBlock.getFirstValueIndex(p), styleScratch);
+        result.appendBytesRef(Chicken.process(this.scratch, message, style));
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector messageVector) {
+  public BytesRefVector eval(int positionCount, BytesRefVector messageVector,
+      BytesRefVector styleVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef messageScratch = new BytesRef();
+      BytesRef styleScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef message = messageVector.getBytesRef(p, messageScratch);
-        result.appendBytesRef(Chicken.process(this.scratch, message));
+        BytesRef style = styleVector.getBytesRef(p, styleScratch);
+        result.appendBytesRef(Chicken.process(this.scratch, message, style));
       }
       return result.build();
     }
@@ -99,12 +127,12 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "ChickenEvaluator[" + "message=" + message + "]";
+    return "ChickenEvaluator[" + "message=" + message + ", style=" + style + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(scratch, message);
+    Releasables.closeExpectNoException(scratch, message, style);
   }
 
   private Warnings warnings() {
@@ -126,21 +154,25 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
 
     private final EvalOperator.ExpressionEvaluator.Factory message;
 
+    private final EvalOperator.ExpressionEvaluator.Factory style;
+
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory message) {
+        EvalOperator.ExpressionEvaluator.Factory message,
+        EvalOperator.ExpressionEvaluator.Factory style) {
       this.source = source;
       this.scratch = scratch;
       this.message = message;
+      this.style = style;
     }
 
     @Override
     public ChickenEvaluator get(DriverContext context) {
-      return new ChickenEvaluator(source, scratch.apply(context), message.get(context), context);
+      return new ChickenEvaluator(source, scratch.apply(context), message.get(context), style.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ChickenEvaluator[" + "message=" + message + "]";
+      return "ChickenEvaluator[" + "message=" + message + ", style=" + style + "]";
     }
   }
 }

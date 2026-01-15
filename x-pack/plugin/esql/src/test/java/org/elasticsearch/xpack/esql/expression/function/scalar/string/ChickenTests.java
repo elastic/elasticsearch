@@ -38,53 +38,116 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
 
-        cases.add(new TestCaseSupplier("Chicken basic test", List.of(DataType.KEYWORD), () -> {
+        // Tests with explicit style parameter
+        cases.add(new TestCaseSupplier("Chicken with ordinary style", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             String message = "Hello!";
+            String style = "ordinary";
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
-                "ChickenEvaluator[message=Attribute[channel=0]]",
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.KEYWORD, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
                 DataType.KEYWORD,
-                chickenOutputMatcher(message)
+                chickenOutputMatcher(message, ChickenArtBuilder.ORDINARY)
             );
         }));
 
-        cases.add(new TestCaseSupplier("Chicken with text input", List.of(DataType.TEXT), () -> {
+        cases.add(new TestCaseSupplier("Chicken with soup style", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            String message = "Soup time!";
+            String style = "soup";
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.KEYWORD, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                chickenOutputMatcher(message, ChickenArtBuilder.SOUP)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("Chicken with early_state (egg) style", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            String message = "I'm an egg!";
+            String style = "early_state";
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.KEYWORD, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                chickenOutputMatcher(message, ChickenArtBuilder.EARLY_STATE)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("Chicken with text style input", List.of(DataType.KEYWORD, DataType.TEXT), () -> {
+            String message = "Racing!";
+            String style = "racing";
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.TEXT, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                chickenOutputMatcher(message, ChickenArtBuilder.RACING)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("Chicken with text message input", List.of(DataType.TEXT, DataType.KEYWORD), () -> {
             String message = "ES|QL rocks!";
+            String style = "whistling";
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.TEXT, "message")),
-                "ChickenEvaluator[message=Attribute[channel=0]]",
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.TEXT, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.KEYWORD, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
                 DataType.KEYWORD,
-                chickenOutputMatcher(message)
+                chickenOutputMatcher(message, ChickenArtBuilder.WHISTLING)
             );
         }));
 
-        cases.add(new TestCaseSupplier("Chicken empty message", List.of(DataType.KEYWORD), () -> {
+        cases.add(new TestCaseSupplier("Chicken with empty message", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             String message = "";
+            String style = "stoned";
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
-                "ChickenEvaluator[message=Attribute[channel=0]]",
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.KEYWORD, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
                 DataType.KEYWORD,
-                chickenOutputMatcher(message)
+                chickenOutputMatcher(message, ChickenArtBuilder.STONED)
             );
         }));
 
-        cases.add(new TestCaseSupplier("Chicken single line bubble", List.of(DataType.KEYWORD), () -> {
-            String message = "Short";
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
-                "ChickenEvaluator[message=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                chickenOutputMatcher(message)
-            );
-        }));
-
-        cases.add(new TestCaseSupplier("Chicken long message wrapping", List.of(DataType.KEYWORD), () -> {
+        cases.add(new TestCaseSupplier("Chicken with long message wrapping", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             String message = "This is a really long message that should definitely wrap across multiple lines in the speech bubble";
+            String style = "laying";
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
-                "ChickenEvaluator[message=Attribute[channel=0]]",
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.KEYWORD, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
                 DataType.KEYWORD,
-                chickenOutputMatcher(message)
+                chickenOutputMatcher(message, ChickenArtBuilder.LAYING)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("Chicken with text message and text style", List.of(DataType.TEXT, DataType.TEXT), () -> {
+            String message = "Both text types!";
+            String style = "thinks_its_a_duck";
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(message), DataType.TEXT, "message"),
+                    new TestCaseSupplier.TypedData(new BytesRef(style), DataType.TEXT, "style")
+                ),
+                "ChickenEvaluator[message=Attribute[channel=0], style=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                chickenOutputMatcher(message, ChickenArtBuilder.THINKS_ITS_A_DUCK)
             );
         }));
 
@@ -93,14 +156,14 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Chicken(source, args.get(0));
+        return new Chicken(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
     /**
-     * Matcher that verifies chicken output has expected structure without requiring exact match.
-     * Since the chicken art is randomly selected, we verify structure rather than exact content.
+     * Matcher that verifies chicken output has expected structure.
+     * If a specific chicken style is provided, also verifies the art matches.
      */
-    private static TypeSafeMatcher<Object> chickenOutputMatcher(String expectedMessage) {
+    private static TypeSafeMatcher<Object> chickenOutputMatcher(String expectedMessage, ChickenArtBuilder expectedStyle) {
         return new TypeSafeMatcher<>() {
             @Override
             protected boolean matchesSafely(Object item) {
@@ -130,12 +193,23 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
                     }
                 }
 
+                // If a specific style is expected, verify it's used
+                if (expectedStyle != null) {
+                    String expectedArt = expectedStyle.ascii.utf8ToString();
+                    if (result.contains(expectedArt) == false) {
+                        return false;
+                    }
+                }
+
                 return true;
             }
 
             @Override
             public void describeTo(Description description) {
                 description.appendText("chicken output containing message '").appendText(expectedMessage).appendText("'");
+                if (expectedStyle != null) {
+                    description.appendText(" with style ").appendText(expectedStyle.name());
+                }
             }
 
             @Override

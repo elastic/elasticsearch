@@ -17,7 +17,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -111,7 +110,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public static final String DEFAULT_RERANK_ID = ".rerank-v1-elasticsearch";
 
     private static final String SERVICE_NAME = "Elasticsearch";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING,
         TaskType.SPARSE_EMBEDDING
@@ -119,6 +118,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
+    private static final ElasticsearchInternalModelFactory MODEL_FACTORY = new ElasticsearchInternalModelFactory();
 
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
@@ -126,184 +126,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
      * service_settings.model_version.
      */
     private static final String OLD_MODEL_ID_FIELD_NAME = "model_version";
-
-    private static final List<ElasticsearchInternalModelCreator> MODEL_CREATORS = List.of(new ElasticsearchInternalModelCreator() {
-        @Override
-        public boolean matches(TaskType taskType, String modelId) {
-            return MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId);
-        }
-
-        @Override
-        public Model createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new MultilingualE5SmallModel(
-                inferenceId,
-                taskType,
-                NAME,
-                new MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettings)),
-                chunkingSettings
-            );
-        }
-
-        @Override
-        public Model createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-            return new MultilingualE5SmallModel(modelConfigurations);
-        }
-    }, new ElasticsearchInternalModelCreator() {
-        @Override
-        public boolean matches(TaskType taskType, String modelId) {
-            return ElserModels.isValidModel(modelId);
-        }
-
-        @Override
-        public Model createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new ElserInternalModel(
-                inferenceId,
-                taskType,
-                NAME,
-                new ElserInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettings)),
-                ElserMlNodeTaskSettings.DEFAULT,
-                chunkingSettings
-            );
-        }
-
-        @Override
-        public Model createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-            return new ElserInternalModel(modelConfigurations);
-        }
-    }, new ElasticsearchInternalModelCreator() {
-        @Override
-        public boolean matches(TaskType taskType, String modelId) {
-            return modelId.equals(RERANKER_ID);
-        }
-
-        @Override
-        public Model createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new ElasticRerankerModel(
-                inferenceId,
-                taskType,
-                NAME,
-                ElasticRerankerServiceSettings.fromMap(serviceSettings),
-                RerankTaskSettings.fromMap(taskSettings)
-            );
-        }
-
-        @Override
-        public Model createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-            return new ElasticRerankerModel(modelConfigurations);
-        }
-    }, new ElasticsearchInternalModelCreator() {
-        @Override
-        public boolean matches(TaskType taskType, String modelId) {
-            return taskType.equals(TaskType.TEXT_EMBEDDING);
-        }
-
-        @Override
-        public Model createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new CustomElandEmbeddingModel(
-                inferenceId,
-                taskType,
-                NAME,
-                CustomElandInternalTextEmbeddingServiceSettings.fromMap(serviceSettings, context),
-                chunkingSettings
-            );
-        }
-
-        @Override
-        public Model createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-            return new CustomElandEmbeddingModel(modelConfigurations);
-        }
-    }, new ElasticsearchInternalModelCreator() {
-        @Override
-        public boolean matches(TaskType taskType, String modelId) {
-            return taskType.equals(TaskType.SPARSE_EMBEDDING);
-        }
-
-        @Override
-        public Model createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new CustomElandModel(inferenceId, taskType, NAME, elandServiceSettings(serviceSettings, context), chunkingSettings);
-        }
-
-        @Override
-        public Model createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-            return new CustomElandModel(modelConfigurations);
-        }
-    }, new ElasticsearchInternalModelCreator() {
-        @Override
-        public boolean matches(TaskType taskType, String modelId) {
-            return taskType.equals(TaskType.RERANK);
-        }
-
-        @Override
-        public Model createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new CustomElandRerankModel(
-                inferenceId,
-                taskType,
-                NAME,
-                elandServiceSettings(serviceSettings, context),
-                RerankTaskSettings.fromMap(taskSettings)
-            );
-        }
-
-        @Override
-        public Model createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-            return new CustomElandRerankModel(modelConfigurations);
-        }
-    });
-
     private final Settings settings;
 
     public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
@@ -322,7 +144,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -503,10 +325,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         };
     }
 
-    private static CustomElandInternalServiceSettings elandServiceSettings(
-        Map<String, Object> settingsMap,
-        ConfigurationParseContext context
-    ) {
+    static CustomElandInternalServiceSettings elandServiceSettings(Map<String, Object> settingsMap, ConfigurationParseContext context) {
         return switch (context) {
             case REQUEST -> new CustomElandInternalServiceSettings(
                 ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap).build()
@@ -665,19 +484,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var serviceSettings = config.getServiceSettings();
-        var modelId = serviceSettings.modelId();
-        validateModelId(config.getInferenceEntityId(), modelId);
-        return MODEL_CREATORS.stream()
-            .filter(creator -> creator.matches(config.getTaskType(), modelId))
-            .findFirst()
-            .orElseThrow(
-                () -> new ElasticsearchStatusException(
-                    TaskType.unsupportedTaskTypeErrorMsg(config.getTaskType(), NAME),
-                    RestStatus.BAD_REQUEST
-                )
-            )
-            .createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private interface ElasticsearchInternalModelCreator extends ModelCreator {
@@ -695,34 +502,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
-
-        String modelId = (String) serviceSettingsMap.get(MODEL_ID);
-        validateModelId(inferenceEntityId, modelId);
-
-        return MODEL_CREATORS.stream()
-            .filter(creator -> creator.matches(taskType, modelId))
-            .findFirst()
-            .orElseThrow(
-                () -> new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST)
-            )
-            .createFromMaps(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettingsMap,
-                taskSettingsMap,
-                chunkingSettings,
-                Collections.emptyMap(),
-                ConfigurationParseContext.PERSISTENT
-            );
-    }
-
-    private static void validateModelId(String inferenceEntityId, String modelId) {
-        if (modelId == null) {
-            throw new IllegalArgumentException(
-                Strings.format("Error parsing request config, model id is missing for inference id: %s", inferenceEntityId)
-            );
-        }
+        return MODEL_FACTORY.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettingsMap,
+            taskSettingsMap,
+            chunkingSettings,
+            null,
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     /**
@@ -1355,7 +1144,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -1368,7 +1157,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     NUM_ALLOCATIONS,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(1)
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue(1)
                         .setDescription("The total number of allocations this model is assigned across machine learning nodes.")
                         .setLabel("Number Allocations")
                         .setRequired(true)
@@ -1380,7 +1169,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     NUM_THREADS,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(2)
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue(2)
                         .setDescription("Sets the number of threads used by each model allocation during inference.")
                         .setLabel("Number Threads")
                         .setRequired(true)
@@ -1392,7 +1181,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

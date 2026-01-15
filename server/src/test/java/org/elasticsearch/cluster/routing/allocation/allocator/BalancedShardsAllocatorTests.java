@@ -723,12 +723,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final int numberOfShards = randomIntBetween(20, 100) * 2;
         final var clusterState = applyStartedShardsUntilNoChange(
             createStateWithIndices(
-                List.of("1_threshold-1", "1_threshold-2", "100_threshold-1", "100_threshold-2"),
-                shardId -> prefix(shardId.getIndexName()) + "-1",
+                List.of("1_threshold-node_1", "1_threshold-node_2", "100_threshold-node_1", "100_threshold-node_2"),
+                shardId -> prefix(shardId.getIndexName()) + "-node_1",
                 true,
                 IntStream.range(0, numberOfShards)
                     .boxed()
-                    .flatMap(i -> Stream.of(anIndex("1_threshold-index-" + i), anIndex("100_threshold-index-" + i)))
+                    .flatMap(i -> Stream.of(anIndex("1_threshold-index_" + i), anIndex("100_threshold-index_" + i)))
                     .toList()
                     .toArray(IndexMetadata.Builder[]::new)
             ),
@@ -739,13 +739,13 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         // The partition with threshold 100 remains skewed
         assertThat(
-            shardsPerNode.get("100_threshold-1").size() - shardsPerNode.get("100_threshold-2").size(),
+            shardsPerNode.get("100_threshold-node_1").size() - shardsPerNode.get("100_threshold-node_2").size(),
             equalTo(Math.min(numberOfShards, 100))
         );
 
         // The partition with threshold 1 has an even distribution of shards
-        assertThat(shardsPerNode.get("1_threshold-1").size(), equalTo(numberOfShards / 2));
-        assertThat(shardsPerNode.get("1_threshold-2").size(), equalTo(numberOfShards / 2));
+        assertThat(shardsPerNode.get("1_threshold-node_1").size(), equalTo(numberOfShards / 2));
+        assertThat(shardsPerNode.get("1_threshold-node_2").size(), equalTo(numberOfShards / 2));
     }
 
     public void testSkipDiskUsageComputation() {

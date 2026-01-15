@@ -229,10 +229,10 @@ FROM books METADATA _score
 ;
 
 // tag::two-queries-result[]
-title:text                                                                 | _score:double | rerank_score:double
-The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278     | 0.125
-A Middle English Reader and Vocabulary                                     | 1.043297      | 0.07692308
-FINAL WITNESS                                                              | 1.405817      | 0.07692308
+title:text                                                                 | _score:double      | rerank_score:double
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278066635132 | 0.125
+A Middle English Reader and Vocabulary                                     | 1.043297290802002  | 0.07692307978868484
+FINAL WITNESS                                                              | 1.4058171510696411 | 0.07692307978868484
 // end::two-queries-result[]
 ;
 

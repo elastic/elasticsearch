@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,11 +25,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -42,20 +43,27 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * fields can be gathered more directly using {@link IndexMetadata#getMatchingInferenceFields}.
  * </p>
  */
-public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsAction.Response> {
-    public static final GetInferenceFieldsAction INSTANCE = new GetInferenceFieldsAction();
+public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFieldsInternalAction.Response> {
+    public static final GetInferenceFieldsInternalAction INSTANCE = new GetInferenceFieldsInternalAction();
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
+    // This is a defunct transport version for when GetInferenceFieldsInternalAction was an internal cluster action. This was the case only
+    // for 9.3.0 development builds, so there should be no real-world deployments using GetInferenceFieldsInternalAction as an internal
+    // cluster action. Therefore, this transport version can be disregarded.
     public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_TV = TransportVersion.fromName("get_inference_fields_action");
 
-    public static final String NAME = "cluster:internal/xpack/inference/fields/get";
+    public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV = TransportVersion.fromName(
+        "get_inference_fields_action_as_indices_action"
+    );
 
-    public GetInferenceFieldsAction() {
+    public static final String NAME = "indices:admin/inference/fields/get";
+
+    public GetInferenceFieldsInternalAction() {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
-        private final Set<String> indices;
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+        private String[] indices;
         private final Map<String, Float> fields;
         private final boolean resolveWildcards;
         private final boolean useDefaultFields;
@@ -63,10 +71,10 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         private final IndicesOptions indicesOptions;
 
         /**
-         * An overload of {@link #Request(Set, Map, boolean, boolean, String, IndicesOptions)} that uses {@link IndicesOptions#DEFAULT}
+         * An overload of {@link #Request(String[], Map, boolean, boolean, String, IndicesOptions)} that uses {@link IndicesOptions#DEFAULT}
          */
         public Request(
-            Set<String> indices,
+            String[] indices,
             Map<String, Float> fields,
             boolean resolveWildcards,
             boolean useDefaultFields,
@@ -97,7 +105,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
          * @param indicesOptions The {@link IndicesOptions} to use when resolving indices.
          */
         public Request(
-            Set<String> indices,
+            String[] indices,
             Map<String, Float> fields,
             boolean resolveWildcards,
             boolean useDefaultFields,
@@ -114,7 +122,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readCollectionAsSet(StreamInput::readString);
+            this.indices = in.readStringArray();
             this.fields = in.readMap(StreamInput::readFloat);
             this.resolveWildcards = in.readBoolean();
             this.useDefaultFields = in.readBoolean();
@@ -125,7 +133,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringCollection(indices);
+            out.writeStringArray(indices);
             out.writeMap(fields, StreamOutput::writeFloat);
             out.writeBoolean(resolveWildcards);
             out.writeBoolean(useDefaultFields);
@@ -156,11 +164,18 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return validationException;
         }
 
-        public Set<String> getIndices() {
-            return Collections.unmodifiableSet(indices);
+        @Override
+        public Request indices(String... indices) {
+            this.indices = indices;
+            return this;
         }
 
-        public Map<String, Float> getFields() {
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        public Map<String, Float> fields() {
             return Collections.unmodifiableMap(fields);
         }
 
@@ -172,12 +187,18 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return useDefaultFields;
         }
 
-        public String getQuery() {
+        public String query() {
             return query;
         }
 
-        public IndicesOptions getIndicesOptions() {
+        @Override
+        public IndicesOptions indicesOptions() {
             return indicesOptions;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
 
         @Override
@@ -185,7 +206,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(indices, request.indices)
+            return Arrays.equals(indices, request.indices)
                 && Objects.equals(fields, request.fields)
                 && resolveWildcards == request.resolveWildcards
                 && useDefaultFields == request.useDefaultFields
@@ -195,7 +216,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, fields, resolveWildcards, useDefaultFields, query, indicesOptions);
+            return Objects.hash(Arrays.hashCode(indices), fields, resolveWildcards, useDefaultFields, query, indicesOptions);
         }
     }
 

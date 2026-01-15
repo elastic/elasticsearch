@@ -22,6 +22,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +69,7 @@ public class ShutdownPrepareService {
     public ShutdownPrepareService(
         Settings settings,
         HttpServerTransport httpServerTransport,
-        TaskManager taskManager,
+        TransportService transportService,
         TerminationHandler terminationHandler
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
@@ -76,8 +77,8 @@ public class ShutdownPrepareService {
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
-        addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, taskManager));
-        addShutdownHook("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, taskManager));
+        addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, transportService.getTaskManager()));
+        addShutdownHook("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, transportService.getTaskManager()));
         if (terminationHandler != null) {
             addShutdownHook("termination-handler-stop", terminationHandler::handleTermination);
         }

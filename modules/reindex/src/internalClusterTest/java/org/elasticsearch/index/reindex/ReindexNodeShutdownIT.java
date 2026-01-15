@@ -103,8 +103,8 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("Encounterd " + e.toString());
-                fail(e, "Encounterd " + e.toString());
+                logger.debug("Encountered " + e.toString());
+                fail(e, "Encountered " + e.toString());
             }
         };
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, reindexRequest, reindexListener);

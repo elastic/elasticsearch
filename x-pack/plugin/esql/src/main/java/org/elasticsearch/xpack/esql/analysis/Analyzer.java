@@ -2123,22 +2123,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return esr;
             });
-            res = res.transformUp(Project.class, p -> {
-                List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
-                for (Attribute attr : p.inputSet()) {
-                    if (attr.synthetic() && p.outputSet().contains(attr) == false) {
-                        syntheticAttributesToCarryOver.add(attr);
+            if (res.equals(plan) == false) {
+                res = res.transformUp(Project.class, p -> {
+                    List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+                    for (Attribute attr : p.inputSet()) {
+                        if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                            syntheticAttributesToCarryOver.add(attr);
+                        }
                     }
-                }
 
-                if (syntheticAttributesToCarryOver.isEmpty()) {
-                    return p;
-                }
+                    if (syntheticAttributesToCarryOver.isEmpty()) {
+                        return p;
+                    }
 
-                List<NamedExpression> newProjections = new ArrayList<>(p.projections());
-                newProjections.addAll(syntheticAttributesToCarryOver);
-                return new Project(p.source(), p.child(), newProjections);
-            });
+                    List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+                    newProjections.addAll(syntheticAttributesToCarryOver);
+                    return new Project(p.source(), p.child(), newProjections);
+                });
+            }
             return res;
         }
 

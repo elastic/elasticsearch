@@ -1,0 +1,44 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            dynamic: strict
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          flattened:
+            field1: "lorem ipsum"
+            field2:
+              field3: ["dolor", "sit amet"]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          flattened:
+            field1: "apache lucene powers elasticsearch"
+            field4: 10
+  - do:
+      indices.refresh: { }
+
+---
+"Test root query":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | KEEP flattened | LIMIT 500'
+
+  - match: {columns.0.name: "flattened"}
+  - match: {columns.0.type: "string"}
+  - match: {values.0.0: {field1: "lorem ipsum", field2: {field3: ["dolor", "sit amet"]}}}
+  - match: {values.1.0: {field1: "apache lucene powers elasticsearch", field4: 10}}

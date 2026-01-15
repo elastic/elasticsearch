@@ -381,6 +381,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testItemFailures {p0=false p1=true}
   issue: https://github.com/elastic/elasticsearch/issues/140769
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/140772
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testItemFailures {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/140773
 
 # Examples:
 #

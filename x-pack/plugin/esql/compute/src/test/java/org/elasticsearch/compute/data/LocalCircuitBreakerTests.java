@@ -12,6 +12,9 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,29 +96,60 @@ public class LocalCircuitBreakerTests extends ESTestCase {
     public void testBasic() {
         TrackingCircuitBreaker breaker = newTestBreaker(120);
         LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(breaker, 30, 50);
-        localBreaker.addEstimateBytesAndMaybeBreak(20, "test");
-        assertThat(localBreaker.getReservedBytes(), equalTo(30L));
-        assertThat(breaker.callTimes(), equalTo(1));
-        assertThat(breaker.getUsed(), equalTo(50L));
-        localBreaker.addWithoutBreaking(-5);
-        assertThat(breaker.getUsed(), equalTo(50L));
-        assertThat(localBreaker.getReservedBytes(), equalTo(35L));
-        localBreaker.addEstimateBytesAndMaybeBreak(25, "test");
-        assertThat(breaker.getUsed(), equalTo(50L));
-        assertThat(breaker.callTimes(), equalTo(1));
-        assertThat(localBreaker.getReservedBytes(), equalTo(10L));
-        var error = expectThrows(CircuitBreakingException.class, () -> localBreaker.addEstimateBytesAndMaybeBreak(60, "test"));
-        assertThat(error.getBytesWanted(), equalTo(80L));
-        assertThat(breaker.callTimes(), equalTo(2));
-        localBreaker.addEstimateBytesAndMaybeBreak(30, "test");
-        assertThat(breaker.getUsed(), equalTo(100L));
-        assertThat(localBreaker.getReservedBytes(), equalTo(30L));
-        assertThat(breaker.callTimes(), equalTo(3));
-        localBreaker.addWithoutBreaking(-40L);
-        assertThat(breaker.getUsed(), equalTo(80L));
-        assertThat(localBreaker.getReservedBytes(), equalTo(50L));
-        assertThat(breaker.callTimes(), equalTo(4));
+        verifyBreaker(localBreaker, breaker);
         localBreaker.close();
         assertThat(breaker.getUsed(), equalTo(30L));
     }
+
+    public void testServiceBasic() {
+        TrackingCircuitBreaker trackingBreaker = newTestBreaker(120);
+        CircuitBreakerService trackingService = new CircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return trackingBreaker;
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        LocalCircuitBreaker.SingletonService service = new LocalCircuitBreaker.SingletonService(trackingService, 30, 50);
+        LocalCircuitBreaker localBreaker = (LocalCircuitBreaker) service.getBreaker("foo");
+        verifyBreaker(localBreaker, trackingBreaker);
+        service.close();
+        assertThat(trackingBreaker.getUsed(), equalTo(30L));
+    }
+
+    private static void verifyBreaker(LocalCircuitBreaker localBreaker, TrackingCircuitBreaker trackingBreaker) {
+        localBreaker.addEstimateBytesAndMaybeBreak(20, "test");
+        assertThat(localBreaker.getReservedBytes(), equalTo(30L));
+        assertThat(trackingBreaker.callTimes(), equalTo(1));
+        assertThat(trackingBreaker.getUsed(), equalTo(50L));
+        localBreaker.addWithoutBreaking(-5);
+        assertThat(trackingBreaker.getUsed(), equalTo(50L));
+        assertThat(localBreaker.getReservedBytes(), equalTo(35L));
+        localBreaker.addEstimateBytesAndMaybeBreak(25, "test");
+        assertThat(trackingBreaker.getUsed(), equalTo(50L));
+        assertThat(trackingBreaker.callTimes(), equalTo(1));
+        assertThat(localBreaker.getReservedBytes(), equalTo(10L));
+        var error = expectThrows(CircuitBreakingException.class, () -> localBreaker.addEstimateBytesAndMaybeBreak(60, "test"));
+        assertThat(error.getBytesWanted(), equalTo(80L));
+        assertThat(trackingBreaker.callTimes(), equalTo(2));
+        localBreaker.addEstimateBytesAndMaybeBreak(30, "test");
+        assertThat(trackingBreaker.getUsed(), equalTo(100L));
+        assertThat(localBreaker.getReservedBytes(), equalTo(30L));
+        assertThat(trackingBreaker.callTimes(), equalTo(3));
+        localBreaker.addWithoutBreaking(-40L);
+        assertThat(trackingBreaker.getUsed(), equalTo(80L));
+        assertThat(localBreaker.getReservedBytes(), equalTo(50L));
+        assertThat(trackingBreaker.callTimes(), equalTo(4));
+    }
+
 }

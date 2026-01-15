@@ -15,7 +15,7 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.painless;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.ingest.common;
-    requires org.elasticsearch.ingest.useragent;
+    requires org.elasticsearch.useragent;
     requires org.elasticsearch.mustache;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;

@@ -333,6 +333,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.SetParserTests
   method: testSetUnmappedFieldsWrongValue
   issue: https://github.com/elastic/elasticsearch/issues/140673
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushDownMetadataTierInOrOperator {default}
+  issue: https://github.com/elastic/elasticsearch/issues/140750
 
 # Examples:
 #

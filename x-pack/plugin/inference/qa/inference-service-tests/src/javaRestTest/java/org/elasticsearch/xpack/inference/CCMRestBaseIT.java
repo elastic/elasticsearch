@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CCMRestBaseIT extends ESRestTestCase {
 
-    static final PutCCMConfigurationAction.Request ENABLE_CCM_REQUEST = PutCCMConfigurationAction.Request.createEnabled(
+    public static final PutCCMConfigurationAction.Request ENABLE_CCM_REQUEST = PutCCMConfigurationAction.Request.createEnabled(
         "key",
         TimeValue.THIRTY_SECONDS,
         TimeValue.THIRTY_SECONDS
@@ -36,7 +36,7 @@ public class CCMRestBaseIT extends ESRestTestCase {
     static final String GET_METHOD = "GET";
     static final String DELETE_METHOD = "DELETE";
 
-    static CCMEnabledActionResponse putCCMConfiguration(PutCCMConfigurationAction.Request request) throws IOException {
+    public static CCMEnabledActionResponse putCCMConfiguration(PutCCMConfigurationAction.Request request) throws IOException {
         return assertSuccessAndParseResponse(putRawRequest(INFERENCE_CCM_PATH, request));
     }
 

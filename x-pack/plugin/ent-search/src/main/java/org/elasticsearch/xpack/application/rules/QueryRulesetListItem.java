@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -61,12 +59,7 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         this.rulesetId = in.readString();
         this.ruleTotalCount = in.readInt();
         this.criteriaTypeToCountMap = in.readMap(m -> in.readEnum(QueryRuleCriteriaType.class), StreamInput::readInt);
-        TransportVersion streamTransportVersion = in.getTransportVersion();
-        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
-            this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
-        } else {
-            this.ruleTypeToCountMap = Map.of();
-        }
+        this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
     }
 
     @Override
@@ -93,10 +86,7 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         out.writeString(rulesetId);
         out.writeInt(ruleTotalCount);
         out.writeMap(criteriaTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
-        TransportVersion streamTransportVersion = out.getTransportVersion();
-        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
-            out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
-        }
+        out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
     }
 
     /**

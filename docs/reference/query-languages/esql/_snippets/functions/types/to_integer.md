@@ -2,15 +2,21 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| boolean | integer |
-| counter_integer | integer |
-| date | integer |
-| double | integer |
-| integer | integer |
-| keyword | integer |
-| long | integer |
-| text | integer |
-| unsigned_long | integer |
+| field | base | result |
+| --- | --- | --- |
+| boolean | | integer |
+| counter_integer | | integer |
+| date | | integer |
+| double | | integer |
+| integer | | integer |
+| keyword | integer | integer |
+| keyword | long | integer |
+| keyword | unsigned_long | integer |
+| keyword | | integer |
+| long | | integer |
+| text | integer | integer |
+| text | long | integer |
+| text | unsigned_long | integer |
+| text | | integer |
+| unsigned_long | | integer |
 

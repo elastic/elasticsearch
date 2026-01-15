@@ -10,7 +10,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -91,9 +90,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         runtimeFields = in.readGenericMap();
         filters = in.readStringArray();
         types = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            includeEmptyFields = in.readBoolean();
-        }
+        includeEmptyFields = in.readBoolean();
         if (in.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             clusterAlias = in.readOptionalString();
         } else {
@@ -148,9 +145,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         out.writeGenericMap(runtimeFields);
         out.writeStringArray(filters);
         out.writeStringArray(types);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(includeEmptyFields);
-        }
+        out.writeBoolean(includeEmptyFields);
         if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             out.writeOptionalString(clusterAlias);
         }

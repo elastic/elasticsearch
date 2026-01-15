@@ -21,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -440,11 +439,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_15_0,
-                TransportVersion.current()
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
             assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
         }
 
@@ -491,11 +486,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_15_0,
-                TransportVersion.current()
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
         }
     }
@@ -510,11 +501,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                originalQuery.getMinimalSupportedVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
 
             if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
                 QueryBuilder deserializedQuery = copyNamedWriteable(

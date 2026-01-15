@@ -149,7 +149,8 @@ public class VectorScorerInt7Benchmark {
                     queryCorrections.additionalCorrection(),
                     VectorSimilarityFunction.EUCLIDEAN,
                     centroidDp,
-                    scores
+                    scores,
+                    ES92Int7VectorsScorer.BULK_SIZE
                 );
                 for (float score : scores) {
                     bh.consume(score);

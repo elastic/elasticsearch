@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -175,11 +174,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
         this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.deprecated = in.readOptionalBoolean();
-        } else {
-            this.deprecated = null;
-        }
+        this.deprecated = in.readOptionalBoolean();
         if (in.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
             this.createdDateMillis = in.readOptionalLong();
             this.modifiedDateMillis = in.readOptionalLong();
@@ -292,9 +287,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
         out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalBoolean(deprecated);
-        }
+        out.writeOptionalBoolean(deprecated);
         if (out.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
             out.writeOptionalLong(createdDateMillis);
             out.writeOptionalLong(modifiedDateMillis);

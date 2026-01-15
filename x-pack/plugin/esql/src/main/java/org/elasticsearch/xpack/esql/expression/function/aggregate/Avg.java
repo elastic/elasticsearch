@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Avg extends AggregateFunction implements SurrogateExpression {
+public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
     private final Expression summationMode;
 
@@ -55,7 +56,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "exponential_histogram", "double", "integer", "long" },
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
@@ -75,10 +76,13 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == AGGREGATE_METRIC_DOUBLE || dt == EXPONENTIAL_HISTOGRAM,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == AGGREGATE_METRIC_DOUBLE
+                || dt == EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
-            "aggregate_metric_double, exponential_histogram or numeric except unsigned_long or counter types"
+            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
         );
     }
 
@@ -133,11 +137,11 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
                 new Count(s, field, filter(), window()).surrogate()
             );
         }
-        if (field.dataType() == EXPONENTIAL_HISTOGRAM) {
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
             Sum valuesSum = new Sum(s, field, filter(), window(), summationMode);
             Sum totalCount = new Sum(
                 s,
-                ExtractHistogramComponent.create(s, field, ExponentialHistogramBlock.Component.COUNT),
+                ExtractHistogramComponent.create(s, field, HistogramBlock.Component.COUNT),
                 filter(),
                 window(),
                 summationMode

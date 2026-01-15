@@ -18,6 +18,8 @@
 | boolean | dense_vector | | dense_vector |
 | boolean | double | double | double |
 | boolean | double | | double |
+| boolean | exponential_histogram | exponential_histogram | exponential_histogram |
+| boolean | exponential_histogram | | exponential_histogram |
 | boolean | geo_point | geo_point | geo_point |
 | boolean | geo_point | | geo_point |
 | boolean | geo_shape | geo_shape | geo_shape |

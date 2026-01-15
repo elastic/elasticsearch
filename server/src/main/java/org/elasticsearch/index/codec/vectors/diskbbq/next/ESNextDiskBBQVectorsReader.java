@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -55,39 +56,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        return new CentroidIterator() {
-            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
-                ? centroidIterator.nextPostingListOffsetAndLength()
-                : null;
-
-            {
-                // prefetch the first one
-                if (nextOffsetAndLength != null) {
-                    prefetch(nextOffsetAndLength);
-                }
-            }
-
-            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
-                postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
-            }
-
-            @Override
-            public boolean hasNext() {
-                return nextOffsetAndLength != null;
-            }
-
-            @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
-                if (centroidIterator.hasNext()) {
-                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
-                    prefetch(nextOffsetAndLength);
-                } else {
-                    nextOffsetAndLength = null;  // indicate we reached the end
-                }
-                return offsetAndLength;
-            }
-        };
+        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
+        // so we don't bother prefetching many lists we won't end up scoring
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
     }
 
     static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {
@@ -499,7 +470,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     queryCorrections.additionalCorrection(),
                     similarityFunction,
                     centroidDp,
-                    scores
+                    scores,
+                    BULK_SIZE
                 );
                 for (int j = 0; j < ES92Int7VectorsScorer.BULK_SIZE; j++) {
                     int centroidOrd = scoresOffset + i + j;
@@ -512,23 +484,31 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
         }
 
-        for (; i < size; i++) {
-            int centroidOrd = scoresOffset + i;
-            if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
-                float score = scorer.score(
+        int tailBulkSize = size - i;
+        if (tailBulkSize > 0) {
+            if (acceptCentroids == null || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + tailBulkSize) > 0) {
+                scorer.scoreBulk(
                     quantizeQuery,
                     queryCorrections.lowerInterval(),
                     queryCorrections.upperInterval(),
                     queryCorrections.quantizedComponentSum(),
                     queryCorrections.additionalCorrection(),
                     similarityFunction,
-                    centroidDp
+                    centroidDp,
+                    scores,
+                    tailBulkSize
                 );
-                neighborQueue.add(centroidOrd, score);
+                for (int j = 0; j < tailBulkSize; j++) {
+                    int centroidOrd = scoresOffset + i + j;
+                    if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
+                        neighborQueue.add(centroidOrd, scores[j]);
+                    }
+                }
             } else {
-                centroids.skipBytes(centroidQuantizeSize);
+                centroids.skipBytes(tailBulkSize * centroidQuantizeSize);
             }
         }
+
     }
 
     @Override

@@ -82,6 +82,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_COUNTER;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
+import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -954,11 +955,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         String name,
         int expectedValue
     ) {
-        assertEquals(
-            name,
-            List.of((long) expectedValue),
-            metricRecorder.getMeasurements(instrumentType, name).stream().map(Measurement::getLong).toList()
-        );
+        assertThat(name, metricRecorder.getMeasurements(instrumentType, name), measures(expectedValue));
     }
 
     private static final Logger logger = LogManager.getLogger(SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests.class);

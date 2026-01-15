@@ -11,10 +11,9 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,22 +24,22 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class EsqlResponseListenerTests extends ESTestCase {
     private final String LOCAL_CLUSTER_ALIAS = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
-    private static MockAppender appender;
+    private static AccumulatingMockAppender appender;
     static Logger logger = LogManager.getLogger(EsqlResponseListener.class);
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
-        appender = new MockAppender("testAppender");
+        appender = new AccumulatingMockAppender("testAppender");
         appender.start();
         Configurator.setLevel(logger, Level.DEBUG);
         Loggers.addAppender(logger, appender);
@@ -58,10 +57,11 @@ public class EsqlResponseListenerTests extends ESTestCase {
     }
 
     public void testLogPartialFailures() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(false);
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(false);
         executionInfo.swapCluster(
             LOCAL_CLUSTER_ALIAS,
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                LOCAL_CLUSTER_ALIAS,
                 LOCAL_CLUSTER_ALIAS,
                 "idx",
                 false,
@@ -91,10 +91,11 @@ public class EsqlResponseListenerTests extends ESTestCase {
     }
 
     public void testLogPartialFailuresRemote() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(false);
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(false);
         executionInfo.swapCluster(
             "remote_cluster",
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                "remote_cluster",
                 "remote_cluster",
                 "idx",
                 false,
@@ -121,18 +122,5 @@ public class EsqlResponseListenerTests extends ESTestCase {
 
     private SearchShardTarget target(String clusterAlias, int shardId) {
         return new SearchShardTarget("node", new ShardId("idx", "uuid", shardId), clusterAlias);
-    }
-
-    private static class MockAppender extends AbstractAppender {
-        public final List<LogEvent> events = new ArrayList<>();
-
-        MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            events.add(event.toImmutable());
-        }
     }
 }

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -119,7 +118,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         this.repositoriesService = repositoriesService;
 
         // construct (and therefore implicitly register) the subsidiary actions
-        new BlobAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new BlobAnalyzeAction(transportService, clusterService.getSettings(), actionFilters, repositoriesService);
         new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
         new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
         new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
@@ -510,9 +509,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 }
             }
 
-            if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
-                new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
-            }
+            new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
 
             final List<Long> blobSizes = getBlobSizes(request);
             Collections.shuffle(blobSizes, random);
@@ -522,15 +519,17 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
-                final boolean doCopy = minClusterTransportVersion.supports(REPO_ANALYSIS_COPY_BLOB) && rarely(random) && i > 0;
+                final boolean doCopy = minClusterTransportVersion.supports(REPO_ANALYSIS_COPY_BLOB) && rarely(random) && i < blobCount - 1;
                 final String blobName = "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random);
-                String copyBlobName = null;
+                final String copyBlobName;
                 if (doCopy) {
                     copyBlobName = blobName + "-copy";
                     blobCount--;
                     if (i >= blobCount) {
                         break;
                     }
+                } else {
+                    copyBlobName = null;
                 }
                 final BlobAnalyzeAction.Request blobAnalyzeRequest = new BlobAnalyzeAction.Request(
                     request.getRepositoryName(),
@@ -599,7 +598,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                                     responses.add(response);
                                 }
                             }
-                            summary.add(response);
+                            summary.add(request, response);
                         }
 
                         @Override
@@ -970,11 +969,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                registerOperationCount = in.readVInt();
-            } else {
-                registerOperationCount = concurrency;
-            }
+            registerOperationCount = in.readVInt();
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
@@ -998,15 +993,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVInt(registerOperationCount);
-            } else if (registerOperationCount != concurrency) {
-                throw new IllegalArgumentException(
-                    "cannot send request with registerOperationCount != concurrency to version ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                );
-            }
+            out.writeVInt(registerOperationCount);
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);

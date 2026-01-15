@@ -28,6 +28,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -220,12 +221,9 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
-            if (concreteIndexRequested(executionInfo.getCluster(c).getIndexExpression())) {
-                String error = Strings.format(
-                    "Unknown index [%s]",
-                    (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
-                );
+            var cluster = executionInfo.getCluster(c);
+            if (concreteIndexRequested(cluster.getIndexExpression())) {
+                String error = Strings.format("Unknown index [%s]", cluster.getQualifiedIndexExpression());
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = error;
@@ -297,14 +295,15 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
-        execInfo.markEndPlanning();
+        PlanningProfile.TimeSpanMarker planningProfile = execInfo.planningProfile().planning();
+        planningProfile.stop();
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(
                         clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(planningProfile.timeTook())
                             .setTotalShards(0)
                             .setSuccessfulShards(0)
                             .setSkippedShards(0)
@@ -344,16 +343,18 @@ public class EsqlCCSUtils {
                 // so that the CCS telemetry handler can recognize that this error is CCS-related
                 try {
                     groupedIndices.forEach((clusterAlias, indices) -> {
-                        executionInfo.initCluster(clusterAlias, Strings.arrayToCommaDelimitedString(indices.indices()));
+                        executionInfo.initCluster(
+                            clusterAlias,
+                            EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION,
+                            Strings.arrayToCommaDelimitedString(indices.indices())
+                        );
                     });
                 } finally {
                     executionInfo.clusterInfoInitializing(false);
                 }
             }
 
-            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
+            validateCcsLicense(licenseState, executionInfo);
         } catch (NoSuchRemoteClusterException e) {
             if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                 throw e;
@@ -363,9 +364,19 @@ public class EsqlCCSUtils {
         }
     }
 
+    public static void validateCcsLicense(XPackLicenseState licenseState, EsqlExecutionInfo executionInfo) {
+        if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+            throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+        }
+    }
+
     public static void initCrossClusterState(EsIndex esIndex, EsqlExecutionInfo executionInfo) {
         esIndex.originalIndices().forEach((clusterAlias, indices) -> {
-            executionInfo.initCluster(clusterAlias, Strings.collectionToCommaDelimitedString(indices));
+            executionInfo.initCluster(
+                clusterAlias,
+                EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION,
+                Strings.collectionToCommaDelimitedString(indices)
+            );
         });
     }
 

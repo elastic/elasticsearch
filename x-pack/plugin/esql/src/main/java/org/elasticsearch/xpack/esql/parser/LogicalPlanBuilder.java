@@ -13,7 +13,6 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
@@ -190,7 +189,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
         String name = visitIdentifier(ctx.identifier());
-        Expression value = expression(ctx.constant());
+        Expression value;
+        if (ctx.constant() != null) {
+            value = expression(ctx.constant());
+        } else {
+            value = visitMapExpression(ctx.mapExpression());
+        }
         return new Alias(source(ctx), name, value);
     }
 
@@ -467,7 +471,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             if (input.anyMatch(p -> p instanceof Aggregate) == false
                 && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
-                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
+                return new TimeSeriesAggregate(
+                    source(ctx),
+                    input,
+                    stats.groupings,
+                    stats.aggregates,
+                    null,
+                    new UnresolvedTimestamp(source(ctx))
+                );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
             }
@@ -792,27 +803,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var condition = ctx.joinCondition();
         var joinInfo = typedParsing(this, condition, JoinInfo.class);
 
-        return p -> {
-            boolean hasRemotes = p.anyMatch(node -> {
-                if (node instanceof UnresolvedRelation r) {
-                    return Arrays.stream(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()))
-                        .anyMatch(RemoteClusterAware::isRemoteIndexName);
-                } else {
-                    return false;
-                }
-            });
-            if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
-                throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
-            }
-            return new LookupJoin(
-                source,
-                p,
-                right,
-                joinInfo.joinFields(),
-                hasRemotes,
-                Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
-            );
-        };
+        return p -> new LookupJoin(
+            source,
+            p,
+            right,
+            joinInfo.joinFields(),
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+        );
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
@@ -948,21 +945,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return f;
     }
 
-    private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
-        plan.forEachUp(UnresolvedRelation.class, r -> {
-            for (var indexPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
-                if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
-                    throw new ParsingException(
-                        source,
-                        "invalid index pattern [{}], remote clusters are not supported with {}",
-                        r.indexPattern().indexPattern(),
-                        commandName
-                    );
-                }
-            }
-        });
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
@@ -972,9 +954,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
-                checkForRemoteClusters(input, source(ctx), "FORK");
-            }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };
@@ -1085,7 +1064,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(source(fuseConfigurationContext), "Only one KEY BY can be specified");
                 }
 
-                keys = visitGrouping(fuseConfigurationContext.key);
+                keys = visitList(this, fuseConfigurationContext.key.qualifiedName(), NamedExpression.class);
             }
         }
 
@@ -1112,17 +1091,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
         Source source = source(ctx);
+
+        if (context.inferenceSettings().rerankEnabled() == false) {
+            throw new ParsingException(source, "RERANK command is disabled in settings.");
+        }
+
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
         if (scoreAttribute.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().rerankRowLimit());
 
-        return p -> {
-            checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
-        };
+        return p -> applyRerankOptions(
+            new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
+            ctx.commandNamedParameters()
+        );
     }
 
     private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1153,6 +1138,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
+
+        if (context.inferenceSettings().completionEnabled() == false) {
+            throw new ParsingException(source, "COMPLETION command is disabled in settings.");
+        }
+
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
 
@@ -1160,10 +1150,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
-        return p -> {
-            checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
-        };
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
+
+        return p -> applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1276,7 +1265,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 params.startLiteral(),
                 params.endLiteral(),
                 promqlStartLine,
-                promqlStartColumn
+                promqlStartColumn,
+                context.params()
             );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);

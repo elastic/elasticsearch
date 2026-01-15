@@ -27,11 +27,9 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
@@ -101,8 +98,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
-
-    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
@@ -381,7 +376,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }
@@ -708,81 +703,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return createNSnapshots(logger, repoName, count);
     }
 
-    protected static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
-        safeAwait((ActionListener<Void> listener) -> putShutdownForRemovalMetadata(clusterService, nodeName, listener));
-    }
-
-    protected static void flushMasterQueue(ClusterService clusterService, ActionListener<Void> listener) {
-        clusterService.submitUnbatchedStateUpdateTask("flush queue", new ClusterStateUpdateTask(Priority.LANGUID) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-        });
-    }
-
-    protected static void putShutdownForRemovalMetadata(ClusterService clusterService, String nodeName, ActionListener<Void> listener) {
-        // not testing REPLACE just because it requires us to specify the replacement node
-        final var shutdownType = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
-        final var shutdownMetadata = SingleNodeShutdownMetadata.builder()
-            .setType(shutdownType)
-            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
-            .setReason("test");
-        switch (shutdownType) {
-            case SIGTERM -> shutdownMetadata.setGracePeriod(TimeValue.timeValueSeconds(60));
-        }
-        SubscribableListener
-
-            .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
-            .<Void>andThen(l -> flushMasterQueue(clusterService, l))
-            .addListener(listener);
-    }
-
-    protected static void putShutdownMetadata(
-        ClusterService clusterService,
-        SingleNodeShutdownMetadata.Builder shutdownMetadataBuilder,
-        String nodeName,
-        ActionListener<Void> listener
-    ) {
-        clusterService.submitUnbatchedStateUpdateTask("mark node for removal", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final var node = currentState.nodes().resolveNode(nodeName);
-                return currentState.copyAndUpdateMetadata(
-                    mdb -> mdb.putCustom(
-                        NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(
-                            Map.of(
-                                node.getId(),
-                                shutdownMetadataBuilder.setNodeId(node.getId()).setNodeEphemeralId(node.getEphemeralId()).build()
-                            )
-                        )
-                    )
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-        });
-    }
-
     protected static void clearShutdownMetadata(ClusterService clusterService) {
         safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
             @Override
@@ -854,7 +774,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + randomIdentifier() + "-";
+        final String prefix = randomSnapshotName() + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);

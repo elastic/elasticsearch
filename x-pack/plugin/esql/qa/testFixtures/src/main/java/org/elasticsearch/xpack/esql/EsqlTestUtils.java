@@ -25,8 +25,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -40,7 +42,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -64,8 +68,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,6 +83,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -112,9 +119,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -159,6 +168,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -175,6 +185,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.regex.Pattern;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
@@ -182,8 +193,10 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -191,6 +204,7 @@ import static org.elasticsearch.test.ESTestCase.randomByte;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -209,6 +223,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -536,6 +551,26 @@ public final class EsqlTestUtils {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
+        return testAnalyzerContext(
+            configuration,
+            functionRegistry,
+            indexResolutions,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            UNMAPPED_FIELDS.defaultValue()
+        );
+    }
+
+    public static MutableAnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        UnmappedResolution unmappedResolution
+    ) {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
@@ -543,7 +578,8 @@ public final class EsqlTestUtils {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
-            randomMinimumVersion()
+            randomMinimumVersion(),
+            unmappedResolution
         );
     }
 
@@ -568,7 +604,7 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class)),
+        new InferenceService(mock(Client.class), createMockClusterService()),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS,
         new CrossProjectModeDecider(Settings.EMPTY)
@@ -577,6 +613,12 @@ public final class EsqlTestUtils {
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
         doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        doReturn(Settings.EMPTY).when(service).getSettings();
+
+        // Create ClusterSettings with the required inference settings
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, new java.util.HashSet<>(InferenceSettings.getSettings()));
+        doReturn(clusterSettings).when(service).getClusterSettings();
+
         return service;
     }
 
@@ -597,6 +639,7 @@ public final class EsqlTestUtils {
     public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
         return new Configuration(
             statement.setting(QuerySettings.TIME_ZONE),
+            Instant.now(),
             Locale.US,
             null,
             null,
@@ -1052,6 +1095,11 @@ public final class EsqlTestUtils {
                 randomDouble(),
                 randomInt()
             );
+            case DATE_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case NULL -> null;
             case SOURCE -> {
                 try {
@@ -1063,11 +1111,13 @@ public final class EsqlTestUtils {
                 }
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
+            case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
+            case TDIGEST -> EsqlTestUtils.randomTDigest();
         }, type);
     }
 
@@ -1106,6 +1156,62 @@ public final class EsqlTestUtils {
         return new WriteableExponentialHistogram(histo);
     }
 
+    public static TDigestHolder randomTDigest() {
+        // TODO: This is mostly copied from TDigestFieldMapperTests and BlockTestUtils; refactor it.
+        int size = between(1, 100);
+        // Note - we use TDigestState to build an actual t-digest for realistic values here
+        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        for (int i = 0; i < size; i++) {
+            double sample = randomGaussianDouble();
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            digest.add(sample, count);
+        }
+        List<Double> centroids = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        double sum = 0.0;
+        long valueCount = 0L;
+        for (Centroid c : digest.centroids()) {
+            centroids.add(c.mean());
+            counts.add(c.count());
+            sum += c.mean() * c.count();
+            valueCount += c.count();
+        }
+        double min = digest.getMin();
+        double max = digest.getMax();
+
+        TDigestHolder returnValue = null;
+        try {
+            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        return returnValue;
+    }
+
+    public static BytesRef randomHistogram() {
+        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        values.sort(Double::compareTo);
+        // Note - we need the three parameter version of random list here to ensure it's always the same length as values
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        try {
+            for (int i = 0; i < values.size(); i++) {
+                long count = counts.get(i);
+                // Presuming I didn't mess up the data generation, we should never generate a zero here, so no need to account for it.
+                assert count > 0;
+                streamOutput.writeVLong(count);
+                streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+            }
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            return docValue;
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        throw new IllegalArgumentException("Unreachable");
+    }
+
     static Version randomVersion() {
         // TODO degenerate versions and stuff
         return switch (between(0, 2)) {
@@ -1132,12 +1238,37 @@ public final class EsqlTestUtils {
         return routingPathFields.buildHash();
     }
 
+    // lifted from org.elasticsearch.http.HttpClientStatsTrackerTests
+    public static String randomizeCase(String s) {
+        final char[] chars = s.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            chars[i] = randomizeCase(chars[i]);
+        }
+        return new String(chars);
+    }
+
+    private static char randomizeCase(char c) {
+        return switch (between(1, 3)) {
+            case 1 -> Character.toUpperCase(c);
+            case 2 -> Character.toLowerCase(c);
+            default -> c;
+        };
+    }
+
     public static WildcardLike wildcardLike(Expression left, String exp) {
         return new WildcardLike(EMPTY, left, new WildcardPattern(exp), false);
     }
 
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
+    public static QueryParams paramsAsConstant(String key, Object value) {
+        return new QueryParams(List.of(paramAsConstant(key, value)));
+    }
+
+    public static QueryParams paramsAsConstant(Map<String, Object> params) {
+        return new QueryParams(params.entrySet().stream().map(e -> paramAsConstant(e.getKey(), e.getValue())).toList());
     }
 
     public static QueryParam paramAsConstant(String name, Object value) {
@@ -1294,20 +1425,67 @@ public final class EsqlTestUtils {
         });
     }
 
+    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Checks if a query contains any of the specified indices in its source command.
+     * This is useful for determining if a query uses indices that are loaded into both clusters
+     * (like enrich source indices or lookup indices), which may require special handling.
+     *
+     * @param query The ESQL query to check
+     * @param indicesToCheck Set of index names to check for (case-insensitive)
+     * @return true if the query contains any of the specified indices, false otherwise
+     */
+    public static boolean queryContainsIndices(String query, Set<String> indicesToCheck) {
+        String[] commands = query.split("\\|");
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        int lastSetDelimiterPosition = -1;
+        if (setMatcher.find()) {
+            lastSetDelimiterPosition = setMatcher.end();
+        }
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+        String command = commandParts[0].trim();
+        if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
+            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+                .collect(UnresolvedRelation.class)
+                .getFirst()
+                .indexPattern()
+                .indexPattern()
+                .split(",");
+            for (String index : indices) {
+                String indexName = index.trim().toLowerCase(Locale.ROOT);
+                if (indicesToCheck.contains(indexName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
         // remove subqueries
         String first = commands[0].split(",\\s+\\(")[0].trim();
 
-        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
-        int lastSetDelimiterPosition = first.lastIndexOf(';');
-        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        int lastSetDelimiterPosition = -1;
+        if (setMatcher.find()) {
+            lastSetDelimiterPosition = setMatcher.end();
+        }
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
 
         // Split "FROM a, b, c" into "FROM" and "a, b, c"
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
 
         String command = commandParts[0].trim();
+        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
             String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
@@ -1319,7 +1497,7 @@ public final class EsqlTestUtils {
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
-                if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                if (queryContainsIndices(query, lookupIndices)) {
                     // If the query contains lookup indices, use only remotes to avoid duplication
                     onlyRemotes = true;
                 }
@@ -1339,7 +1517,10 @@ public final class EsqlTestUtils {
                     i += newIndex.length();
                 }
                 String newFirstCommand = command + " " + commandArgs;
-                return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
+                String finalQuery = (setStatements + newFirstCommand.trim() + query.substring(first.length()));
+                assert query.split("\n").length == finalQuery.split("\n").length
+                    : "the final query should have the same lines for warnings to work";
+                return finalQuery;
             }
         }
         return query;

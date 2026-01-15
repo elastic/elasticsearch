@@ -8,7 +8,7 @@ navigation_title: Collapse search results
 
 # Collapse search results [collapse-search-results]
 
-You can use the `collapse` parameter to collapse search results based on field values. The collapsing is done by selecting only the top sorted document per collapse key.
+You can use the Search API's [`collapse` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-collapse) to collapse search results based on field values. The collapsing is done by selecting only the top sorted document per collapse key.
 
 For example, the following search collapses results by `user.id` and sorts them by `http.response.bytes`.
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -167,11 +166,7 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                cacheStats = in.readBoolean() ? new CacheStats(in) : null;
-            } else {
-                cacheStats = null;
-            }
+            cacheStats = in.readBoolean() ? new CacheStats(in) : null;
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.readCollectionAsImmutableSet(StreamInput::readString);
@@ -216,11 +211,9 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeBoolean(cacheStats != null);
-                if (cacheStats != null) {
-                    cacheStats.writeTo(out);
-                }
+            out.writeBoolean(cacheStats != null);
+            if (cacheStats != null) {
+                cacheStats.writeTo(out);
             }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);

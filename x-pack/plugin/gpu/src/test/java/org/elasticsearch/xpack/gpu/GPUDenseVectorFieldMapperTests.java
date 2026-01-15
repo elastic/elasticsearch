@@ -73,7 +73,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
             b.field("type", indexOptionsType);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));

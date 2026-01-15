@@ -88,7 +88,7 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
             PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.1, 0.5, 12 })
                 .field("field")
                 .method(PercentilesMethod.HDR);
-            MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
+            MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap(), null);
             try (IndexReader reader = w.getReader()) {
                 PercentileRanks ranks = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 Iterator<Percentile> rankIterator = ranks.iterator();

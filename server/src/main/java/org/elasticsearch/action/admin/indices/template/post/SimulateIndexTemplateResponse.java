@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.ResettableValue;
@@ -84,9 +83,6 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             out.writeBoolean(false);
         }
         out.writeOptionalWriteable(rolloverConfiguration);
-        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(null);
-        }
     }
 
     @Override

@@ -901,6 +901,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
   /**
    * {@inheritDoc}

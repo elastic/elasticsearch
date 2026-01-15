@@ -29,6 +29,6 @@ public class CCMFeature {
     }
 
     public boolean isCcmSupportedEnvironment() {
-        return isCcmSupportedEnvironment && CCMFeatureFlag.FEATURE_FLAG.isEnabled();
+        return isCcmSupportedEnvironment;
     }
 }

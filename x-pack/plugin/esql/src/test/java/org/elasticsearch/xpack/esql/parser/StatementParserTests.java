@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -27,10 +30,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -48,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -84,7 +92,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -290,7 +300,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Eval(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                List.of(new Alias(EMPTY, "b", attribute("a")), new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1))))
+                List.of(
+                    new Alias(EMPTY, "b", attribute("a")),
+                    new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                )
             ),
             processingCommand("eval b = a, c = a + 1")
         );
@@ -310,7 +323,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(
                         EMPTY,
                         "fn(a + 1)",
-                        new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "fn",
+                            DEFAULT,
+                            List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                        )
                     )
                 )
             ),
@@ -1241,10 +1259,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldMultipleDeclarations() {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
-    }
-
-    public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test metadata _tier", "line 1:20: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
@@ -2541,7 +2555,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2554,7 +2569,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2577,7 +2593,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     ),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
             )
         );
         assertQuery(
@@ -2587,7 +2604,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
             )
         );
         assertQuery(
@@ -2597,7 +2615,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2607,7 +2626,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2617,7 +2637,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
             )
         );
         assertQuery(
@@ -2631,7 +2652,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("c"),
                     attribute("d.e")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
             )
         );
     }
@@ -3577,14 +3599,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
-
-        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
-            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-            expectError(
-                "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
-                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
-            );
-        }
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -3643,6 +3657,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankEmptyOptions() {
@@ -3653,6 +3668,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankInferenceId() {
@@ -3663,6 +3679,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankScoreAttribute() {
@@ -3673,6 +3690,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankInferenceIdAnddScoreAttribute() {
@@ -3683,6 +3701,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankSingleField() {
@@ -3693,6 +3712,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankMultipleFields() {
@@ -3714,6 +3734,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankComputedFields() {
@@ -3734,6 +3755,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankComputedFieldsWithoutName() {
@@ -3755,6 +3777,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankWithNamedParameters() {
@@ -3770,6 +3793,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
+    }
+
+    public void testRerankRowLimitOverride() {
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.RERANK_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+
+        var plan = as(
+            processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceID\" }", new QueryParams(), settings),
+            Rerank.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
+    }
+
+    public void testRerankCommandDisabled() {
+        Settings settings = Settings.builder().put(InferenceSettings.RERANK_ENABLED_SETTING.getKey(), false).build();
+
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("RERANK \"query text\" ON title", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("RERANK command is disabled"));
     }
 
     public void testInvalidRerank() {
@@ -3783,12 +3829,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
-
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        expectError(
-            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inference_id\" }",
-            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
-        );
 
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
@@ -3816,6 +3856,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("targetField")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
@@ -3827,6 +3869,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("targetField")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
     }
 
     public void testCompletionDefaultFieldName() {
@@ -3835,6 +3878,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
     }
 
     public void testCompletionWithPositionalParameters() {
@@ -3847,6 +3891,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
     }
 
     public void testCompletionWithNamedParameters() {
@@ -3859,6 +3904,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+    }
+
+    public void testCompletionRowLimitOverride() {
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.COMPLETION_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+
+        var plan = as(
+            processingCommand("COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }", new QueryParams(), settings),
+            Completion.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
+    }
+
+    public void testCompletionCommandDisabled() {
+        Settings settings = Settings.builder().put(InferenceSettings.COMPLETION_ENABLED_SETTING.getKey(), false).build();
+
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("COMPLETION command is disabled"));
     }
 
     public void testInvalidCompletion() {
@@ -3874,12 +3942,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
         expectError("FROM foo* | COMPLETION completion=prompt WITH", "ine 1:46: mismatched input '<EOF>' expecting '{'");
-
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        expectError(
-            "FROM " + fromPatterns + " | COMPLETION prompt_field WITH { \"inference_id\" : \"inference_id\" }",
-            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
-        );
 
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
@@ -4066,6 +4128,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(queryPrefix + " | FUSE KEY BY bar SCORE BY another_score KEY BY bar", "line 1:114: Only one KEY BY can be specified");
 
         expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score LINEAR", "line 1:111: extraneous input 'LINEAR' expecting <EOF>");
+
+        expectError(queryPrefix + " | FUSE KEY BY CONCAT(key1, key2)", "line 1:93: token recognition error at: '('");
     }
 
     public void testUnclosedParenthesis() {
@@ -4177,13 +4241,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
-        try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
-            report.humanReadable(true).prettyPrint();
+        try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
+                namesAndAliases.removeAll(List.of("date_range"));
             }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
@@ -4197,11 +4260,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
             }
             report.endObject();
+            String rendered = Strings.toString(report);
+            (new TestInlineCastDocsSupport(rendered)).renderDocs();
         }
         logger.info("Wrote to file: {}", file);
+    }
+
+    private static class TestInlineCastDocsSupport extends DocsV3Support {
+        private final String rendered;
+
+        protected TestInlineCastDocsSupport(String rendered) {
+            super(null, "inline_cast", StatementParserTests.class, Set::of, new DocsV3Support.WriteCallbacks());
+            this.rendered = rendered;
+        }
+
+        @Override
+        protected void renderDocs() throws IOException {
+            this.writeToTempKibanaDir("definition", "json", rendered);
+        }
     }
 
     public void testTooBigQuery() {

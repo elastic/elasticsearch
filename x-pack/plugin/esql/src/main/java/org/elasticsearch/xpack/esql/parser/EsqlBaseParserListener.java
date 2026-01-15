@@ -766,6 +766,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuseKeyByFields}.
+   * @param ctx the parse tree
+   */
+  void enterFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuseKeyByFields}.
+   * @param ctx the parse tree
+   */
+  void exitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    */

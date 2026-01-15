@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -17,11 +18,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -37,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractStatementParserTests extends ESTestCase {
 
-    final EsqlParser parser = EsqlParser.INSTANCE;
+    protected final EsqlParser parser = EsqlParser.INSTANCE;
 
     void assertQuery(String query, LogicalPlan expected) {
         final LogicalPlan actual;
@@ -61,12 +65,29 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
         return parser.parseQuery(e, params);
     }
 
+    EsqlStatement statement(String e) {
+        return statement(e, new QueryParams());
+    }
+
     EsqlStatement statement(String e, QueryParams params) {
         return parser.createStatement(e, params);
     }
 
+    EsqlStatement unvalidatedStatement(String e, QueryParams params) {
+        return parser.unvalidatedStatement(e, params);
+    }
+
     LogicalPlan processingCommand(String e) {
         return parser.parseQuery("row a = 1 | " + e);
+    }
+
+    LogicalPlan processingCommand(String e, QueryParams params, Settings settings) {
+        return parser.parseQuery(
+            "row a = 1 | " + e,
+            params,
+            new PlanTelemetry(new EsqlFunctionRegistry()),
+            new InferenceSettings(settings)
+        );
     }
 
     static UnresolvedAttribute attribute(String name) {
@@ -176,6 +197,15 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
             VerificationException.class,
             containsString(errorMessage),
             () -> parser.parseQuery(query)
+        );
+    }
+
+    void expectValidationError(String statement, String errorMessage) {
+        expectThrows(
+            "Statement [" + statement + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
+            ParsingException.class,
+            containsString(errorMessage),
+            () -> parser.createStatement(statement)
         );
     }
 

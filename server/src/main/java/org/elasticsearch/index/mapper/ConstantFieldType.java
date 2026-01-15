@@ -75,9 +75,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query internalTermQuery(Object value, QueryRewriteContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, false, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -89,9 +89,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query internalTermQueryCaseInsensitive(Object value, QueryRewriteContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, true, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -105,10 +105,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {
                 // `terms` queries are a disjunction, so one matching term is enough
-                return Queries.newMatchAllQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             }
         }
-        return new MatchNoDocsQuery();
+        return Queries.NO_DOCS_INSTANCE;
     }
 
     @Override
@@ -124,9 +124,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query prefixQuery(String prefix, boolean caseInsensitive, QueryRewriteContext context) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -142,9 +142,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
         if (matches(value, caseInsensitive, context)) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -184,7 +184,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         CharacterRunAutomaton compiled = characterRunAutomatonSupplier.get();
         boolean matches = compiled.run(getConstantFieldValue(context));
         if (matches) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         } else {
             return new MatchNoDocsQuery(
                 "The \"" + context.getFullyQualifiedIndex().getName() + "\" query was rewritten to a \"match_none\" query."

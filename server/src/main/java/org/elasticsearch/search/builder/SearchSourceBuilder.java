@@ -10,7 +10,6 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -273,11 +272,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         runtimeMappings = in.readGenericMap();
         knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            skipInnerHits = in.readBoolean();
-        } else {
-            skipInnerHits = false;
-        }
+        skipInnerHits = in.readBoolean();
     }
 
     @Override
@@ -340,9 +335,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeGenericMap(runtimeMappings);
         out.writeCollection(knnSearch);
         out.writeOptionalNamedWriteable(rankBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            out.writeBoolean(skipInnerHits);
-        }
+        out.writeBoolean(skipInnerHits);
     }
 
     /**
@@ -1434,6 +1427,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                 } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     sort(parser.text());
+                    searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sorts.getLast().name());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
                 } else {
@@ -1515,6 +1509,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
+                        for (var sort : sorts) {
+                            searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sort.name());
+                        }
                     } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         rescoreBuilders = new ArrayList<>();
                         rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));

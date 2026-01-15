@@ -18,7 +18,7 @@
                 index_options:
                   type: int8_hnsw
           settings:
-            index.number_of_shards: 1
+            index.number_of_shards: 2
             index.refresh_interval: -1 # disable automatic refresh to ensure documents are indexed together
   - match: { error: null }
 

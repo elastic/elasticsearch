@@ -20,6 +20,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -32,6 +33,7 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExcep
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -221,6 +223,42 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
         // Exclusion works without prior wildcards
         assertReturnedIndices(trySearch("test10", "test111", "test112", "-test111", "-test112", "index*"), "test10");
+    }
+
+    public void testEmptyExpressionIsInvalid() {
+        createIndicesWithRandomAliases("test1");
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "" },
+            new String[] { "", "_all" },
+            new String[] { "*", "" },
+            new String[] { "test1", "" },
+            new String[] { "*", "", "test1" }
+        );
+        for (var expressions : expressionsList) {
+            final var e = expectThrows(InvalidIndexNameException.class, () -> trySearch(expressions).get());
+            assertThat(e.getMessage(), containsString("Invalid index name [], expression cannot be empty"));
+        }
+    }
+
+    public void testExclusionPrefixOnItsOwnIsInvalid() {
+        createIndicesWithRandomAliases("test1");
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "test1", "-" },
+            new String[] { "*", "-", "test1" },
+            new String[] { "-", "_all" },
+            new String[] { "_all", "-" },
+            new String[] { "-", "-" },
+            new String[] { "-testXXX", "-" },
+            new String[] { "*", "-testXXX", "-" }
+        );
+        for (var expressions : expressionsList) {
+            final var e = expectThrows(InvalidIndexNameException.class, () -> trySearch(expressions).get());
+            assertThat(e.getMessage(), containsString("Invalid index name [], exclusion cannot be empty"));
+        }
     }
 
     public void testMissingDateMath() {

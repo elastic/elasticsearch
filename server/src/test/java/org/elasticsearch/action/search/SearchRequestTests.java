@@ -226,12 +226,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.allowPartialSearchResults(true);
             searchRequest.scroll(null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals(
-                "cannot specify [test_compound_retriever_builder] and [allow_partial_search_results]",
-                validationErrors.validationErrors().get(0)
-            );
+            assertNull(validationErrors);
         }
         {
             // scroll and compound retriever

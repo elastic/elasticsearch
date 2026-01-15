@@ -12,6 +12,7 @@ package org.elasticsearch.search.diversification;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -63,7 +65,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "test_field",
             10,
             0,
-            getRandomQueryVector(),
+            new VectorData(getRandomFloatQueryVector()),
+            null,
             0.3f
         );
         var validationZeroSize = retrieverWithZeroSize.validate(source, null, false, false);
@@ -79,7 +82,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "test_field",
             10,
             -1,
-            getRandomQueryVector(),
+            new VectorData(getRandomFloatQueryVector()),
+            null,
             0.3f
         );
         var validationNegativeSize = retrieverWithNegativeSize.validate(source, null, false, false);
@@ -95,7 +99,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "test_field",
             10,
             20,
-            getRandomQueryVector(),
+            new VectorData(getRandomFloatQueryVector()),
+            null,
             0.3f
         );
         var validationSize = retrieverWithLargeSize.validate(source, null, false, false);
@@ -115,7 +120,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "test_field",
             rankWindowSize,
             size,
-            getRandomQueryVector(),
+            new VectorData(getRandomFloatQueryVector()),
+            null,
             2.0f
         );
         var validationLambda = retrieverHighLambda.validate(source, null, false, false);
@@ -131,7 +137,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "test_field",
             rankWindowSize,
             size,
-            getRandomQueryVector(),
+            new VectorData(getRandomFloatQueryVector()),
+            null,
             -0.1f
         );
         validationLambda = retrieverLowLambda.validate(source, null, false, false);
@@ -147,7 +154,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "test_field",
             rankWindowSize,
             size,
-            getRandomQueryVector(),
+            new VectorData(getRandomFloatQueryVector()),
+            null,
             null
         );
         validationLambda = retrieverNullLambda.validate(source, null, false, false);
@@ -155,6 +163,23 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         assertEquals(
             "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0. The value provided was null",
             validationLambda.validationErrors().getFirst()
+        );
+
+        var retrieverWithBothQueryVectorAndBuilder = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "test_field",
+            rankWindowSize,
+            size,
+            new VectorData(getRandomFloatQueryVector()),
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(getRandomFloatQueryVector()),
+            0.5f
+        );
+        var validationQueryVectors = retrieverWithBothQueryVectorAndBuilder.validate(source, null, false, false);
+        assertEquals(1, validationQueryVectors.validationErrors().size());
+        assertEquals(
+            "[diversify] MMR result diversification can have one of [query_vector] or [query_vector_builder], but not both",
+            validationQueryVectors.validationErrors().getFirst()
         );
     }
 
@@ -187,11 +212,47 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         assertSame(original, rewritten);
         assertCompoundRetriever(original, rewritten);
 
-        // will assert that the rewrite happened without assertion errors
-        List<ScoreDoc[]> docs = new ArrayList<>();
-        docs.add(new ScoreDoc[] {});
-        var result = original.combineInnerRetrieverResults(docs, false);
-        assertEquals(0, result.length);
+        float[] queryVectorToUse = getRandomFloatQueryVector(256);
+        CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
+
+        var withQueryVectorBuilder = new DiversifyRetrieverBuilder(
+            innerRetriever,
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            5,
+            null,
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(queryVectorToUse),
+            0.7f
+        );
+        var builderRewritten = (DiversifyRetrieverBuilder) withQueryVectorBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(withQueryVectorBuilder, builderRewritten);
+        // should not be equal as the query vector should now be set from the builder
+        assertNotEquals(withQueryVectorBuilder, builderRewritten);
+        assertCompoundRetriever(withQueryVectorBuilder, builderRewritten);
+
+        queryRewriteContext.executeAsyncActions(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                var withQueryVector = new DiversifyRetrieverBuilder(
+                    innerRetriever,
+                    ResultDiversificationType.MMR,
+                    "dense_vector_field",
+                    10,
+                    5,
+                    new VectorData(queryVectorToUse),
+                    null,
+                    0.7f
+                );
+
+                assertEquals(withQueryVector, builderRewritten);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
     }
 
     public void testMmrResultDiversification() {
@@ -203,6 +264,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
             0.3f
         );
 
@@ -227,15 +289,9 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
             0.3f
         );
-
-        ElasticsearchStatusException missingRewriteEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false)
-        );
-        assertEquals("diversificationContext is not set. \"doRewrite\" should have been called beforehand.", missingRewriteEx.getMessage());
-        assertEquals(500, missingRewriteEx.status().getStatus());
 
         retrieverWithoutRewrite.doRewrite(queryRewriteContext);
 
@@ -262,6 +318,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
             0.3f
         );
 
@@ -371,10 +428,9 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         int rankWindowSize = randomIntBetween(1, 20);
         Integer size = randomBoolean() ? null : randomIntBetween(1, 20);
 
-        // TODO - decide using float for byte here!
         VectorData queryVector = vectorDimensions == null
-            ? randomBoolean() ? getRandomQueryVector() : null
-            : getRandomQueryVector(vectorDimensions);
+            ? randomBoolean() ? new VectorData(getRandomFloatQueryVector()) : null
+            : new VectorData(getRandomFloatQueryVector(vectorDimensions));
         Float lambda = randomFloatBetween(0.0f, 1.0f, true);
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
         return new DiversifyRetrieverBuilder(
@@ -384,6 +440,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             rankWindowSize,
             size,
             queryVector,
+            null,
             lambda
         );
     }
@@ -392,17 +449,17 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null);
     }
 
-    private static VectorData getRandomQueryVector() {
-        return getRandomQueryVector(null);
+    private static float[] getRandomFloatQueryVector() {
+        return getRandomFloatQueryVector(null);
     }
 
-    private static VectorData getRandomQueryVector(@Nullable Integer vectorDimensions) {
+    private static float[] getRandomFloatQueryVector(@Nullable Integer vectorDimensions) {
         int vectorSize = vectorDimensions == null ? randomIntBetween(5, 256) : vectorDimensions;
         float[] queryVector = new float[vectorSize];
         for (int i = 0; i < queryVector.length; i++) {
             queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
         }
-        return new VectorData(queryVector);
+        return queryVector;
     }
 
     private static ResolvedIndices createMockResolvedIndices(Map<String, List<String>> localIndexDenseVectorFields) {

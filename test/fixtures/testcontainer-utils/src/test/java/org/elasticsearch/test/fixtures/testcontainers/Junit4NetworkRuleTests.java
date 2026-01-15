@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -16,11 +17,17 @@ import org.testcontainers.containers.Network;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.fixtures.testcontainers.DockerAvailability.assumeDockerIsAvailable;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class Junit4NetworkRuleTests {
+
+    @BeforeClass
+    public static void checkDockerAvailable() {
+        assumeDockerIsAvailable();
+    }
 
     @Test
     public void testNetworkLifecycle() throws Throwable {

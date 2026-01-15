@@ -5704,6 +5704,6 @@ from languages_lookup_non_unique_ke*
 warning:Line 13:24: evaluation of [other2 == 50] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 13:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword |id_int:integer | ip_addr:ip |is_active_bool:boolean | name_str:keyword
+language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword | date:datetime | date_nanos:date_nanos | id_int:integer | ip_addr:ip | is_active_bool:boolean | name_str:keyword
 
 ;

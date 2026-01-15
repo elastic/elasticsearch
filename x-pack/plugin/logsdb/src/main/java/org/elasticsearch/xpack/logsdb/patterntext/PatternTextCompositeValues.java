@@ -54,7 +54,8 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
             leafReader,
             fieldType.templateFieldName(),
             fieldType.argsFieldName(),
-            fieldType.argsInfoFieldName()
+            fieldType.argsInfoFieldName(),
+            fieldType.useBinaryDocValuesArgs()
         );
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
         LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);

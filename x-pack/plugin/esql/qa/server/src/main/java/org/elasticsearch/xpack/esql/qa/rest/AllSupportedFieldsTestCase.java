@@ -19,7 +19,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.MapMatcher;
@@ -41,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -50,6 +55,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESO
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
@@ -58,11 +64,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Creates indices with all supported fields and fetches values from them to
- * confirm that release builds correctly handle data types, even if they were
- * introduced in later versions.
+ * Queries like {@code FROM * | KEEP *} can include columns of unsupported types,
+ * and we can run into serialization and correctness issues in mixed version clusters/CCS
+ * when support for a type is added in a later version.
  * <p>
- *     Entirely skipped in snapshot builds; data types that are under
+ * This creates indices with all index-able fields and fetches values from them to
+ * confirm that we correctly handle data types, even if they were introduced in later versions.
+ * Generally, this means that a type is treated as unsupported if any older node is involved.
+ * See {@link org.elasticsearch.xpack.esql.session.Versioned} for more details on how ESQL
+ * handles planning for mixed version clusters.
+ * <p>
+ *     This suite is entirely skipped in snapshot builds; data types that are under
  *     construction are normally tested well enough in spec tests, skipping
  *     old versions via {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}.
  * <p>
@@ -340,7 +352,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     ) {
         MapMatcher expectedColumns = matchesMap().entry(LOOKUP_ID_FIELD, "integer");
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
+            if (supportedInIndex(type, minimumVersion) == false) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -372,7 +384,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
+            if (supportedInIndex(type, minimumVersion) == false) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -724,6 +736,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final String LOOKUP_ID_FIELD = "lookup_id";
 
     protected static void createAllTypesIndex(RestClient client, String indexName, String nodeId, IndexMode mode) throws IOException {
+        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
+        TransportVersion minimumVersion = minVersion(nodeInfoMap);
+
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
             config.startObject("settings");
@@ -746,7 +761,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.endObject();
 
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type) == false) {
+                if (supportedInIndex(type, minimumVersion) == false) {
                     continue;
                 }
                 config.startObject(fieldName(type));
@@ -785,11 +800,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
+        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
+        TransportVersion minimumVersion = minVersion(nodeInfoMap);
+
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
+            if (supportedInIndex(type, minimumVersion) == false) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -811,7 +829,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("value_count", 25);
                     doc.endObject();
                 }
+                case DATE_RANGE -> {
+                    doc.startObject();
+                    doc.field("gte", "1989-01-01");
+                    doc.field("lt", "2025-01-01");
+                    doc.endObject();
+                }
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
+                case HISTOGRAM -> createHistogramValue(doc);
+                case TDIGEST -> createTDigestValue(doc);
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
         }
@@ -822,7 +849,49 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
+    private static final ExponentialHistogram EXPONENTIAL_HISTOGRAM_VALUE = ExponentialHistogram.create(
+        10,
+        ExponentialHistogramCircuitBreaker.noop(),
+        IntStream.range(0, 100).mapToDouble(i -> i).toArray()
+    );
+
+    private static void createTDigestValue(XContentBuilder doc) throws IOException {
+        doc.startObject();
+        doc.field("min", 0.1);
+        doc.field("max", 0.3);
+        doc.field("sum", 15.5);
+        doc.startArray("centroids");
+        doc.value(0.1);
+        doc.value(0.2);
+        doc.value(0.3);
+        doc.endArray();
+        doc.startArray("counts");
+        doc.value(3);
+        doc.value(7);
+        doc.value(23);
+        doc.endArray();
+        doc.endObject();
+    }
+
+    private static void createHistogramValue(XContentBuilder doc) throws IOException {
+        doc.startObject();
+        doc.startArray("values");
+        doc.value(0.1);
+        doc.value(0.2);
+        doc.value(0.3);
+        doc.endArray();
+        doc.startArray("counts");
+        doc.value(3);
+        doc.value(7);
+        doc.value(23);
+        doc.endArray();
+        doc.endObject();
+    }
+
     protected static void createEnrichPolicy(RestClient client, String indexName, String policyName) throws IOException {
+        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
+        TransportVersion minimumVersion = minVersion(nodeInfoMap);
+
         XContentBuilder policyConfig = JsonXContent.contentBuilder().startObject();
         {
             policyConfig.startObject("match");
@@ -831,7 +900,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             policyConfig.field("match_field", LOOKUP_ID_FIELD);
             List<String> enrichFields = new ArrayList<>();
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type) == false || supportedInEnrich(type) == false) {
+                if (supportedInIndex(type, minimumVersion) == false || supportedInEnrich(type) == false) {
                     continue;
                 }
                 enrichFields.add(fieldName(type));
@@ -883,6 +952,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
             }
+            case EXPONENTIAL_HISTOGRAM -> equalTo(
+                xContentToMap(builder -> ExponentialHistogramXContent.serialize(builder, EXPONENTIAL_HISTOGRAM_VALUE))
+            );
+            case TDIGEST -> equalTo(xContentToJson(AllSupportedFieldsTestCase::createTDigestValue));
+            case HISTOGRAM -> equalTo(xContentToJson(AllSupportedFieldsTestCase::createHistogramValue));
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
@@ -891,14 +965,34 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
+            case DATE_RANGE -> {
+                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
+                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
+                // will always be null here.
+                yield nullValue();
+            }
+
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
+    }
+
+    private static Map<String, ?> xContentToMap(ThrowingConsumer<XContentBuilder> generator) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, xContentToJson(generator), true);
+    }
+
+    private static String xContentToJson(ThrowingConsumer<XContentBuilder> generator) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            generator.accept(builder);
+            return Strings.toString(builder);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
      * Is the type supported in indices?
      */
-    private static boolean supportedInIndex(DataType t) {
+    private static boolean supportedInIndex(DataType t, TransportVersion minimumVersion) {
         return switch (t) {
             // These are supported but implied by the index process.
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
@@ -907,11 +1001,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 UNSUPPORTED,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
-                // TODO(b/133393): Once we remove the feature-flag of the exp-histo field type (!= ES|QL type),
-                // replace this with a capability check
-                EXPONENTIAL_HISTOGRAM,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(minimumVersion, false);
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false);
             default -> true;
         };
     }
@@ -924,8 +1017,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
-                // https://github.com/elastic/elasticsearch/issues/137699
-                DENSE_VECTOR -> false;
+                // https://github.com/elastic/elasticsearch/issues/139255
+                EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
             default -> true;
         };
     }
@@ -1012,6 +1105,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("dense_vector");
             }
+            case DATE_RANGE -> {
+                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
+                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
+                // will always be "unsupported" here.
+                yield equalTo("unsupported");
+            }
+            case HISTOGRAM -> {
+                // support for histogram was added later
+                if (HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                    yield equalTo("unsupported");
+                }
+                yield equalTo("histogram");
+            }
             default -> equalTo(type.esType());
         };
     }
@@ -1069,7 +1175,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return minVersion(allNodeToInfo());
     }
 
-    protected TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
+    protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
         return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 }

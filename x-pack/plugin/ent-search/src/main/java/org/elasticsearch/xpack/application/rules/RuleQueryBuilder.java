@@ -10,7 +10,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -88,13 +87,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rulesetIds = in.readStringCollectionAsList();
-        } else {
-            rulesetIds = List.of(in.readString());
-            in.readOptionalStringCollectionAsList();
-            in.readOptionalCollectionAsList(SpecifiedDocument::new);
-        }
+        rulesetIds = in.readStringCollectionAsList();
         pinnedDocsSupplier = null;
         excludedDocsSupplier = null;
     }
@@ -143,14 +136,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeStringCollection(rulesetIds);
-        } else {
-            out.writeString(rulesetIds.get(0));
-            out.writeOptionalStringCollection(null);
-            out.writeOptionalCollection(null);
-        }
+        out.writeStringCollection(rulesetIds);
     }
 
     public List<String> rulesetIds() {

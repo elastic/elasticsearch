@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -237,7 +238,10 @@ final class DefaultSearchContext extends SearchContext {
         }
         IndexFieldData<?> indexFieldData;
         try {
-            indexFieldData = indexService.loadFielddata(mappedFieldType, FieldDataContext.noRuntimeFields("field cardinality"));
+            indexFieldData = indexService.loadFielddata(
+                mappedFieldType,
+                FieldDataContext.noRuntimeFields(indexService.index().getName(), "field cardinality")
+            );
         } catch (Exception e) {
             // loading fielddata for runtime fields will fail, that's ok
             return -1;
@@ -943,6 +947,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public IdLoader newIdLoader() {
-        return IdLoader.create(indexService.mapperService());
+        MapperService mapperService = indexService.mapperService();
+        return IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
     }
 }

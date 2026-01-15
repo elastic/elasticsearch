@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,9 +80,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.shardSeed = in.readOptionalInt();
-        }
+        this.shardSeed = in.readOptionalInt();
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -101,9 +98,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeInt(seed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalInt(shardSeed);
-        }
+        out.writeOptionalInt(shardSeed);
     }
 
     static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {

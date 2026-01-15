@@ -313,6 +313,68 @@ public class TDigestState implements Releasable, Accountable {
         return tdigest.centroids();
     }
 
+    /**
+     * An {@link Iterator} that lets you go through the centroids deduplicated and in ascending order by mean.
+     * @return An iterator over deduplicated centroids.
+     */
+    public final Iterator<Centroid> uniqueCentroids() {
+        Iterator<Centroid> centroids = centroids().iterator();
+        return new Iterator<>() {
+            double value = Double.NaN;
+            long count = 0;
+
+            {
+                if (centroids.hasNext()) {
+                    setNext(centroids.next());
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                return Double.isNaN(value) == false;
+            }
+
+            @Override
+            public Centroid next() {
+                // Return the last value
+                if (centroids.hasNext() == false) {
+                    return getLast();
+                }
+                Centroid centroid = centroids.next();
+                while (Double.compare(centroid.mean(), value) == 0) {
+                    count += centroid.count();
+                    if (centroids.hasNext() == false) {
+                        return getLast();
+                    }
+                    centroid = centroids.next();
+                }
+                return getAndSetNext(centroid);
+            }
+
+            private Centroid getLast() {
+                Centroid centroid = new Centroid(value, count);
+                value = Double.NaN;
+                return centroid;
+            }
+
+            private Centroid getAndSetNext(Centroid centroid) {
+                Centroid current = new Centroid(value, count);
+                setNext(centroid);
+                return current;
+            }
+
+            private void setNext(Centroid centroid) {
+                value = centroid.mean();
+                count = centroid.count();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("Default operation");
+            }
+        };
+    }
+
     public final int centroidCount() {
         return tdigest.centroidCount();
     }

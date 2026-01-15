@@ -68,14 +68,14 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.checkForDanglingTasks = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readBoolean() : true;
-            this.timeout = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
+            this.checkForDanglingTasks = in.getTransportVersion().supports(DANGLING_TASKS) ? in.readBoolean() : true;
+            this.timeout = in.getTransportVersion().supports(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(DANGLING_TASKS)) {
+            if (out.getTransportVersion().supports(DANGLING_TASKS)) {
                 out.writeBoolean(checkForDanglingTasks);
                 out.writeTimeValue(timeout);
             }

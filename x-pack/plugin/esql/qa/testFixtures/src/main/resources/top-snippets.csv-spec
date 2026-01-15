@@ -1,0 +1,136 @@
+###############################################
+# Tests for TopSnippets function
+#
+
+topSnippetsDefaults
+required_capability: top_snippets_function
+
+// tag::top-snippets-with-field[]
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
+// end::top-snippets-with-field[]
+| KEEP book_no, title, snippets
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::top-snippets-with-field-result[]
+book_no:keyword | title:text                                            | snippets:keyword
+1211            | The brothers Karamazov                                | null
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | null
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
+1985            | Brothers Karamazov                                    | null
+// end::top-snippets-with-field-result[]
+;
+
+topSnippetsWithOptions
+required_capability: top_snippets_function
+required_capability: match_function
+
+// tag::top-snippets-with-options[]
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 })
+// end::top-snippets-with-options[]
+| KEEP book_no, title, snippets;
+ignoreOrder: true
+
+// tag::top-snippets-with-options-result[]
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | [Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive, Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the definitive text, and a detailed map of, Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features the definitive edition of the]
+7350            | Return of the Shadow                                             | [Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'., In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, ) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and]
+// end::top-snippets-with-options-result[]
+;
+
+topSnippetsWithOptionsMvExpand
+required_capability: top_snippets_function
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 })
+| MV_EXPAND snippets
+| KEEP book_no, title, snippets;
+ignoreOrder: true
+
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features the definitive edition of the
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the definitive text, and a detailed map of
+7350            | Return of the Shadow                                             | ) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans
+7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+;
+
+topSnippetsWithConcatenatedField
+required_capability: top_snippets_function
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL title_description = CONCAT(title, " ", description)
+| EVAL snippets = TOP_SNIPPETS(title_description, "Tolkien", { "num_snippets": 3, "num_words": 25 })
+| MV_EXPAND snippets
+| KEEP book_no, title, snippets;
+ignoreOrder: true
+
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Rings Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features the definitive edition of the
+2714            | Return of the King Being the Third Part of The Lord of the Rings | of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the definitive text, and a detailed map
+7350            | Return of the Shadow                                             | ) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans
+7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+;
+
+topSnippetsWithMultivaluedField
+required_capability: top_snippets_function
+
+FROM employees
+| EVAL snippets = TOP_SNIPPETS(job_positions, "lead")
+| KEEP emp_no, first_name, last_name, snippets
+| SORT emp_no
+| LIMIT 5
+;
+warning:Line 2:19: evaluation of [TOP_SNIPPETS(job_positions, \"lead\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword | last_name:keyword | snippets:keyword
+10001          | Georgi             | Facello           | null
+10002          | Bezalel            | Simmel            | Senior Team Lead
+10003          | Parto              | Bamford           | null
+10004          | Chirstian          | Koblick           | null
+10005          | Kyoichi            | Maliniak          | null
+;
+
+topSnippetsWithGeneratedField
+required_capability: top_snippets_function
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": 2, "num_words": 25 })
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsWithNullField
+required_capability: top_snippets_function
+
+FROM employees 
+| EVAL snippets = TOP_SNIPPETS(null, "foobar")
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+null
+null
+null
+null
+null
+;
+

@@ -87,6 +87,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -545,7 +546,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(
                                         clusterAlias,
                                         rewritten.allowPartialSearchResults()
-                                    )
+                                    ),
+                                    crossProjectModeDecider.crossProjectEnabled()
+                                        ? ProjectRoutingResolver.ORIGIN
+                                        : SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
                                 );
                                 if (replacedIndices.getLocalIndices() == null) {
                                     // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local
@@ -585,7 +589,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         resolvedIndices.getLocalIndices(),
                         resolvedIndices.getRemoteClusterIndices(),
                         false,
-                        (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(clusterAlias, rewritten.allowPartialSearchResults())
+                        (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(clusterAlias, rewritten.allowPartialSearchResults()),
+                        crossProjectModeDecider.crossProjectEnabled()
+                            ? ProjectRoutingResolver.ORIGIN
+                            : SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
                     );
 
                     // TODO: pass parentTaskId
@@ -658,6 +665,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         final boolean isExplain = source != null && source.explain() != null && source.explain();
         final boolean isProfile = source != null && source.profile();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(
@@ -668,7 +678,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 original.pointInTimeBuilder(),
                 shouldMinimizeRoundtrips(original),
                 isExplain,
-                isProfile
+                isProfile,
+                allowPartialSearchResults
             ),
             rewriteListener
         );
@@ -1711,7 +1722,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                 projectState.metadata(),
                 searchRequest.indices()
             );

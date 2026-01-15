@@ -70,20 +70,24 @@ public class PromqlAstTests extends ESTestCase {
                 Literal now = new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME);
                 var plan = parser.createStatement(q, now, now, 0, 0);
                 log.trace("{}", plan);
-                List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s", "PROMQL %s")
-                    .forEach(pattern -> {
-                        var query = String.format(Locale.ROOT, pattern, q);
-                        LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
-                        assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
+                List.of(
+                    "PROMQL index=test start=0 end=1 step=1m (%s)",
+                    "PROMQL index=test start=0 end=1 step=1m foo=(%s)",
+                    "PROMQL index=test start=0 end=1 step=1m %s",
+                    "PROMQL %s"
+                ).forEach(pattern -> {
+                    var query = String.format(Locale.ROOT, pattern, q);
+                    LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
+                    assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
 
-                        LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
-                        Explain explain = explainPlan.collect(Explain.class).getFirst();
-                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                    LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
+                    Explain explain = explainPlan.collect(Explain.class).getFirst();
+                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
 
-                        explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
-                        explain = explainPlan.collect(Explain.class).getFirst();
-                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
-                    });
+                    explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
+                    explain = explainPlan.collect(Explain.class).getFirst();
+                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                });
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));
             } catch (Exception e) {

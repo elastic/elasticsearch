@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
@@ -150,6 +149,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
@@ -402,7 +402,8 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            if (transportVersion.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false
+                && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have version ["
@@ -433,7 +434,7 @@ public class ApiKeyService implements Closeable {
         final List<RoleDescriptor> roleDescriptors,
         final TransportVersion transportVersion
     ) {
-        if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && hasRemoteIndices(roleDescriptors)) {
+        if (transportVersion.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false && hasRemoteIndices(roleDescriptors)) {
             // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
@@ -444,7 +445,7 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
-        if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(roleDescriptors)) {
+        if (transportVersion.supports(ROLE_REMOTE_CLUSTER_PRIVS) == false && hasRemoteCluster(roleDescriptors)) {
             // API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
@@ -455,11 +456,11 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
-        if (transportVersion.before(TransportVersions.V_8_16_0) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+        if (transportVersion.supports(MANAGE_ROLES_PRIVILEGE) == false && hasGlobalManageRolesPrivilege(roleDescriptors)) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + TransportVersions.V_8_16_0.toReleaseVersion()
+                        + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                         + "] or higher to support the manage roles privilege for API keys"
                 )
             );

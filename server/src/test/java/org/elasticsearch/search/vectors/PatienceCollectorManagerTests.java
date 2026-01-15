@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.search.knn.TopKnnCollectorManager;
 import org.elasticsearch.test.ESTestCase;
@@ -20,20 +19,14 @@ public class PatienceCollectorManagerTests extends ESTestCase {
 
     public void testEarlyTermination() throws IOException {
         int k = randomIntBetween(1, 10);
-        int patience = randomIntBetween(1, 2);
-        double saturationThreshold = randomDoubleBetween(0.01, 0.02, true);
-        PatienceCollectorManager patienceCollectorManager = new PatienceCollectorManager(
-            new TopKnnCollectorManager(k, null),
-            patience,
-            saturationThreshold
-        );
-        HnswQueueSaturationCollector knnCollector = (HnswQueueSaturationCollector) patienceCollectorManager.newCollector(
+        PatienceCollectorManager patienceCollectorManager = new PatienceCollectorManager(new TopKnnCollectorManager(k, null));
+        AdaptiveHnswQueueSaturationCollector knnCollector = (AdaptiveHnswQueueSaturationCollector) patienceCollectorManager.newCollector(
             randomIntBetween(100, 1000),
             new KnnSearchStrategy.Hnsw(10),
             null
         );
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1000; i++) {
             knnCollector.collect(i, 1 - i);
             if (i % 10 == 0) {
                 knnCollector.nextCandidate();

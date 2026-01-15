@@ -868,6 +868,17 @@ public class SecurityTests extends ESTestCase {
         assertThatLogger(() -> Security.validateForFips(settings), Security.class);
     }
 
+    public void testSecurityProvider() {
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:2.0"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:2*"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:*"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("sun"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:1.0"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:1*"));
+    }
+
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
         final Path kerbKeyTab = createTempFile("es", "keytab");
         Files.write(kerbKeyTab, new byte[0]);

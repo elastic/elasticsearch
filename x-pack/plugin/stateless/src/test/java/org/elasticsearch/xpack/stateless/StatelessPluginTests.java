@@ -139,4 +139,24 @@ public class StatelessPluginTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("does not support cluster.routing.allocation.disk.threshold_enabled"));
     }
 
+    public void testDataStreamLSettings() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+            )
+            .build();
+        final var plugin = createStatelessPlugin(nodeSettings);
+        assertThat(plugin.additionalSettings().get(StatelessPlugin.DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey()), equalTo("true"));
+        assertThat(plugin.additionalSettings().get(StatelessPlugin.FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey()), equalTo("30s"));
+
+        final var nodeInvalidSettings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .put(StatelessPlugin.DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), false)
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeInvalidSettings));
+        assertThat(ex.getMessage(), containsString("does not support setting data_streams.lifecycle_only.mode to false"));
+    }
+
 }

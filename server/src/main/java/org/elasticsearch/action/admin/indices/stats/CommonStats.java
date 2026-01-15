@@ -10,8 +10,6 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -49,8 +47,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class CommonStats implements Writeable, ToXContentFragment {
-
-    private static final TransportVersion VERSION_SUPPORTING_SPARSE_VECTOR_STATS = TransportVersions.V_8_15_0;
 
     @Nullable
     public DocsStats docs;
@@ -225,9 +221,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         shards = in.readOptionalWriteable(ShardCountStats::new);
         nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
         denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
-        }
+        sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
     }
 
     @Override
@@ -252,9 +246,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(shards);
         out.writeOptionalWriteable(nodeMappings);
         out.writeOptionalWriteable(denseVectorStats);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            out.writeOptionalWriteable(sparseVectorStats);
-        }
+        out.writeOptionalWriteable(sparseVectorStats);
     }
 
     @Override

@@ -214,6 +214,11 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder index(boolean index) {
+            this.indexed.setValue(index);
+            return this;
+        }
+
         public Builder docValues(boolean hasDocValues) {
             this.hasDocValues.setValue(hasDocValues);
             return this;
@@ -1268,7 +1273,7 @@ public class NumberFieldMapper extends FieldMapper {
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
                     if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Integer.MAX_VALUE) {
-                            return new MatchNoDocsQuery();
+                            return Queries.NO_DOCS_INSTANCE;
                         }
                         ++l;
                     }
@@ -1278,7 +1283,7 @@ public class NumberFieldMapper extends FieldMapper {
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
                     if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Integer.MIN_VALUE) {
-                            return new MatchNoDocsQuery();
+                            return Queries.NO_DOCS_INSTANCE;
                         }
                         --u;
                     }
@@ -1786,7 +1791,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
                 if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                     if (l == Long.MAX_VALUE) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     ++l;
                 }
@@ -1796,7 +1801,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
                 if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                     if (u == Long.MIN_VALUE) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     --u;
                 }
@@ -1958,7 +1963,7 @@ public class NumberFieldMapper extends FieldMapper {
                     // Malformed value, skip it
                 }
             }
-        };
+        }
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -2115,6 +2120,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return switch (cfg.function()) {
                     case MV_MAX -> type.blockLoaderFromDocValuesMvMax(name());
                     case MV_MIN -> type.blockLoaderFromDocValuesMvMin(name());
+                    case AMD_COUNT, AMD_DEFAULT, AMD_MAX, AMD_MIN, AMD_SUM -> type.blockLoaderFromDocValues(name());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }
@@ -2135,7 +2141,7 @@ public class NumberFieldMapper extends FieldMapper {
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
-                    case MV_MAX, MV_MIN -> true;
+                    case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT, MV_MAX, MV_MIN -> true;
                     default -> false;
                 };
             }

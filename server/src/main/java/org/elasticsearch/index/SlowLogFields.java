@@ -14,25 +14,19 @@ import java.util.Map;
 /**
  * Fields for the slow log. These may be different each call depending on the state of the system.
  */
-public interface SlowLogFields {
+public abstract class SlowLogFields {
 
-    /**
-     * Slow log fields for indexing events
-     * @return map of field name to value
-     */
-    Map<String, String> indexFields();
+    protected final SlowLogContext context;
 
-    /**
-     * Slow log fields for search events
-     * @return map of field name to value
-     */
-    Map<String, String> searchFields();
+    public SlowLogFields(SlowLogContext context) {
+        this.context = context;
+    }
 
     /**
      * Slow log fields for query
      * @return map of field name to value
      */
-    default Map<String, String> queryFields() {
+    public Map<String, String> logFields() {
         return Map.of();
     }
 }

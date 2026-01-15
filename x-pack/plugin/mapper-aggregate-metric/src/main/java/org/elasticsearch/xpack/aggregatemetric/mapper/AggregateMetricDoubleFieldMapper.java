@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -235,6 +237,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(false);
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
+                        builder.index(false);
+                    }
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
@@ -242,6 +247,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(true);
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
+                        builder.index(false);
+                    }
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
@@ -501,6 +509,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     case AMD_MAX -> Metric.max;
                     case AMD_MIN -> Metric.min;
                     case AMD_SUM -> Metric.sum;
+                    case AMD_DEFAULT -> defaultMetric;
                     default -> null;
                 };
                 if (metric == null) {
@@ -513,7 +522,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         private BlockLoader getIndividualBlockLoader(Metric metric) {
             if (metricFields.containsKey(metric) == false) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
             if (metric == Metric.value_count) {
                 return new IntsBlockLoader(metricFields.get(Metric.value_count).name());
@@ -524,7 +533,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             return switch (config.function()) {
-                case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT -> true;
+                case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT -> true;
                 default -> false;
             };
         }

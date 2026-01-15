@@ -11,10 +11,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -127,29 +127,32 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
+                assertThat(
+                    searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+                        @Override
+                        public boolean needs_score() {
+                            return false;
+                        }
 
-                    @Override
-                    public boolean needs_termStats() {
-                        return false;
-                    }
+                        @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchExecutionContext.lookup(), docReader) {
-                            @Override
-                            public double execute(ExplanationHolder explanation) {
-                                Map<String, ScriptDocValues<?>> doc = getDoc();
-                                ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) doc.get("field");
-                                return doubles.get(0);
-                            }
-                        };
-                    }
-                }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.current())), equalTo(2));
+                        @Override
+                        public ScoreScript newInstance(DocReader docReader) {
+                            return new ScoreScript(Map.of(), searchExecutionContext.lookup(), docReader) {
+                                @Override
+                                public double execute(ExplanationHolder explanation) {
+                                    Map<String, ScriptDocValues<?>> doc = getDoc();
+                                    ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) doc.get("field");
+                                    return doubles.get(0);
+                                }
+                            };
+                        }
+                    }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.current())),
+                    equalTo(2)
+                );
             }
         }
     }

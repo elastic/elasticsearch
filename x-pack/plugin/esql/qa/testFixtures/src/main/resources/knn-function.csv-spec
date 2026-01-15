@@ -338,6 +338,7 @@ golden rod
 
 testKnnWithSemanticText
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where knn(semantic_text_dense_field, [0, 1, 2])
@@ -353,6 +354,7 @@ live long and prosper
 
 testKnnWithSemanticTextAndKeyword
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where knn(semantic_text_dense_field, [0, 1, 2])
@@ -369,6 +371,7 @@ be excellent to each other                                            | host3
 
 testKnnWithSemanticTextMultiValueField
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
 | where match(st_multi_value, "something") AND match(host, "host1")
@@ -381,6 +384,7 @@ _id: keyword | st_multi_value:text
 
 testKnnWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where qstr("description:some*")
@@ -397,6 +401,7 @@ result:long
 testKnnWithSemanticTextAndKql
 required_capability: knn_function_v5
 required_capability: kql_function
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where kql("host:host1") AND knn(semantic_text_dense_field, [0, 1, 2])

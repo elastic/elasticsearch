@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testRestartNodeDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/140765
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testItemFailures {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/140766
 
 # Examples:
 #

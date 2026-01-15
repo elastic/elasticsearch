@@ -176,7 +176,12 @@ public final class MetadataBuffer implements MetadataWriter {
         }
         if (dest.length - offset < size) {
             throw new IllegalArgumentException(
-                "destination array has insufficient space: need " + size + " bytes at offset " + offset + ", but array length is " + dest.length
+                "destination array has insufficient space: need "
+                    + size
+                    + " bytes at offset "
+                    + offset
+                    + ", but array length is "
+                    + dest.length
             );
         }
         System.arraycopy(buffer, 0, dest, offset, size);

@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -252,7 +251,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#4]]
+     * Project[[first_name{f}#4]]
      * \_Limit[10000[INTEGER]]
      * \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
      */
@@ -277,7 +276,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#7, last_name{r}#17]]
+     * Project[[first_name{f}#7, last_name{r}#17]]
      * \_Limit[1000[INTEGER],true]
      *   \_MvExpand[last_name{f}#10,last_name{r}#17]
      *     \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
@@ -298,7 +297,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         // It'd be much better if this project was pushed down past the MvExpand, because MvExpand's cost scales with the number of
         // involved attributes/columns.
-        var project = as(localPlan, EsqlProject.class);
+        var project = as(localPlan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
@@ -405,7 +404,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expects
-     * EsqlProject[[x{r}#3]]
+     * Project[[x{r}#3]]
      * \_Eval[[null[INTEGER] AS x]]
      *   \_Limit[10000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
@@ -1084,7 +1083,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
-     * EsqlProject[[!alias_integer, boolean{f}#7, byte{f}#8, constant_keyword-foo{f}#9, date{f}#10, date_nanos{f}#11, dense_vector
+     * Project[[!alias_integer, boolean{f}#7, byte{f}#8, constant_keyword-foo{f}#9, date{f}#10, date_nanos{f}#11, dense_vector
      * {f}#26, double{f}#12, float{f}#13, half_float{f}#14, integer{f}#16, ip{f}#17, keyword{f}#18, long{f}#19, scaled_float{f}#15,
      * semantic_text{f}#25, short{f}#21, text{f}#22, unsigned_long{f}#20, version{f}#23, wildcard{f}#24, s{r}#5]]
      * \_Eval[[$$dense_vector$V_DOT_PRODUCT$27{f}#27 AS s#5]]
@@ -1100,8 +1099,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
+        var project = as(plan, Project.class);
         // Does not contain the extracted field
         assertFalse(Expressions.names(project.projections()).stream().anyMatch(s -> s.startsWith(testCase.toFieldAttrName())));
 
@@ -1131,7 +1130,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
-     * EsqlProject[[s{r}#4]]
+     * Project[[s{r}#4]]
      * \_TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
      *   \_Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
      *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
@@ -1148,8 +1147,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s{r}#4]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s{r}#4]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
         // TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
@@ -1198,8 +1197,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             }
         });
 
-        // EsqlProject[[s{r}#4]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s{r}#4]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
         // TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
@@ -1317,7 +1316,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // Eval[[UNPACKDIMENSION(grouppod_$1{r}#49) AS pod#19,
         // $$SUM$a$0{r$}#41 / $$COUNT$a$1{r$}#42 AS a#15]]
         var eval1 = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval1.fields()), contains("pod", "a"));
+        assertThat(Expressions.names(eval1.fields()), containsInAnyOrder("pod", "a"));
         // Limit[1000000[INTEGER],false,false]
         var limit = as(eval1.child(), Limit.class);
         // Aggregate[[packpod_$1{r}#48, time_bucket{r}#6],
@@ -1386,7 +1385,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
 
-        // EsqlProject[[@timestamp{f}#972, cluster{f}#973, pod{f}#974, network.eth0.tx{f}#991, tx_max{r}#962]]
+        // Project[[@timestamp{f}#972, cluster{f}#973, pod{f}#974, network.eth0.tx{f}#991, tx_max{r}#962]]
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("@timestamp", "cluster", "pod", "network.eth0.tx", "tx_max"));
         // TopN[[Order[@timestamp{f}#972,ASC,LAST], Order[cluster{f}#973,ASC,LAST], Order[pod{f}#974,ASC,LAST]],9[INTEGER],false]
@@ -1469,8 +1468,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[dense_vector{f}#25]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[dense_vector{f}#25]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("dense_vector"));
 
         var limit = as(project.child(), Limit.class);
@@ -1557,8 +1556,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject with all fields including similarity and keyword
-        var project = as(plan, EsqlProject.class);
+        // Project with all fields including similarity and keyword
+        var project = as(plan, Project.class);
         assertTrue(Expressions.names(project.projections()).contains("similarity"));
         assertTrue(Expressions.names(project.projections()).contains("keyword"));
 
@@ -1582,8 +1581,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var mvExpand = as(eval.child(), MvExpand.class);
         assertThat(Expressions.name(mvExpand.target()), equalTo("keyword"));
 
-        // Inner EsqlProject with the pushed down function
-        var innerProject = as(mvExpand.child(), EsqlProject.class);
+        // Inner Project with the pushed down function
+        var innerProject = as(mvExpand.child(), Project.class);
         assertTrue(Expressions.names(innerProject.projections()).contains("keyword"));
         assertTrue(
             innerProject.projections()
@@ -1624,8 +1623,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s1{r}#5, s2{r}#8, r2{r}#14]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s1{r}#5, s2{r}#8, r2{r}#14]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s1", "s2", "r2"));
 
         // Eval with s1, s2, r2
@@ -1736,7 +1735,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             """;
         LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
         var eval = as(project.child(), Eval.class);
         Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
@@ -1752,7 +1751,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             """;
         LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         Attribute lAttr = assertLengthPushdown(as(filter.condition(), GreaterThan.class).left(), "last_name");
@@ -1788,7 +1787,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             """;
         LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
         var eval = as(project.child(), Eval.class);
         Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
@@ -1805,7 +1804,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             """;
         LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
         var limit = as(eval.child(), Limit.class);
@@ -2053,8 +2052,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var logicalPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
         // Verify the logical plan structure:
-        // EsqlProject[[text{f}#1105, score{r}#1085]]
-        var project = as(logicalPlan, EsqlProject.class);
+        // Project[[text{f}#1105, score{r}#1085]]
+        var project = as(logicalPlan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("text", "score"));
 
         // TopN[[Order[integer{f}#1099,DESC,FIRST]],10[INTEGER],false]
@@ -2187,7 +2186,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertTrue(relation1.output().contains(sFieldAttr));
 
         // Second branch: (eval t = v_dot_product(dense_vector, [1, 2, 3]) | keep t, u, keyword)
-        // EsqlProject[[s{r}#55, _fork{r}#4, t{r}#11]]
+        // Project[[s{r}#55, _fork{r}#4, t{r}#11]]
         var project2 = as(fork.children().get(1), Project.class);
         assertThat(Expressions.names(project2.projections()), containsInAnyOrder("s", "_fork", "t", "u", "keyword"));
 
@@ -2225,6 +2224,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     public void testPushableFunctionsInSubqueries() {
         assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled());
+
         var query = """
             from test_all, (from test_all | eval s = length(text) | keep s)
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
@@ -2232,8 +2233,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             """;
         var localPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s{r}#97, t{r}#9]]
-        var project = as(localPlan, EsqlProject.class);
+        // Project[[s{r}#97, t{r}#9]]
+        var project = as(localPlan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s", "t"));
 
         // Eval[[DOTPRODUCT(dense_vector{r}#82,[1.0, 2.0, 3.0][DENSE_VECTOR]) AS t#9]]
@@ -2256,14 +2257,14 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(unionAll.children(), hasSize(2));
 
         // Second branch of UnionAll - contains the subquery
-        // EsqlProject[[alias_integer{r}#99, boolean{r}#56, ...]]
-        var project2 = as(unionAll.children().get(1), EsqlProject.class);
+        // Project[[alias_integer{r}#99, boolean{r}#56, ...]]
+        var project2 = as(unionAll.children().get(1), Project.class);
 
         // Eval[[null[KEYWORD] AS alias_integer#55, null[BOOLEAN] AS boolean#56, ...]]
         var eval2 = as(project2.child(), Eval.class);
 
         var subquery = as(eval2.child(), Subquery.class);
-        var subqueryProject = as(subquery.child(), EsqlProject.class);
+        var subqueryProject = as(subquery.child(), Project.class);
         assertThat(Expressions.names(subqueryProject.projections()), contains("s"));
         var subqueryEval = as(subqueryProject.child(), Eval.class);
         assertThat(subqueryEval.fields(), hasSize(1));
@@ -2278,9 +2279,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var sFieldAttr = as(sField.child(), FieldAttribute.class);
         assertThat(sFieldAttr.name(), startsWith("$$text$LENGTH$"));
         assertThat(sFieldAttr.fieldName().string(), equalTo("text"));
-        var subqueryLimit = as(subqueryEval.child(), Limit.class);
         // EsRelation[test_all] - verify pushed down field is in the relation output
-        var subqueryRelation = as(subqueryLimit.child(), EsRelation.class);
+        var subqueryRelation = as(subqueryEval.child(), EsRelation.class);
         assertTrue(subqueryRelation.output().contains(sFieldAttr));
     }
 

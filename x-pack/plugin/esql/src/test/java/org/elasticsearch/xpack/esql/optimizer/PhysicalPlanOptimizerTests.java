@@ -2997,6 +2997,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"term":{"_tier":{"value":"data_hot","boost":0.0}}}
      */
     public void testPushDownMetadataTierInEquality() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier == "data_hot"
@@ -3022,6 +3023,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":1.0}}
      */
     public void testPushDownMetadataTierInNotEquality() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier != "data_hot"
@@ -3049,6 +3051,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"wildcard":{"_tier":{"wildcard":"data_*","boost":0.0}}}
      */
     public void testPushDownMetadataTierInWildcard() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier like "data_*"
@@ -8422,7 +8425,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * <pre>{@code
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
-     *   |_EsqlProject[[..., long_noidx{f}#23, salary{f}#19]]
+     *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>

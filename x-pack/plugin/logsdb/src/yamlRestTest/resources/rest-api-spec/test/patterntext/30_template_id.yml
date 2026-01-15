@@ -8,6 +8,7 @@ setup:
         index:  test
         body:
           settings:
+            number_of_shards: 1
             index.mapping.use_doc_values_skipper: true
             index.mode: logsdb
             sort.field: [ "foo.template_id" ]

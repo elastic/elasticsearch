@@ -20,6 +20,94 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.2.4 [elasticsearch-9.2.4-release-notes]
+
+### Features and enhancements [elasticsearch-9.2.4-features-enhancements]
+
+Authorization:
+* [Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140046](https://github.com/elastic/elasticsearch/pull/140046)
+
+Infra/Core:
+* Upgrade lz4 dependency to 1.10.1 [#139221](https://github.com/elastic/elasticsearch/pull/139221)
+
+Security:
+* Upgrade Netty to 4.1.130.Final [#139669](https://github.com/elastic/elasticsearch/pull/139669)
+
+
+### Fixes [elasticsearch-9.2.4-fixes]
+
+Data streams:
+* Bug fix: the filter of a data stream alias is not always properly removed [#139679](https://github.com/elastic/elasticsearch/pull/139679)
+* Making sure that failure store document converter does not hang on unexpected exceptions [#139712](https://github.com/elastic/elasticsearch/pull/139712) (issue: [#139707](https://github.com/elastic/elasticsearch/issues/139707))
+
+ES|QL:
+* ESQL: Fix multi-value constant propagation after `STATS` [#139442](https://github.com/elastic/elasticsearch/pull/139442) (issue: [#135926](https://github.com/elastic/elasticsearch/issues/135926))
+* ESQL: Prevent circular alias references in `DeduplicateAggs` [#139175](https://github.com/elastic/elasticsearch/pull/139175) (issues: [#138346](https://github.com/elastic/elasticsearch/issues/138346), [#139541](https://github.com/elastic/elasticsearch/issues/139541))
+* Fix ABSENT/PRESENT on agg with false filter [#139609](https://github.com/elastic/elasticsearch/pull/139609)
+* Fix ST_DISTANCE handling of invalid geometry literals that fold to null [#140116](https://github.com/elastic/elasticsearch/pull/140116) (issue: [#138594](https://github.com/elastic/elasticsearch/issues/138594))
+
+Inference:
+* [Inference API] Fix auth exception listener not called bug [#139966](https://github.com/elastic/elasticsearch/pull/139966)
+
+Infra/Core:
+* Skip frozen nodes on disk watermark check [#140118](https://github.com/elastic/elasticsearch/pull/140118)
+
+Infra/Node Lifecycle:
+* Ensure initial state discovery does not block indefinitely on startup [#139467](https://github.com/elastic/elasticsearch/pull/139467)
+
+Machine Learning:
+* Reject updating low-priority model deployments to more than 1 allocation [#139989](https://github.com/elastic/elasticsearch/pull/139989) (issue: [#111227](https://github.com/elastic/elasticsearch/issues/111227))
+
+Mapping:
+* Fix: IPv6 address parsing with non-zero offset in `InetAddresses` [#139460](https://github.com/elastic/elasticsearch/pull/139460)
+
+Recovery:
+* Revert "Attempt to clean up index before remote transfer" [#139569](https://github.com/elastic/elasticsearch/pull/139569)
+
+Snapshot/Restore:
+* Register `disable_chunked_encoding` S3 repo setting [#139788](https://github.com/elastic/elasticsearch/pull/139788)
+
+Transform:
+* Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
+
+## 9.1.10 [elasticsearch-9.1.10-release-notes]
+
+### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
+
+Authorization:
+* [Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140046](https://github.com/elastic/elasticsearch/pull/140046)
+
+Infra/Core:
+* Upgrade lz4 dependency to 1.10.1 [#139221](https://github.com/elastic/elasticsearch/pull/139221)
+
+Security:
+* Upgrade Netty to 4.1.130.Final [#139669](https://github.com/elastic/elasticsearch/pull/139669)
+
+
+### Fixes [elasticsearch-9.1.10-fixes]
+
+Data streams:
+* Bug fix: the filter of a data stream alias is not always properly removed [#139679](https://github.com/elastic/elasticsearch/pull/139679)
+* Making sure that failure store document converter does not hang on unexpected exceptions [#139712](https://github.com/elastic/elasticsearch/pull/139712) (issue: [#139707](https://github.com/elastic/elasticsearch/issues/139707))
+
+ES|QL:
+* ESQL: Fix multi-value constant propagation after `STATS` [#139442](https://github.com/elastic/elasticsearch/pull/139442) (issue: [#135926](https://github.com/elastic/elasticsearch/issues/135926))
+
+Inference:
+* [Inference API] Fix auth exception listener not called bug [#139966](https://github.com/elastic/elasticsearch/pull/139966)
+
+Infra/Core:
+* Skip frozen nodes on disk watermark check [#140118](https://github.com/elastic/elasticsearch/pull/140118)
+
+Infra/Node Lifecycle:
+* Ensure initial state discovery does not block indefinitely on startup [#139467](https://github.com/elastic/elasticsearch/pull/139467)
+
+Recovery:
+* Revert "Attempt to clean up index before remote transfer" [#139569](https://github.com/elastic/elasticsearch/pull/139569)
+
+Transform:
+* Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
+
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.3-features-enhancements]

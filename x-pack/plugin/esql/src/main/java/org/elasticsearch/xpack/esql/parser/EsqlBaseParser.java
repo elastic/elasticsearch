@@ -139,7 +139,7 @@ public class EsqlBaseParser extends ParserConfig {
       null, null, null, null, null, null, null, null, null, null, null, null, 
       null, "'|'", null, null, null, "'and'", "'asc'", "'='", "'by'", "'::'", 
       "':'", "';'", "','", "'desc'", "'.'", "'false'", "'first'", "'in'", "'is'", 
-      "'last'", "'like'", "'not'", "'null'", "'nulls'", null, "'or'", "'?'", 
+      "'last'", "'like'", "'not'", "'null'", "'nulls'", "'on'", "'or'", "'?'", 
       "'rlike'", "'true'", "'with'", "'=='", "'=~'", "'!='", "'<'", "'<='", 
       "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", "'{'", "'}'", "'??'", 
       null, null, null, "']'", null, "')'", null, null, null, null, null, "'metadata'", 

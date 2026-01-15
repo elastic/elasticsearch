@@ -206,6 +206,7 @@ SHOW_WS=164
 'not'=72
 'null'=73
 'nulls'=74
+'on'=75
 'or'=76
 '?'=77
 'rlike'=78

@@ -164,8 +164,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
-    public static final String SEARCH_ACTIONLOG_NAME = "search.actionlog";
-
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -243,7 +241,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(namedWriteableRegistry),
-            new Log4jActionWriter(SEARCH_ACTIONLOG_NAME),
+            new Log4jActionWriter(SearchLogProducer.LOGGER_NAME),
             fieldProvider
         );
     }

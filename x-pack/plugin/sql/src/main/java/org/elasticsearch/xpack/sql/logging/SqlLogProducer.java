@@ -13,7 +13,7 @@ import org.elasticsearch.index.SlowLogFields;
 
 public class SqlLogProducer implements ActionLoggerProducer<SqlLogContext> {
 
-    public static final String LOGGER_NAME = "sql.querylog";
+    public static final String LOGGER_NAME = "sql.actionlog";
 
     @Override
     public ESLogMessage produce(SqlLogContext context, SlowLogFields additionalFields) {

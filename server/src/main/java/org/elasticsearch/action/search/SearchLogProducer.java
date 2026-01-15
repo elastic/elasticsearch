@@ -17,6 +17,8 @@ import org.elasticsearch.index.SlowLogFields;
 
 public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext> {
 
+    public static final String LOGGER_NAME = "search.actionlog";
+
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     SearchLogProducer(NamedWriteableRegistry namedWriteableRegistry) {

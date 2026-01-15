@@ -354,6 +354,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testAbortSnapshotWhileRemovingNode
   issue: https://github.com/elastic/elasticsearch/issues/140760
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testShutdownWhileSuccessInFlight
+  issue: https://github.com/elastic/elasticsearch/issues/140761
 
 # Examples:
 #

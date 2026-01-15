@@ -161,9 +161,15 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings).
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
          */
         OPTIONAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
+         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
+         * capability until we enable the LOAD option mentioned above.
+         */
+        OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1787,7 +1793,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V13(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

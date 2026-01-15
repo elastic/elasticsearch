@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.services.jinaai.request;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
@@ -23,11 +25,11 @@ import java.util.Objects;
 
 public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
-    private final List<String> input;
+    private final List<InferenceStringGroup> input;
     private final InputType inputType;
     private final JinaAIEmbeddingsModel model;
 
-    public JinaAIEmbeddingsRequest(List<String> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
+    public JinaAIEmbeddingsRequest(List<InferenceStringGroup> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
         this.model = Objects.requireNonNull(embeddingsModel);
@@ -69,5 +71,9 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
     public JinaAIEmbeddingType getEmbeddingType() {
         return model.getServiceSettings().getEmbeddingType();
+    }
+
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

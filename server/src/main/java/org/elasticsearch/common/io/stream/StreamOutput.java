@@ -52,8 +52,8 @@ import java.util.function.IntFunction;
 import static java.util.Map.entry;
 
 /**
- * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
- *
+ * A stream into which a structured {@linkplain Writeable} may be written, e.g. for sending over a transport connection to a remote node.
+ * <p>
  * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
  * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
  * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamInput}. Finally
@@ -61,6 +61,20 @@ import static java.util.Map.entry;
  * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
  * on {@link StreamInput}.
+ * <hr>
+ * It is possible to use a {@linkplain StreamOutput} as an adapter to send a {@linkplain Writeable} to a raw-bytes {@linkplain OutputStream}
+ * such as a file or a compressing stream, for instance using {@link OutputStreamStreamOutput} or {@link BufferedStreamOutput}. Often,
+ * however, we want to capture the serialized representation of an object in memory as a {@code byte[]} or more generally a
+ * {@link BytesReference} (a sequence of slices of {@code byte[]}s). For example, this is how the {@link org.elasticsearch.transport}
+ * subsystem prepares a network message for transmission. There are several different ways to achieve this objective, with different
+ * performance characteristics, as described in the documentation for the following classes.
+ *
+ * <ul>
+ *     <li>{@link BytesStreamOutput}</li>
+ *     <li>{@link ReleasableBytesStreamOutput}</li>
+ *     <li>{@link RecyclerBytesStreamOutput}</li>
+ *     <li>{@link BufferedStreamOutput}</li>
+ * </ul>
  */
 public abstract class StreamOutput extends OutputStream {
 
@@ -152,7 +166,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
+        try (var o = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(tmp)) {
             o.setTransportVersion(version);
             writeable.writeTo(o);
         }

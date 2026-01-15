@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
@@ -86,7 +85,6 @@ public enum FeatureMetric {
      */
     private static final List<Class<? extends LogicalPlan>> excluded = List.of(
         UnresolvedRelation.class,
-        EsqlProject.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,

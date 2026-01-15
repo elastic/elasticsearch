@@ -19,13 +19,13 @@ import org.elasticsearch.logging.Logger;
 import java.util.List;
 import java.util.Random;
 
-public class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicker {
+class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicker {
 
     private static final Logger logger = LogManager.getLogger(StatelessReindexRelocationNodePicker.class);
 
     private final Random random;
 
-    public StatelessReindexRelocationNodePicker() {
+    StatelessReindexRelocationNodePicker() {
         random = Randomness.get();
     }
 
@@ -38,6 +38,19 @@ public class StatelessReindexRelocationNodePicker implements ReindexRelocationNo
                     + " the relocation attempt will be aborted"
             );
             return null;
+        }
+        // Many stateless configurations won't have dedicated coordinating nodes - but if they exist, we choose them over indexing nodes:
+        List<String> eligibleDedicatedCoordinatingNodes = nodes.getNodes()
+            .values()
+            .stream()
+            .filter(node -> node.getRoles().isEmpty())
+            .map(DiscoveryNode::getId)
+            .filter(id -> id.equals(currentNodeId) == false)
+            .toList();
+        if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
+            String newNodeId = randomNodeId(eligibleDedicatedCoordinatingNodes);
+            logger.debug("Chose dedicated coordinating node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
+            return newNodeId;
         }
         List<String> eligibleIndexingNodes = nodes.getNodes()
             .values()
@@ -52,8 +65,8 @@ public class StatelessReindexRelocationNodePicker implements ReindexRelocationNo
             return newNodeId;
         }
         logger.debug(
-            "Trying to pick a node to relocate a reindex task to, but there are no indexing nodes (perhaps excluding the current node):"
-                + " the relocation attempt will be aborted"
+            "Trying to pick a node to relocate a reindex task to, but there are no dedicated coordinating or indexing nodes "
+                + "(perhaps excluding the current node): the relocation attempt will be aborted"
         );
         return null;
     }

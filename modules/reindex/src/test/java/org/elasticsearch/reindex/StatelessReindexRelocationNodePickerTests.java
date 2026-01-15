@@ -79,7 +79,47 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
         assertThat(id, equalTo("indexingNode1"));
     }
 
-    public void testPickNode_noOtherIndexingNode_returnsNull() {
+    public void testPickNode_prefersDedicatedCoordinatingNodeIfAvailable() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(createNode("searchNode1", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode2", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode3", SEARCH_NODE_ROLES))
+            .add(createNode("mlNode1", ML_NODE_ROLES))
+            .add(createNode("mlNode2", ML_NODE_ROLES))
+            .add(createNode("mlNode3", ML_NODE_ROLES))
+            .add(createNode("indexingNode1", INDEXING_NODE_ROLES))
+            .add(createNode("indexingNode2", INDEXING_NODE_ROLES))
+            .add(createNode("indexingNode3", INDEXING_NODE_ROLES))
+            .add(createNode("coordinatingNode1", Set.of()))
+            .add(createNode("coordinatingNode2", Set.of())) // this is the local node
+            .add(createNode("coordinatingNode3", Set.of()))
+            .masterNodeId("indexingNode" + randomIntBetween(1, 3))
+            .localNodeId("coordinatingNode2")
+            .build();
+        String id = picker.pickNode(nodes);
+        assertThat(id, oneOf("coordinatingNode1", "coordinatingNode3"));
+    }
+
+    public void testPickNode_onlyDedicatedCoordinatingNodeIsLocal_fallsBackToIndexingNode() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(createNode("searchNode1", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode2", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode3", SEARCH_NODE_ROLES))
+            .add(createNode("mlNode1", ML_NODE_ROLES))
+            .add(createNode("mlNode2", ML_NODE_ROLES))
+            .add(createNode("mlNode3", ML_NODE_ROLES))
+            .add(createNode("indexingNode1", INDEXING_NODE_ROLES))
+            .add(createNode("indexingNode2", INDEXING_NODE_ROLES))
+            .add(createNode("indexingNode3", INDEXING_NODE_ROLES))
+            .add(createNode("coordinatingNode1", Set.of())) // this is the local node
+            .masterNodeId("indexingNode" + randomIntBetween(1, 3))
+            .localNodeId("coordinatingNode1")
+            .build();
+        String id = picker.pickNode(nodes);
+        assertThat(id, oneOf("indexingNode1", "indexingNode2", "indexingNode3"));
+    }
+
+    public void testPickNode_noSuitableNode_returnsNull() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(createNode("searchNode1", SEARCH_NODE_ROLES))
             .add(createNode("searchNode2", SEARCH_NODE_ROLES))

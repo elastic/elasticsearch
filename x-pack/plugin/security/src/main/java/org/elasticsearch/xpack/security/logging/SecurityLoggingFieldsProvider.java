@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.slowlog;
+package org.elasticsearch.xpack.security.logging;
 
 import org.elasticsearch.index.LoggingFieldContext;
 import org.elasticsearch.index.LoggingFields;
@@ -25,7 +25,7 @@ public class SecurityLoggingFieldsProvider implements LoggingFieldsProvider {
         @Override
         public Map<String, String> logFields() {
             if (context.includeUserInformation()) {
-                return plugin.getAuthContextForSlowLog();
+                return plugin.getAuthContextForLogging();
             }
             return Map.of();
         }

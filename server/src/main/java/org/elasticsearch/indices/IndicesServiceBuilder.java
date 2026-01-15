@@ -202,7 +202,7 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder slowLogFieldProvider(LoggingFieldsProvider loggingFieldsProvider) {
+    public IndicesServiceBuilder loggingFieldsProvider(LoggingFieldsProvider loggingFieldsProvider) {
         this.loggingFieldsProvider = loggingFieldsProvider;
         return this;
     }

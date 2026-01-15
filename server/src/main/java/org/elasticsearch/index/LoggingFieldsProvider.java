@@ -14,6 +14,9 @@ package org.elasticsearch.index;
  * Intended to be loaded through SPI.
  * This provider generates {@link LoggingFields} instances that depend on current configuration contents.
  * The {@link LoggingFields} produce actual field maps.
+ * <p>
+ * This API is intended to be used with slow logs, query logs, etc. and the fields are produced as data and should
+ * be added to the specific log explicitly by the logger.
  */
 public interface LoggingFieldsProvider {
     /**

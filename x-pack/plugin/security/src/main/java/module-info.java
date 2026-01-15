@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
-import org.elasticsearch.xpack.security.slowlog.SecurityLoggingFieldsProvider;
 
 module org.elasticsearch.security {
     requires java.naming;
@@ -73,7 +71,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc.saml to org.elasticsearch.internal.security;
-    exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.security.logging to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.authc.support to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.rest.action.apikey to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.support to org.elasticsearch.internal.security;
@@ -84,7 +82,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.audit to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.metric to org.elasticsearch.internal.security;
 
-    provides LoggingFieldsProvider with SecurityLoggingFieldsProvider;
+    provides org.elasticsearch.index.LoggingFieldsProvider with org.elasticsearch.xpack.security.logging.SecurityLoggingFieldsProvider;
 
     provides org.elasticsearch.cli.CliToolProvider
         with

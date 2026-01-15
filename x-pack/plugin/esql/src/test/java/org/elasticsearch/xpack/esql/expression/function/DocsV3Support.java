@@ -1155,6 +1155,7 @@ public abstract class DocsV3Support {
             org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
             MapParam mapParam = mapParam(setting);
             Example example = example(setting);
+            Examples examples = examples(setting);
             assert param != null || mapParam != null;
 
             StringBuilder builder = new StringBuilder();
@@ -1197,15 +1198,11 @@ public abstract class DocsV3Support {
             }
 
             if (example != null) {
-                String exampleContent = loadExample(example.file(), example.tag());
-                if (exampleContent != null) {
-                    builder.append("    **Example**\n\n");
-                    if (example.description().length() > 0) {
-                        builder.append("    ").append(example.description()).append("\n\n");
-                    }
-                    builder.append("    ```esql\n");
-                    builder.append("    " + exampleContent.replaceAll("\n", "\n    "));
-                    builder.append("\n    ```\n");
+                renderExample(example, builder);
+            }
+            if (examples != null) {
+                for (Example value : examples.values()) {
+                    renderExample(value, builder);
                 }
             }
 
@@ -1213,6 +1210,19 @@ public abstract class DocsV3Support {
             logger.info("Writing settings definition for [{}]", name);
             logger.debug("{}", rendered);
             writeToTempSettingsDir(rendered);
+        }
+
+        private void renderExample(Example example, StringBuilder builder) throws IOException {
+            String exampleContent = loadExample(example.file(), example.tag());
+            if (exampleContent != null) {
+                builder.append("    **Example**\n\n");
+                if (example.description().length() > 0) {
+                    builder.append("    ").append(example.description()).append("\n\n");
+                }
+                builder.append("    ```esql\n");
+                builder.append("    " + exampleContent.replaceAll("\n", "\n    "));
+                builder.append("\n    ```\n");
+            }
         }
 
         void renderKibanaCommandDefinition() throws Exception {
@@ -1280,6 +1290,19 @@ public abstract class DocsV3Support {
                 try {
                     if (declaredField != null && declaredField.get(null) == def) {
                         return declaredField.getAnnotation(Example.class);
+                    }
+                } catch (IllegalAccessException e) {
+                    // do nothing
+                }
+            }
+            return null;
+        }
+
+        private static Examples examples(QuerySettingDef<?> def) {
+            for (Field declaredField : QuerySettings.class.getFields()) {
+                try {
+                    if (declaredField != null && declaredField.get(null) == def) {
+                        return declaredField.getAnnotation(Examples.class);
                     }
                 } catch (IllegalAccessException e) {
                     // do nothing
@@ -1755,7 +1778,7 @@ public abstract class DocsV3Support {
                         currentTag = null;
                     }
                 } else if (currentTag != null && currentLines != null) {
-                    if (line.toLowerCase(Locale.ROOT).startsWith("set ") && line.endsWith("\\;")) {
+                    if (line.endsWith("\\;")) {
                         // Remove trailing backslash for settings lines
                         line = line.substring(0, line.length() - 2) + ";";
                     }

@@ -77,7 +77,12 @@ public class QuerySettings {
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
     @SuppressWarnings("unchecked")
-    // TODO add an example when approximate is implemented
+    // TODO add examples when approximate is implemented, eg.
+    // @Examples(
+    // values = {
+    // @Example(file = "approximate", tag = "approximate-with-boolean"),
+    // @Example(file = "approximate", tag = "approximate-with-map") }
+    // )
     public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
         "approximate",
         null,

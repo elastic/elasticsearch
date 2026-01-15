@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-commands.html#esql-set
 ---
 
-# {{esql}} `SET` command [esql-set]
+# {{esql}} `SET` directive [esql-set]
 
 :::{include} ../_snippets/commands/layout/set.md
 :::

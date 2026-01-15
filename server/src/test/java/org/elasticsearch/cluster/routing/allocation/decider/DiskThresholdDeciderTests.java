@@ -77,6 +77,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.containsString;
@@ -1331,6 +1332,37 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testDiskThresholdWithSnapshotShardSizesWithMaxHeadroom() {
         doTestDiskThresholdWithSnapshotShardSizes(true);
+    }
+
+    public void testIsNewCloneTargetWorksForDeletedSourceIndex() {
+        final var metaBuilder = Metadata.builder();
+        final var targetIndexName = "target";
+        metaBuilder.put(
+            ProjectMetadata.builder(ProjectId.DEFAULT)
+                .put(
+                    IndexMetadata.builder(targetIndexName)
+                        .settings(
+                            settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "deleted-source")
+                                .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE)
+                        )
+                        .numberOfShards(4)
+                        .numberOfReplicas(0)
+                )
+        );
+        final var metadata = metaBuilder.build();
+        final var clusterState = ClusterState.builder(new ClusterName(getTestName()))
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
+
+        final var routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        final Index idx = clusterState.metadata().getProject(ProjectId.DEFAULT).index(targetIndexName).getIndex();
+        final int shardId = randomIntBetween(0, 3);
+        final var shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
+        assertFalse(DiskThresholdDecider.isNewCloneTarget(shardRouting, routingAllocation));
     }
 
     public void logShardStates(ClusterState state) {

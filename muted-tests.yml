@@ -282,9 +282,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/139974
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
-  method: testReadBlobWithReadTimeouts
-  issue: https://github.com/elastic/elasticsearch/issues/139995
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
@@ -336,6 +333,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.SetParserTests
   method: testSetUnmappedFieldsWrongValue
   issue: https://github.com/elastic/elasticsearch/issues/140673
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushDownMetadataTierInOrOperator {default}
+  issue: https://github.com/elastic/elasticsearch/issues/140750
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushDownMetadataTierInOperator {default}
+  issue: https://github.com/elastic/elasticsearch/issues/140751
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushDownMetadataTierInAndNotOperator {default}
+  issue: https://github.com/elastic/elasticsearch/issues/140752
 
 # Examples:
 #

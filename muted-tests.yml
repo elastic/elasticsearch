@@ -363,6 +363,36 @@ tests:
 - class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140763
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testRemoveNodeAndFailoverMasterDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/140764
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testRestartNodeDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/140765
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testItemFailures {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/140766
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/140767
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/140768
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testItemFailures {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/140769
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/140772
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testItemFailures {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/140773
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/46_downsample/Stats from downsampled and non-downsampled index simultaneously with implicit casting}
+  issue: https://github.com/elastic/elasticsearch/issues/140774
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testItemFailures {p0=false p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/140778
 
 # Examples:
 #

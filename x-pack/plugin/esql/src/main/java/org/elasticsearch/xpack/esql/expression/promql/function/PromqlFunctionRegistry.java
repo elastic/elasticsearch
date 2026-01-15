@@ -68,7 +68,6 @@ import java.util.Set;
  */
 public class PromqlFunctionRegistry {
     private static final FunctionDefinition[] FUNCTION_DEFINITIONS = new FunctionDefinition[] {
-        // Within series functions
         withinSeries("delta", Delta::new),
         withinSeries("idelta", Idelta::new),
         withinSeries("increase", Increase::new),
@@ -77,6 +76,7 @@ public class PromqlFunctionRegistry {
         withinSeries("first_over_time", FirstOverTime::new),
         withinSeries("last_over_time", LastOverTime::new),
         withinSeries("deriv", Deriv::new),
+
         withinSeriesOverTimeUnary("avg_over_time", AvgOverTime::new),
         withinSeriesOverTimeUnary("count_over_time", CountOverTime::new),
         withinSeriesOverTimeUnary("max_over_time", MaxOverTime::new),
@@ -87,7 +87,7 @@ public class PromqlFunctionRegistry {
         withinSeriesOverTimeUnary("absent_over_time", AbsentOverTime::new),
         withinSeriesOverTimeUnary("present_over_time", PresentOverTime::new),
         withinSeriesOverTimeBinary("quantile_over_time", PercentileOverTime::new),
-        // Across series functions
+
         acrossSeriesUnary("avg", Avg::new),
         acrossSeriesUnary("count", Count::new),
         acrossSeriesUnary("max", Max::new),
@@ -96,14 +96,14 @@ public class PromqlFunctionRegistry {
         acrossSeriesUnary("stddev", StdDev::new),
         acrossSeriesUnary("stdvar", Variance::new),
         acrossSeriesBinary("quantile", Percentile::new),
-        // Instant vector functions
+
         valueTransformationFunction("ceil", Ceil::new),
         valueTransformationFunction("abs", Abs::new),
         valueTransformationFunction("exp", Exp::new),
         valueTransformationFunction("sqrt", Sqrt::new),
         valueTransformationFunction("log10", Log10::new),
         valueTransformationFunction("floor", Floor::new),
-        // Trigonometric functions
+
         valueTransformationFunction("asin", Asin::new),
         valueTransformationFunction("acos", Acos::new),
         valueTransformationFunction("atan", Atan::new),
@@ -113,6 +113,7 @@ public class PromqlFunctionRegistry {
         valueTransformationFunction("sin", Sin::new),
         valueTransformationFunction("tan", Tan::new),
         valueTransformationFunction("tanh", Tanh::new),
+
         vector() };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();

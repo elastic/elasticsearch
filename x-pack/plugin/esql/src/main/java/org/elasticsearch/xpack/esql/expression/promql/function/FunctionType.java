@@ -113,7 +113,6 @@ public enum FunctionType {
      * Input: Scalar
      * <br>
      * Output: Instant vector (single sample with no labels)
-     * <p>
      */
     VECTOR(PromqlDataType.SCALAR, PromqlDataType.INSTANT_VECTOR),
 

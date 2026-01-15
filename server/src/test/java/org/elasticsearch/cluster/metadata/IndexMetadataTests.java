@@ -858,16 +858,18 @@ public class IndexMetadataTests extends ESTestCase {
             .primaryTerm(0, primaryTerm)
             .build();
 
-        var twoShards = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
-        var fourShards = IndexMetadata.builder(twoShards).reshardAddShards(4).build();
-        var eightShards = IndexMetadata.builder(fourShards).reshardAddShards(8).build();
+        IndexMetadata maxShardsMetadata = indexMetadata;
+        for (int shards = 2; shards < 1024; shards *= 2) {
+            maxShardsMetadata = IndexMetadata.builder(maxShardsMetadata).reshardAddShards(shards).build();
+        }
 
-        var backToFour = IndexMetadata.builder(eightShards).reshardRemoveShards(4).build();
-        var backToTwo = IndexMetadata.builder(backToFour).reshardRemoveShards(2).build();
-        var backToOne = IndexMetadata.builder(backToTwo).reshardRemoveShards(1).build();
+        IndexMetadata backToOneShardMetadata = maxShardsMetadata;
+        for (int shards = 512; shards > 0; shards /= 2) {
+            backToOneShardMetadata = IndexMetadata.builder(backToOneShardMetadata).reshardRemoveShards(shards).build();
+        }
 
-        assertEquals(1, backToOne.getNumberOfShards());
-        assertEquals(primaryTerm, backToOne.primaryTerm(0));
+        assertEquals(1, backToOneShardMetadata.getNumberOfShards());
+        assertEquals(primaryTerm, backToOneShardMetadata.primaryTerm(0));
     }
 
     private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {

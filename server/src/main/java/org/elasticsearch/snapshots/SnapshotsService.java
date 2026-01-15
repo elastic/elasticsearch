@@ -669,34 +669,48 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      /// This is a no-op for majority of indices since the shards in the snapshot will always match index metadata.
      ///
      /// Visible for tests.
-    static Metadata adjustNewSnapshotMetadata(Metadata original, SnapshotsInProgress.Entry entry) {
-        logger.error(entry);
+    static Metadata adjustNewSnapshotMetadata(Metadata metadata, SnapshotsInProgress.Entry entry) {
+        Metadata.Builder builder = Metadata.builder(metadata);
 
-        Metadata.Builder builder = Metadata.builder(original);
+        var indicesInTheSnapshot = new HashSet<Index>();
+        for (String indexName : entry.indices().keySet()) {
+            indicesInTheSnapshot.add(entry.indexByName(indexName));
+        }
 
-        for (var project : original.projects().values()) {
+        // We'll rebuild the entire metadata project by project to avoid the need to re-build it after processing every index.
+        // This also means we'll automatically skip indices not present in the metadata.
+        for (var project : metadata.projects().values()) {
             var indicesBuilder = ImmutableOpenMap.<String, IndexMetadata>builder();
             for (Map.Entry<String, IndexMetadata> indexNameAndMetadata : project.indices().entrySet()) {
-                IndexMetadata indexMetadata = indexNameAndMetadata.getValue();
+                final String indexName = indexNameAndMetadata.getKey();
+                final IndexMetadata indexMetadata = indexNameAndMetadata.getValue();
 
-                if (entry.indices().containsKey(indexNameAndMetadata.getKey()) == false) {
-                    // Not in the snapshot, so no need to adjust the metadata.
+                if (indicesInTheSnapshot.contains(indexMetadata.getIndex()) == false) {
+                    // This index is not in the snapshot, leave the metadata as is.
+                    indicesBuilder.put(indexName, indexMetadata);
                     continue;
                 }
 
                 if (indexMetadata.getReshardingMetadata() != null) {
+                    logger.info(
+                        "{} removing resharding metadata from index metadata to be included in the snapshot",
+                        indexMetadata.getIndex()
+                    );
+
                     // This index is being resharded, strip the resharding metadata
                     // so that resharding does not (possibly incorrectly) resume after a snapshot restore.
                     IndexMetadata.Builder newMetadataBuilder = IndexMetadata.builder(indexMetadata).reshardingMetadata(null);
 
                     // We always check if we need to reset the number of shards
                     // since multiple reshard operations could have happened.
-                    int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(
-                        entry,
-                        indexMetadata.getIndex(),
-                        indexMetadata.getNumberOfShards()
-                    );
+                    int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(entry, indexMetadata.getIndex());
                     if (numberOfShards != indexMetadata.getNumberOfShards()) {
+                        logger.info(
+                            "{} - resetting the number of shards {} -> {} in index metadata to be included in the snapshot",
+                            indexMetadata.getIndex(),
+                            indexMetadata.getNumberOfShards(),
+                            numberOfShards
+                        );
                         // This should always succeed given that the only way the number of shards can change
                         // is resharding.
                         // Therefore, there previously was a successful transition from `numberOfShards` to current state
@@ -704,23 +718,23 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         newMetadataBuilder = newMetadataBuilder.reshardRemoveShards(numberOfShards);
                     }
 
-                    indicesBuilder.put(indexNameAndMetadata.getKey(), newMetadataBuilder.build());
+                    indicesBuilder.put(indexName, newMetadataBuilder.build());
                 } else {
                     // Even if resharding metadata is not present it is still possible that resharding has happened
                     // while the snapshot was running and impacted it.
-                    int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(
-                        entry,
-                        indexMetadata.getIndex(),
-                        indexMetadata.getNumberOfShards()
-                    );
-                    logger.error(numberOfShards);
-                    logger.error(indexMetadata.getNumberOfShards());
+                    int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(entry, indexMetadata.getIndex());
                     if (numberOfShards != indexMetadata.getNumberOfShards()) {
+                        logger.info(
+                            "{} - resetting only the number of shards {} -> {} in index metadata to be included in the snapshot",
+                            indexMetadata.getIndex(),
+                            indexMetadata.getNumberOfShards(),
+                            numberOfShards
+                        );
                         var newMetadata = IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShards).build();
-                        indicesBuilder.put(indexNameAndMetadata.getKey(), newMetadata);
+                        indicesBuilder.put(indexName, newMetadata);
                     } else {
                         // No changes.
-                        indicesBuilder.put(indexNameAndMetadata.getKey(), indexMetadata);
+                        indicesBuilder.put(indexName, indexMetadata);
                     }
                 }
             }
@@ -735,9 +749,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * It is in theory possible that multiple reshard operations were executed during the snapshot, and therefore
      * we can't make any assumptions here and calculate it based on the index metadata.
      */
-    private static int calculateNumberOfShardsAccordingToSnapshot(SnapshotsInProgress.Entry entry, Index index, int max) {
-        logger.error(index);
-
+    private static int calculateNumberOfShardsAccordingToSnapshot(SnapshotsInProgress.Entry entry, Index index) {
         int maxPresentShardId = 0;
         assert entry.shards().get(new ShardId(index, 0)) != null;
 

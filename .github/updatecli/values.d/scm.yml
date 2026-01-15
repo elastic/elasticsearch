@@ -2,7 +2,7 @@ scm:
   enabled: true
   owner: elastic
   repository: elasticsearch
-  branch: "{{ .Env.UPDATECLI_BRANCH }}"
+  branch: "{{ requiredEnv `UPDATECLI_BRANCH` }}"
   commitusingapi: true
   # begin updatecli-compose policy values
   user: elasticmachine

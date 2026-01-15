@@ -39,6 +39,10 @@ jobs:
         with:
           ref: ${{ matrix.branch }}
 
+      - name: Update branch in SCM values
+        run: |
+          yq eval '.scm.branch = "${{ matrix.branch }}"' -i .github/updatecli/values.d/scm.yml
+
       - uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           registry: ghcr.io
@@ -50,4 +54,3 @@ jobs:
           command: --experimental compose apply --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPDATECLI_BRANCH: ${{ matrix.branch }}

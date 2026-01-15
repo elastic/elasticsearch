@@ -30,5 +30,6 @@ FROM airports
 | scalerank:integer | name:text | country:keyword |
 | --- | --- | --- |
 | 9 | Chandigarh Int'l | India |
+| 9 | Cheongju Int'l | South Korea |
 
 

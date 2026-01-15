@@ -4352,6 +4352,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertNull(mmrCmd.queryVector());
     }
 
+    public void testMMRCommandWithConstantQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+    }
+
+    public void testMMRCommandWithFieldQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+
+    }
+
+    public void testMMRCommandWithTextEmbeddingQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand(
+            "mmr text_embedding(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
+        );
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+
+    }
+
     public void testInvalidSample() {
         expectError(
             "row a = 1 | sample \"foo\"",

@@ -377,21 +377,24 @@ setField
     ;
 
 mmrCommand
-    : DEV_MMR diversifyField=qualifiedName MMR_LIMIT limitValue=constant commandNamedParameters
+    : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
-//    : DEV_MMR (queryVector=mmrOptionalQueryVector ON)? diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
-//    ;
 
 mmrQueryVectorConstantParam
-    : OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET
+    : OPENING_BRACKET decimalValue (COMMA decimalValue)* CLOSING_BRACKET
     ;
 
 mmrQueryVectorTextEmbeddingParam
-    : MMR_TEXT_EMBEDDING LP QUOTED_STRING COMMA QUOTED_STRING RP
+    : MMR_TEXT_EMBEDDING QUOTED_STRING COMMA QUOTED_STRING RP
+    ;
+
+mmrQueryVectorParams
+    : mmrQueryVectorConstantParam         # mmrQueryVectorConstant
+    | parameter                           # mmrQueryVectorParameter
+    | mmrQueryVectorTextEmbeddingParam  # mmrQueryVectorTextEmbedding
     ;
 
 mmrOptionalQueryVector
-    : qualifiedName                     # mmrQueryVectorField
-    | constant                          # mmrQueryVectorConstant
-    | mmrQueryVectorTextEmbeddingParam  # mmrQueryVectorTextEmbedding
+    : (mmrQueryVectorParams ON)?
     ;
+

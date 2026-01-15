@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelFactory;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelParameters;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -60,6 +61,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     private static final String SERVICE_NAME = "Hugging Face ELSER";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    private static final HuggingFaceModelFactory MODEL_FACTORY = new HuggingFaceModelFactory();
 
     public HuggingFaceElserService(
         HttpRequestSender.Factory factory,
@@ -81,7 +83,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     public HuggingFaceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         if (SUPPORTED_TASK_TYPES.contains(config.getTaskType())) {
-            return new HuggingFaceElserModel(config, secrets);
+            return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
         } else {
             throw createInvalidTaskTypeException(
                 config.getInferenceEntityId(),
@@ -95,11 +97,13 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
         if (SUPPORTED_TASK_TYPES.contains(input.taskType())) {
-            return new HuggingFaceElserModel(
+            return MODEL_FACTORY.createFromMaps(
                 input.inferenceEntityId(),
                 input.taskType(),
                 NAME,
                 input.serviceSettings(),
+                input.taskSettings(),
+                input.chunkingSettings(),
                 input.secretSettings(),
                 input.context()
             );

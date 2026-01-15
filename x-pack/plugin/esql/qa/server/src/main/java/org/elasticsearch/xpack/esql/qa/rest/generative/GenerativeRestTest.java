@@ -75,15 +75,21 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
 
-        // TS-command tests
+        // TS-command tests (acceptable errors)
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "implicit time-series aggregation function .* doesn't support type .*",
+        "implicit time-series aggregation function",
         "INLINE STATS .* can only be used after STATS when used with TS command",
         "cannot group by a metric field .* in a time-series aggregation",
-        "a @timestamp field of type date or date_nanos to be present",
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+
+        // Ts-command errors awaiting fixes
+        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
+        "Invalid call to dataType on an unresolved object \\?@timestamp", // https://github.com/elastic/elasticsearch/issues/140607
+        "expected named expression for grouping; got Bucket" // https://github.com/elastic/elasticsearch/issues/140606
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

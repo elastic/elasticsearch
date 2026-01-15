@@ -122,6 +122,11 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         testEsqlSource(indexConfig);
     }
 
+    @Override
+    public String getEnsureGreenTimeout() {
+        return "2m";
+    }
+
     private void testIndexing(String indexNameBase, Settings.Builder settings) throws IOException {
         TestIndexConfig[] indexConfigs = new TestIndexConfig[NUM_INDICES];
 

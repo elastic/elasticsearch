@@ -14,8 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 
-import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
-
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {

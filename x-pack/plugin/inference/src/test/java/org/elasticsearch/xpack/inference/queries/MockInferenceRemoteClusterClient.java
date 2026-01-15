@@ -19,7 +19,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.mockito.Mockito.when;
 
 public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
@@ -57,27 +57,30 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        if (action.equals(GetInferenceFieldsAction.REMOTE_TYPE)
-            && request instanceof GetInferenceFieldsAction.Request getInferenceFieldsRequest) {
+        if (action.equals(GetInferenceFieldsInternalAction.REMOTE_TYPE)
+            && request instanceof GetInferenceFieldsInternalAction.Request getInferenceFieldsRequest) {
 
             @SuppressWarnings("unchecked")
-            ActionListener<GetInferenceFieldsAction.Response> actionListener = (ActionListener<GetInferenceFieldsAction.Response>) listener;
+            ActionListener<GetInferenceFieldsInternalAction.Response> actionListener = (ActionListener<
+                GetInferenceFieldsInternalAction.Response>) listener;
 
-            if (connection.getTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
-                actionListener.onFailure(new IllegalStateException("Mock remote cluster does not support GetInferenceFieldsAction"));
+            if (connection.getTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false) {
+                actionListener.onFailure(
+                    new IllegalStateException("Mock remote cluster does not support GetInferenceFieldsInternalAction")
+                );
                 return;
             }
 
-            final Set<String> indices = getInferenceFieldsRequest.getIndices();
-            final Map<String, Float> fields = getInferenceFieldsRequest.getFields();
+            final String[] indices = getInferenceFieldsRequest.indices();
+            final Map<String, Float> fields = getInferenceFieldsRequest.fields();
             final boolean resolveWildcards = getInferenceFieldsRequest.resolveWildcards();
             final boolean useDefaultFields = getInferenceFieldsRequest.useDefaultFields();
-            final String query = getInferenceFieldsRequest.getQuery();
+            final String query = getInferenceFieldsRequest.query();
 
             try {
                 var inferenceFieldsMap = getInferenceFieldsMap(indices, fields, resolveWildcards, useDefaultFields);
                 var inferenceResultsMap = getInferenceResultsMap(inferenceFieldsMap, query);
-                actionListener.onResponse(new GetInferenceFieldsAction.Response(inferenceFieldsMap, inferenceResultsMap));
+                actionListener.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, inferenceResultsMap));
             } catch (Exception e) {
                 actionListener.onFailure(e);
             }
@@ -91,8 +94,8 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
         listener.onResponse(connection);
     }
 
-    private Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> getInferenceFieldsMap(
-        Set<String> indices,
+    private Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> getInferenceFieldsMap(
+        String[] indices,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
@@ -102,7 +105,9 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
             effectiveFields = Map.of("*", 1.0f);
         }
 
-        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(indices.size());
+        Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(
+            indices.length
+        );
         for (String index : indices) {
             var inferenceFieldsMetadataMap = clusterInferenceFieldsMap.get(index);
             if (inferenceFieldsMetadataMap == null) {
@@ -114,9 +119,9 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
                 effectiveFields,
                 resolveWildcards
             );
-            List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> eifm = matchingInferenceFieldsMap.entrySet()
+            List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata> eifm = matchingInferenceFieldsMap.entrySet()
                 .stream()
-                .map(e -> new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(e.getKey(), e.getValue()))
+                .map(e -> new GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata(e.getKey(), e.getValue()))
                 .toList();
 
             inferenceFieldsMap.put(index, eifm);
@@ -126,7 +131,7 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
     }
 
     private Map<String, InferenceResults> getInferenceResultsMap(
-        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
+        Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
         @Nullable String query
     ) {
         if (query == null || query.isBlank()) {

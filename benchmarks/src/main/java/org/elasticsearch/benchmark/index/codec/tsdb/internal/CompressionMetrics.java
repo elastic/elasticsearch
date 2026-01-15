@@ -28,7 +28,7 @@ import org.openjdk.jmh.annotations.TearDown;
  * @Benchmark
  * public void benchmark(Blackhole bh, CompressionMetrics metrics) {
  *     encode.benchmark(bh);
- *     metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), bitsPerValue);
+ *     metrics.recordOperation(encode.getBlockSize, encode.getEncodedSize(), bitsPerValue);
  * }
  * }</pre>
  */

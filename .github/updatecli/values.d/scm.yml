@@ -8,9 +8,9 @@ scm:
   user: elasticmachine
   email: 42973632+elasticmachine@users.noreply.github.com
   # end updatecli-compose policy values
-  pullrequest:
-    labels:
-      - ":Delivery/Tooling"
-      - ":Delivery/Packaging"
-      - "auto-merge-without-approval"
-      - "dependencies"
+
+pull_request:
+  labels:
+    - ":Delivery/Tooling"
+    - "auto-merge-without-approval"
+    - "dependencies"

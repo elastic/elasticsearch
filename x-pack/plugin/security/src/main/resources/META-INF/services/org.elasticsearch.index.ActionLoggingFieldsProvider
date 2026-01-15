@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.security.slowlog.SecurityLoggingFieldsProvider
+org.elasticsearch.xpack.security.logging.SecurityActionLoggingFieldsProvider

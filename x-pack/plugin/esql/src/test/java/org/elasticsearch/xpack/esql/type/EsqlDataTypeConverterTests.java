@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -22,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -56,7 +59,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
 
@@ -222,6 +227,18 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
                     assertNullCommonType(dataType1, dataType2);
                 }
             }
+        }
+    }
+
+    public void testConfigurationConvertersAreConfigurationAware() {
+        var configuration = randomConfiguration();
+        var field = FieldAttributeTests.createFieldAttribute(0, false);
+
+        for (var converterFactory : EsqlDataTypeConverter.TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.values()) {
+            var converter = converterFactory.apply(TEST_SOURCE, field, configuration);
+            assertThat(converter, instanceOf(ConfigurationAware.class));
+            var configurationAware = (ConfigurationAware) converter;
+            assertSame(configuration, configurationAware.configuration());
         }
     }
 

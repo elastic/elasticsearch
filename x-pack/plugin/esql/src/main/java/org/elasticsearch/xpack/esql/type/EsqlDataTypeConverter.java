@@ -37,6 +37,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -171,9 +172,13 @@ public class EsqlDataTypeConverter {
     );
 
     /**
-     * Converters that need the configuration for resolution
+     * Converters that need the configuration for resolution.
+     * <p>
+     *     Converters here <b>must implement</b> {@link ConfigurationAware},
+     *     as they may be instanced in the parser without a real configuration.
+     * </p>
      */
-    private static final Map<
+    static final Map<
         DataType,
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
             Map.entry(KEYWORD, ToString::new),
@@ -958,7 +963,6 @@ public class EsqlDataTypeConverter {
         if (converter != null) {
             return (source, expression, configuration) -> converter.apply(source, expression);
         }
-
         return TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.get(toType);
     }
 }

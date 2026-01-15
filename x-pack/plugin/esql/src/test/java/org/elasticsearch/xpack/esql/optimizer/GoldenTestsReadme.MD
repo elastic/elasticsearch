@@ -67,11 +67,11 @@ the `.expected` file. `.actual` files are git ignored by default, you can manual
 inspection, or if you wish to avoid the `.actual` file creation, you can use `-Dgolden.noactual`.
 If you want to automatically delete them on test success, you can use `-Dgolden.cleanactual`.
 
-## How do I bulldoze an existing output?
+## How do I overwrite an existing output?
 
 Of course, sometimes you *want* the output to change.
-Use `-Dgolden.bulldoze` to **bulldoze** (or overwrite) all the existing outputs.
-You can use this in combination with `-Dtests.method` to bulldoze specific tests.
+Use `-Dgolden.overwrite` to **overwrite** (or overwrite) all the existing outputs.
+You can use this in combination with `-Dtests.method` to overwrite specific tests.
 This can also be used in combination with `git diff` to inspect the differences if you prefer that
 method to comparing `.actual` and `.expected` files.
 
@@ -86,3 +86,8 @@ cause the golden test to fail nonetheless if you are verifying that the logical 
 
 One should feel comfortable bulldozing failed tests if one expects changes in the underlying tree.
 Golden tests should be the *first* line of defense, not the only one!
+
+If you need to have more targeted tests, for example if you want to only verify certain properties
+of the plan, or ones that aren't actually present in its string representation, consider adding
+regular unit tests instead. Take a look at some of the tests in `LogicalPlanOptimizerTests` or
+`PhysicalPlanOptimizerTests` for examples.

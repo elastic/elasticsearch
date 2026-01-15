@@ -623,8 +623,8 @@ test {
   if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
     systemProperty "golden.cleanactual", "true"
   }
-  if (System.getProperty("golden.bulldoze") != null || project.hasProperty("golden.bulldoze")) {
-    systemProperty "golden.bulldoze", "true"
+  if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
+    systemProperty "golden.overwrite", "true"
   }
   systemProperty "policy.directory", file("${projectDir}").absolutePath
   systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath

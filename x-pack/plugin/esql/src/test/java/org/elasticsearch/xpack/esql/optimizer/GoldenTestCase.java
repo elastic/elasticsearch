@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -45,7 +44,6 @@ import org.junit.runner.notification.RunListener;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -72,8 +70,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         try {
             String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
             var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
-            String dirFromClassName = StringUtils.camelCaseToUnderscore(getClass().getSimpleName()).toLowerCase(Locale.ROOT);
-            baseFile = PathUtils.get(inSrc + "/golden_tests/" + dirFromClassName + "/");
+            baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -176,23 +173,23 @@ public abstract class GoldenTestCase extends ESTestCase {
             );
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
             var analyzed = analyzer.analyze(parsedStatement);
-            if (stages.contains(Stage.ANALYZER)) {
-                result.add(Tuple.tuple(Stage.ANALYZER, verifyOrWrite(analyzed, Stage.ANALYZER)));
+            if (stages.contains(Stage.ANALYSIS)) {
+                result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }
-            if (stages.equals(EnumSet.of(Stage.ANALYZER))) {
+            if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
             var logicallyOptimized = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(analyzed);
-            if (stages.contains(Stage.LOGICAL)) {
-                result.add(Tuple.tuple(Stage.LOGICAL, verifyOrWrite(logicallyOptimized, Stage.LOGICAL)));
+            if (stages.contains(Stage.LOGICAL_OPTIMIZATION)) {
+                result.add(Tuple.tuple(Stage.LOGICAL_OPTIMIZATION, verifyOrWrite(logicallyOptimized, Stage.LOGICAL_OPTIMIZATION)));
             }
-            if (stages.contains(Stage.PHYSICAL) || stages.contains(Stage.LOCAL_PHYSICAL)) {
+            if (stages.contains(Stage.PHYSICAL_OPTIMIZATION) || stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(null, null));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(new Versioned<>(logicallyOptimized, version)));
-                if (stages.contains(Stage.PHYSICAL)) {
-                    result.add(Tuple.tuple(Stage.PHYSICAL, verifyOrWrite(physicalPlan, Stage.PHYSICAL)));
+                if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)) {
+                    result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }
-                if (stages.contains(Stage.LOCAL_PHYSICAL)) {
+                if (stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
                     Configuration conf = analyzer.context().configuration();
                     var localPhysicalPlan = PlannerUtils.localPlan(
                         EsqlTestUtils.TEST_PLANNER_SETTINGS,
@@ -203,7 +200,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                         searchStats,
                         new PlanTimeProfile()
                     );
-                    result.add(Tuple.tuple(Stage.LOCAL_PHYSICAL, verifyOrWrite(localPhysicalPlan, Stage.LOCAL_PHYSICAL)));
+                    result.add(
+                        Tuple.tuple(Stage.LOCAL_PHYSICAL_OPTIMIZATION, verifyOrWrite(localPhysicalPlan, Stage.LOCAL_PHYSICAL_OPTIMIZATION))
+                    );
                 }
             }
             return result;
@@ -217,7 +216,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Stage stage) throws IOException {
             var outputPath = outputPath(stage);
-            if (System.getProperty("golden.bulldoze") != null) {
+            if (System.getProperty("golden.overwrite") != null) {
                 logger.info("Bulldozing file {}", outputPath);
                 return createNewOutput(outputPath, plan);
             } else {
@@ -249,7 +248,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         return IDENTIFIER_PATTERN.matcher(plan.toString(Node.NodeStringFormat.FULL)).replaceAll("");
     }
 
-    private static Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String read = Files.readString(output);
@@ -286,41 +285,24 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     protected enum Stage {
-        ANALYZER,
-        LOGICAL,
-        PHYSICAL,
-        // There's no LOCAL_LOGICAL here since in product we use PlannerUtils.localPlan to produce the local physical plan directly from
+        ANALYSIS,
+        LOGICAL_OPTIMIZATION,
+        PHYSICAL_OPTIMIZATION,
+        // There's no LOCAL_LOGICAL here since in production we use PlannerUtils.localPlan to produce the local physical plan directly from
         // non-local physical plan.
-        LOCAL_PHYSICAL
+        LOCAL_PHYSICAL_OPTIMIZATION
     }
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));
     }
 
-    private static String extractTestName() {
-        for (var trace : Thread.currentThread().getStackTrace()) {
-            // Search for a public void testX() method in a GoldenTestCase subclass
-            if (trace.getMethodName().startsWith("test")) {
-                var className = trace.getClassName();
-                try {
-                    var clazz = Class.forName(className);
-                    if (GoldenTestCase.class.isAssignableFrom(clazz)) {
-                        var method = clazz.getMethod(trace.getMethodName());
-                        if (method.getReturnType() == void.class && Modifier.isPublic(method.getModifiers())) {
-                            return StringUtils.camelCaseToUnderscore(trace.getMethodName().substring(4)).toLowerCase(Locale.ROOT);
-                        }
-                    }
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-        throw new IllegalStateException("Could not extract test name from stack trace");
+    private String extractTestName() {
+        return getTestName();
     }
 
     /**
-     * Adds -Dgolden.bulldoze to the reproduction line for golden test failures. This has to be a nested class to get pass the
+     * Adds -Dgolden.overwrite to the reproduction line for golden test failures. This has to be a nested class to get pass the
      * {@code TestingConventionsCheckWorkAction} check, which incorrectly identifies this class as a test.
      */
     public static class GoldenTestReproduceInfoPrinter extends RunListener {
@@ -332,7 +314,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 return;
             }
             if (isGoldenTest(failure)) {
-                printToErr(captureDelegate(failure).replace("REPRODUCE WITH:", "BULLDOZE WITH:") + " -Dgolden.bulldoze");
+                printToErr(captureDelegate(failure).replace("REPRODUCE WITH:", "OVERWRITE WITH:") + " -Dgolden.overwrite");
             } else {
                 delegate.testFailure(failure);
             }

@@ -36,7 +36,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats count(*) by x = {}
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
 
@@ -47,7 +47,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats count(*) where long > 10 by x = {}
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
 
@@ -58,7 +58,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats count(*) by x = {}
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
 
@@ -69,7 +69,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats sum(long), count(*) by x = {}
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
 
@@ -87,7 +87,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 | keep alias_integer, date, x
                 | limit 5
                 """, dateHistogram);
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name);
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name);
         }
     }
 
@@ -105,7 +105,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats count(*) by x = {}
                 """, expression);
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, fieldName);
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, fieldName);
         }
     }
 
@@ -141,7 +141,13 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                     | where {}
                     | stats count(*) by x = {}
                     """, otherPushDownFunction.query(), queryAndName.query());
-                runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name(), otherPushDownFunction.name());
+                runGoldenTest(
+                    query,
+                    EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION),
+                    STATS,
+                    queryAndName.name(),
+                    otherPushDownFunction.name()
+                );
             }
         }
     }
@@ -161,7 +167,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 | lookup join languages_lookup on language_code
                 | stats count(*) by x = {}
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
 
@@ -174,7 +180,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 (where keyword : "keyword")
                 | stats count(*) by x = {}
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
 
@@ -196,7 +202,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 | stats count(*) by x = round_to(integer, {})
                 """, points.toString());
 
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, Integer.toString(numOfPoints));
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, Integer.toString(numOfPoints));
         }
     }
 
@@ -220,7 +226,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
 
                 runGoldenTest(
                     query,
-                    EnumSet.of(Stage.LOCAL_PHYSICAL),
+                    EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION),
                     STATS,
                     "cluster_" + clusterLevelThreshold,
                     "query_" + queryLevelThreshold
@@ -235,7 +241,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
             | fork (stats x = count(*), y = max(long) by hd = date_trunc(1 day, date))
             (stats x = count(*), y = min(long) by hd = date_trunc(2 day, date))
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS);
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS);
     }
 
     public void testSubqueryWithCountStarAndDateTrunc() {
@@ -244,7 +250,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
             from all_types, (from all_types | stats cnt = count(*) by x = date_trunc(1 day, date))
             | keep x, cnt, date
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS);
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS);
     }
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(

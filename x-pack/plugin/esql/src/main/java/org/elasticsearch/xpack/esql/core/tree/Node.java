@@ -369,9 +369,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     public enum NodeStringFormat {
         /** No list truncation, no line breaks due to string width. */
-        FULL,
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE),
         /** List truncation and line breaks due to string width applied. */
-        LIMITED
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH);
+
+        private final int maxProperties;
+        private final int maxWidth;
+
+        NodeStringFormat(int maxProperties, int maxWidth) {
+            this.maxProperties = maxProperties;
+            this.maxWidth = maxWidth;
+        }
     }
 
     public final String nodeString() {
@@ -455,11 +463,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
-        int maxProperties = switch (format) {
-            case LIMITED -> TO_STRING_MAX_PROP;
-            case FULL -> Integer.MAX_VALUE;
-        };
-        int remainingProperties = maxProperties;
+        int remainingProperties = format.maxProperties;
         int currentMaxWidth = 0;
         boolean needsComma = false;
 
@@ -469,7 +473,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             // it's not a child (optional)
             if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
                 if (remainingProperties-- < 0) {
-                    sb.append("...").append(props.size() - maxProperties).append("fields not shown");
+                    sb.append("...").append(props.size() - format.maxProperties).append("fields not shown");
                     break;
                 }
 
@@ -480,12 +484,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                 String stringValue = toString(prop, format);
 
                 // : Objects.toString(prop);
-                int maxWidth = switch (format) {
-                    case LIMITED -> TO_STRING_MAX_WIDTH;
-                    case FULL -> Integer.MAX_VALUE;
-                };
-                if (currentMaxWidth + stringValue.length() > maxWidth) {
-                    int cutoff = Math.max(0, maxWidth - currentMaxWidth);
+                if (currentMaxWidth + stringValue.length() > format.maxWidth) {
+                    int cutoff = Math.max(0, format.maxWidth - currentMaxWidth);
                     sb.append(stringValue, 0, cutoff);
                     sb.append("\n");
                     stringValue = stringValue.substring(cutoff);
@@ -528,7 +528,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     private <U> boolean containsNull(List<U> us) {
-        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList) throw
+        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList)
+        // throw
         // a NPE if any of the elements is null.
         for (U u : us) {
             if (u == null) {

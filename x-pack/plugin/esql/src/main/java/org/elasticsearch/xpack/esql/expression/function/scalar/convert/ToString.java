@@ -234,7 +234,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         return new BytesRef(geoGridToString(gridId, dataType));
     }
 
-    @ConvertEvaluator(extraName = "FromExponentialHistogram")
+    @ConvertEvaluator(extraName = "FromExponentialHistogram", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromExponentialHistogram(ExponentialHistogram histogram) {
         return new BytesRef(exponentialHistogramToString(histogram));
     }

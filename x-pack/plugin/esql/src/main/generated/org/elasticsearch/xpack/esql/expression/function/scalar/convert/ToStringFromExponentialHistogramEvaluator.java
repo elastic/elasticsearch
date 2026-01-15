@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -57,13 +58,17 @@ public final class ToStringFromExponentialHistogramEvaluator extends AbstractCon
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            BytesRef value = evalValue(block, i, scratchPad);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendBytesRef(value);
+            valuesAppended = true;
+          } catch (IllegalArgumentException  e) {
+            registerException(e);
           }
-          builder.appendBytesRef(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

@@ -31,7 +31,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

@@ -342,6 +342,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testPushDownMetadataTierInAndNotOperator {default}
   issue: https://github.com/elastic/elasticsearch/issues/140752
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testRemoveNodeDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/140753
 
 # Examples:
 #

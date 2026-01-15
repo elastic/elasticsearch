@@ -174,7 +174,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             }
             try (
                 EsqlQueryResponse resp = run(
-                    syncEsqlQueryRequest("from events_* " + "| STATS count() BY DATE_FORMAT(\"yyyy-MM-dd\", @timestamp)").pragmas(
+                    syncEsqlQueryRequest("from events_* | STATS count() BY DATE_FORMAT(\"yyyy-MM-dd\", @timestamp)").pragmas(
                         randomPragmas()
                     ).filter(new RangeQueryBuilder("@timestamp").gte("2023-01-01"))
                 )

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
@@ -28,7 +29,6 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.action.search.TransportSearchAction.SEARCH_ACTIONLOG_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SEARCH_ACTIONLOG_NAME);
+    static Logger queryLog = LogManager.getLogger(SearchLogProducer.LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

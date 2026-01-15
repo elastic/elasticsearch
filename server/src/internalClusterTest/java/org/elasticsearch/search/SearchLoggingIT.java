@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -36,7 +37,6 @@ import org.junit.BeforeClass;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.action.search.TransportSearchAction.SEARCH_ACTIONLOG_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SEARCH_ACTIONLOG_NAME);
+    static Logger queryLog = LogManager.getLogger(SearchLogProducer.LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.ArrayList;
@@ -485,10 +484,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    private interface ElasticsearchInternalModelCreator extends ModelCreator {
-        boolean matches(TaskType taskType, String modelId);
     }
 
     @Override
@@ -1135,10 +1130,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 

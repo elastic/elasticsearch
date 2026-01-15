@@ -93,19 +93,12 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         );
     }
 
-    public VoyageAIEmbeddingsModel(
-        String inferenceId,
-        String service,
-        VoyageAIEmbeddingsServiceSettings serviceSettings,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
-    ) {
+    public VoyageAIEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings(),
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((VoyageAIEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
             buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
         );
     }

@@ -366,12 +366,7 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model buildModelFromConfigAndSecrets(
-            String inferenceEntityId,
-            TaskType taskType,
-            ModelConfigurations config,
-            ModelSecrets secrets
-        ) {
+        public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
             return null;
         }
 

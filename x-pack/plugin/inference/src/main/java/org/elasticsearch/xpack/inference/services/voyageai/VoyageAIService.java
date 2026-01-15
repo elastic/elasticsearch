@@ -44,10 +44,6 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -56,7 +52,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -67,8 +62,8 @@ public class VoyageAIService extends SenderService implements RerankingInference
     public static final String NAME = "voyageai";
 
     private static final String SERVICE_NAME = "Voyage AI";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
-
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
+    private static final VoyageAIModelFactory MODEL_FACTORY = new VoyageAIModelFactory();
     private static final Integer DEFAULT_BATCH_SIZE = 7;
     private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.of(
         "voyage-multimodal-3",
@@ -195,19 +190,16 @@ public class VoyageAIService extends SenderService implements RerankingInference
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new VoyageAIEmbeddingsModel(
-                inferenceEntityId,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new VoyageAIRerankModel(inferenceEntityId, NAME, serviceSettings, taskSettings, secretSettings, context);
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        return MODEL_FACTORY.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -237,35 +229,8 @@ public class VoyageAIService extends SenderService implements RerankingInference
     }
 
     @Override
-    public VoyageAIModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var chunkingSettings = config.getChunkingSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new VoyageAIEmbeddingsModel(
-                inferenceEntityId,
-                NAME,
-                (VoyageAIEmbeddingsServiceSettings) serviceSettings,
-                (VoyageAIEmbeddingsTaskSettings) taskSettings,
-                chunkingSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            case RERANK -> new VoyageAIRerankModel(
-                inferenceEntityId,
-                NAME,
-                (VoyageAIRerankServiceSettings) serviceSettings,
-                (VoyageAIRerankTaskSettings) taskSettings,
-                (DefaultSecretSettings) secretSettings
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
-        };
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -288,7 +253,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -411,16 +376,16 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -431,12 +396,12 @@ public class VoyageAIService extends SenderService implements RerankingInference
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

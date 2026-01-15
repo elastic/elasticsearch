@@ -1,16 +1,19 @@
 simpleKeep
 required_capability: optional_fields_nullify_tech_preview
-
+// tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP foo
 | LIMIT 3
+// end::unmapped-nullify-simple-keep[]
 ;
 
+// tag::unmapped-nullify-simple-keep-result[]
 foo:null
 null
 null
 null
+// end::unmapped-nullify-simple-keep-result[]
 ;
 
 keepStar

@@ -81,6 +81,7 @@ public class QuerySettings {
             + "\"NULLIFY\" - treats unmapped fields as null values. "
         // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )
+    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,

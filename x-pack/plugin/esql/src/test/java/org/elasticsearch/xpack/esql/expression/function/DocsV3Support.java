@@ -1107,7 +1107,7 @@ public abstract class DocsV3Support {
 
         private final Collection<QuerySettingDef<?>> settings;
 
-        public SettingsTocDocsSupport(Collection<QuerySettingDef<?>> settings, Class<?> testClass, Callbacks callbacks) {
+        public SettingsTocDocsSupport(List<QuerySettingDef<?>> settings, Class<?> testClass, Callbacks callbacks) {
             super("settings", "toc", testClass, Set::of, callbacks);
             this.settings = settings;
         }
@@ -1213,15 +1213,19 @@ public abstract class DocsV3Support {
         }
 
         private void renderExample(Example example, StringBuilder builder) throws IOException {
-            String exampleContent = loadExample(example.file(), example.tag());
+            String exampleContent = loadExampleQuery(example);
+            String exampleResult = loadExampleResult(example);
             if (exampleContent != null) {
                 builder.append("    **Example**\n\n");
                 if (example.description().length() > 0) {
                     builder.append("    ").append(example.description()).append("\n\n");
                 }
-                builder.append("    ```esql\n");
+
                 builder.append("    " + exampleContent.replaceAll("\n", "\n    "));
-                builder.append("\n    ```\n");
+                builder.append("\n   ");
+                if (exampleResult != null && exampleResult.isEmpty() == false) {
+                    builder.append(exampleResult.replaceAll("\n", "\n   ")).append("\n   ");
+                }
             }
         }
 

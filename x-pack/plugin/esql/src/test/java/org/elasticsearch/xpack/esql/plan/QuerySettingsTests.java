@@ -24,12 +24,14 @@ import org.junit.AfterClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -243,7 +245,10 @@ public class QuerySettingsTests extends ESTestCase {
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        for (QuerySettings.QuerySettingDef<?> def : QuerySettings.SETTINGS_BY_NAME.values()) {
+        List<QuerySettings.QuerySettingDef<?>> settings = new ArrayList<>(QuerySettings.SETTINGS_BY_NAME.values());
+        settings.remove(QuerySettings.PROJECT_ROUTING); // TODO this is non-snapshot, but we don't want to expose it yet
+
+        for (QuerySettings.QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(
                 def,
                 QuerySettingsTests.class,
@@ -253,7 +258,7 @@ public class QuerySettingsTests extends ESTestCase {
         }
 
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
-            QuerySettings.SETTINGS_BY_NAME.values(),
+            settings,
             QuerySettingsTests.class,
             DocsV3Support.callbacksFromSystemProperty()
         );

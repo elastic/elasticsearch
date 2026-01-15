@@ -67,12 +67,23 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets,
-            buildUri(serviceSettings.uri(), OpenAiService.NAME, OpenAiEmbeddingsModel::buildDefaultUri)
+            new ModelSecrets(secrets)
+        );
+    }
+
+    public OpenAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            buildUri(
+                ((OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).uri(),
+                OpenAiService.NAME,
+                OpenAiEmbeddingsModel::buildDefaultUri
+            )
         );
     }
 

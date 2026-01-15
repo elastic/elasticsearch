@@ -159,7 +159,7 @@ public final class MetadataBuffer implements MetadataWriter {
      * @throws NullPointerException if dest is null
      * @throws IllegalArgumentException if offset is negative or destination has insufficient space
      */
-    public int writeTo(byte[] dest, int offset) {
+    public int writeTo(final byte[] dest, int offset) {
         Objects.requireNonNull(dest, "dest");
         if (offset < 0) {
             throw new IllegalArgumentException("offset must be non-negative: " + offset);

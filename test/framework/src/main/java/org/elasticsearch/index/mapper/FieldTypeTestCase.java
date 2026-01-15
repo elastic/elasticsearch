@@ -16,7 +16,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.FieldLookup;
@@ -55,6 +58,13 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         SearchLookup searchLookup = mock(SearchLookup.class);
         when(searchExecutionContext.lookup()).thenReturn(searchLookup);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
         return searchExecutionContext;
     }
 

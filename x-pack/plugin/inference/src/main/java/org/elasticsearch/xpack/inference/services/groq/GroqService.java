@@ -13,11 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -36,7 +34,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -57,7 +54,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 
 public class GroqService extends SenderService {
     public static final String NAME = "groq";
@@ -69,27 +65,7 @@ public class GroqService extends SenderService {
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-
-    private static final Map<TaskType, GroqModelCreator> MODEL_CREATORS = Map.of(TaskType.CHAT_COMPLETION, new GroqModelCreator() {
-        @Override
-        public GroqChatCompletionModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        ) {
-            return new GroqChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
-        }
-
-        @Override
-        public GroqChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-            return new GroqChatCompletionModel(config, secrets);
-        }
-    });
+    private static final GroqModelFactory MODEL_FACTORY = new GroqModelFactory();
 
     public GroqService(
         HttpRequestSender.Factory factory,
@@ -176,16 +152,7 @@ public class GroqService extends SenderService {
 
     @Override
     public GroqModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var creator = MODEL_CREATORS.get(config.getTaskType());
-        if (creator == null) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -204,11 +171,16 @@ public class GroqService extends SenderService {
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var creator = MODEL_CREATORS.get(taskType);
-        if (creator == null) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return creator.createFromMaps(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, null, secretSettings, context);
+        return MODEL_FACTORY.createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            null,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -360,20 +332,5 @@ public class GroqService extends SenderService {
                     .build();
             }
         );
-    }
-
-    private interface GroqModelCreator extends ModelCreator {
-        GroqModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            @Nullable ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        );
-
-        GroqModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

@@ -11,8 +11,6 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
  * Interface for writing variable-length encoded metadata.
- * <p>
- * Methods mirror Lucene's DataOutput for easy delegation.
  */
 public interface MetadataWriter {
 

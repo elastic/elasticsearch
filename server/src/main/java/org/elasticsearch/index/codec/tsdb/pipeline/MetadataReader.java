@@ -11,8 +11,6 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
  * Interface for reading variable-length encoded metadata.
- * <p>
- * Methods mirror Lucene's DataInput for easy delegation.
  */
 public interface MetadataReader {
 

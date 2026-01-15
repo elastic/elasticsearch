@@ -21,7 +21,8 @@ import java.util.Arrays;
  * of integers and longs using the same conventions as Lucene's DataOutput.
  * <p>
  * The buffer automatically grows when capacity is exceeded and retains its grown
- * size after {@link #clear()} for zero-allocation steady-state operation.
+ * size after {@link #clear()} for zero-allocation steady-state operation. This
+ * avoids repeated allocations during encoding hot paths, reducing GC pressure.
  * <p>
  * This buffer is write-only. For reading metadata during decoding, use
  * {@link MetadataReader} implementations that wrap Lucene's DataInput directly.
@@ -100,7 +101,6 @@ public final class MetadataBuffer implements MetadataWriter {
 
     /**
      * Writes a signed integer using zig-zag encoding followed by variable-length encoding.
-     * Efficient for values with small absolute magnitude.
      *
      * @param value the signed integer to write
      */
@@ -114,7 +114,6 @@ public final class MetadataBuffer implements MetadataWriter {
 
     /**
      * Writes a signed long using zig-zag encoding followed by variable-length encoding.
-     * Efficient for values with small absolute magnitude.
      *
      * @param value the signed long to write
      */

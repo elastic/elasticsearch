@@ -197,7 +197,13 @@ public class UserAgentProcessor extends AbstractProcessor {
         ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
-            String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", UserAgentParserRegistry.DEFAULT_PARSER_NAME);
+            String regexFilename = readStringProperty(
+                TYPE,
+                processorTag,
+                config,
+                "regex_file",
+                UserAgentParserRegistry.DEFAULT_PARSER_NAME
+            );
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);

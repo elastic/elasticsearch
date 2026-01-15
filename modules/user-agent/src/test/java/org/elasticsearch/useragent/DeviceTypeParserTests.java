@@ -9,8 +9,8 @@
 
 package org.elasticsearch.useragent;
 
-import org.elasticsearch.useragent.UserAgentParser.VersionedName;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.useragent.UserAgentParser.VersionedName;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;

@@ -58,10 +58,7 @@ public class UserAgentPluginTests extends ESTestCase {
         assertThat(cacheSizeSetting.get(settings3), equalTo(3000L));
 
         // Scenario 4: Both settings are present (new should take precedence)
-        Settings settings4 = Settings.builder()
-            .put("user_agent.cache_size", "4000")
-            .put("ingest.user_agent.cache_size", "5000")
-            .build();
+        Settings settings4 = Settings.builder().put("user_agent.cache_size", "4000").put("ingest.user_agent.cache_size", "5000").build();
         assertThat(cacheSizeSetting.get(settings4), equalTo(4000L));
 
         // Scenario 5: Test invalid value (should throw IllegalArgumentException)

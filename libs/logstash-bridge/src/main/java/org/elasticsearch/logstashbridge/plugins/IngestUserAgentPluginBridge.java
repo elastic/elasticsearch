@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.logstashbridge.plugins;
 
-import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
 import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
+import org.elasticsearch.useragent.UserAgentPlugin;
 
 import java.util.Map;
 

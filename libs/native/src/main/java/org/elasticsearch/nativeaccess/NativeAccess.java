@@ -9,6 +9,9 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -102,6 +105,13 @@ public interface NativeAccess {
      * @return the buffer
      */
     CloseableByteBuffer newConfinedBuffer(int len);
+
+    /**
+     * Creates a new {@link CloseableMappedByteBuffer} using a shared arena. The buffer can be used
+     * across multiple threads, and should be closed.
+     * @return the buffer
+     */
+    CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;
 
     /**
      * Possible stats for execution filtering.

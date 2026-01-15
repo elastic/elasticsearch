@@ -447,7 +447,8 @@ public class ESVectorUtil {
      * @return the number of code points in the bytes ref
      */
     public static int codePointCount(BytesRef bytesRef) {
-        if (bytesRef.length < 16) {
+        // Scalar logic is faster for lengths below approximately 12
+        if (bytesRef.length < 12) {
             return UnicodeUtil.codePointCount(bytesRef);
         }
         Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);

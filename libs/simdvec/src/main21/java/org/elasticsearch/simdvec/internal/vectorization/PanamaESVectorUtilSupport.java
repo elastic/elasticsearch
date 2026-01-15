@@ -1144,6 +1144,11 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public int codePointCount(final BytesRef bytesRef) {
+        // SWAR logic is faster for lengths below approximately 54
+        if (bytesRef.length < 54) {
+            return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+
         int continuations = 0;
         int highBits = 0xC0;
         int continuationByte = 0x80; // continuation bytes have first bit set and second bit unset

@@ -40,7 +40,7 @@ public class CodePointCountBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "1", "10", "100", "1000" })
+    @Param({ "1", "5", "10", "20", "50", "100", "1000" })
     public int avgNumCodePoints;
 
     @Param({ "ascii", "unicode" })

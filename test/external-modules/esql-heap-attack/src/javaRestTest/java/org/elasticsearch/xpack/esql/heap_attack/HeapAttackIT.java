@@ -899,9 +899,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
         StringBuilder bulk = new StringBuilder();
         int flush = 0;
         for (int i = 0; i < numHistograms; i++) {
-
-            // The scale doesn't actually matter here
-
             StringBuilder histoJson = new StringBuilder("{");
             histoJson.append("\"centroids\":");
             histoJson.append(

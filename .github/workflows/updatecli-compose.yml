@@ -50,3 +50,4 @@ jobs:
           command: --experimental compose apply --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATECLI_BRANCH: ${{ matrix.branch }}

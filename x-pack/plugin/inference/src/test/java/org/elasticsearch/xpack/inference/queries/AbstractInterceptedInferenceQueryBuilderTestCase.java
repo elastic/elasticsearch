@@ -69,7 +69,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -243,7 +243,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 remoteIndexConfigs,
                 TransportVersionUtils.randomVersionBetween(
                     SEMANTIC_SEARCH_CCS_SUPPORT,
-                    TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_TV)
+                    TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV)
                 )
             );
 
@@ -261,7 +261,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                     + queryName
                     + " query cross-cluster search when"
                     + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
+                    + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
             ),
             null
         );

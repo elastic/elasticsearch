@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +36,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
@@ -57,6 +59,7 @@ public class ConfigurationTestUtils {
 
     public static Configuration randomConfiguration(String query, Map<String, Map<String, Column>> tables) {
         var zoneId = randomZone();
+        var now = randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE));
         var locale = randomLocale(random());
         var username = randomAlphaOfLengthBetween(1, 10);
         var clusterName = randomAlphaOfLengthBetween(3, 10);
@@ -68,6 +71,7 @@ public class ConfigurationTestUtils {
 
         return new Configuration(
             zoneId,
+            now,
             locale,
             username,
             clusterName,

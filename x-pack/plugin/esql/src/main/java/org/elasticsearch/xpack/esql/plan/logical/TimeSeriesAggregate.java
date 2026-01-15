@@ -15,17 +15,13 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -240,7 +236,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             failures.add(
                 fail(
                     timestamp,
-                    "the TS command requires a @timestamp field of type date or date_nanos to be present, but it was not present"
+                    "the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [{}]",
+                    timestamp.dataType().typeName()
                 )
             );
         }
@@ -256,31 +253,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
                     // reject COUNT(keyword), but allow COUNT(numeric)
-                } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
-                    Expression field = outer.field();
-                    TimeSeriesAggregateFunction overTimeAgg;
-                    if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
-                        overTimeAgg = new HistogramMergeOverTime(source(), field, Literal.TRUE, AggregateFunction.NO_WINDOW);
-                    } else {
-                        overTimeAgg = new LastOverTime(
-                            source(),
-                            field,
-                            AggregateFunction.NO_WINDOW,
-                            new Literal(source(), null, DataType.DATETIME)
-                        );
-                    }
-                    if (overTimeAgg.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
-                        failures.add(
-                            fail(
-                                this,
-                                "implicit time-series aggregation function [{}] generated from [{}] doesn't support type [{}], "
-                                    + "only numeric types are supported; use the FROM command instead of the TS command",
-                                outer.sourceText().replace(field.sourceText(), "last_over_time(" + field.sourceText() + ")"),
-                                outer.sourceText(),
-                                field.dataType().typeName()
-                            )
-                        );
-                    }
                 }
                 outer.field().forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {

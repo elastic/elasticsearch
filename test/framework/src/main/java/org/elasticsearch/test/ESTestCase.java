@@ -2248,6 +2248,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
      *
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal
+     */
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent);
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     *
      * @param message       the identifying message for the AssertionError
      * @param expected      float array with expected values.
      * @param actual        float array with actual values
@@ -2255,20 +2268,33 @@ public abstract class ESTestCase extends LuceneTestCase {
      *                      for which both numbers are still considered equal
      */
     public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent) {
-        if (expected.length == actual.length) {
-            for (int i = 0; i < expected.length; i++) {
-                var expectedValue = expected[i];
-                if (Math.abs(expectedValue - actual[i]) > expectedValue * deltaPercent) {
-                    fail(
-                        Strings.format(
-                            "%s: arrays first differed at element [%d]; expected:<%f> but was:<%f>",
-                            message,
-                            i,
-                            expectedValue,
-                            actual[i]
-                        )
-                    );
-                }
+        String header = message == null || message.isEmpty() ? "" : message + ": ";
+
+        if (expected == null) {
+            fail(header + "expected array was null");
+        }
+        if (actual == null) {
+            fail(header + "actual array was null");
+        }
+        if (expected.length != actual.length) {
+            fail(header + "array lengths differed, expected.length=" + expected.length + " actual.length=" + actual.length);
+        }
+
+        for (int i = 0; i < expected.length; i++) {
+            var expectedValue = expected[i];
+            var actualDelta = Math.abs(expectedValue - actual[i]) - (expectedValue * deltaPercent);
+            if (actualDelta > 0) {
+                fail(
+                    Strings.format(
+                        "%sarrays first differed at element [%d]; <%f> and <%f> differed by <%f> (more than %f%%)",
+                        header,
+                        i,
+                        expectedValue,
+                        actual[i],
+                        actualDelta,
+                        (deltaPercent * 100)
+                    )
+                );
             }
         }
     }

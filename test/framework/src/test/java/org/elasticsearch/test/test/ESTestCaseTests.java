@@ -454,4 +454,34 @@ public class ESTestCaseTests extends ESTestCase {
         BigInteger target = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
         assertThat(randomUnsignedLongBetween(target, target), equalTo(target));
     }
+
+    public void testAssertArrayEqualsPercentDifferentSize() {
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[]{1, 2, 3}, new float[]{1, 2}, 0.1f));
+        assertThat(ex.getMessage(), is("array lengths differed, expected.length=3 actual.length=2"));
+    }
+
+    public void testAssertArrayEqualsPercentNull() {
+        var ex1 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(null, new float[]{1, 2}, 0.1f));
+        var ex2 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[]{1, 2, 3}, null, 0.1f));
+
+        assertThat(ex1.getMessage(), is("expected array was null"));
+        assertThat(ex2.getMessage(), is("actual array was null"));
+    }
+
+    public void testAssertArrayEqualsPercentMessage() {
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent("test message", null, new float[]{1, 2}, 0.1f));
+        assertThat(ex.getMessage(), is("test message: expected array was null"));
+    }
+
+    public void testAssertArrayEqualsPercentSameElements() {
+        assertArrayEqualsPercent(new float[]{1, 2, 3}, new float[]{1, 2, 3}, 1e-9f);
+    }
+
+    public void testAssertArrayEqualsPercentSimilarElements() {
+        assertArrayEqualsPercent(new float[]{1, 2, 3}, new float[]{0.99f, 1.99f, 2.99f}, 0.01f);
+    }
+
+    public void testAssertArrayEqualsPercentNotEnoughSimilarElements() {
+        assertArrayEqualsPercent(new float[]{100, 2, 3}, new float[]{99, 1.99f, 2.99f}, 0.001f);
+    }
 }

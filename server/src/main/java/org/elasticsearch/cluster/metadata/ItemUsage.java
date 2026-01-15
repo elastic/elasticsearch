@@ -28,6 +28,8 @@ import java.util.Set;
  */
 public class ItemUsage implements Writeable, ToXContentObject {
 
+    public static final ItemUsage EMPTY = new ItemUsage(null, null, null);
+
     private final Set<String> indices;
     private final Set<String> dataStreams;
     private final Set<String> composableTemplates;

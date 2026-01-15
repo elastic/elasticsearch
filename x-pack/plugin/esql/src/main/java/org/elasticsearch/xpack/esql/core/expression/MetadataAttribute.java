@@ -172,10 +172,6 @@ public class MetadataAttribute extends TypedAttribute {
         return new UnresolvedMetadataAttributeExpression(source, name);
     }
 
-    private static String prefix(String name) {
-        return name.split("\\.")[0] + ".";
-    }
-
     public static DataType dataType(String name) {
         var t = ATTRIBUTES_MAP.get(name);
         return t != null ? t.dataType() : null;
@@ -201,6 +197,6 @@ public class MetadataAttribute extends TypedAttribute {
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (MetadataAttribute) o;
-        return super.innerEquals(other, false) && searchable == other.searchable;
+        return super.innerEquals(other, ignoreIds) && searchable == other.searchable;
     }
 }

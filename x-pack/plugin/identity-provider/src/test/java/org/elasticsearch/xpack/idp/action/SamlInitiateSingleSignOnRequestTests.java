@@ -44,9 +44,7 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         assertThat("An invalid request is not guaranteed to serialize correctly", request.validate(), nullValue());
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            out.setTransportVersion(
-                TransportVersionUtils.randomVersionBetween(random(), IDP_CUSTOM_SAML_ATTRIBUTES, TransportVersion.current())
-            );
+            out.setTransportVersion(TransportVersionUtils.randomVersionBetween(IDP_CUSTOM_SAML_ATTRIBUTES, TransportVersion.current()));
         }
         request.writeTo(out);
 

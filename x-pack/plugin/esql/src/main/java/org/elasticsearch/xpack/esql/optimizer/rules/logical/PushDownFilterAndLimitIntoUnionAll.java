@@ -8,21 +8,23 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,50 +34,58 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_A
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
 /**
- * Push down filters that can be evaluated by the {@code UnionAll} branch to each branch, below the added {@code Limit} and
- * {@code Subquery}, so that the filters can be pushed down further to the data source when possible. Filters that cannot be pushed down
+ * Push down filters that can be evaluated by the {@code UnionAll} branch to each branch, and below {@code Subquery},
+ * so that the filters can be pushed down further to the data source when possible. Filters that cannot be pushed down
  * remain above the {@code UnionAll}.
  *
- * Also push down the {@code Limit} added by {@code AddImplicitForkLimit} below the {@code Subquery}, so that the other rules related
- * to {@code Limit} optimization can be applied.
- *
  * This rule applies for certain patterns of {@code UnionAll} branches. The branches of a {@code UnionAll}/{@code Fork} plan has a similar
- * pattern, as {@code Fork} adds {@code EsqlProject}, an optional {@code Eval} and {@code Limit} on top of its actual children. In case
- * there is mismatched data types on the same field across different {@code UnionAll} branches, a {@code ConvertFunction} could also be
- * added in the optional {@code Eval}.
+ * pattern, {@code Fork} adds {@code EsqlProject}, an optional {@code Eval} and an implicit {@code Limit} on top of each branch. However
+ * {@code UnionAll} branches do not have the implicit {@code Limit} appended to each branch, this is difference between {@code Fork}
+ * and {@code UnionAll}.
+ *
+ * In case there is mismatched data types on the same field across different {@code UnionAll} branches, a {@code ConvertFunction} could
+ * also be added in the optional {@code Eval}.
  *
  * If the patterns of the {@code UnionAll} branches do not match the following expected patterns, the rule is not applied.
  *
- *   EsqlProject
+ *   Project
  *     Eval (optional) - added when the output of each UnionAll branch are not exactly the same
- *       Limit
  *         EsRelation
  * or
- *   EsqlProject
+ *   Project
  *     Eval (optional)
- *       Limit
  *         Subquery
  * or
- *   Limit   - CombineProjections may remove the EsqlProject on top of the limit
- *     Subquery
+ *     Subquery - CombineProjections may remove the EsqlProject on top of the subquery
  */
-public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, LogicalPlan> {
+public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
 
     private static final String UNIONALL = "unionall";
 
     private static final String prefix = Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + UNIONALL + SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
 
+    public PushDownFilterAndLimitIntoUnionAll() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
+
     @Override
-    public LogicalPlan apply(LogicalPlan logicalPlan) {
+    protected LogicalPlan rule(LogicalPlan logicalPlan, LogicalOptimizerContext context) {
         // push down filter below UnionAll if possible
         LogicalPlan planWithFilterPushedDownPastUnionAll = logicalPlan.transformDown(
             Filter.class,
             filter -> filter.child() instanceof UnionAll unionAll ? maybePushDownPastUnionAll(filter, unionAll) : filter
         );
-        // push down limit or limit + filter below Subquery
-        return planWithFilterPushedDownPastUnionAll.transformDown(
-            Limit.class,
-            PushDownFilterAndLimitIntoUnionAll::pushLimitAndFilterPastSubquery
+
+        // push down filter below Subquery
+        LogicalPlan planWithFilterPushedDownPastSubquery = planWithFilterPushedDownPastUnionAll.transformDown(
+            Filter.class,
+            PushDownFilterAndLimitIntoUnionAll::pushFilterPastSubquery
+        );
+
+        // Append limit to a subquery if there is knn in the subquery with implicitK, but there is no limit after knn
+        return planWithFilterPushedDownPastSubquery.transformDown(
+            UnionAll.class,
+            unionAll -> maybeAppendLimitForKnnInSubquery(unionAll, context)
         );
     }
 
@@ -93,16 +103,13 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             return filter; // nothing to push down
         }
         // Push the filter down to each child of the UnionAll, the child of a UnionAll is always a project followed by an optional eval
-        // and then limit or a limit added by fork and then the real child, if there is unknown pattern, keep the filter and UnionAll plan
-        // unchanged
+        // and then the real child, if there is unknown pattern, keep the filter and UnionAll plan unchanged
         List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
         for (LogicalPlan child : unionAll.children()) {
-            LogicalPlan newChild = switch (child) {
-                case Project project -> maybePushDownFilterPastProjectForUnionAllChild(pushable, project);
-                case Limit limit -> maybePushDownFilterPastLimitForUnionAllChild(pushable, limit);
-                default -> null; // TODO may add a general push down for unexpected pattern
-            };
+            LogicalPlan newChild = child instanceof Project project
+                ? maybePushDownFilterPastProjectForUnionAllChild(pushable, project)
+                : null;
 
             if (newChild == null) {
                 // Unexpected pattern, keep plan unchanged without pushing down filters
@@ -138,131 +145,29 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
      *   UnionAll
      *     Project
      *       Eval (optional)
-     *         Limit
      *           EsRelation
      *      Project
      *        Eval (optional)
-     *          Limit
      *            Subquery
      *  becomes the following after pushing down the filters that can be evaluated by the UnionAll branches
      *  UnionAll
-     *    Project
-     *      Eval (optional)
-     *        Limit
-     *          Filter (pushable predicates)
-     *            EsRelation
-     *     Project
-     *       Eval (optional)
-     *         Limit
-     *           Filter (pushable predicates)
-     *             Subquery
+     *    Filter (pushable predicates)
+     *      Project
+     *        Eval (optional)
+     *          EsRelation
+     *    Filter (pushable predicates)
+     *      Project
+     *        Eval (optional)
+     *          Subquery
+     *  {@code PushDownAndCombineFilters} will be able to combine the filters pushed down into each branch further,
+     *  closer to {@code EsRelation} or {@code Subquery}
      */
     private static LogicalPlan maybePushDownFilterPastProjectForUnionAllChild(List<Expression> pushable, Project project) {
         List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, project.projections());
         if (resolvedPushable == null) {
             return project;
         }
-        LogicalPlan child = project.child();
-        // check if the predicates' attributes' name and id are in the child's output, if so push down
-        Tuple<List<Expression>, List<Expression>> pushablesAndNonPushables = splitPushableAndNonPushablePredicates(
-            resolvedPushable,
-            exp -> isSubset(exp.references(), child.outputSet()) == false
-        );
-        List<Expression> newResolvedPushable = pushablesAndNonPushables.v1();
-        List<Expression> newResolvedNonPushable = pushablesAndNonPushables.v2();
-
-        // nothing to push down
-        if (newResolvedPushable.isEmpty()) {
-            return newResolvedNonPushable.isEmpty() ? project : filterWithPlanAsChild(project, newResolvedNonPushable);
-        }
-
-        LogicalPlan planWithNewResolvedPushablePushedDown = project;
-        if (child instanceof Eval eval) {
-            planWithNewResolvedPushablePushedDown = pushDownFilterPastEvalForUnionAllChild(newResolvedPushable, project, eval);
-        } else if (child instanceof Limit limit) {
-            LogicalPlan newLimit = pushDownFilterPastLimitForUnionAllChild(newResolvedPushable, limit);
-            planWithNewResolvedPushablePushedDown = project.replaceChild(newLimit);
-        }
-
-        if (planWithNewResolvedPushablePushedDown == project) {
-            // There are pushable predicates, but they cannot be pushed down because unexpected pattern is found below project,
-            // predicates cannot be push down, otherwise it may cause wrong results.
-            return project;
-        }
-
-        return newResolvedNonPushable.isEmpty()
-            ? planWithNewResolvedPushablePushedDown
-            : filterWithPlanAsChild(planWithNewResolvedPushablePushedDown, newResolvedNonPushable); // create a filter above the new plan
-    }
-
-    /**
-     * Handle UnionAll branch pattern, if the pattern does not match, the plan is returned unchanged
-     * Filter (pushable predicates)
-     *   UnionAll
-     *     Limit
-     *       Subquery
-     * Becomes the following after pushing down the filters that can be evaluated by the UnionAll branches
-     * UnionAll
-     *   Limit
-     *     Filter (pushable predicates)
-     *       Subquery
-     */
-    private static LogicalPlan maybePushDownFilterPastLimitForUnionAllChild(List<Expression> pushable, Limit limit) {
-        List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, limit.output());
-        if (resolvedPushable == null) {
-            return limit;
-        }
-        return pushDownFilterPastLimitForUnionAllChild(resolvedPushable, limit);
-    }
-
-    /**
-     * Handle UnionAll branch pattern
-     * Project
-     *   Eval (optional)
-     *     Limit
-     *       EsRelation
-     *  or
-     *  Project
-     *    Eval (optional)
-     *      Limit
-     *        Subquery
-     */
-    private static LogicalPlan pushDownFilterPastEvalForUnionAllChild(List<Expression> pushable, Project project, Eval eval) {
-        // if the pushable references any attribute created by the eval, we cannot push down
-        AttributeMap<Expression> evalAliases = buildEvaAliases(eval);
-        Tuple<List<Expression>, List<Expression>> pushablesAndNonPushables = splitPushableAndNonPushablePredicates(
-            pushable,
-            exp -> exp.references().stream().anyMatch(evalAliases::containsKey)
-        );
-        List<Expression> pushables = pushablesAndNonPushables.v1();
-        List<Expression> nonPushables = pushablesAndNonPushables.v2();
-
-        LogicalPlan evalChild = eval.child();
-
-        // Nothing to push down under eval and limit
-        if (pushables.isEmpty()) {
-            return nonPushables.isEmpty()
-                ? project // nothing at all
-                : projectWithFilterAsChild(project, eval, nonPushables);
-        }
-
-        // Push down all pushable predicates below eval and limit
-        if (evalChild instanceof Limit limit) {
-            LogicalPlan newLimit = pushDownFilterPastLimitForUnionAllChild(pushables, limit);
-            LogicalPlan newEval = eval.replaceChild(newLimit);
-
-            return nonPushables.isEmpty() ? project.replaceChild(newEval) : projectWithFilterAsChild(project, newEval, nonPushables);
-        }
-
-        return project;
-    }
-
-    /**
-     * Push down the filter below project.
-     */
-    private static LogicalPlan projectWithFilterAsChild(Project project, LogicalPlan child, List<Expression> predicates) {
-        Expression combined = Predicates.combineAnd(predicates);
-        return project.replaceChild(new Filter(project.source(), child, combined));
+        return filterWithPlanAsChild(project, resolvedPushable);
     }
 
     /**
@@ -274,19 +179,6 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
     }
 
     /**
-     * limit does not create any new attributes, so we should push down all pushable predicates,
-     * the caller should make sure the pushable is really pushable.
-     */
-    private static LogicalPlan pushDownFilterPastLimitForUnionAllChild(List<Expression> pushable, Limit limit) {
-        if (pushable.isEmpty()) {
-            return limit;
-        }
-        Expression combined = Predicates.combineAnd(pushable);
-        Filter pushed = new Filter(limit.source(), limit.child(), combined);
-        return limit.replaceChild(pushed);
-    }
-
-    /**
      * Check if all attributes in subset are also in superset by checking their names and ids.
      */
     private static boolean isSubset(AttributeSet subset, AttributeSet superset) {
@@ -294,17 +186,6 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             .allMatch(
                 attr -> superset.stream().anyMatch(superAttr -> superAttr.name().equals(attr.name()) && superAttr.id().equals(attr.id()))
             );
-    }
-
-    /**
-     * Build a map of eval aliases to their corresponding expressions.
-     */
-    private static AttributeMap<Expression> buildEvaAliases(Eval eval) {
-        AttributeMap.Builder<Expression> builder = AttributeMap.builder();
-        for (Alias alias : eval.fields()) {
-            builder.put(alias.toAttribute(), alias.child());
-        }
-        return builder.build();
     }
 
     /**
@@ -385,21 +266,65 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
     }
 
     /**
-     * Subquery does not create any new attributes, so  limit or limit + filter can be pushed down safely.
+     * Subquery does not create any new attributes, so filter can be pushed down safely.
      */
-    private static LogicalPlan pushLimitAndFilterPastSubquery(Limit limit) {
-        LogicalPlan child = limit.child();
+    private static LogicalPlan pushFilterPastSubquery(Filter filter) {
+        LogicalPlan child = filter.child();
         if (child instanceof Subquery subquery) {
-            // push limit - added by AddImplicitForkLimit, below subquery
-            Limit newLimit = limit.replaceChild(subquery.child());
-            return subquery.replaceChild(newLimit);
-        }
-        if (child instanceof Filter filter && filter.child() instanceof Subquery subquery) {
-            // push down both limit - added by AddImplicitForkLimit and filter below subquery
             Filter newFilter = filter.replaceChild(subquery.child());
-            Limit newLimit = limit.replaceChild(newFilter);
-            return subquery.replaceChild(newLimit);
+            return subquery.replaceChild(newFilter);
         }
-        return limit;
+        return filter;
+    }
+
+    /**
+     * {@code Knn} requires special handling, as it has an implicitK, it can be set from the limit or optional parameters in the query.
+     * implicitK is not serialized, so it is not sent to non-coordinator nodes, therefore we need to push down the limit to the subquery
+     * so that Knn can get the limitK from the limit.
+     *
+     * The input to this method is an {@code UnionAll} branch, check if there is {@code Knn} in the plan, if so collect its implicitK,
+     * and append a {@code Limit} to the subquery if there isn't one already.
+     */
+    private static LogicalPlan maybeAppendLimitForKnnInSubquery(UnionAll unionAll, LogicalOptimizerContext context) {
+        List<LogicalPlan> newChildren = new ArrayList<>();
+        boolean changed = false;
+        for (LogicalPlan child : unionAll.children()) {
+            LogicalPlan newChild = appendLimitIfNeededForKnn(child, context);
+            if (newChild != child) {
+                changed = true;
+            }
+            newChildren.add(newChild);
+        }
+        return changed ? unionAll.replaceChildren(newChildren) : unionAll;
+    }
+
+    private static LogicalPlan appendLimitIfNeededForKnn(LogicalPlan subquery, LogicalOptimizerContext context) {
+        Holder<Integer> maxImplicitK = new Holder<>(null);
+
+        boolean foundLimitAfterKnn = subquery.forEachDownMayReturnEarly((plan, hasLimitAfterKnn) -> {
+            if (plan instanceof Limit && maxImplicitK.get() == null) { // found a limit before finding knn
+                hasLimitAfterKnn.set(true);
+                return;
+            }
+
+            // haven't found limit yet, look for knn in the plan
+            plan.forEachExpression(Knn.class, knn -> {
+                Integer k = knn.implicitK();
+                if (k != null) {
+                    Integer currentMax = maxImplicitK.get();
+                    maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
+                }
+            });
+        });
+
+        // there is knn with implicitK and there is no limit after knn, append a limit
+        Integer k = maxImplicitK.get();
+        if (k != null && foundLimitAfterKnn == false) {
+            Source source = subquery.source();
+            // check the implicit K against default and maximum implicit limit
+            int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
+            return new Limit(source, new Literal(source, Math.max(k, maxImplicitLimit), DataType.INTEGER), subquery);
+        }
+        return subquery;
     }
 }

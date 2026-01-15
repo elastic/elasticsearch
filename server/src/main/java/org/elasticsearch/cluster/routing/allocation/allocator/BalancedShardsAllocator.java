@@ -169,7 +169,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            balancerSettings.getThreshold(),
             balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
@@ -248,7 +247,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
@@ -303,7 +301,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final RoutingNodes routingNodes;
         private final Metadata metadata;
 
-        private final float threshold;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
@@ -315,7 +312,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
-            float threshold,
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange
         ) {
@@ -323,7 +319,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            this.threshold = threshold;
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = balancingWeights.diskUsageIgnored()
@@ -521,7 +516,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    final float localThreshold = sorter.minWeightDelta() * threshold;
+                    final float localThreshold = sorter.minWeightDelta() * sorter.getThreshold();
                     boolean deltaAboveThreshold = lessThan(currentDelta, localThreshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
@@ -530,12 +525,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
-                    if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
+                    if (rebalanceConditionsMet && canAllocate.type().compareToBetweenNodes(bestRebalanceCanAllocateDecisionType) > 0) {
                         // Overwrite the best decision since it is better than the last. This means that YES/THROTTLE decisions will replace
                         // NOT_PREFERRED/NO decisions, and a YES decision will replace a THROTTLE decision. NOT_PREFERRED will also replace
                         // NO, even if neither are acted upon for rebalancing, for allocation explain purposes.
                         bestRebalanceCanAllocateDecisionType = canAllocate.type();
-                        if (canAllocate.type().higherThan(Type.NOT_PREFERRED)) {
+                        if (canAllocate.type().compareToBetweenNodes(Type.NOT_PREFERRED) > 0) {
                             // Movement is only allowed to THROTTLE/YES nodes. NOT_PREFERRED is the same as no for rebalancing, since
                             // rebalancing aims to distribute resource usage and NOT_PREFERRED means the move could cause hot-spots.
                             targetNode = node;
@@ -640,7 +635,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
-                final float localThreshold = sorter.minWeightDelta() * threshold;
+                final float localThreshold = sorter.minWeightDelta() * sorter.getThreshold();
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
                     final ModelNode maxNode = modelNodes[highIdx];
@@ -861,7 +856,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardMoved = true;
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
-                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                    logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
                 }
             }
 
@@ -1053,7 +1048,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
                         continue;
                     }
-                    if (allocationDecision.type().higherThan(bestDecision)) {
+                    if (allocationDecision.type().compareToBetweenNodes(bestDecision) > 0) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
                             targetNode = target;
@@ -1570,12 +1565,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
 
-                    final Decision.Type canAllocateOrRebalance = Decision.Type.min(allocationDecision.type(), rebalanceDecision.type());
+                    final Decision.Type canAllocateOrRebalance = Decision.minimumDecisionTypeThrottleOrYes(
+                        allocationDecision,
+                        rebalanceDecision
+                    );
 
                     maxNode.removeShard(projectIndex(shard), shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    assert canAllocateOrRebalance == Type.YES || canAllocateOrRebalance == Type.THROTTLE : canAllocateOrRebalance;
                     logger.debug(
                         "decision [{}]: relocate [{}] from [{}] to [{}]",
                         canAllocateOrRebalance,
@@ -1772,14 +1769,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /** The nodes weights with respect to the current weight function / index */
         final float[] weights;
         private final WeightFunction function;
-        private ProjectIndex index;
         private final Balancer balancer;
+        private final float threshold;
+        private ProjectIndex index;
         private float pivotWeight;
 
-        public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
+        public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer, float threshold) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;
+            this.threshold = threshold;
             weights = new float[modelNodes.length];
         }
 
@@ -1841,6 +1840,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public WeightFunction getWeightFunction() {
             return function;
+        }
+
+        public float getThreshold() {
+            return threshold;
         }
     }
 

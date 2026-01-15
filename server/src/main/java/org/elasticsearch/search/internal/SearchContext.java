@@ -9,12 +9,15 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -298,11 +301,21 @@ public abstract class SearchContext implements Releasable {
         if (rewriteQuery == null) {
             try {
                 this.rewriteQuery = searcher().rewrite(query());
+                if (this.searchAfter() == null
+                    && this.rewriteQuery instanceof MatchAllDocsQuery
+                    && sort() != null
+                    && Lucene.isAdversarial(sort().sort, indexSort())) {
+                    return new MatchTailDocsQuery(size());
+                }
             } catch (IOException exc) {
                 throw new QueryShardException(getSearchExecutionContext(), "rewrite failed", exc);
             }
         }
         return rewriteQuery;
+    }
+
+    private Sort indexSort() {
+        return searcher().getIndexReader().leaves().getFirst().reader().getMetaData().sort();
     }
 
     public abstract int from();

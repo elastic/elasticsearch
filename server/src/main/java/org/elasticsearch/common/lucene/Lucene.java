@@ -936,6 +936,32 @@ public class Lucene {
     }
 
     /**
+     * Returns {@code true} if the search sort is precisely the reverse of the index sort
+     * <p>
+     * Returns {@code false} if the search sort has more than one sort field, or if either
+     * sort is configured with a missingValue check.
+     *
+     * @param searchSort the search sort
+     * @param indexSort  the index sort
+     */
+    public static boolean isAdversarial(Sort searchSort, Sort indexSort) {
+        if (searchSort == null || indexSort == null) {
+            return false;
+        }
+        if (searchSort.getSort().length != 1) {
+            return false;
+        }
+        SortField primaryIndexSort = Lucene.rewriteMergeSortField(indexSort.getSort()[0]);
+        SortField primarySearchSort = Lucene.rewriteMergeSortField(searchSort.getSort()[0]);
+        if (primaryIndexSort.getMissingValue() != null || primarySearchSort.getMissingValue() != null) {
+            return false;
+        }
+        return Objects.equals(primaryIndexSort.getField(), primarySearchSort.getField())
+            && Objects.equals(primaryIndexSort.getType(),  primarySearchSort.getType())
+            && primaryIndexSort.getReverse() != primarySearchSort.getReverse();
+    }
+
+    /**
      * Wraps a directory reader to make all documents live except those were rolled back
      * or hard-deleted due to non-aborting exceptions during indexing.
      * The wrapped reader can be used to query all documents.

@@ -44,13 +44,9 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionCreator;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
-import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -66,7 +62,6 @@ import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -101,6 +96,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         "Nvidia chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
+    private static final NvidiaModelFactory MODEL_FACTORY = new NvidiaModelFactory();
 
     /**
      * Constructor for creating an {@link NvidiaService} with specified HTTP request sender factory and service components.
@@ -158,28 +154,16 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION -> new NvidiaChatCompletionModel(
-                inferenceId,
-                taskType,
-                NAME,
-                serviceSettings,
-                secretSettings,
-                context
-            );
-            case TEXT_EMBEDDING -> new NvidiaEmbeddingsModel(
-                inferenceId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new NvidiaRerankModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
-            default -> throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
-        };
+        return MODEL_FACTORY.createFromMaps(
+            inferenceId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -380,43 +364,8 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     }
 
     @Override
-    public NvidiaModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var chunkingSettings = config.getChunkingSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION -> new NvidiaChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (NvidiaChatCompletionServiceSettings) serviceSettings,
-                secretSettings
-            );
-            case TEXT_EMBEDDING -> new NvidiaEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (NvidiaEmbeddingsServiceSettings) serviceSettings,
-                (NvidiaEmbeddingsTaskSettings) taskSettings,
-                chunkingSettings,
-                secretSettings
-            );
-            case RERANK -> new NvidiaRerankModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                (NvidiaRerankServiceSettings) serviceSettings,
-                secretSettings
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
-        };
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

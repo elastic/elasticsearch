@@ -55,6 +55,8 @@ public class SharedBytes extends AbstractRefCounted {
 
     private static final long MAX_BYTES_PER_MAP = ByteSizeValue.ofGb(1).getBytes();
 
+    private static final byte[] ZEROES = new byte[PAGE_SIZE];
+
     final int numRegions;
 
     private final IO[] ios;
@@ -217,6 +219,9 @@ public class SharedBytes extends AbstractRefCounted {
      */
     public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
         throws IOException {
+        assert buffer.position() == 0 : "expecting empty temp buffer";
+        assert buffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
+        assert buffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
         int bytesCopied = 0;
         while (true) {
             final int bytesRead = Streams.read(input, buffer, buffer.remaining());
@@ -239,12 +244,14 @@ public class SharedBytes extends AbstractRefCounted {
      * @throws IOException on failure
      */
     public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
+        assert fileChannelPos % PAGE_SIZE == 0 : "only page-aligned writes allowed: " + fileChannelPos;
         if (buffer.hasRemaining()) {
             // ensure the write is aligned on 4k boundaries (= page size)
             final int remainder = buffer.position() % PAGE_SIZE;
             final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
-            buffer.position(buffer.position() + adjustment);
+            buffer.put(ZEROES, 0, adjustment);
         }
+        assert buffer.position() % PAGE_SIZE == 0 : "write is not page aligned, got " + buffer.position();
         return positionalWrite(fc, fileChannelPos, buffer);
     }
 

@@ -205,7 +205,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey = generateCacheKey();
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, 1L);
 
-            ByteBuffer writeBuffer = ByteBuffer.allocate(1);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
             final int bytesRead = cacheFile.populateAndRead(
                 rangeRead,
@@ -230,7 +230,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             resourceDescription = tempFile2.toAbsolutePath().toString();
             cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L);
 
-            ByteBuffer writeBuffer2 = ByteBuffer.allocate(1);
+            ByteBuffer writeBuffer2 = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
             final int bytesRead2 = cacheFile.populateAndRead(
                 rangeRead,

@@ -85,6 +85,7 @@ min:double | max:double | p90:double | sum:double  | avg:double
 
 Test in line conversion to tdigest (TS mode)
 required_capability: histogram_release_version
+required_capability: allow_casting_in_default_ts_aggs
 required_capability: ts_command_v0
 
 

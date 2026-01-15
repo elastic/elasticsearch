@@ -504,4 +504,41 @@ public class MetadataBufferTests extends ESTestCase {
         // THEN
         assertEquals(buffer.size(), buffer.toByteArray().length);
     }
+
+    public void testWriteToInsufficientSpace() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeByte((byte) 1);
+        buffer.writeByte((byte) 2);
+        buffer.writeByte((byte) 3);
+        final byte[] dest = new byte[2];
+
+        // WHEN/THEN
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buffer.writeTo(dest, 0));
+        assertTrue(e.getMessage().contains("insufficient space"));
+    }
+
+    public void testWriteToInsufficientSpaceWithOffset() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeByte((byte) 1);
+        buffer.writeByte((byte) 2);
+        final byte[] dest = new byte[3];
+        final int offset = 2;
+
+        // WHEN/THEN
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buffer.writeTo(dest, offset));
+        assertTrue(e.getMessage().contains("insufficient space"));
+    }
+
+    public void testWriteToNegativeOffset() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeByte((byte) 1);
+        final byte[] dest = new byte[10];
+
+        // WHEN/THEN
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buffer.writeTo(dest, -1));
+        assertTrue(e.getMessage().contains("non-negative"));
+    }
 }

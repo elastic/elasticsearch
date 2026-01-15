@@ -168,8 +168,17 @@ public final class MetadataBuffer implements MetadataWriter {
      * @param dest the destination array
      * @param offset the offset in the destination array
      * @return the number of bytes written
+     * @throws IllegalArgumentException if offset is negative or destination has insufficient space
      */
     public int writeTo(byte[] dest, int offset) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("offset must be non-negative: " + offset);
+        }
+        if (dest.length - offset < size) {
+            throw new IllegalArgumentException(
+                "destination array has insufficient space: need " + size + " bytes at offset " + offset + ", but array length is " + dest.length
+            );
+        }
         System.arraycopy(buffer, 0, dest, offset, size);
         return size;
     }

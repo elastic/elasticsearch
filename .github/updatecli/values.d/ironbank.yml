@@ -1,6 +1,6 @@
 config:
   - path: distribution/docker/src/docker/iron_bank
-    dockerfile: ../dockerfiles/ironbank/Dockerfile
+    dockerfile: ../Dockerfile
 
 pull_request:
   labels:

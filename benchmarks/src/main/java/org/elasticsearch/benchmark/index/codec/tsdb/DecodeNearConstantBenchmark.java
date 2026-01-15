@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.NearConstantWithOutliersSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -31,7 +31,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for decoding increasing integer patterns.
+ * Benchmark for decoding near-constant data patterns with outliers.
+ *
+ * <p>Parameterized by outlier probability to test how occasional spikes affect
+ * compression. Lower probability means more constant values (better compression),
+ * higher probability simulates noisier data.
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -39,15 +43,15 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class DecodeIncreasingIntegerBenchmark {
+public class DecodeNearConstantBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "0.0", "0.01", "0.05", "0.1", "0.2" })
+    private double outlierProbability;
 
     private final AbstractTSDBCodecBenchmark decode;
 
-    public DecodeIncreasingIntegerBenchmark() {
+    public DecodeNearConstantBenchmark() {
         this.decode = new DecodeBenchmark();
     }
 
@@ -58,7 +62,9 @@ public class DecodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
+        decode.setupTrial(
+            NearConstantWithOutliersSupplier.builder(SEED, decode.getBlockSize()).withOutlierProbability(outlierProbability).build()
+        );
     }
 
     @Benchmark

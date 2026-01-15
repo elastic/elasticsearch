@@ -10,7 +10,7 @@ products:
 
 # Statements [painless-statements]
 
-Statements are individual instructions that perform actions in your Painless scripts. They control the flow of the code, define logic branches, and manage how your code processes data. Painless supports all Java [control flow statements](https://dev.java/learn/language-basics/controlling-flow/) except the `switch` statement.
+Statements are the smallest individual units that are compiled in your Painless scripts. They control the flow of the code, define logic branches, and manage how your code processes data. Painless supports all Java [control flow statements](https://dev.java/learn/language-basics/controlling-flow/) except the `switch` statement.
 
 Statements in Painless allow you to create conditional logic, iterate through data, and structure your scripts for complex data processing tasks. Understanding these control structures is essential for writing effective scripts that can handle various scenarios in {{es}} workflows.
 

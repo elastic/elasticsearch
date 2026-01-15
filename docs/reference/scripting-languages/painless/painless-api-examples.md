@@ -42,7 +42,7 @@ Test scripts that return boolean values, such as those used in script queries fo
 
 Validate custom scoring functions for `function_score` queries, such as ranking calculations based on field values. Scripts run as if inside a `script_score` function and can access document fields for scoring calculations.
 
-### Field contexts
+### Runtime field contexts
 
 Test field context scripts using the `emit` function for runtime fields:
 

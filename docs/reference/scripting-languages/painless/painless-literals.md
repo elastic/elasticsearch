@@ -18,7 +18,7 @@ Use an integer literal to specify an integer-type value in decimal, octal, or he
 
 ### Grammar
 
-```java
+```
 INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 OCTAL:   '-'? '0' [0-7]+ [lL]?;
 HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
@@ -28,7 +28,7 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 
 * Integer literals
 
-    ```java
+    ```
     int i = 0;      <1>
     double d = 0D;  <2>
     long l = 1234L; <3>
@@ -49,7 +49,7 @@ Use a floating-point literal to specify a floating-point-type value of a [primit
 
 ### Grammar
 
-```java
+```
 DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? EXPONENT? [fFdD]?;
 EXPONENT: ( [eE] [+\-]? [0-9]+ );
 ```
@@ -58,7 +58,7 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 
 * Floating point literals
 
-    ```java
+    ```
     double b = 0.0;	     <1>
     double d = 1E6;	     <2>
     double c = 0.977777; <3>
@@ -74,11 +74,11 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 
 ## Strings [string-literals]
 
-Use a string literal to specify a [string type](/reference/scripting-languages/painless/painless-types.md#string-type) value with either single-quotes or double-quotes. Use a `"` token to include a double-quote as part of a double-quoted string literal. Use a `'` token to include a single-quote as part of a single-quoted string literal. Use a `\\` token to include a backslash as part of any string literal.
+Use a string literal to specify a [string type](/reference/scripting-languages/painless/painless-types.md#string-type) value with either single-quotes or double-quotes. A string literal is specified as `String` because in Java and Painless this isn't a primitive type. Use a `"` token to include a double-quote as part of a double-quoted string literal. Use a `'` token to include a single-quote as part of a single-quoted string literal. Use a `\\` token to include a backslash as part of any string literal.
 
 ### Grammar
 
-```java
+```
 STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
       | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
 ```
@@ -87,7 +87,7 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 
 * String literals using single-quotes
 
-    ```java
+    ```
     String a = 'single-quoted string literal';
     String b = '\'single-quoted with escaped single-quotes\' and backslash \\';
     String c = 'single-quoted with non-escaped "double-quotes"';
@@ -95,7 +95,7 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 
 * String literals using double-quotes
 
-    ```java
+    ```
     String a = "double-quoted string literal";
     String b = "\"double-quoted with escaped double-quotes\" and backslash: \\";
     String c = "double-quoted with non-escaped 'single-quotes'";
@@ -103,7 +103,7 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 
 ## Characters [character-literals]
 
-Character literals are not specified directly in Painless. Instead, use the [cast operator](/reference/scripting-languages/painless/painless-casting.md#string-character-casting) to convert `string` type value into a `char` type value.
+Character literals are not specified directly in Painless. Instead, use the [cast operator](/reference/scripting-languages/painless/painless-casting.md#string-character-casting) to convert a `String` type value into a `char` type value.
 
 For detailed information about character types, casting, and usage, refer to [Character type usage](/reference/scripting-languages/painless/painless-types.md#character-type-usage).
 

@@ -16,7 +16,7 @@ Functions in Painless work similarly to Java functions, allowing you to encapsul
 
 ## Function structure
 
-A function is a named piece of code composed of one-to-many statements to perform a specific task. A function is called multiple times in a single script to repeat its specific task. A parameter is a named type value available as a [variable](/reference/scripting-languages/painless/painless-variables.md) within the statement(s) of a function. A function specifies zero-to-many parameters, and when a function is called, a value is specified per parameter. An argument is a value passed into a function at the point of call. A function specifies a type value, though if the type is [void](/reference/scripting-languages/painless/painless-types.md#void-type) then no value is returned. Any non-void type return value is available for use within an [operation](/reference/scripting-languages/painless/painless-operators.md) or is discarded otherwise.
+In the statement(s) of a function, a parameter is a named type value available as a [variable](/reference/scripting-languages/painless/painless-variables.md). Each function specifies zero-to-many parameters, and when a function is called, a value is specified per parameter. An argument is a value passed into a function at the point of call. A function specifies a type value, though if the type is [void](/reference/scripting-languages/painless/painless-types.md#void-type) then no value is returned. Any non-void type return value is available for use within an [operation](/reference/scripting-languages/painless/painless-operators.md) or is discarded otherwise.
 
 ## Function declaration
 

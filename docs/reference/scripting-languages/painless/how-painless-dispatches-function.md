@@ -10,7 +10,7 @@ products:
 
 # Understanding method dispatching in Painless [modules-scripting-painless-dispatch]
 
-Painless uses a function dispatch mechanism based on the receiver, method name, and [arity](https://en.wikipedia.org/wiki/Arity) (number of parameters). This approach differs from Java, which dispatches based on compiled-time types, and Groovy, which uses [runtime types](https://en.wikipedia.org/wiki/Multiple_dispatch). Understanding this mechanism is fundamental when migrating scripts or interacting with Java standard library APIs from Painless, as it helps you avoid common errors and write more efficient, secure scripts.
+Painless uses a function dispatch mechanism based on the receiver, method name, and [arity](https://en.wikipedia.org/wiki/Arity) (number of parameters). This approach differs from Java, which dispatches based on compile-time types, and Groovy, which uses [runtime types](https://en.wikipedia.org/wiki/Multiple_dispatch). Understanding this mechanism is fundamental when migrating scripts or interacting with Java standard library APIs from Painless, as it helps you avoid common errors and write more efficient, secure scripts.
 
 ## Key terms
 
@@ -32,7 +32,7 @@ This fundamental difference affects how you work with Java APIs in your scripts.
 
 ## Impact on Java standard library usage
 
-The consequence of the different approach used by Painless is that Painless doesn’t support overload methods like Java, leading to some trouble when it allows classes from the Java standard library. For example, in Java and Groovy, `Matcher` has two methods:
+The consequence of the different approach used by Painless is that Painless doesn’t support overloaded methods like Java, leading to some trouble when it allows classes from the Java standard library. For example, in Java and Groovy, `Matcher` has two methods:
 
 * `group(int)`  
 * `group(string)`
@@ -47,7 +47,7 @@ We have a few justifications for this different way of dispatching methods:
 
 1. It makes operating on `def` types simpler and, presumably, faster. Using receiver, name, and arity means that when Painless sees a call on a `def` object it can dispatch the appropriate method without having to do expensive comparisons of the types of the parameters. The same is true for invocation with `def` typed parameters.  
 2. It keeps things consistent. It would be genuinely weird for Painless to behave like Groovy if any `def` typed parameters were involved and Java otherwise. It’d be slow for Painless to behave like Groovy all the time.   
-3. It keeps Painless maintainable. Adding the Java or Groovy like method dispatch feels like it’d add a lot of complexity, which would make maintenance and other improvements much more difficult.
+3. It keeps Painless maintainable. Adding the Java or Groovy like method dispatch would add significant complexity, making maintenance and other improvements much more difficult.
 
 ## Next steps
 

@@ -14,7 +14,7 @@ products:
 
 Painless scripts run within specific {{es}} contexts, not as isolated code. Unlike languages with interactive environments, Painless doesn’t provide a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) because script behavior depends entirely on the execution context and available data structures.
 
-The context determines available variables, API restrictions, and expected return types. A debugging approach that works in one context might not be directly applied to another because each context provides different capabilities and data access patterns. Refer to [Painless contexts](https://www.elastic.co/docs/reference/scripting-languages/painless/painless-contexts) to understand what variables and methods are available in each context.
+The context determines available parameters, API restrictions, and expected return types. A debugging approach that works in one context might not be directly applied to another because each context provides different capabilities and data access patterns. Refer to [Painless contexts](https://www.elastic.co/docs/reference/scripting-languages/painless/painless-contexts) to understand what variables and methods are available in each context.
 
 ## Context matters for debugging
 

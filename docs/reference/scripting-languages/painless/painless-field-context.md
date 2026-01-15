@@ -13,7 +13,7 @@ products:
 Use a Painless script to create a [script field](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#script-fields) to return a customized value for each document in the results of a query.
 
 :::{tip}
-To create dynamic fields with more capabilities, consider using [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) instead. Runtime fields can be used in the query phase to select documents and in aggregations, while script fields only work during the fetch phase to decorate already selected results.
+To create dynamic fields with more capabilities, consider using [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) instead. Runtime fields can be used in the query phase to select documents and in aggregations, while script fields only work during the fetch phase to decorate already selected results. Note, however, that runtime fields are typically processed much more slowly than script fields.
 :::
 
 ## Variables

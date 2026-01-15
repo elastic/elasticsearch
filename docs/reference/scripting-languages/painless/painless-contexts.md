@@ -10,7 +10,7 @@ products:
 
 # Painless contexts [painless-contexts]
 
-In Painless, a context defines where and how your script runs in {{es}}. Each context determines three key aspects: which variables are available to your script (such as `doc`, `ctx`, or `_source`), which Java classes and methods your script can access for security, and what type of value your script should return.
+In Painless, a context defines where and how your script runs in {{es}}. Each context determines three key aspects: which parameters are available to your script (such as `doc`, `ctx`, or `_source`), which Java classes and methods your script can access, and what type of value your script should return.
 
 ## What are contexts?
 

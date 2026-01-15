@@ -77,7 +77,7 @@ An error if the type of value is unable to match the type of variable.
 
 **Grammar**
 
-```text
+```
 assignment: ID '=' expression
 ```
 

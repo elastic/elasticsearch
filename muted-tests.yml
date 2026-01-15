@@ -336,6 +336,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testPushDownMetadataTierInOrOperator {default}
   issue: https://github.com/elastic/elasticsearch/issues/140750
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushDownMetadataTierInOperator {default}
+  issue: https://github.com/elastic/elasticsearch/issues/140751
 
 # Examples:
 #

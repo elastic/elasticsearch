@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.translation;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Locale;
 
 public enum ChatCompletionRole {
@@ -24,7 +26,7 @@ public enum ChatCompletionRole {
         try {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(String.format("Received invalid role [%s]", name), e);
+            throw new IllegalArgumentException(Strings.format("Received invalid role [%s]", name), e);
         }
     }
 }

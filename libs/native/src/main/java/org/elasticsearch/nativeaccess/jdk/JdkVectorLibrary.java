@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -76,21 +77,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static Error invocationError(Throwable t, MemorySegment segment1, MemorySegment segment2) {
-            String msg = "Invocation failed: "
-                + "first segment=["
-                + segment1
-                + ", scope="
-                + segment1.scope()
-                + ", isAlive="
-                + segment1.scope().isAlive()
-                + "], "
-                + "second segment=["
-                + segment2
-                + ", scope="
-                + segment2.scope()
-                + ", isAlive="
-                + segment2.scope().isAlive()
-                + "]";
+            String msg = Strings.format(
+                "Invocation failed: first segment=[%s, scope=%s, isAlive=%b], second segment=[%s, scope=%s, isAlive=%b]",
+                segment1,
+                segment1.scope(),
+                segment1.scope().isAlive(),
+                segment2,
+                segment2.scope(),
+                segment2.scope().isAlive()
+            );
             return new AssertionError(msg, t);
         }
 
@@ -224,7 +219,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle dot7uBulk$mh;
     static final MethodHandle dot7uBulkWithOffsets$mh;
 
-    static final MethodHandle sqr7u$mh;
+    static final SingleVectorMethodHandles sqr7u$mh;
     static final MethodHandle sqr7uBulk$mh;
     static final MethodHandle sqr7uBulkWithOffsets$mh;
 
@@ -232,7 +227,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle dotf32Bulk$mh;
     static final MethodHandle dotf32BulkWithOffsets$mh;
 
-    static final MethodHandle sqrf32$mh;
+    static final SingleVectorMethodHandles sqrf32$mh;
     static final MethodHandle sqrf32Bulk$mh;
     static final MethodHandle sqrf32BulkWithOffsets$mh;
 
@@ -247,8 +242,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             logger.info("vec_caps=" + caps);
             if (caps > 0) {
                 String suffix = caps == 2 ? "_2" : "";
-                FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
-                FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
                 FunctionDescriptor bulkOffsets = FunctionDescriptor.ofVoid(
                     ADDRESS,
@@ -264,7 +257,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 dot7uBulk$mh = downcallHandle("vec_dot7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 dot7uBulkWithOffsets$mh = downcallHandle("vec_dot7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
 
-                sqr7u$mh = downcallHandle("vec_sqr7u" + suffix, intSingle, LinkerHelperUtil.critical());
+                sqr7u$mh = SingleVectorMethodHandles.create("vec_sqr7u" + suffix, JAVA_INT);
                 sqr7uBulk$mh = downcallHandle("vec_sqr7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 sqr7uBulkWithOffsets$mh = downcallHandle("vec_sqr7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
 
@@ -272,7 +265,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 dotf32Bulk$mh = downcallHandle("vec_dotf32_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 dotf32BulkWithOffsets$mh = downcallHandle("vec_dotf32_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
 
-                sqrf32$mh = downcallHandle("vec_sqrf32" + suffix, floatSingle, LinkerHelperUtil.critical());
+                sqrf32$mh = SingleVectorMethodHandles.create("vec_sqrf32" + suffix, JAVA_FLOAT);
                 sqrf32Bulk$mh = downcallHandle("vec_sqrf32_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 sqrf32BulkWithOffsets$mh = downcallHandle("vec_sqrf32_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
 
@@ -356,7 +349,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return sqr7u(a, b, length);
+            return sqr7u$mh.invokeInt(a, b, length);
         }
 
         static void squareDistance7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -422,7 +415,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
-            return sqrf32(a, b, elementCount);
+            return sqrf32$mh.invokeFloat(a, b, elementCount);
         }
 
         static void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -476,14 +469,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static int sqr7u(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (int) sqr7u$mh.invokeExact(a, b, length);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
         private static void sqr7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
             try {
                 sqr7uBulk$mh.invokeExact(a, b, length, count, result);
@@ -527,14 +512,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         ) {
             try {
                 dotf32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float sqrf32(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (float) sqrf32$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }

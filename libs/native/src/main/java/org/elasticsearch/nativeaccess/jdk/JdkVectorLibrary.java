@@ -16,30 +16,222 @@ import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.ref.Reference;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
+    /**
+     * A record holding multiple method handles, binding to the same function with different argument layouts.
+     * <p>
+     * Java code will initiate the call passing two MemorySegments.
+     * Underneath, the C function is the same, accepting two pointer arguments.
+     * The invoke code is free to choose which {@link MethodHandle} to use, and pass down the memory addresses as either MemorySegments,
+     * longs, or a combination of the two.
+     * <p>
+     * The reason for passing down an address using {@link MemorySegment#address()} directly as a
+     * {@link java.lang.foreign.ValueLayout#JAVA_LONG} is that the JVM performs additional checks on {@link MemorySegment}s when they are
+     * shared (like we use in most cases), by injecting some additional code, including a CAS operation. This is generally OK, but in case
+     * of high performance code the overhead can be significant; the cost of a CAS operation on x64 is ~15-30 cycles. This cost is well
+     * amortized in case of bulk operations, but we measured up to a 30% slowdown on single scorers on x64.
+     * <p>
+     * However when {@link} some cases
+     *
+     * @param ll the {@link MethodHandle} to invoke the native function using longs for both addresses
+     * @param la the {@link MethodHandle} to invoke the native function using long for the first address and {@link MemorySegment} for
+     *           the second address
+     * @param al the {@link MethodHandle} to invoke the native function using {@link MemorySegment} for the first address and long for
+     *           the second address
+     * @param aa the {@link MethodHandle} to invoke the native function using {@link MemorySegment}s for both addresses
+     */
+    private record SingleVectorMethodHandles(MethodHandle ll, MethodHandle la, MethodHandle al, MethodHandle aa) {
+        private static FunctionDescriptor makeDescriptor(MemoryLayout resLayout, Stream<MemoryLayout> args, MemoryLayout... otherArgs) {
+            return FunctionDescriptor.of(resLayout, Stream.concat(args, Arrays.stream(otherArgs)).toArray(MemoryLayout[]::new));
+        }
+
+        static SingleVectorMethodHandles create(String functionName, MemoryLayout result) {
+            return new SingleVectorMethodHandles(
+                downcallHandle(
+                    functionName,
+                    makeDescriptor(result, Stream.of(JAVA_LONG, JAVA_LONG), JAVA_INT),
+                    LinkerHelperUtil.critical()
+                ),
+                downcallHandle(functionName, makeDescriptor(result, Stream.of(JAVA_LONG, ADDRESS), JAVA_INT), LinkerHelperUtil.critical()),
+                downcallHandle(functionName, makeDescriptor(result, Stream.of(ADDRESS, JAVA_LONG), JAVA_INT), LinkerHelperUtil.critical()),
+                downcallHandle(functionName, makeDescriptor(result, Stream.of(ADDRESS, ADDRESS), JAVA_INT), LinkerHelperUtil.critical())
+            );
+        }
+
+        private static Error invocationError(Throwable t, MemorySegment segment1, MemorySegment segment2) {
+            String msg = "Invocation failed: "
+                + "first segment=["
+                + segment1
+                + ", scope="
+                + segment1.scope()
+                + ", isAlive="
+                + segment1.scope().isAlive()
+                + "], "
+                + "second segment=["
+                + segment2
+                + ", scope="
+                + segment2.scope()
+                + ", isAlive="
+                + segment2.scope().isAlive()
+                + "]";
+            return new AssertionError(msg, t);
+        }
+
+        int invokeInt(MemorySegment a, MemorySegment query, int length) {
+            try {
+                var aAddress = a.address();
+                var queryAddress = query.address();
+
+                if (aAddress != 0) {
+                    assert a.isNative();
+                    if (queryAddress != 0) {
+                        assert query.isNative();
+                        try {
+                            return (int) ll.invokeExact(aAddress, queryAddress, length);
+                        } finally {
+                            assert a.scope().isAlive();
+                            assert query.scope().isAlive();
+                            // protects the segment from being potentially being GC'ed during out downcall
+                            Reference.reachabilityFence(a);
+                            Reference.reachabilityFence(query);
+                        }
+                    }
+                    try {
+                        return (int) la.invokeExact(aAddress, query, length);
+                    } finally {
+                        assert a.scope().isAlive();
+                        Reference.reachabilityFence(a);
+                    }
+                }
+                if (queryAddress != 0) {
+                    assert query.isNative();
+                    try {
+                        return (int) al.invokeExact(a, queryAddress, length);
+                    } finally {
+                        assert query.scope().isAlive();
+                        Reference.reachabilityFence(query);
+                    }
+                }
+                return (int) aa.invokeExact(a, query, length);
+            } catch (Throwable t) {
+                throw invocationError(t, a, query);
+            }
+        }
+
+        long invokeLong(MemorySegment a, MemorySegment query, int length) {
+            try {
+                var aAddress = a.address();
+                var queryAddress = query.address();
+
+                if (aAddress != 0) {
+                    assert a.isNative();
+                    if (queryAddress != 0) {
+                        assert query.isNative();
+                        try {
+                            return (long) ll.invokeExact(aAddress, queryAddress, length);
+                        } finally {
+                            assert a.scope().isAlive();
+                            assert query.scope().isAlive();
+                            // protects the segment from being potentially being GC'ed during out downcall
+                            Reference.reachabilityFence(a);
+                            Reference.reachabilityFence(query);
+                        }
+                    }
+                    try {
+                        return (long) la.invokeExact(aAddress, query, length);
+                    } finally {
+                        assert a.scope().isAlive();
+                        Reference.reachabilityFence(a);
+                    }
+                }
+                if (queryAddress != 0) {
+                    assert query.isNative();
+                    try {
+                        return (long) al.invokeExact(a, queryAddress, length);
+                    } finally {
+                        assert query.scope().isAlive();
+                        Reference.reachabilityFence(query);
+                    }
+                }
+                return (long) aa.invokeExact(a, query, length);
+            } catch (Throwable t) {
+                throw invocationError(t, a, query);
+            }
+        }
+
+        float invokeFloat(MemorySegment a, MemorySegment query, int length) {
+            try {
+                var aAddress = a.address();
+                var queryAddress = query.address();
+
+                if (aAddress != 0) {
+                    assert a.isNative();
+                    if (queryAddress != 0) {
+                        assert query.isNative();
+                        try {
+                            return (float) ll.invokeExact(aAddress, queryAddress, length);
+                        } finally {
+                            assert a.scope().isAlive();
+                            assert query.scope().isAlive();
+                            // protects the segment from being potentially being GC'ed during out downcall
+                            Reference.reachabilityFence(a);
+                            Reference.reachabilityFence(query);
+                        }
+                    }
+                    try {
+                        return (float) la.invokeExact(aAddress, query, length);
+                    } finally {
+                        assert a.scope().isAlive();
+                        Reference.reachabilityFence(a);
+                    }
+                }
+                if (queryAddress != 0) {
+                    assert query.isNative();
+                    try {
+                        return (float) al.invokeExact(a, queryAddress, length);
+                    } finally {
+                        assert query.scope().isAlive();
+                        Reference.reachabilityFence(query);
+                    }
+                }
+                return (float) aa.invokeExact(a, query, length);
+            } catch (Throwable t) {
+                throw invocationError(t, a, query);
+            }
+        }
+    }
+
     static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
 
-    static final MethodHandle dot7u$mh;
+    static final SingleVectorMethodHandles dot7u$mh;
     static final MethodHandle dot7uBulk$mh;
     static final MethodHandle dot7uBulkWithOffsets$mh;
+
     static final MethodHandle sqr7u$mh;
     static final MethodHandle sqr7uBulk$mh;
     static final MethodHandle sqr7uBulkWithOffsets$mh;
-    static final MethodHandle dotf32$mh;
+
+    static final SingleVectorMethodHandles dotf32$mh;
     static final MethodHandle dotf32Bulk$mh;
     static final MethodHandle dotf32BulkWithOffsets$mh;
+
     static final MethodHandle sqrf32$mh;
     static final MethodHandle sqrf32Bulk$mh;
     static final MethodHandle sqrf32BulkWithOffsets$mh;
@@ -68,18 +260,22 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS
                 );
 
-                dot7u$mh = downcallHandle("vec_dot7u" + suffix, intSingle, LinkerHelperUtil.critical());
+                dot7u$mh = SingleVectorMethodHandles.create("vec_dot7u" + suffix, JAVA_INT);
                 dot7uBulk$mh = downcallHandle("vec_dot7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 dot7uBulkWithOffsets$mh = downcallHandle("vec_dot7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+
                 sqr7u$mh = downcallHandle("vec_sqr7u" + suffix, intSingle, LinkerHelperUtil.critical());
                 sqr7uBulk$mh = downcallHandle("vec_sqr7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 sqr7uBulkWithOffsets$mh = downcallHandle("vec_sqr7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
-                dotf32$mh = downcallHandle("vec_dotf32" + suffix, floatSingle, LinkerHelperUtil.critical());
+
+                dotf32$mh = SingleVectorMethodHandles.create("vec_dotf32" + suffix, JAVA_FLOAT);
                 dotf32Bulk$mh = downcallHandle("vec_dotf32_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 dotf32BulkWithOffsets$mh = downcallHandle("vec_dotf32_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+
                 sqrf32$mh = downcallHandle("vec_sqrf32" + suffix, floatSingle, LinkerHelperUtil.critical());
                 sqrf32Bulk$mh = downcallHandle("vec_sqrf32_bulk" + suffix, bulk, LinkerHelperUtil.critical());
                 sqrf32BulkWithOffsets$mh = downcallHandle("vec_sqrf32_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -126,7 +322,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return dot7u(a, b, length);
+            return dot7u$mh.invokeInt(a, b, length);
         }
 
         static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -192,7 +388,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
-            return dotf32(a, b, elementCount);
+            return dotf32$mh.invokeFloat(a, b, elementCount);
         }
 
         static void dotProductF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -256,14 +452,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static int dot7u(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (int) dot7u$mh.invokeExact(a, b, length);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
         private static void dot7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
             try {
                 dot7uBulk$mh.invokeExact(a, b, length, count, result);
@@ -315,14 +503,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         ) {
             try {
                 sqr7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float dotf32(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (float) dotf32$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }

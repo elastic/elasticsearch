@@ -14,9 +14,9 @@ import org.elasticsearch.index.mapper.Mapper;
 
 import java.util.Arrays;
 
-public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollingUpgradeTestCase {
+public class WildcardRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollingUpgradeTestCase {
 
-    private static final String DATA_STREAM_NAME_PREFIX = "logs-keyword-bwc-test";
+    private static final String DATA_STREAM_NAME_PREFIX = "logs-wildcard-bwc-test";
 
     private static final String TEMPLATE = """
         {
@@ -32,7 +32,7 @@ public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollin
                   "type": "double"
                 },
                 "message": {
-                  "type": "keyword"
+                  "type": "wildcard"
                 }
               }
             }
@@ -52,14 +52,14 @@ public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollin
                   "type": "double"
                 },
                 "message": {
-                  "type": "keyword",
+                  "type": "wildcard",
                   "ignore_above": 50
                 }
               }
             }
         }""";
 
-    public KeywordRollingUpgradeIT(String template, String testScenario, Mapper.IgnoreAbove ignoreAbove) {
+    public WildcardRollingUpgradeIT(String template, String testScenario, Mapper.IgnoreAbove ignoreAbove) {
         super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template, ignoreAbove);
     }
 

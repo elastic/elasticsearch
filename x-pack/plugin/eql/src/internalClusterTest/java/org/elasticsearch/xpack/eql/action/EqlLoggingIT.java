@@ -69,7 +69,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     public void testEqlLogging() throws Exception {
         prepareIndex();
         boolean success = randomBoolean();
-        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
+        String query = success ? "my_event where i==1" : "my_event where i==42";
         EqlSearchRequest request = new EqlSearchRequest().indices("test")
             .query(query)
             .eventCategoryField("event_type")

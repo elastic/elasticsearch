@@ -36,11 +36,6 @@ class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
         return new JdkCloseableMappedByteBuffer(seg, arena);
     }
 
-    static JdkCloseableMappedByteBuffer ofAuto(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
-        var seg = fileChannel.map(mode, position, size, Arena.ofAuto());
-        return new JdkCloseableMappedByteBuffer(seg, null);
-    }
-
     private JdkCloseableMappedByteBuffer(MemorySegment seg, Arena arena) {
         this.arena = arena;
         this.segment = seg;

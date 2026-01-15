@@ -164,7 +164,6 @@ public class EsqlDataTypeConverter {
         Map.entry(IP, ToIpLeadingZerosRejected::new),
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
-        // Map.entry(KEYWORD, ToString::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
         Map.entry(VERSION, ToVersion::new),
         Map.entry(DATE_PERIOD, ToDatePeriod::new),
@@ -181,9 +180,9 @@ public class EsqlDataTypeConverter {
     static final Map<
         DataType,
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
-            Map.entry(KEYWORD, ToString::new),
             Map.entry(DATETIME, ToDatetime::new),
-            Map.entry(DATE_NANOS, ToDateNanos::new)
+            Map.entry(DATE_NANOS, ToDateNanos::new),
+            Map.entry(KEYWORD, ToString::new)
         );
 
     public enum INTERVALS {

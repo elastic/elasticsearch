@@ -766,7 +766,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
-        context.telemetry().function(convertFunction);
+        context.telemetry().function(convertFunction.getClass());
         return convertFunction;
     }
 

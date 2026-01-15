@@ -4167,13 +4167,13 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldValidTypes() {
-        List<String> validFieldNames = List.of("constant_keyword-foo", "keyword", "text", "wildcard");
+        List<String> validFieldNames = List.of("constant_keyword", "keyword", "text", "wildcard");
 
         for (String fieldName : validFieldNames) {
             LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
+                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
                     + fieldName
-                    + "` WITH { \"inference_id\" : \"reranking-inference-id\" }",
+                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
                 "mapping-all-types.json"
             );
 

@@ -1,0 +1,11 @@
+config:
+  - path: distribution/docker/src/docker/iron_bank
+    dockerfile: ../Dockerfile
+
+pull_request:
+  labels:
+    - ":Delivery/Tooling"
+    - ":Delivery/Packaging"
+    - "auto-merge-without-approval"
+    - "dependencies"
+

@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -1429,8 +1430,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
 
-        // var queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
-        Attribute queryVector = null;
+        var queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
 
         Expression limitValue = expression(ctx.limitValue);
         return input -> (applyMMROptions(
@@ -1439,30 +1439,56 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         ));
     }
 
-    /*
-    private Attribute visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
+    private Expression visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
         if (ctx == null || ctx.isEmpty()) {
             return null;
         }
 
-        if (ctx.constant() != null
-            && ctx.constant().isEmpty() == false
-            && ctx.constant() instanceof EsqlBaseParser.NumericArrayLiteralContext naLit) {
-            // TODO -- constant arary of floats
-            var constantArray = visitNumericArrayLiteral(naLit);
-        } else if (ctx.mmrQueryVectorTextEmbeddingParam() != null && ctx.mmrQueryVectorTextEmbeddingParam().isEmpty() == false) {
-            EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext textEmbeddingParam = ctx.mmrQueryVectorTextEmbeddingParam();
-            var textNode = textEmbeddingParam.QUOTED_STRING(0);
-            var inferenceIdNode = textEmbeddingParam.QUOTED_STRING(1);
+        var queryVectorParams = ctx.mmrQueryVectorParams();
+        if (queryVectorParams == null || queryVectorParams.isEmpty()) {
+            return null;
+        }
 
-        } else {
-            // it's a field
-            return visitQualifiedName(ctx.qualifiedName());
+        if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorConstantContext qvConstant) {
+            if (qvConstant.getChildCount() == 1) {
+                var childArray = qvConstant.getChild(0);
+                if (childArray instanceof EsqlBaseParser.NumericArrayLiteralContext naLitCtx) {
+                    return expression(naLitCtx);
+                }
+            }
+        } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorParameterContext qvParameter) {
+            if (qvParameter.getChildCount() == 1) {
+                var childParam = qvParameter.getChild(0);
+                if (childParam instanceof EsqlBaseParser.InputNamedOrPositionalParamContext inputParam) {
+                    return expression(inputParam);
+                }
+                if (childParam instanceof EsqlBaseParser.InputParamContext inputParam) {
+                    return expression(inputParam);
+                }
+            }
+        } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorTextEmbeddingContext qvTextEmbedding) {
+            if (qvTextEmbedding.getChildCount() == 1) {
+                var childParam = qvTextEmbedding.getChild(0);
+                if (childParam instanceof EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext qvTextEmbeddingParam) {
+                    return new TextEmbedding(
+                        source(qvTextEmbeddingParam),
+                        new Literal(
+                            source(qvTextEmbeddingParam.textInput),
+                            new BytesRef(qvTextEmbeddingParam.textInput.getText()),
+                            DataType.KEYWORD
+                        ),
+                        new Literal(
+                            source(qvTextEmbeddingParam.inferenceId),
+                            new BytesRef(qvTextEmbeddingParam.inferenceId.getText()),
+                            DataType.KEYWORD
+                        )
+                    );
+                }
+            }
         }
 
         throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
     }
-     */
 
     private MMR applyMMROptions(MMR mmrCommand, EsqlBaseParser.CommandNamedParametersContext ctx) {
         MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);

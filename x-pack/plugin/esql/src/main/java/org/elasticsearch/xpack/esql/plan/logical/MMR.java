@@ -28,7 +28,7 @@ public class MMR extends UnaryPlan {
 
     private final Attribute diversifyField;
     private final Expression limit;
-    private Attribute queryVector;
+    private final Expression queryVector;
     private Expression lambdaValue;
 
     public MMR(
@@ -36,7 +36,7 @@ public class MMR extends UnaryPlan {
         LogicalPlan child,
         Attribute diversifyField,
         Expression limit,
-        @Nullable Attribute queryVector,
+        @Nullable Expression queryVector,
         @Nullable Expression lambdaValue
     ) {
         super(source, child);
@@ -50,7 +50,7 @@ public class MMR extends UnaryPlan {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
         this.diversifyField = in.readNamedWriteable(Attribute.class);
         this.limit = in.readNamedWriteable(Expression.class);
-        this.queryVector = in.readOptionalNamedWriteable(Attribute.class);
+        this.queryVector = in.readOptionalNamedWriteable(Expression.class);
         this.lambdaValue = in.readOptionalNamedWriteable(Expression.class);
     }
 
@@ -62,7 +62,7 @@ public class MMR extends UnaryPlan {
         return limit;
     }
 
-    public Attribute queryVector() {
+    public Expression queryVector() {
         return queryVector;
     }
 

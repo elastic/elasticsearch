@@ -380,18 +380,14 @@ mmrCommand
     : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
-mmrQueryVectorConstantParam
-    : OPENING_BRACKET decimalValue (COMMA decimalValue)* CLOSING_BRACKET
-    ;
-
 mmrQueryVectorTextEmbeddingParam
-    : MMR_TEXT_EMBEDDING QUOTED_STRING COMMA QUOTED_STRING RP
+    : MMR_TEXT_EMBEDDING textInput=QUOTED_STRING COMMA inferenceId=QUOTED_STRING RP
     ;
 
 mmrQueryVectorParams
-    : mmrQueryVectorConstantParam         # mmrQueryVectorConstant
-    | parameter                           # mmrQueryVectorParameter
-    | mmrQueryVectorTextEmbeddingParam  # mmrQueryVectorTextEmbedding
+    : parameter                           # mmrQueryVectorParameter
+    | mmrQueryVectorTextEmbeddingParam    # mmrQueryVectorTextEmbedding
+    | constant                            # mmrQueryVectorConstant
     ;
 
 mmrOptionalQueryVector

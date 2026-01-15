@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -89,6 +90,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -4322,12 +4324,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     }
 
-    public void testMMRCommandWithLimit() {
+    public void testMMRCommandWithLimitOnly() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
         var cmd = processingCommand("mmr dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
+
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
         assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
@@ -4342,42 +4345,102 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var cmd = processingCommand("mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
+
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
         assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
         assertThat(limitValue, equalTo(10));
+
         assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
         double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
         assertThat(lambdaValue, equalTo(0.5));
+
         assertNull(mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithConstantQueryVector() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }");
-        assertEquals(MMR.class, cmd.getClass());
-        MMR mmrCmd = (MMR) cmd;
+        var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
+        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
+        assertThat(lambdaValue, equalTo(0.5));
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
     }
 
     public void testMMRCommandWithFieldQueryVector() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }");
-        assertEquals(MMR.class, cmd.getClass());
-        MMR mmrCmd = (MMR) cmd;
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var mmrCmd = as(
+            parser.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            MMR.class
+        );
 
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
+        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
+        assertThat(lambdaValue, equalTo(0.5));
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand(
-            "mmr text_embedding(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
+        var mmrCmd = as(
+            processingCommand(
+                "mmr text_embedding(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
+            ),
+            MMR.class
         );
-        assertEquals(MMR.class, cmd.getClass());
-        MMR mmrCmd = (MMR) cmd;
 
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
+        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
+        assertThat(lambdaValue, equalTo(0.5));
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof TextEmbedding textEmbeddingFunction) {
+            assertThat(textEmbeddingFunction.inputText().sourceText(), equalTo("\"test text\""));
+            assertThat(textEmbeddingFunction.inferenceId().sourceText(), equalTo("\"test_inference_id\""));
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
     }
 
     public void testInvalidSample() {

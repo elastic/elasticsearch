@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,15 +63,18 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
+        if (inputType == null && lateChunking == null) {
+            return EMPTY_SETTINGS;
+        } else {
+            return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
+        }
     }
 
     /**
      * Creates a new {@link JinaAIEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
      * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
      * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
-     *
+     * <br>
      * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
      * originalSettings.
      * @param originalSettings the settings stored as part of the inference entity configuration
@@ -170,7 +172,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

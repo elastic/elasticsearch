@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,7 +69,6 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 indicesOptions = IndicesOptions.builder(indicesOptions)
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                     .build();
-                eqlRequest.projectRouting(request.param("project_routing"));
             }
             eqlRequest.indicesOptions(indicesOptions);
             if (request.hasParam("wait_for_completion_timeout")) {
@@ -87,6 +87,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.allowPartialSequenceResults(
                 request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
             );
+            eqlRequest.projectRouting(request.param("project_routing", eqlRequest.getProjectRouting()));
+            if (crossProjectEnabled == false && eqlRequest.getProjectRouting() != null) {
+                throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
+            }
         }
 
         return channel -> {

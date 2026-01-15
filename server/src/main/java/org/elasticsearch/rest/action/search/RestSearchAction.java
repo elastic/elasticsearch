@@ -108,9 +108,6 @@ public class RestSearchAction extends BaseRestHandler {
         request.param("min_compatible_shard_node");
 
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            searchRequest.setProjectRouting(request.param("project_routing"));
-        }
 
         /*
          * We have to pull out the call to `source().size(size)` because

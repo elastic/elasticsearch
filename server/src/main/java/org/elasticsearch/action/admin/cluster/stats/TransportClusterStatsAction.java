@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -478,11 +477,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
             remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
-                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                    responseListener.onResponse(null);
-                } else {
-                    remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
-                }
+                remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
             }));
         }
 

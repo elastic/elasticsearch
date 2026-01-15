@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -61,6 +62,17 @@ class NodeServiceProvider {
     PluginsService newPluginService(Environment initialEnvironment, PluginsLoader pluginsLoader) {
         // this creates a PluginsService with an empty list of classpath plugins
         return new PluginsService(initialEnvironment.settings(), initialEnvironment.configDir(), pluginsLoader);
+    }
+
+    TaskManager newTaskManager(
+        PluginsService pluginsService,
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        Tracer tracer,
+        String nodeId
+    ) {
+        return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
     }
 
     ScriptService newScriptService(

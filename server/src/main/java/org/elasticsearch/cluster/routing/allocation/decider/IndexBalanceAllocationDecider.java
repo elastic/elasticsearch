@@ -92,6 +92,12 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
+        final IndexMetadata indexMetadata = allocation.getClusterState().metadata().getProject(projectId).index(index);
+
+        if (hasIndexRoutingFilters(indexMetadata)) {
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled for index level allocation filters.");
+        }
+
         final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
         int totalShards = 0;
         String nomenclature = EMPTY;
@@ -104,7 +110,6 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         } else if (node.node().getRoles().contains(SEARCH_ROLE)) {
             collectEligibleNodes(allocation, eligibleNodes, SEARCH_ROLE);
             // Replicas only.
-            final IndexMetadata indexMetadata = allocation.getClusterState().metadata().getProject(projectId).index(index);
             totalShards = indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas();
             nomenclature = "search";
         }
@@ -168,5 +173,14 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         return (clusterExcludeFilters != null && clusterExcludeFilters.hasFilters())
             || (clusterIncludeFilters != null && clusterIncludeFilters.hasFilters())
             || (clusterRequireFilters != null && clusterRequireFilters.hasFilters());
+    }
+
+    private boolean hasIndexRoutingFilters(IndexMetadata indexMetadata) {
+        return DiscoveryNodeFilters.trimTier(indexMetadata.requireFilters()) != null
+            && DiscoveryNodeFilters.trimTier(indexMetadata.requireFilters()).hasFilters()
+            || DiscoveryNodeFilters.trimTier(indexMetadata.excludeFilters()) != null
+                && DiscoveryNodeFilters.trimTier(indexMetadata.excludeFilters()).hasFilters()
+            || DiscoveryNodeFilters.trimTier(indexMetadata.includeFilters()) != null
+                && DiscoveryNodeFilters.trimTier(indexMetadata.includeFilters()).hasFilters();
     }
 }

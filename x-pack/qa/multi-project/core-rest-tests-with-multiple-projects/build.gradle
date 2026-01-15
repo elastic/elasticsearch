@@ -30,7 +30,7 @@ dependencies {
   clusterModules project(':test:external-modules:test-multi-project')
   restTestConfig project(path: ':modules:data-streams', configuration: "restTests")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
-  restTestConfig project(path: ':modules:reindex', configuration: "basicRestSpecs")
+  restTestConfig project(path: ':modules:reindex', configuration: "restTests")
   restTestConfig project(path: ':modules:streams', configuration: "restTests")
 }
 
@@ -76,6 +76,9 @@ tasks.named("yamlRestTest").configure {
 
     // Linked project configuration via ClusterSettings currently does not support multi-project
     '^cluster.stats/30_ccs_stats/cross-cluster search stats search',
+
+    // Default Repo via ClusterSettings are not currently supported in multi-project
+    '^repositories/10_default_repository/*',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

@@ -62,6 +62,7 @@ final class SystemJvmOptions {
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
                 // Needed to get access to raw vectors from Lucene scorers
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server",
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",

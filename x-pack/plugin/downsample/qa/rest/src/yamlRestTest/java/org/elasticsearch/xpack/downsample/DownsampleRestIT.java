@@ -21,10 +21,11 @@ public class DownsampleRestIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-downsample")
         .module("x-pack-ilm")
         .module("lang-painless")
-        .module("aggregations")     // for auto_date_histogram
-        .module("mapper-extras")    // for scaled_float
-        .module("x-pack-analytics") // for histogram
-        .module("data-streams")     // for time series
+        .module("aggregations")         // for auto_date_histogram
+        .module("mapper-extras")        // for scaled_float
+        .module("x-pack-analytics")     // for histogram
+        .module("data-streams")         // for time series
+        .module("exponential-histogram")// for exponential histograms
         .module("ingest-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")

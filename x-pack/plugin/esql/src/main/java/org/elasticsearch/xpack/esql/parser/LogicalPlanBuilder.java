@@ -1504,7 +1504,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (lambdaValue.dataType() != DataType.DOUBLE) {
                 throw new ParsingException(
                     mmrCommand.source(),
-                    "Option [{}] in <NNR> must be a floating point number",
+                    "Option [{}] in <MMR> must be a floating point number",
                     MMR.LAMBDA_OPTION_NAME
                 );
             }
@@ -1515,7 +1515,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
-                "Invalid option [{}] in <NNR>, expected one of [{}]",
+                "Invalid option [{}] in <MMR>, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 mmrCommand.validOptionNames()
             );

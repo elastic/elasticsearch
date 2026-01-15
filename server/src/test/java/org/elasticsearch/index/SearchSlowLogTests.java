@@ -99,8 +99,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         };
     }
 
-    public static LoggingFieldsProvider mockLogFieldProvider() {
-        return context -> new LoggingFields(context) {
+    public static ActionLoggingFieldsProvider mockLogFieldProvider() {
+        return context -> new ActionLoggingFields(context) {
         };
     }
 

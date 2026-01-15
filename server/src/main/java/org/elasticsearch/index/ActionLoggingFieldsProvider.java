@@ -12,15 +12,15 @@ package org.elasticsearch.index;
 /**
  * Interface for providing additional fields for the logging from a plugin.
  * Intended to be loaded through SPI.
- * This provider generates {@link LoggingFields} instances that depend on current configuration contents.
- * The {@link LoggingFields} produce actual field maps.
+ * This provider generates {@link ActionLoggingFields} instances that depend on current configuration contents.
+ * The {@link ActionLoggingFields} produce actual field maps.
  * <p>
  * This API is intended to be used with slow logs, query logs, etc. and the fields are produced as data and should
  * be added to the specific log explicitly by the logger.
  */
-public interface LoggingFieldsProvider {
+public interface ActionLoggingFieldsProvider {
     /**
      * Create a field provider.
      */
-    LoggingFields create(LoggingFieldContext context);
+    ActionLoggingFields create(ActionLoggingFieldsContext context);
 }

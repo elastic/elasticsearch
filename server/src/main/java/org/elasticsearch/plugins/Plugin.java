@@ -27,10 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -188,7 +188,7 @@ public abstract class Plugin implements Closeable {
         /**
          * Provider for additional SlowLog fields
          */
-        LoggingFieldsProvider loggingFieldsProvider();
+        ActionLoggingFieldsProvider loggingFieldsProvider();
 
         /**
          * Provider for indexing pressure

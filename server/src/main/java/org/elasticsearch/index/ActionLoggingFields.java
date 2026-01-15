@@ -12,13 +12,14 @@ package org.elasticsearch.index;
 import java.util.Map;
 
 /**
- * Fields for the logging. These may be different each call depending on the state of the system.
+ * Supplies additional data for the logging.
+ * The data comes as a map of fields, which may be different each call depending on the state of the system.
  */
-public abstract class LoggingFields {
+public abstract class ActionLoggingFields {
 
-    protected final LoggingFieldContext context;
+    protected final ActionLoggingFieldsContext context;
 
-    public LoggingFields(LoggingFieldContext context) {
+    public ActionLoggingFields(ActionLoggingFieldsContext context) {
         this.context = context;
     }
 

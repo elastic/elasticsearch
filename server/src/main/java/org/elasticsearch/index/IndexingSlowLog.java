@@ -104,7 +104,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
-    private final LoggingFields loggingFields;
+    private final ActionLoggingFields loggingFields;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -126,10 +126,12 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings, LoggingFieldsProvider slowLogFieldsProvider) {
+    IndexingSlowLog(IndexSettings indexSettings, ActionLoggingFieldsProvider slowLogFieldsProvider) {
         this.index = indexSettings.getIndex();
 
-        LoggingFieldContext logContext = new LoggingFieldContext(indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING));
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext(
+            indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING)
+        );
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
 

@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.LoggingFieldContext;
-import org.elasticsearch.index.LoggingFields;
-import org.elasticsearch.index.LoggingFieldsProvider;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -46,20 +46,20 @@ public final class EsqlQueryLog {
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
-    private final LoggingFields additionalFields;
+    private final ActionLoggingFields additionalFields;
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
     private volatile long queryDebugThreshold;
     private volatile long queryTraceThreshold;
 
-    public EsqlQueryLog(ClusterSettings settings, LoggingFieldsProvider loggingFieldsProvider) {
+    public EsqlQueryLog(ClusterSettings settings, ActionLoggingFieldsProvider loggingFieldsProvider) {
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
 
-        LoggingFieldContext logContext = new LoggingFieldContext();
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext();
         settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
 
         this.additionalFields = loggingFieldsProvider.create(logContext);

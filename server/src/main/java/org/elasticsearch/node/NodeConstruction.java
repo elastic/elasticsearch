@@ -110,13 +110,13 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.LoggingFieldContext;
-import org.elasticsearch.index.LoggingFields;
-import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
@@ -868,16 +868,18 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends LoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(LoggingFieldsProvider.class);
+        List<? extends ActionLoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+            ActionLoggingFieldsProvider.class
+        );
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
-        LoggingFieldsProvider loggingFieldsProvider = new LoggingFieldsProvider() {
-            public LoggingFields create(LoggingFieldContext context) {
-                final List<LoggingFields> fields = new ArrayList<>();
+        ActionLoggingFieldsProvider loggingFieldsProvider = new ActionLoggingFieldsProvider() {
+            public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+                final List<ActionLoggingFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
                     fields.add(provider.create(context));
                 }
-                return new LoggingFields(context) {
+                return new ActionLoggingFields(context) {
                     @Override
                     public Map<String, String> logFields() {
                         return fields.stream()

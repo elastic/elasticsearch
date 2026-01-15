@@ -12,17 +12,17 @@ package org.elasticsearch.index;
 /**
  * Context for log fields generation - includes options that can influence how the fields are generated.
  */
-public class LoggingFieldContext {
+public class ActionLoggingFieldsContext {
     /**
      * Do we want any user authentication context?
      */
     private volatile boolean includeUserInformation;
 
-    public LoggingFieldContext() {
+    public ActionLoggingFieldsContext() {
         this(false);
     }
 
-    public LoggingFieldContext(boolean includeUserInformation) {
+    public ActionLoggingFieldsContext(boolean includeUserInformation) {
         this.includeUserInformation = includeUserInformation;
     }
 

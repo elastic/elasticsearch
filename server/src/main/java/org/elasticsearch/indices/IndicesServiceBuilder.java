@@ -22,9 +22,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.LoggingFields;
-import org.elasticsearch.index.LoggingFieldsProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -83,7 +83,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    LoggingFieldsProvider loggingFieldsProvider = (context) -> new LoggingFields(context) {
+    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {
     };
 
     public IndicesServiceBuilder settings(Settings settings) {
@@ -202,7 +202,7 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder loggingFieldsProvider(LoggingFieldsProvider loggingFieldsProvider) {
+    public IndicesServiceBuilder loggingFieldsProvider(ActionLoggingFieldsProvider loggingFieldsProvider) {
         this.loggingFieldsProvider = loggingFieldsProvider;
         return this;
     }

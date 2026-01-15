@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.security.logging;
 
-import org.elasticsearch.index.LoggingFieldContext;
-import org.elasticsearch.index.LoggingFields;
-import org.elasticsearch.index.LoggingFieldsProvider;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xpack.security.Security;
 
 import java.util.Map;
 
-public class SecurityLoggingFieldsProvider implements LoggingFieldsProvider {
+public class SecurityActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
     private final Security plugin;
 
-    private class SecurityLoggingFields extends LoggingFields {
-        SecurityLoggingFields(LoggingFieldContext context) {
+    private class SecurityActionLoggingFields extends ActionLoggingFields {
+        SecurityActionLoggingFields(ActionLoggingFieldsContext context) {
             super(context);
         }
 
@@ -32,16 +32,16 @@ public class SecurityLoggingFieldsProvider implements LoggingFieldsProvider {
 
     }
 
-    public SecurityLoggingFieldsProvider() {
+    public SecurityActionLoggingFieldsProvider() {
         throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
-    public SecurityLoggingFieldsProvider(Security plugin) {
+    public SecurityActionLoggingFieldsProvider(Security plugin) {
         this.plugin = plugin;
     }
 
     @Override
-    public LoggingFields create(LoggingFieldContext context) {
-        return new SecurityLoggingFields(context);
+    public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+        return new SecurityActionLoggingFields(context);
     }
 }

@@ -70,7 +70,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -238,7 +237,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             new MockInferenceRemoteClusterClient.RemoteClusterConfig(
                 remoteInferenceEndpoints,
                 remoteIndexConfigs,
-                TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV)
+                TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_TV)
             );
 
         QueryRewriteContext preCcsRemoteClusterContext = createQueryRewriteContext(

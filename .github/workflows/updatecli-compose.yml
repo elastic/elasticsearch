@@ -51,6 +51,7 @@ jobs:
 
       - uses: elastic/oblt-actions/updatecli/run@v1
         with:
+          # Runs in "--debug" mode to provide logs if the PR creation fails
           command: --experimental compose apply --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

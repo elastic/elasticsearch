@@ -103,7 +103,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
      */
     private static BytesRef buildExpectedChickenSay(String message, int width) {
         try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
-            Chicken.buildChickenSay(scratch, message, width);
+            ChickenArtBuilder.random().buildChickenSay(scratch, message, width);
             return BytesRef.deepCopyOf(scratch.bytesRefView());
         }
     }

@@ -264,7 +264,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     @Override
-    protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange, byte[] blobContents) {
         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(randomNonNegativeInt()));
     }
 
@@ -298,7 +298,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-            addSuccessfulDownloadHeaders(exchange);
+            addSuccessfulDownloadHeaders(exchange, bytes);
             final HttpHeaderParser.Range range = getRange(exchange);
             final int offset = Math.toIntExact(range.start());
             final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.end() + 1, bytes.length)));

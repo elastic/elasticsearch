@@ -48,7 +48,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
                 if (ExceptionsHelper.unwrap(e, HttpResponseException.class) instanceof HttpResponseException httpResponseException) {
                     final var httpStatusCode = httpResponseException.getResponse().getStatusCode();
                     if (httpStatusCode == RestStatus.NOT_FOUND.getStatus()) {
-                        throw new NoSuchFileException("Blob [" + blob + "] not found");
+                        throw new NoSuchFileException("blob object [" + blob + "] not found");
                     }
                     if (httpStatusCode == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
                         throw new RequestedRangeNotSatisfiedException(blob, start, end == Long.MAX_VALUE - 1 ? -1 : end - start, e);

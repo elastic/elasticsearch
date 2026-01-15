@@ -169,17 +169,17 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
 
     private void sendResponse(String eTag, byte[] blobContents, HttpExchange exchange, boolean partial) throws IOException {
         final var ranges = getRanges(exchange);
-        final int start = ranges.v1().intValue();
-        final int end = partial ? randomIntBetween(start, ranges.v2().intValue()) : ranges.v2().intValue();
+        final int start = Math.toIntExact(ranges.start());
+        final int end = partial ? randomIntBetween(start, Math.toIntExact(ranges.end())) : Math.toIntExact(ranges.end());
         final var contents = Arrays.copyOfRange(blobContents, start, end + 1);
 
-        logger.info("---> responding to: {} -> {} (sending chunk of size {})", ranges.v1(), ranges.v2(), contents.length);
+        logger.info("---> responding to: {} -> {} (sending chunk of size {})", ranges.start(), ranges.end(), contents.length);
         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
         exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blobContents.length));
         exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobContents.length));
         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
         exchange.getResponseHeaders().add("ETag", eTag);
-        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blobContents.length - ranges.v1().intValue());
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blobContents.length - ranges.start());
         exchange.getResponseBody().write(contents, 0, contents.length);
     }
 

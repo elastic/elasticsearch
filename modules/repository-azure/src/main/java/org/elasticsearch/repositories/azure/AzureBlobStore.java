@@ -1129,7 +1129,8 @@ public class AzureBlobStore implements BlobStore {
             byteBufFlux.subscribe(cancellableRateLimitedFluxIterator);
             getNextByteBuf();
             assert eTagRef.get() != null : "eTag should have been set";
-            assert ifMatchETag == null || eTagRef.get().equals(ifMatchETag) : "eTag mismatch";
+            assert ifMatchETag == null || eTagRef.get().equals(ifMatchETag)
+                : "eTag mismatch; requested=" + ifMatchETag + " received=" + eTagRef.get();
             this.eTag = eTagRef.get();
         }
 

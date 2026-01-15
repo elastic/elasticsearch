@@ -33,7 +33,7 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -65,6 +65,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         if (fields.isEmpty() == false) {
             // there's only one for all fields stored in the same place in all meta files
             preconditionerStartOffset = ((NextFieldEntry) fields.iterator().next().value).preconditionerStartOffset();
+            ivfMetaPreconditioning.seek(preconditionerStartOffset);
         }
     }
 
@@ -73,6 +74,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         // create a handle specifically for getting the preconditioner artifacts
         // do this because the ChecksumIndexInput can't be seeked backwards
         ivfMetaPreconditioning = openDataInput(state, versionMeta, IVF_META_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
+
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
@@ -227,11 +229,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         CodecUtil.checksumEntireFile(ivfMetaPreconditioning);
     }
 
-    public PreconditioningProvider.Preconditioner getPreconditioner() throws IOException {
+    public Preconditioner getPreconditioner() throws IOException {
         // the reader is only ever instantiated for a given dimension and block dimension so we can safely read the preconditioner here
         ivfMetaPreconditioning.seek(preconditionerStartOffset);
         if (ivfMetaPreconditioning.readInt() > 0) {
-            return PreconditioningProvider.read(ivfMetaPreconditioning);
+            return Preconditioner.read(ivfMetaPreconditioning);
         }
         return null;
     }

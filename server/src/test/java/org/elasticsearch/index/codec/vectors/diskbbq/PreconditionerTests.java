@@ -14,7 +14,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 
 import java.io.IOException;
 
-public class PreconditioningProviderTests extends LuceneTestCase {
+public class PreconditionerTests extends LuceneTestCase {
     public void testRandomProviderConfigurations() throws IOException {
         int dim = random().nextInt(128, 1024);
 
@@ -38,23 +38,23 @@ public class PreconditioningProviderTests extends LuceneTestCase {
 
         int blockDim = random().nextInt(8, dim);
 
-        PreconditioningProvider.Preconditioner preconditioner = PreconditioningProvider.createPreconditioner(dim, blockDim);
+        Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
 
         preconditioner.applyTransform(query);
 
-        assertEquals(blockDim, preconditioner.blockDim());
-        assertEquals(dim / blockDim + 1, preconditioner.permutationMatrix().length);
-        assertEquals(Math.min(blockDim, dim), preconditioner.permutationMatrix()[0].length);
+        assertEquals(blockDim, preconditioner.blockDim);
+        assertEquals(dim / blockDim + 1, preconditioner.permutationMatrix.length);
+        assertEquals(Math.min(blockDim, dim), preconditioner.permutationMatrix[0].length);
         assertEquals(
             dim - (long) (dim / blockDim) * blockDim,
-            preconditioner.permutationMatrix()[preconditioner.permutationMatrix().length - 1].length
+            preconditioner.permutationMatrix[preconditioner.permutationMatrix.length - 1].length
         );
-        assertEquals(dim / blockDim + 1, preconditioner.blocks().length);
-        assertEquals(Math.min(blockDim, dim), preconditioner.blocks()[0].length);
-        assertEquals(Math.min(blockDim, dim), preconditioner.blocks()[0][0].length);
+        assertEquals(dim / blockDim + 1, preconditioner.blocks.length);
+        assertEquals(Math.min(blockDim, dim), preconditioner.blocks[0].length);
+        assertEquals(Math.min(blockDim, dim), preconditioner.blocks[0][0].length);
 
         // verify can be written and read back
-        PreconditioningProvider.read(new IndexInput("test") {
+        Preconditioner.read(new IndexInput("test") {
             byte[] data = preconditioner.toByteArray();
             int nextByte = 0;
 

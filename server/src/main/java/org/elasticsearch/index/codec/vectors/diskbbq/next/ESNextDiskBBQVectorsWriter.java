@@ -36,7 +36,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
-import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -67,7 +67,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
-    private PreconditioningProvider.Preconditioner preconditioner;
+    private Preconditioner preconditioner;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -95,7 +95,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void createPreconditioner(int dimension) {
         if (doPrecondition && this.preconditioner == null) {
-            this.preconditioner = PreconditioningProvider.createPreconditioner(dimension, blockDimension);
+            this.preconditioner = Preconditioner.createPreconditioner(dimension, blockDimension);
         }
     }
 

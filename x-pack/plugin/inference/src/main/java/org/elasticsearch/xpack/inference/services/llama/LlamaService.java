@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionCreator;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
@@ -63,7 +62,6 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -88,6 +86,7 @@ public class LlamaService extends SenderService {
         "llama chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
+    private static final LlamaModelFactory MODEL_FACTORY = new LlamaModelFactory();
 
     /**
      * Constructor for creating a LlamaService with specified HTTP request sender factory and service components.
@@ -148,48 +147,7 @@ public class LlamaService extends SenderService {
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case TEXT_EMBEDDING:
-                return new LlamaEmbeddingsModel(inferenceId, taskType, NAME, serviceSettings, chunkingSettings, secretSettings, context);
-            case CHAT_COMPLETION, COMPLETION:
-                return new LlamaChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
-        }
-    }
-
-    @Override
-    public LlamaModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var chunkingSettings = config.getChunkingSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        switch (taskType) {
-            case TEXT_EMBEDDING:
-                return new LlamaEmbeddingsModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    (LlamaEmbeddingsServiceSettings) serviceSettings,
-                    chunkingSettings,
-                    secretSettings
-                );
-            case CHAT_COMPLETION, COMPLETION:
-                return new LlamaChatCompletionModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    (LlamaChatCompletionServiceSettings) serviceSettings,
-                    secretSettings
-                );
-            default:
-                throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
-        }
+        return MODEL_FACTORY.createFromMaps(inferenceId, taskType, NAME, serviceSettings, null, chunkingSettings, secretSettings, context);
     }
 
     @Override
@@ -344,6 +302,11 @@ public class LlamaService extends SenderService {
         }
 
         return createModelFromPersistent(modelId, taskType, serviceSettingsMap, chunkingSettings, secretSettingsMap);
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private LlamaModel createModelFromPersistent(

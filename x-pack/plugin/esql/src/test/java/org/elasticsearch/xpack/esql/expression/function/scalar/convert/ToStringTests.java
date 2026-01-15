@@ -181,7 +181,7 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
             List.of()
         );
-        final ExponentialHistogram tooLarge = buildDummyHistogram(100_001);
+        ExponentialHistogram largeExponentialHistogram = buildDummyHistogram(100_001);
         suppliers.add(
             new TestCaseSupplier(
                 "<too many exponential histogram buckets>",
@@ -189,7 +189,7 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
-                            new WriteableExponentialHistogram(tooLarge),
+                            new WriteableExponentialHistogram(largeExponentialHistogram),
                             DataType.EXPONENTIAL_HISTOGRAM,
                             "large exponential histogram"
                         )
@@ -217,6 +217,29 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             DataType.KEYWORD,
             h -> new BytesRef(EsqlDataTypeConverter.histogramToString(h)),
             List.of()
+        );
+        //doesn't matter if it's not an actual encoded histogram, as we should never get to the decoding step
+        BytesRef largeTDigest = new BytesRef(new byte[3 * 1024*1024]);
+        suppliers.add(
+            new TestCaseSupplier(
+                "<too large histograms>",
+                List.of(DataType.HISTOGRAM),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            largeTDigest,
+                            DataType.HISTOGRAM,
+                            "large histogram"
+                        )
+                    ),
+                    "ToStringFromHistogramEvaluator[histogram=" + read + "]",
+                    DataType.KEYWORD,
+                    is(nullValue())
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: java.lang.IllegalArgumentException: Histogram length is greater than 2MB"
+                    )
+            )
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

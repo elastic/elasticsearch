@@ -16,6 +16,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.apm.metrics.MetricAttributes;
 
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetricValidator {
     static final int MAX_LENGTH = 255;
@@ -189,7 +191,11 @@ public class MetricValidator {
             Map.entry("es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.projects.linked.connections.error.total", LINKED_PROJECT_ATTRIBUTES),
+            Map.entry("es.recovery.shard.count.total", RECOVERY_ATTRIBUTES),
             Map.entry("es.recovery.shard.index.time", RECOVERY_ATTRIBUTES),
+            Map.entry("es.recovery.shard.indexing_node.bytes_read.total", RECOVERY_ATTRIBUTES),
+            Map.entry("es.recovery.shard.indexing_node.bytes_warmed.total", RECOVERY_ATTRIBUTES),
+            Map.entry("es.recovery.shard.object_store.bytes_read.total", RECOVERY_ATTRIBUTES),
             Map.entry("es.recovery.shard.object_store.bytes_warmed.total", RECOVERY_ATTRIBUTES),
             Map.entry("es.recovery.shard.total.time", RECOVERY_ATTRIBUTES),
             Map.entry("es.recovery.shard.translog.time", RECOVERY_ATTRIBUTES),
@@ -315,12 +321,12 @@ public class MetricValidator {
                 continue;
             }
 
-            assert isDenied == false : Strings.format(LoggingThrottle.FORBIDDEN_MSG, attribute);
+            assert isDenied == false : Strings.format(LoggingThrottle.FORBIDDEN_MSG, attribute, metricName);
             assert Attributes.SKIP_VALIDATION.getOrDefault(metricName, emptySet()).contains(attribute)
-                : Strings.format(LoggingThrottle.VALIDATION_FAILURE_MSG, attribute, Attributes.ATTRIBUTE_PATTERN);
+                : Strings.format(LoggingThrottle.VALIDATION_FAILURE_MSG, attribute, metricName, Attributes.ATTRIBUTE_PATTERN);
 
             // otherwise log a throttled warning. we cannot log a deprecation here, that would fail too many tests
-            LoggingThrottle.logValidationFailure(attribute);
+            LoggingThrottle.logValidationFailure(metricName, attribute);
         }
     }
 
@@ -329,23 +335,23 @@ public class MetricValidator {
         private static final Logger logger = LogManager.getLogger(MetricValidator.class);
 
         private static final String VALIDATION_FAILURE_MSG =
-            "Attribute name [%s] does not match the required naming pattern [%s], see the naming guidelines.";
+            "Attribute [%s] of [%s] does not match the required naming pattern [%s], see the naming guidelines.";
 
         private static final String FORBIDDEN_MSG =
-            "Attribute name [%s] is forbidden due to potential mapping conflicts or assumed high cardinality.";
+            "Attribute [%s] of [%s] is forbidden due to potential mapping conflicts or assumed high cardinality.";
 
         private static final long LOG_THROTTLE_NANOS = TimeValue.timeValueMinutes(1).getNanos();
 
-        private static final Map<String, LoggingThrottle> THROTTLES = new ConcurrentHashMap<>();
+        private static final Map<Tuple<String, String>, LoggingThrottle> THROTTLES = new ConcurrentHashMap<>();
 
-        private static final BiFunction<String, LoggingThrottle, LoggingThrottle> THROTTLED_LOG = (attribute, throttle) -> {
+        private static final BiFunction<Tuple<String, String>, LoggingThrottle, LoggingThrottle> THROTTLED_LOG = (metricAttr, throttle) -> {
             if (throttle == null) {
                 throttle = new LoggingThrottle();
             }
             final long now = System.nanoTime();
             if (now - throttle.lastLogNanoTime > LOG_THROTTLE_NANOS) {
                 throttle.lastLogNanoTime = now;
-                logger.warn(Strings.format(VALIDATION_FAILURE_MSG, attribute, Attributes.ATTRIBUTE_PATTERN));
+                logger.warn(Strings.format(VALIDATION_FAILURE_MSG, metricAttr.v1(), metricAttr.v2(), Attributes.ATTRIBUTE_PATTERN));
                 return throttle;
             }
             return throttle;
@@ -353,8 +359,8 @@ public class MetricValidator {
 
         private long lastLogNanoTime = 0;
 
-        static void logValidationFailure(String attribute) {
-            THROTTLES.compute(attribute, THROTTLED_LOG);
+        static void logValidationFailure(String metricName, String attribute) {
+            THROTTLES.compute(tuple(metricName, attribute), THROTTLED_LOG);
         }
     }
 

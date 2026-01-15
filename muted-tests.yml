@@ -348,6 +348,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testRemoveNodeDuringSnapshotWithOtherRunningShardSnapshots
   issue: https://github.com/elastic/elasticsearch/issues/140755
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testStartRemoveNodeButDoNotComplete
+  issue: https://github.com/elastic/elasticsearch/issues/140759
 
 # Examples:
 #

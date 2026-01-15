@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -142,7 +142,7 @@ public enum ChickenArtBuilder {
      */
     public static ChickenArtBuilder random() {
         ChickenArtBuilder[] values = values();
-        return values[ThreadLocalRandom.current().nextInt(values.length)];
+        return values[Randomness.get().nextInt(values.length)];
     }
 
     /**

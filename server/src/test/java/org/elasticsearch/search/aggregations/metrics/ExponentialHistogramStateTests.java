@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +54,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
     }
 
     public void testRandomHistogramSerializationAndDeserialization() throws IOException {
-        ReleasableExponentialHistogram histogram = randomHistogram(randomIntBetween(4, ExponentialHistogramState.MAX_HISTOGRAM_BUCKETS));
+        ReleasableExponentialHistogram histogram = randomHistogram(randomIntBetween(4, DEFAULT_MAX_HISTOGRAM_BUCKETS));
 
         ExponentialHistogramState state = ExponentialHistogramState.create(breaker(), histogram);
         assertThat(state.histogram(), equalTo(histogram));
@@ -95,7 +96,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
 
     public void testAdd() throws IOException {
         List<ReleasableExponentialHistogram> inputHistos = IntStream.range(0, randomIntBetween(1, 20))
-            .mapToObj(i -> randomHistogram(randomIntBetween(4, ExponentialHistogramState.MAX_HISTOGRAM_BUCKETS)))
+            .mapToObj(i -> randomHistogram(randomIntBetween(4, DEFAULT_MAX_HISTOGRAM_BUCKETS)))
             .toList();
 
         ExponentialHistogramState state = ExponentialHistogramState.create(breaker());
@@ -113,7 +114,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
         }
 
         ExponentialHistogram expectedResult = ExponentialHistogram.merge(
-            ExponentialHistogramState.MAX_HISTOGRAM_BUCKETS,
+            DEFAULT_MAX_HISTOGRAM_BUCKETS,
             ExponentialHistogramCircuitBreaker.noop(),
             inputHistos.iterator()
         );

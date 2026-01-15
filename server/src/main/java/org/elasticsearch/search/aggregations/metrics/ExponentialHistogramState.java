@@ -34,14 +34,12 @@ import java.util.List;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS;
 
 /**
  * Decorates {@link ExponentialHistogram} with custom serialization and implements commonly used functionality for aggregations.
  */
 public class ExponentialHistogramState implements Releasable, Accountable {
-
-    // OpenTelemetry SDK default, we might make this configurable later
-    static final int MAX_HISTOGRAM_BUCKETS = 320;
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramState.class);
 
@@ -106,13 +104,13 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         if (mergedHistograms == null) {
             if (deserializedHistogram == null) {
                 mergedHistograms = ExponentialHistogramMerger.create(
-                    MAX_HISTOGRAM_BUCKETS,
+                    DEFAULT_MAX_HISTOGRAM_BUCKETS,
                     new ElasticCircuitBreakerWrapper(circuitBreaker)
                 );
             } else {
                 // do not upscale the deserialized histogram
                 mergedHistograms = ExponentialHistogramMerger.createWithMaxScale(
-                    MAX_HISTOGRAM_BUCKETS,
+                    DEFAULT_MAX_HISTOGRAM_BUCKETS,
                     deserializedHistogram.scale(),
                     new ElasticCircuitBreakerWrapper(circuitBreaker)
                 );

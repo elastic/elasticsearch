@@ -76,6 +76,16 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         );
     }
 
+    public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
+        super(
+            config,
+            secrets,
+            (DefaultSecretSettings) secrets.getSecretSettings(),
+            ((JinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
+        );
+    }
+
     private JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, JinaAIEmbeddingsTaskSettings taskSettings) {
         super(model, taskSettings);
     }

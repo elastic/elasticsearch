@@ -72,6 +72,16 @@ public class JinaAIRerankModel extends JinaAIModel {
         );
     }
 
+    public JinaAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((JinaAIRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
+        );
+    }
+
     private JinaAIRerankModel(JinaAIRerankModel model, JinaAIRerankTaskSettings taskSettings) {
         super(model, taskSettings);
     }

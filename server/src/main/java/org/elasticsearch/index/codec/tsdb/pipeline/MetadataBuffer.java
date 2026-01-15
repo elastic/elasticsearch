@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A reusable byte buffer for writing stage metadata during encoding.
@@ -168,9 +169,11 @@ public final class MetadataBuffer implements MetadataWriter {
      * @param dest the destination array
      * @param offset the offset in the destination array
      * @return the number of bytes written
+     * @throws NullPointerException if dest is null
      * @throws IllegalArgumentException if offset is negative or destination has insufficient space
      */
     public int writeTo(byte[] dest, int offset) {
+        Objects.requireNonNull(dest, "dest");
         if (offset < 0) {
             throw new IllegalArgumentException("offset must be non-negative: " + offset);
         }

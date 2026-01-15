@@ -541,4 +541,13 @@ public class MetadataBufferTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buffer.writeTo(dest, -1));
         assertTrue(e.getMessage().contains("non-negative"));
     }
+
+    public void testWriteToNullDestination() {
+        // GIVEN
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeByte((byte) 1);
+
+        // WHEN/THEN
+        expectThrows(NullPointerException.class, () -> buffer.writeTo(null, 0));
+    }
 }

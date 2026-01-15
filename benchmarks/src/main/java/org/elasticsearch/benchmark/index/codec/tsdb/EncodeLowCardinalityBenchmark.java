@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.LowCardinalitySupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -32,7 +32,11 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for encoding increasing integer patterns.
+ * Benchmark for encoding low cardinality data patterns.
+ *
+ * <p>Parameterized by number of distinct values and Zipf skew to test how
+ * the encoder handles data with limited value diversity. Higher skew means
+ * the most frequent value dominates more strongly.
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)
@@ -40,15 +44,19 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class EncodeIncreasingIntegerBenchmark {
+public class EncodeLowCardinalityBenchmark {
     private static final int SEED = 17;
 
-    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
-    private int bitsPerValue;
+    @Param({ "5", "10" })
+    private int distinctValues;
+
+    @Param({ "1", "2", "3" })
+    private double skew;
 
     private final AbstractTSDBCodecBenchmark encode;
+    private LowCardinalitySupplier supplier;
 
-    public EncodeIncreasingIntegerBenchmark() {
+    public EncodeLowCardinalityBenchmark() {
         this.encode = new EncodeBenchmark();
     }
 
@@ -59,7 +67,8 @@ public class EncodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        encode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
+        supplier = LowCardinalitySupplier.builder(SEED, encode.getBlockSize()).withDistinctValues(distinctValues).withSkew(skew).build();
+        encode.setupTrial(supplier);
         encode.setupInvocation();
         encode.run();
     }
@@ -82,6 +91,6 @@ public class EncodeIncreasingIntegerBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }
 }

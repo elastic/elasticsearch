@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -231,14 +232,18 @@ public class WriteLoadConstraintMonitor {
     private static String nodeSummary(Set<String> nodeIds, ClusterState state) {
         final var nodes = state.nodes();
         if (nodeIds.isEmpty() == false && nodeIds.size() <= MAX_NODE_IDS_IN_MESSAGE) {
-            final var commaSeparatedNodeNames = nodeIds.stream().map(nodeId -> {
-                final var discoveryNode = nodes.get(nodeId);
-                // It's possible a node might have left the cluster since the ClusterInfo was published
-                return discoveryNode != null ? discoveryNode.getName() : nodeId;
-            }).collect(Collectors.joining(", "));
-            return "[" + commaSeparatedNodeNames + "]";
+            return nodeIds.stream().map(nodeId -> nodeShortDescription(nodeId, nodes)).collect(Collectors.joining(", "));
         } else {
             return nodeIds.size() + " nodes";
         }
+    }
+
+    /**
+     * @return "{nodeId}/{nodeName}" if available, or just "{nodeId}" otherwise
+     */
+    private static String nodeShortDescription(String nodeId, DiscoveryNodes nodes) {
+        final var discoveryNode = nodes.get(nodeId);
+        // It's possible a node might have left the cluster since the ClusterInfo was published
+        return discoveryNode != null ? nodeId + "/" + discoveryNode.getName() : nodeId;
     }
 }

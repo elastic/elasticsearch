@@ -1544,12 +1544,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
      */
     static class PrefixBalancingWeightsFactory implements BalancingWeightsFactory {
 
-        private final Map<String, WeightFunctionAndThreshold> prefixWeights;
+        private final Map<String, WeightFunctionAndThreshold> prefixWeightsAndThresholds;
 
         record WeightFunctionAndThreshold(WeightFunction weightFunction, float threshold) {}
 
-        PrefixBalancingWeightsFactory(Map<String, WeightFunctionAndThreshold> prefixWeights) {
-            this.prefixWeights = prefixWeights;
+        PrefixBalancingWeightsFactory(Map<String, WeightFunctionAndThreshold> prefixWeightsAndThresholds) {
+            this.prefixWeightsAndThresholds = prefixWeightsAndThresholds;
         }
 
         public static PrefixBalancingWeightsFactory withDefaultThreshold(Map<String, WeightFunction> weightFunctions) {
@@ -1567,12 +1567,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
             @Override
             public WeightFunction weightFunctionForShard(ShardRouting shard) {
-                return prefixWeights.get(prefix(shard.getIndexName())).weightFunction();
+                return prefixWeightsAndThresholds.get(prefix(shard.getIndexName())).weightFunction();
             }
 
             @Override
             public WeightFunction weightFunctionForNode(RoutingNode node) {
-                return prefixWeights.get(prefix(node.node().getId())).weightFunction();
+                return prefixWeightsAndThresholds.get(prefix(node.node().getId())).weightFunction();
             }
 
             @Override
@@ -1581,7 +1581,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 BalancedShardsAllocator.Balancer balancer
             ) {
                 final HashMap<String, BalancedShardsAllocator.NodeSorter> prefixNodeSorters = new HashMap<>();
-                for (var entry : prefixWeights.entrySet()) {
+                for (var entry : prefixWeightsAndThresholds.entrySet()) {
                     prefixNodeSorters.put(
                         entry.getKey(),
                         new BalancedShardsAllocator.NodeSorter(

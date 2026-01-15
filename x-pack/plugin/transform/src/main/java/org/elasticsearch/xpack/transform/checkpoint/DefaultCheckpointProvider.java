@@ -100,19 +100,10 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        // getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
-        // reportSourceIndexChanges(
-        // TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
-        // ? Collections.emptySet()
-        // : lastCheckpoint.getIndicesCheckpoints().keySet(),
-        // checkpointsByIndex.keySet()
-        // );
-        //
-        // listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-        // }, listener::onFailure));
-
-        InternalPrepareCps.execute(client, transformConfig, ActionListener.wrap(v -> {
-            getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+        InternalPrepareCps.execute(
+            client,
+            transformConfig,
+            ActionListener.wrap(v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
                 reportSourceIndexChanges(
                     TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
                         ? Collections.emptySet()
@@ -121,12 +112,10 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 );
 
                 listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-            }, listener::onFailure));
-        },
-            e -> {
+            }, listener::onFailure)), e -> {
                 logger.warn(() -> format("[%s] failed to prepare headers for checkpoint [%d]", transformConfig.getId(), checkpoint), e);
-            }
-        ));
+            })
+        );
     }
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {

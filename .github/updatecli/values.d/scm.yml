@@ -2,9 +2,15 @@ scm:
   enabled: true
   owner: elastic
   repository: elasticsearch
-  branch: main
+  branch: "{{ requiredEnv `UPDATECLI_BRANCH` }}"
   commitusingapi: true
   # begin updatecli-compose policy values
   user: elasticmachine
   email: 42973632+elasticmachine@users.noreply.github.com
   # end updatecli-compose policy values
+  pullrequest:
+    labels:
+      - ":Delivery/Tooling"
+      - ":Delivery/Packaging"
+      - "auto-merge-without-approval"
+      - "dependencies"

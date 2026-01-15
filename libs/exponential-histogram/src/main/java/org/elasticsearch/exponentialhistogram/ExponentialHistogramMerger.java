@@ -56,7 +56,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     private boolean closed = false;
 
     /**
-     * Creates a new instance with the OpenTelemetry SDK default bucket limit of {@link ExponentialHistogramMerger#DEFAULT_MAX_HISTOGRAM_BUCKETS}
+     * Creates a new instance with the OpenTelemetry SDK default bucket limit of
+     * {@link ExponentialHistogramMerger#DEFAULT_MAX_HISTOGRAM_BUCKETS}.
+     *
      * @param circuitBreaker the circuit breaker to use to limit memory allocations
      */
     public static ExponentialHistogramMerger create(ExponentialHistogramCircuitBreaker circuitBreaker) {

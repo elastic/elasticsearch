@@ -206,8 +206,10 @@ class JdkPosixCLibrary implements PosixCLibrary {
         try {
             return (int) madvise$mh.invokeExact(errnoState, base, length, advice);
         } catch (Throwable t) {
-            throw new AssertionError(t);
+            String msg = "madvise failed: segment=" + segment + ", isAlive=" + segment.scope().isAlive();
+            throw new AssertionError(msg, t);
         } finally {
+            // protects the segment from being potentially being GC'ed during out downcall
             Reference.reachabilityFence(segment);
         }
     }

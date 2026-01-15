@@ -260,6 +260,7 @@ public class EsqlSession {
             parsedPlanString = explain.query().toString();
         }
 
+        final EsqlStatement statementFinal = statement;
         analyzedPlan(
             statement,
             configuration,
@@ -286,7 +287,7 @@ public class EsqlSession {
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen((l, p) -> {
-                            if (statement.setting(QuerySettings.APPROXIMATION) != null) {
+                            if (statementFinal.setting(QuerySettings.APPROXIMATION) != null) {
                                 Approximation.verifyPlan(p);
                             }
                             l.onResponse(p);
@@ -300,7 +301,7 @@ public class EsqlSession {
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
-                                statement,
+                                statementFinal,
                                 executionInfo,
                                 planRunner,
                                 p,

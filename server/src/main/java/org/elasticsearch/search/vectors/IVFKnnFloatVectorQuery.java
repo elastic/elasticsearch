@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
 
 import java.io.IOException;
@@ -89,8 +90,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         KnnVectorsReader fieldsReader = Lucene.segmentReader(reader).getVectorReader();
         if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
             KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
-            if (knnVectorsReader instanceof ESNextDiskBBQVectorsReader) {
-                Preconditioner preconditioner = ((ESNextDiskBBQVectorsReader) knnVectorsReader).getPreconditioner();
+            if (knnVectorsReader instanceof VectorPreconditioner) {
+                Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner();
                 if (preconditioner != null) {
                     query = preconditioner.applyTransform(query);
                     isQueryPreconditioned = true;

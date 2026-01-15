@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -54,7 +55,7 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
+public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
 
     private long preconditionerStartOffset;
     private IndexInput ivfMetaPreconditioning;
@@ -228,6 +229,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         CodecUtil.checksumEntireFile(ivfMetaPreconditioning);
     }
 
+    @Override
     public Preconditioner getPreconditioner() throws IOException {
         // the reader is only ever instantiated for a given dimension and block dimension so we can safely read the preconditioner here
         ivfMetaPreconditioning.seek(preconditionerStartOffset);

@@ -55,9 +55,7 @@ public final class MetadataBuffer implements MetadataWriter {
      */
     @Override
     public void writeByte(final byte b) {
-        if (size >= buffer.length) {
-            grow(1);
-        }
+        ensureCapacity(1);
         buffer[size++] = b;
     }
 
@@ -73,9 +71,7 @@ public final class MetadataBuffer implements MetadataWriter {
         if (value < 0) {
             throw new IllegalArgumentException("writeVInt does not support negative values: " + value);
         }
-        if (size + MAX_VINT_BYTES > buffer.length) {
-            grow(MAX_VINT_BYTES);
-        }
+        ensureCapacity(MAX_VINT_BYTES);
         writeVarLong(value & 0xFFFFFFFFL);
     }
 
@@ -91,9 +87,7 @@ public final class MetadataBuffer implements MetadataWriter {
         if (value < 0) {
             throw new IllegalArgumentException("writeVLong does not support negative values: " + value);
         }
-        if (size + MAX_VLONG_BYTES > buffer.length) {
-            grow(MAX_VLONG_BYTES);
-        }
+        ensureCapacity(MAX_VLONG_BYTES);
         writeVarLong(value);
     }
 
@@ -104,9 +98,7 @@ public final class MetadataBuffer implements MetadataWriter {
      */
     @Override
     public void writeZInt(final int value) {
-        if (size + MAX_VINT_BYTES > buffer.length) {
-            grow(MAX_VINT_BYTES);
-        }
+        ensureCapacity(MAX_VINT_BYTES);
         writeVarLong(ByteUtils.zigZagEncode(value) & 0xFFFFFFFFL);
     }
 
@@ -117,9 +109,7 @@ public final class MetadataBuffer implements MetadataWriter {
      */
     @Override
     public void writeZLong(final long value) {
-        if (size + MAX_VLONG_BYTES > buffer.length) {
-            grow(MAX_VLONG_BYTES);
-        }
+        ensureCapacity(MAX_VLONG_BYTES);
         writeVarLong(ByteUtils.zigZagEncode(value));
     }
 
@@ -186,6 +176,12 @@ public final class MetadataBuffer implements MetadataWriter {
         }
         System.arraycopy(buffer, 0, dest, offset, size);
         return size;
+    }
+
+    private void ensureCapacity(final int additional) {
+        if (size + additional > buffer.length) {
+            grow(additional);
+        }
     }
 
     private void grow(final int additional) {

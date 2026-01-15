@@ -98,6 +98,8 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      *
      * @throws IllegalArgumentException
      *     if {@code segment} does not represent native memory
+     *
+     * @see <a href="https://man7.org/linux/man-pages/man2/madvise.2.html">madvise manpage</a>
      */
     int madvise(MemorySegment segment, long offset, long length, int advice);
 

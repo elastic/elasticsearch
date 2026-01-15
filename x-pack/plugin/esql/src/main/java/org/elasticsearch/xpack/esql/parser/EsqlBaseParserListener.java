@@ -846,15 +846,41 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMmrQueryVectorTextEmbeddingParam(EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * Enter a parse tree produced by the {@code mmrQueryVectorField}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
    * @param ctx the parse tree
    */
-  void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  void enterMmrQueryVectorField(EsqlBaseParser.MmrQueryVectorFieldContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * Exit a parse tree produced by the {@code mmrQueryVectorField}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
    * @param ctx the parse tree
    */
-  void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  void exitMmrQueryVectorField(EsqlBaseParser.MmrQueryVectorFieldContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code mmrQueryVectorConstant}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorConstant(EsqlBaseParser.MmrQueryVectorConstantContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code mmrQueryVectorConstant}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorConstant(EsqlBaseParser.MmrQueryVectorConstantContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code mmrQueryVectorTextEmbedding}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorTextEmbedding(EsqlBaseParser.MmrQueryVectorTextEmbeddingContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code mmrQueryVectorTextEmbedding}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorTextEmbedding(EsqlBaseParser.MmrQueryVectorTextEmbeddingContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

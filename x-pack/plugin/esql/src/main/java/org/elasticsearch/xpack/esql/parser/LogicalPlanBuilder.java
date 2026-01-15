@@ -1428,21 +1428,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
         Source source = source(ctx);
         Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
-        Object limitValue = visitIntegerValue(ctx.limitValue).value();
-        if (limitValue instanceof Integer limit) {
-            return input -> (applyMMROptions(new MMR(source, input, diversifyField, limit, null, null), ctx.commandNamedParameters()));
-        } else {
-            throw new ParsingException(source(ctx), "Invalid parameter value for limit [{}]", ctx.limitValue.getText());
+
+        // var queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
+        Attribute queryVector = null;
+
+        Expression limitValue = expression(ctx.limitValue);
+        return input -> (applyMMROptions(
+            new MMR(source, input, diversifyField, limitValue, queryVector, null),
+            ctx.commandNamedParameters()
+        ));
+    }
+
+    /*
+    private Attribute visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
+        if (ctx == null || ctx.isEmpty()) {
+            return null;
         }
 
-        // TODO - query vector
+        if (ctx.constant() != null
+            && ctx.constant().isEmpty() == false
+            && ctx.constant() instanceof EsqlBaseParser.NumericArrayLiteralContext naLit) {
+            // TODO -- constant arary of floats
+            var constantArray = visitNumericArrayLiteral(naLit);
+        } else if (ctx.mmrQueryVectorTextEmbeddingParam() != null && ctx.mmrQueryVectorTextEmbeddingParam().isEmpty() == false) {
+            EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext textEmbeddingParam = ctx.mmrQueryVectorTextEmbeddingParam();
+            var textNode = textEmbeddingParam.QUOTED_STRING(0);
+            var inferenceIdNode = textEmbeddingParam.QUOTED_STRING(1);
+
+        } else {
+            // it's a field
+            return visitQualifiedName(ctx.qualifiedName());
+        }
+
+        throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
     }
+     */
 
     private MMR applyMMROptions(MMR mmrCommand, EsqlBaseParser.CommandNamedParametersContext ctx) {
         MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
 
-        if (optionsExpression == null || optionsExpression.containsKey(MMR.LAMBDA_OPTION_NAME) == false) {
-            throw new ParsingException(mmrCommand.source(), "Missing mandatory option [{}] in MMR", MMR.LAMBDA_OPTION_NAME);
+        if (optionsExpression == null) {
+            return mmrCommand;
         }
 
         Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();

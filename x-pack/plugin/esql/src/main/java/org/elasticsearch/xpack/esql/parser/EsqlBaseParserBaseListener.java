@@ -997,13 +997,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) { }
+  @Override public void enterMmrQueryVectorField(EsqlBaseParser.MmrQueryVectorFieldContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) { }
+  @Override public void exitMmrQueryVectorField(EsqlBaseParser.MmrQueryVectorFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMmrQueryVectorConstant(EsqlBaseParser.MmrQueryVectorConstantContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMmrQueryVectorConstant(EsqlBaseParser.MmrQueryVectorConstantContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMmrQueryVectorTextEmbedding(EsqlBaseParser.MmrQueryVectorTextEmbeddingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMmrQueryVectorTextEmbedding(EsqlBaseParser.MmrQueryVectorTextEmbeddingContext ctx) { }
   /**
    * {@inheritDoc}
    *

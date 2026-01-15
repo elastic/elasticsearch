@@ -117,6 +117,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -4324,11 +4325,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimit() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 5");
+        var cmd = processingCommand("mmr dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        assertThat(mmrCmd.limit(), equalToIgnoringIds(literalLong(5)));
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+        assertNull(mmrCmd.queryVector());
+        assertNull(mmrCmd.lambdaValue());
+    }
+
+    public void testMMRCommandWithLimitAndLambda() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
+        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
+        assertThat(lambdaValue, equalTo(0.5));
+        assertNull(mmrCmd.queryVector());
     }
 
     public void testInvalidSample() {

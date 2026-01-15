@@ -515,11 +515,26 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMmrQueryVectorTextEmbeddingParam(EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * Visit a parse tree produced by the {@code mmrQueryVectorField}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  T visitMmrQueryVectorField(EsqlBaseParser.MmrQueryVectorFieldContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code mmrQueryVectorConstant}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMmrQueryVectorConstant(EsqlBaseParser.MmrQueryVectorConstantContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code mmrQueryVectorTextEmbedding}
+   * labeled alternative in {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMmrQueryVectorTextEmbedding(EsqlBaseParser.MmrQueryVectorTextEmbeddingContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

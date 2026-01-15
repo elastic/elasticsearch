@@ -12,8 +12,12 @@ Known issues are significant defects or limitations that may impact your impleme
 
 * Upgrading from 9.1.10 to 9.2.4 may cause the following error:
 
-  ```org.elasticsearch.xcontent.XContentParseException: [-1:107008] [node_shutdown_info] unknown field [shutdown_started_millis] did you mean [shutdown_startedmillis]```
-
+  ```
+  fatal exception while booting Elasticsearch org.elasticsearch.ElasticsearchException: failed to load metadata at org.elasticsearch.gateway.GatewayMetaState.start(GatewayMetaState.java:119) ~[elasticsearch-9.2.4.jar:?] at [..] Caused by: org.elasticsearch.gateway.CorruptStateException: org.elasticsearch.xcontent.XContentParseException: [-1:107032] [node_shutdown] failed to parse field [nodes]
+  ...
+  org.elasticsearch.xcontent.XContentParseException: [-1:107008] [node_shutdown_info] unknown field [shutdown_started_millis] did you mean [shutdown_startedmillis]
+  ```
+  
   This bug is addressed in version 9.2.5.
 
 ## 9.2.0 [elasticsearch-9.2.0-known-issues]

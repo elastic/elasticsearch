@@ -1,5 +1,9 @@
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.gradle.kotlin.dsl.invoke
+import org.gradle.kotlin.dsl.project
 import org.gradle.kotlin.dsl.withType
+import org.gradle.kotlin.dsl.yamlRestTest
 
 // WARNING: this plugin will be ultimately moved to the public elasticsearch repository as an x-pack plugin. Please
 // avoid using a lot of Kotlin functionality from the serverless repository, to ease the ultimate translation
@@ -32,8 +36,6 @@ dependencies {
     compileOnly(xpackModule("blob-cache"))
     testImplementation(testArtifact(xpackModule("core")))
     testImplementation(testArtifact(xpackModule("blob-cache")))
-    //internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
-    //internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")
 }
 
 // This can be removed once the x-pack plugin is moved to the public repository
@@ -44,4 +46,12 @@ tasks.withType<LicenseHeadersTask>().configureEach {
         "2.0; you may not use this file except in compliance with the Elastic License"
     )
     approvedLicenses = listOf("Elastic License 2.0")
+}
+
+tasks {
+    yamlRestTest {
+        systemProperty("yaml.rest.tests.set_num_nodes", "false")
+        // The ILM plugin is not included in serverless, so disabling the ILM history store through a setting would cause an error.
+        systemProperty("yaml.rest.tests.disable_ilm_history", "false")
+    }
 }

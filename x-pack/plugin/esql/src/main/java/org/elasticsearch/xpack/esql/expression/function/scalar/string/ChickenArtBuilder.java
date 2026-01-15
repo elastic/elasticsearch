@@ -63,15 +63,15 @@ public enum ChickenArtBuilder {
              \\
               \\    MM
                \\ <' \\___/|
-             u/  \\_  _/
-                   ][
+              u/  \\_  _/
+                    ][
         """),
 
     // Chicken Soup
     SOUP("""
              \\
-              \\   ______
-               \\ /______\\
+              \\       ______
+               \\     /______\\
                 \\___________/
         """),
 
@@ -96,11 +96,11 @@ public enum ChickenArtBuilder {
              \\
               \\  .-=-.
                 _/     `.
-               /_( 9    |.__
-                 \          ``-._
+               /_( o    |.__
+                 \\          ``-._
                    |    _...     `
                    |  .'    `-. _,'
-                    \ `-.    ,' ;
+                    \\ `-.    ,' ;
                      `.  `~~'  /
                      _ 7`"..."'
                      ,'| __/
@@ -108,11 +108,11 @@ public enum ChickenArtBuilder {
         """),
     // Whistling Chicken
     WHISTLING("""
-             \\           |
-              \\         MM
-               \\       =' \\___/|
-                        \\_  _/
-                          ][
+             \\      |
+              \\    MM
+               \\  =' \\___/|
+                   \\_  _/
+                     ][
         """);
 
     // Pre-allocated BytesRef constants for single characters to avoid allocations

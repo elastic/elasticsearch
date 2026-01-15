@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -46,24 +45,6 @@ public class ItemUsage implements Writeable, ToXContentObject {
         this.indices = indices == null ? null : new HashSet<>(indices);
         this.dataStreams = dataStreams == null ? null : new HashSet<>(dataStreams);
         this.composableTemplates = composableTemplates == null ? null : new HashSet<>(composableTemplates);
-    }
-
-    public ItemUsage(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            this.indices = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            this.indices = null;
-        }
-        if (in.readBoolean()) {
-            this.dataStreams = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            this.dataStreams = null;
-        }
-        if (in.readBoolean()) {
-            this.composableTemplates = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            this.composableTemplates = null;
-        }
     }
 
     public Set<String> getIndices() {

@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -47,7 +46,6 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.completion.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.EnumSet;
@@ -59,7 +57,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -89,105 +86,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-
-    private static final Map<TaskType, GoogleVertexAiModelCreator> MODEL_CREATORS;
-
-    static {
-        GoogleVertexAiModelCreator completionModelCreator = new GoogleVertexAiModelCreator() {
-            @Override
-            public GoogleVertexAiChatCompletionModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                return new GoogleVertexAiChatCompletionModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    context
-                );
-            }
-
-            @Override
-            public GoogleVertexAiChatCompletionModel createFromModelConfigurationsAndSecrets(
-                ModelConfigurations config,
-                ModelSecrets secrets
-            ) {
-                return new GoogleVertexAiChatCompletionModel(config, secrets);
-            }
-        };
-        MODEL_CREATORS = Map.of(TaskType.TEXT_EMBEDDING, new GoogleVertexAiModelCreator() {
-            @Override
-            public GoogleVertexAiEmbeddingsModel createFromMaps(
-                String inferenceId,
-                TaskType taskType,
-                String service,
-                Map<String, Object> serviceSettings,
-                Map<String, Object> taskSettings,
-                ChunkingSettings chunkingSettings,
-                Map<String, Object> secretSettings,
-                ConfigurationParseContext context
-            ) {
-                return new GoogleVertexAiEmbeddingsModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
-            }
-
-            @Override
-            public GoogleVertexAiEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                return new GoogleVertexAiEmbeddingsModel(config, secrets);
-            }
-        },
-            TaskType.COMPLETION,
-            completionModelCreator,
-            TaskType.CHAT_COMPLETION,
-            completionModelCreator,
-            TaskType.RERANK,
-            new GoogleVertexAiModelCreator() {
-                @Override
-                public GoogleVertexAiRerankModel createFromMaps(
-                    String inferenceId,
-                    TaskType taskType,
-                    String service,
-                    Map<String, Object> serviceSettings,
-                    Map<String, Object> taskSettings,
-                    ChunkingSettings chunkingSettings,
-                    Map<String, Object> secretSettings,
-                    ConfigurationParseContext context
-                ) {
-                    return new GoogleVertexAiRerankModel(
-                        inferenceId,
-                        taskType,
-                        NAME,
-                        serviceSettings,
-                        taskSettings,
-                        secretSettings,
-                        context
-                    );
-                }
-
-                @Override
-                public GoogleVertexAiRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-                    return new GoogleVertexAiRerankModel(config, secrets);
-                }
-            }
-        );
-    }
+    private static final GoogleVertexAiModelFactory MODEL_FACTORY = new GoogleVertexAiModelFactory();
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
@@ -277,16 +176,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     @Override
     public GoogleVertexAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        var creator = MODEL_CREATORS.get(config.getTaskType());
-        if (creator == null) {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
-        return creator.createFromModelConfigurationsAndSecrets(config, secrets);
+        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -460,11 +350,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        var creator = MODEL_CREATORS.get(taskType);
-        if (creator == null) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-        return creator.createFromMaps(
+        return MODEL_FACTORY.createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -492,10 +378,10 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
@@ -551,20 +437,5 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                     .build();
             }
         );
-    }
-
-    private interface GoogleVertexAiModelCreator extends ModelCreator {
-        GoogleVertexAiModel createFromMaps(
-            String inferenceId,
-            TaskType taskType,
-            String service,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
-            @Nullable Map<String, Object> secretSettings,
-            ConfigurationParseContext context
-        );
-
-        GoogleVertexAiModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets);
     }
 }

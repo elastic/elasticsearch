@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -40,7 +41,7 @@ public class ChickenArtBuilderTests extends ESTestCase {
 
     public void testBuildChickenSaySingleLine() {
         try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
-            chicken.buildChickenSay(scratch, "Hello!");
+            chicken.buildChickenSay(scratch, new BytesRef("Hello!"));
             String result = scratch.bytesRefView().utf8ToString();
 
             assertThat(result, startsWith(" _"));
@@ -51,7 +52,7 @@ public class ChickenArtBuilderTests extends ESTestCase {
 
     public void testBuildChickenSayMultiLine() {
         try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
-            chicken.buildChickenSay(scratch, "This is a longer message that wraps across lines", 20);
+            chicken.buildChickenSay(scratch, new BytesRef("This is a longer message that wraps across lines"), 20);
             String result = scratch.bytesRefView().utf8ToString();
 
             assertThat(result, startsWith(" _"));
@@ -62,7 +63,7 @@ public class ChickenArtBuilderTests extends ESTestCase {
 
     public void testBuildChickenSayProducesOutput() {
         try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
-            chicken.buildChickenSay(scratch, "Test message");
+            chicken.buildChickenSay(scratch, new BytesRef("Test message"));
             String result = scratch.bytesRefView().utf8ToString();
 
             assertThat("Should produce output", result.length(), greaterThan(0));
@@ -74,7 +75,7 @@ public class ChickenArtBuilderTests extends ESTestCase {
 
     public void testBuildChickenSayEmpty() {
         try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
-            chicken.buildChickenSay(scratch, "");
+            chicken.buildChickenSay(scratch, new BytesRef(""));
             String result = scratch.bytesRefView().utf8ToString();
 
             assertThat(result, startsWith(" _"));
@@ -84,29 +85,41 @@ public class ChickenArtBuilderTests extends ESTestCase {
         }
     }
 
-    public void testWrapTextSingleLine() {
-        List<String> lines = ChickenArtBuilder.wrapText("Hello world", 40);
+    public void testWrapBytesSingleLine() {
+        BytesRef message = new BytesRef("Hello world");
+        List<ChickenArtBuilder.LineRange> lines = ChickenArtBuilder.wrapBytes(message, 40);
         assertEquals(1, lines.size());
-        assertEquals("Hello world", lines.get(0));
+        assertEquals("Hello world", extractLine(message, lines.get(0)));
     }
 
-    public void testWrapTextMultiLine() {
-        List<String> lines = ChickenArtBuilder.wrapText("This is a longer message that needs wrapping", 20);
+    public void testWrapBytesMultiLine() {
+        BytesRef message = new BytesRef("This is a longer message that needs wrapping");
+        List<ChickenArtBuilder.LineRange> lines = ChickenArtBuilder.wrapBytes(message, 20);
         assertThat(lines.size(), greaterThan(1));
-        for (String line : lines) {
-            assertTrue("Line too long: " + line, line.length() <= 20);
+        for (ChickenArtBuilder.LineRange line : lines) {
+            assertTrue("Display width too large: " + line.displayWidth(), line.displayWidth() <= 20);
         }
     }
 
-    public void testWrapTextEmpty() {
-        List<String> lines = ChickenArtBuilder.wrapText("", 40);
+    public void testWrapBytesEmpty() {
+        BytesRef message = new BytesRef("");
+        List<ChickenArtBuilder.LineRange> lines = ChickenArtBuilder.wrapBytes(message, 40);
         assertEquals(1, lines.size());
-        assertEquals("", lines.get(0));
+        assertEquals(0, lines.get(0).displayWidth());
     }
 
-    public void testWrapTextNull() {
-        List<String> lines = ChickenArtBuilder.wrapText(null, 40);
+    public void testWrapBytesWithUtf8() {
+        // Test with multi-byte UTF-8 characters (emoji is 4 bytes but 1 display char)
+        BytesRef message = new BytesRef("Hello 🐔 world");
+        List<ChickenArtBuilder.LineRange> lines = ChickenArtBuilder.wrapBytes(message, 40);
         assertEquals(1, lines.size());
-        assertEquals("", lines.get(0));
+        assertEquals("Hello 🐔 world", extractLine(message, lines.get(0)));
+    }
+
+    /**
+     * Helper method to extract a line from the original message using a LineRange.
+     */
+    private static String extractLine(BytesRef message, ChickenArtBuilder.LineRange range) {
+        return new BytesRef(message.bytes, range.startOffset(), range.endOffset() - range.startOffset()).utf8ToString();
     }
 }

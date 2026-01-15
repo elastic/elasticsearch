@@ -113,6 +113,7 @@ public enum ChickenArtBuilder {
     private static final BytesRef OPEN_PIPE = new BytesRef("| ");
     private static final BytesRef CLOSE_PIPE = new BytesRef(" |");
 
+    private static final byte SPACE_BYTE = ' ';
     private static final int DEFAULT_WIDTH = 40;
     private static final int MAX_WIDTH = 76;
 
@@ -133,27 +134,32 @@ public enum ChickenArtBuilder {
     /**
      * Builds the complete chicken say output with speech bubble and ASCII art,
      * appending directly to the provided {@link BreakingBytesRefBuilder}.
+     * Works directly with BytesRef to avoid String conversion.
      */
-    public void buildChickenSay(BreakingBytesRefBuilder scratch, String message) {
+    public void buildChickenSay(BreakingBytesRefBuilder scratch, BytesRef message) {
         buildChickenSay(scratch, message, DEFAULT_WIDTH);
     }
 
     /**
      * Builds the complete chicken say output with speech bubble and ASCII art,
      * appending directly to the provided {@link BreakingBytesRefBuilder}.
+     * Works directly with BytesRef to avoid String conversion.
      */
-    public void buildChickenSay(BreakingBytesRefBuilder scratch, String message, int maxWidth) {
+    public void buildChickenSay(BreakingBytesRefBuilder scratch, BytesRef message, int maxWidth) {
         // Clamp width
         int width = Math.min(maxWidth, MAX_WIDTH);
 
-        // Wrap the message into lines
-        List<String> lines = wrapText(message, width);
+        // Wrap the message into lines (as byte ranges)
+        List<LineRange> lines = wrapBytes(message, width);
 
-        // Calculate the actual width needed
-        int bubbleWidth = lines.stream().mapToInt(String::length).max().orElse(0);
+        // Calculate the actual width needed (using display width)
+        int bubbleWidth = 0;
+        for (LineRange line : lines) {
+            bubbleWidth = Math.max(bubbleWidth, line.displayWidth);
+        }
         bubbleWidth = Math.max(bubbleWidth, 2); // Minimum width
 
-        // Top border: " " + "_".repeat(bubbleWidth + 2) + "\n"
+        // Top border
         scratch.append(SPACE);
         appendRepeated(scratch, UNDERSCORE, bubbleWidth + 2);
         scratch.append(NEWLINE);
@@ -162,37 +168,125 @@ public enum ChickenArtBuilder {
         if (lines.size() == 1) {
             // Single line: use < >
             scratch.append(OPEN_ANGLE);
-            appendPadRight(scratch, lines.get(0), bubbleWidth);
+            appendLineWithPadding(scratch, message, lines.get(0), bubbleWidth);
             scratch.append(CLOSE_ANGLE);
             scratch.append(NEWLINE);
         } else {
             // Multi-line: use / \ for first/last, | | for middle
             for (int i = 0; i < lines.size(); i++) {
-                String line = lines.get(i);
+                LineRange line = lines.get(i);
                 if (i == 0) {
                     scratch.append(OPEN_SLASH);
-                    appendPadRight(scratch, line, bubbleWidth);
+                    appendLineWithPadding(scratch, message, line, bubbleWidth);
                     scratch.append(CLOSE_BACKSLASH);
                 } else if (i == lines.size() - 1) {
                     scratch.append(OPEN_BACKSLASH);
-                    appendPadRight(scratch, line, bubbleWidth);
+                    appendLineWithPadding(scratch, message, line, bubbleWidth);
                     scratch.append(CLOSE_SLASH);
                 } else {
                     scratch.append(OPEN_PIPE);
-                    appendPadRight(scratch, line, bubbleWidth);
+                    appendLineWithPadding(scratch, message, line, bubbleWidth);
                     scratch.append(CLOSE_PIPE);
                 }
                 scratch.append(NEWLINE);
             }
         }
 
-        // Bottom border: " " + "-".repeat(bubbleWidth + 2) + "\n"
+        // Bottom border
         scratch.append(SPACE);
         appendRepeated(scratch, DASH, bubbleWidth + 2);
         scratch.append(NEWLINE);
 
         // Add this chicken's ASCII art
         scratch.append(ascii);
+    }
+
+    /**
+     * Represents a line as a byte range within the original message.
+     */
+    record LineRange(int startOffset, int endOffset, int displayWidth) {}
+
+    /**
+     * Wraps bytes to fit within the specified display width.
+     * Returns a list of LineRange objects representing each wrapped line.
+     */
+    static List<LineRange> wrapBytes(BytesRef message, int maxDisplayWidth) {
+        if (message.length == 0) {
+            return List.of(new LineRange(message.offset, message.offset, 0));
+        }
+
+        List<LineRange> lines = new ArrayList<>();
+        byte[] bytes = message.bytes;
+        int offset = message.offset;
+        int end = message.offset + message.length;
+
+        int lineStart = offset;
+        int lineDisplayWidth = 0;
+        int wordStart = offset;
+        int wordDisplayWidth = 0;
+
+        int i = offset;
+        while (i < end) {
+            byte b = bytes[i];
+
+            if (b == SPACE_BYTE) {
+                // End of a word
+                if (lineStart == wordStart) {
+                    // First word on this line
+                    lineDisplayWidth = wordDisplayWidth;
+                } else if (lineDisplayWidth + 1 + wordDisplayWidth <= maxDisplayWidth) {
+                    // Word fits on current line (with space)
+                    lineDisplayWidth += 1 + wordDisplayWidth;
+                } else {
+                    // Word doesn't fit - emit current line and start new one
+                    lines.add(new LineRange(lineStart, wordStart - 1, lineDisplayWidth));
+                    lineStart = wordStart;
+                    lineDisplayWidth = wordDisplayWidth;
+                }
+                wordStart = i + 1;
+                wordDisplayWidth = 0;
+                i++;
+            } else {
+                // Part of a word - count UTF-8 code point
+                int codePointBytes = utf8CodePointLength(b);
+                wordDisplayWidth++;
+                i += codePointBytes;
+            }
+        }
+
+        // Handle the last word
+        if (wordStart < end) {
+            if (lineStart == wordStart) {
+                lineDisplayWidth = wordDisplayWidth;
+            } else if (lineDisplayWidth + 1 + wordDisplayWidth <= maxDisplayWidth) {
+                lineDisplayWidth += 1 + wordDisplayWidth;
+            } else {
+                lines.add(new LineRange(lineStart, wordStart - 1, lineDisplayWidth));
+                lineStart = wordStart;
+                lineDisplayWidth = wordDisplayWidth;
+            }
+        }
+
+        // Emit the final line
+        lines.add(new LineRange(lineStart, end, lineDisplayWidth));
+
+        return lines.isEmpty() ? List.of(new LineRange(message.offset, message.offset, 0)) : lines;
+    }
+
+    /**
+     * Returns the number of bytes in a UTF-8 code point based on the leading byte.
+     */
+    private static int utf8CodePointLength(byte leadingByte) {
+        if ((leadingByte & 0x80) == 0) {
+            return 1; // ASCII
+        } else if ((leadingByte & 0xE0) == 0xC0) {
+            return 2;
+        } else if ((leadingByte & 0xF0) == 0xE0) {
+            return 3;
+        } else if ((leadingByte & 0xF8) == 0xF0) {
+            return 4;
+        }
+        return 1; // Invalid UTF-8, treat as single byte
     }
 
     /**
@@ -205,43 +299,15 @@ public enum ChickenArtBuilder {
     }
 
     /**
-     * Appends a string to the builder, padded with spaces to reach the target width.
+     * Appends a line from the message with padding to reach the target width.
      */
-    private static void appendPadRight(BreakingBytesRefBuilder scratch, String s, int width) {
-        scratch.append(new BytesRef(s));
-        int padding = width - s.length();
+    private static void appendLineWithPadding(BreakingBytesRefBuilder scratch, BytesRef message, LineRange line, int targetWidth) {
+        if (line.endOffset > line.startOffset) {
+            scratch.append(message.bytes, line.startOffset, line.endOffset - line.startOffset);
+        }
+        int padding = targetWidth - line.displayWidth;
         if (padding > 0) {
             appendRepeated(scratch, SPACE, padding);
         }
-    }
-
-    /**
-     * Wraps text to fit within the specified width.
-     */
-    static List<String> wrapText(String text, int width) {
-        if (text == null || text.isEmpty()) {
-            return List.of("");
-        }
-
-        List<String> lines = new ArrayList<>();
-        String[] words = text.split(" ");
-        StringBuilder currentLine = new StringBuilder();
-
-        for (String word : words) {
-            if (currentLine.isEmpty()) {
-                currentLine.append(word);
-            } else if (currentLine.length() + 1 + word.length() <= width) {
-                currentLine.append(" ").append(word);
-            } else {
-                lines.add(currentLine.toString());
-                currentLine = new StringBuilder(word);
-            }
-        }
-
-        if (currentLine.isEmpty() == false) {
-            lines.add(currentLine.toString());
-        }
-
-        return lines.isEmpty() ? List.of("") : lines;
     }
 }

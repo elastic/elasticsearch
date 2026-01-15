@@ -80,9 +80,8 @@ public class Chicken extends UnaryScalarFunction {
 
     @Evaluator
     static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef message) {
-        String text = message.utf8ToString();
         scratch.clear();
-        ChickenArtBuilder.random().buildChickenSay(scratch, text);
+        ChickenArtBuilder.random().buildChickenSay(scratch, message);
         return scratch.bytesRefView();
     }
 

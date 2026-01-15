@@ -11,20 +11,18 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the {@link Chicken} Easter egg function.
@@ -46,7 +44,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(buildExpectedChickenSay(message, 40))
+                chickenOutputMatcher(message)
             );
         }));
 
@@ -56,7 +54,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.TEXT, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(buildExpectedChickenSay(message, 40))
+                chickenOutputMatcher(message)
             );
         }));
 
@@ -66,7 +64,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(buildExpectedChickenSay(message, 40))
+                chickenOutputMatcher(message)
             );
         }));
 
@@ -76,7 +74,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(buildExpectedChickenSay(message, 40))
+                chickenOutputMatcher(message)
             );
         }));
 
@@ -86,7 +84,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(message), DataType.KEYWORD, "message")),
                 "ChickenEvaluator[message=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(buildExpectedChickenSay(message, 40))
+                chickenOutputMatcher(message)
             );
         }));
 
@@ -99,12 +97,55 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
     }
 
     /**
-     * Helper to build expected chicken output for test assertions.
+     * Matcher that verifies chicken output has expected structure without requiring exact match.
+     * Since the chicken art is randomly selected, we verify structure rather than exact content.
      */
-    private static BytesRef buildExpectedChickenSay(String message, int width) {
-        try (BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofKb(2)), "test")) {
-            ChickenArtBuilder.random().buildChickenSay(scratch, message, width);
-            return BytesRef.deepCopyOf(scratch.bytesRefView());
-        }
+    private static TypeSafeMatcher<Object> chickenOutputMatcher(String expectedMessage) {
+        return new TypeSafeMatcher<>() {
+            @Override
+            protected boolean matchesSafely(Object item) {
+                if (item instanceof BytesRef == false) {
+                    return false;
+                }
+                String result = ((BytesRef) item).utf8ToString();
+
+                // Check structural elements
+                if (result.startsWith(" _") == false) {
+                    return false; // Missing top border
+                }
+                if (result.contains(" -") == false) {
+                    return false; // Missing bottom border
+                }
+                if (result.contains("\\") == false) {
+                    return false; // Missing chicken art (all chickens have backslash)
+                }
+
+                // Check message content is present (for non-empty messages)
+                // For wrapped messages, check that all words are present
+                if (expectedMessage.isEmpty() == false) {
+                    for (String word : expectedMessage.split(" ")) {
+                        if (result.contains(word) == false) {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("chicken output containing message '").appendText(expectedMessage).appendText("'");
+            }
+
+            @Override
+            protected void describeMismatchSafely(Object item, Description mismatchDescription) {
+                if (item instanceof BytesRef) {
+                    mismatchDescription.appendText("was:\n").appendText(((BytesRef) item).utf8ToString());
+                } else {
+                    mismatchDescription.appendText("was not a BytesRef: ").appendValue(item);
+                }
+            }
+        };
     }
 }

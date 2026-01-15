@@ -18,7 +18,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.stream.IntStream;
+import java.util.Arrays;
 
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
@@ -36,29 +36,46 @@ public class MappedByteBufferTests extends ESTestCase {
 
     public void testBasic() throws IOException {
         int size = randomIntBetween(10, 4096);
+        testBasicImpl(size, 0);
+    }
+
+    public void testBasicWithFileMapOffset() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        testBasicImpl(size, 1);
+    }
+
+    public void testBasicTiny() throws IOException {
+        int size = randomIntBetween(10, 20);
+        testBasicImpl(size, 0);
+        testBasicImpl(size, 1);
+    }
+
+    void testBasicImpl(int size, int filePositionOffset) throws IOException {
         var tmp = createTempDir();
         Path file = tmp.resolve("testBasic");
-        Files.write(file, newByteArray(size), CREATE, WRITE);
+        Files.write(file, newByteArray(size, filePositionOffset), CREATE, WRITE);
         // we need to unwrap our test-only file system layers
         file = Unwrappable.unwrapAll(file);
+        int len = size - filePositionOffset;
         try (
             FileChannel fileChannel = FileChannel.open(file, READ);
-            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, filePositionOffset, len)
         ) {
-            mappedByteBuffer.prefetch(0, size);
+            mappedByteBuffer.prefetch(0, len);
 
             var buffer = mappedByteBuffer.buffer();
             assertThat(buffer.position(), equalTo(0));
-            assertThat(buffer.limit(), equalTo(size));
-            assertThat((byte) (size - 1), equalTo(buffer.get(size - 1)));
-            mappedByteBuffer.prefetch(0, size);
+            assertThat(buffer.limit(), equalTo(len));
+            assertThat((byte) (0), equalTo(buffer.get(0)));  // expected first value
+            assertThat((byte) (len - 1), equalTo(buffer.get(len - 1))); // expected last value
+            mappedByteBuffer.prefetch(0, len);
 
-            assertSliceOfBuffer(mappedByteBuffer, 0, size);
-            assertSliceOfBuffer(mappedByteBuffer, 1, size - 1);
-            assertSliceOfBuffer(mappedByteBuffer, 2, size - 2);
-            assertSliceOfBuffer(mappedByteBuffer, 3, size - 3);
+            assertSliceOfBuffer(mappedByteBuffer, 0, len);
+            assertSliceOfBuffer(mappedByteBuffer, 1, len - 1);
+            assertSliceOfBuffer(mappedByteBuffer, 2, len - 2);
+            assertSliceOfBuffer(mappedByteBuffer, 3, len - 3);
 
-            assertOutOfBounds(mappedByteBuffer, size);
+            assertOutOfBounds(mappedByteBuffer, len);
         }
     }
 
@@ -68,7 +85,7 @@ public class MappedByteBufferTests extends ESTestCase {
         int size = randomIntBetween(10, 4096);
         var tmp = createTempDir();
         Path file = tmp.resolve("testPrefetchWithOffsets");
-        Files.write(file, newByteArray(size), CREATE, WRITE);
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
         // we need to unwrap our test-only file system layers
         file = Unwrappable.unwrapAll(file);
         try (
@@ -121,9 +138,14 @@ public class MappedByteBufferTests extends ESTestCase {
         }
     }
 
-    private byte[] newByteArray(int size) {
+    // Creates a byte array containing monotonically incrementing values, starting
+    // a value of 0 at the given offset. Useful to assert positional values.
+    private byte[] newByteArray(int size, int offset) {
         byte[] buffer = new byte[size];
-        IntStream.range(0, buffer.length).forEach(i -> buffer[i] = (byte) i);
+        Arrays.fill(buffer, (byte) 0xFF);
+        for (int i = 0; i < buffer.length - offset; i++) {
+            buffer[i + offset] = (byte) i;
+        }
         return buffer;
     }
 }

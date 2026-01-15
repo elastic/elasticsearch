@@ -82,6 +82,10 @@ class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
                 return;
             }
         }
-        LIB.madvise(segment, offset, length, PosixCLibrary.POSIX_MADV_WILLNEED);
+        int ret = LIB.madvise(segment, offset, length, PosixCLibrary.POSIX_MADV_WILLNEED);
+        if (ret != 0) {
+            int errno = LIB.errno();
+            throw new RuntimeException("madvise failed with (error=" + errno + "): " + LIB.strerror(errno));
+        }
     }
 }

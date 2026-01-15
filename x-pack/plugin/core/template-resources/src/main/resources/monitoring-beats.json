@@ -1010,8 +1010,8 @@
                                 "disk_total": {
                                   "type": "long"
                                 },
-                                "disk_usage_threshold": {
-                                  "type": "long"
+                                "disk_usage_threshold_pct": {
+                                  "type": "float"
                                 }
                               }
                             }

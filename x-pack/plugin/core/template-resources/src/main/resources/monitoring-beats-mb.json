@@ -830,8 +830,8 @@
                                 "disk_total": {
                                   "type": "long"
                                 },
-                                "disk_usage_threshold": {
-                                  "type": "long"
+                                "disk_usage_threshold_pct": {
+                                  "type": "float"
                                 }
                               }
                             }
@@ -2326,9 +2326,9 @@
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.sampling.tail.storage.disk_total"
                                 },
-                                "disk_usage_threshold": {
+                                "disk_usage_threshold_pct": {
                                   "type": "alias",
-                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_usage_threshold"
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_usage_threshold_pct"
                                 }
                               }
                             }

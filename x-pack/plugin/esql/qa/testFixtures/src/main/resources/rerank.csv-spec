@@ -224,8 +224,8 @@ FROM books METADATA _score
 | RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
 | SORT rerank_score DESC, book_no DESC
 | LIMIT 3
-| KEEP title, _score, rerank_score
 // end::two-queries[]
+| KEEP title, _score, rerank_score
 ;
 
 // tag::two-queries-result[]
@@ -249,8 +249,8 @@ FROM books METADATA _score
 | EVAL original_score = _score, _score = rerank_score + original_score
 | SORT _score
 | LIMIT 3
-| KEEP title, original_score, rerank_score, _score
 // end::combine[]
+| KEEP title, original_score, rerank_score, _score
 ;
 
 // tag::combine-result[]
@@ -274,4 +274,24 @@ FROM books METADATA _score
 
 count_book:long
 2
+;
+
+rerank using snippets
+required_capability: rerank
+required_capability: top_snippets_function
+required_capability: match_function
+
+// tag::rerank-top-snippets[]
+FROM books
+| WHERE MATCH(title, "return")
+| RERANK "Tolkien" ON TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 }) WITH { "inference_id" : "test_reranker" }
+// end::rerank-top-snippets[]
+| KEEP book_no, title, _score;
+ignoreOrder: true
+
+// tag::rerank-top-snippets-result[]
+book_no:keyword | title:text                                                           | _score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings     | 0.007092198356986046            
+7350            | Return of the Shadow                                                 | 0.012500000186264515
+// end::rerank-top-snippets-result[]
 ;

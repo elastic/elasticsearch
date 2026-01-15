@@ -22,6 +22,8 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -108,7 +110,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() {
-        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            settings.put("index.codec", "default").put("index.number_of_replicas", 0).put("index.mapping.use_synthetic_id", true);
+        }
         client().admin()
             .indices()
             .prepareCreate("hosts")
@@ -981,6 +986,34 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(sumOfAvgPerTBucket.get(tbucket), closeTo(expectedSumOfAvgPerTBucket.get(tbucket), 0.5));
             }
         }
+    }
+
+    public void testLoadId() {
+        Map<String, Tuple<String, String>> fromEsql = new HashMap<>();
+        try (var resp = run("FROM hosts* METADATA _id, _tsid | KEEP _id, _tsid, @timestamp | LIMIT 1000")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            for (List<Object> row : rows) {
+                String id = row.get(0).toString();
+                String tsid = row.get(1).toString();
+                String timestamp = row.get(2).toString();
+                fromEsql.put(id, Tuple.tuple(tsid, timestamp));
+            }
+        }
+        var searchResponse = client().prepareSearch("hosts*")
+            .addFetchField("_tsid")
+            .addFetchField("@timestamp")
+            .setSize(1000)
+            .setFetchSource(false)
+            .get();
+        Map<String, Tuple<String, String>> fromSearch = new HashMap<>();
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            String id = hit.getId();
+            String tsid = hit.getFields().get("_tsid").getValue().toString();
+            String timestamp = hit.getFields().get("@timestamp").getValue().toString();
+            fromSearch.put(id, Tuple.tuple(tsid, timestamp));
+        }
+        searchResponse.decRef();
+        assertThat(fromEsql, equalTo(fromSearch));
     }
 
     private static double round(double value) {

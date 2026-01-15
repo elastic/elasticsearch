@@ -138,6 +138,45 @@ public interface VectorSimilarityFunctions {
     MethodHandle dotProductHandleFloat32();
 
     /**
+     * Produces a method handle which computes the dot product of several float vectors.
+     * This bulk operation can be used to compute the dot product between a
+     * single query vector and a number of other vectors.
+     *
+     * <p> The type of the method handle will have {@code void} as return type. The type of
+     * its first and second arguments will be {@code MemorySegment}, the former contains the
+     * vector data floats for several vectors, while the latter just a single vector. The
+     * type of the third argument is an int, representing the dimensions of each vector. The
+     * type of the fourth argument is an int, representing the number of vectors in the
+     * first argument. The type of the final argument is a MemorySegment, into which the
+     * computed dot product float values will be stored.
+     */
+    MethodHandle dotProductHandleFloat32Bulk();
+
+    /**
+     * Produces a method handle which computes the dot product of several float vectors.
+     * This bulk operation can be used to compute the dot product between a
+     * single query vector and a subset of vectors from a dataset (array of vectors). Each
+     * vector to include in the operation is identified by an offset inside the dataset.
+     *
+     * <p> The type of the method handle will have {@code void} as return type. The type of
+     * its arguments will be:
+     * <ol>
+     *     <li>a {@code MemorySegment} containing the vector data floats for several vectors;
+     *     in other words, a contiguous array of vectors</li>
+     *     <li>a {@code MemorySegment} containing the vector data floats for a single ("query") vector</li>
+     *     <li>an {@code int}, representing the dimensions of each vector</li>
+     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
+     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
+     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
+     *     on which we'll compute the dot product</li>
+     *     <li>an {@code int}, representing the number of vectors for which we'll compute the dot product
+     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
+     *     <li>a {@code MemorySegment}, into which the computed dot product float values will be stored</li>
+     * </ol>
+     */
+    MethodHandle dotProductHandleFloat32BulkWithOffsets();
+
+    /**
      * Produces a method handle returning the square distance of float32 vectors.
      *
      * <p> The type of the method handle will have {@code float} as return type, The type of
@@ -146,4 +185,43 @@ public interface VectorSimilarityFunctions {
      * 4-byte float32 elements.
      */
     MethodHandle squareDistanceHandleFloat32();
+
+    /**
+     * Produces a method handle returning the square distance of several float vectors.
+     * This bulk operation can be used to compute the square distance between a
+     * single query vector and a number of other vectors.
+     *
+     * <p> The type of the method handle will have {@code void} as return type. The type of
+     * its first and second arguments will be {@code MemorySegment}, the former contains the
+     * vector data floats for several vectors, while the latter just a single vector. The
+     * type of the third argument is an int, representing the dimensions of each vector. The
+     * type of the fourth argument is an int, representing the number of vectors in the
+     * first argument. The type of the final argument is a MemorySegment, into which the
+     * computed square distance float values will be stored.
+     */
+    MethodHandle squareDistanceHandleFloat32Bulk();
+
+    /**
+     * Produces a method handle returning the square distance of several float vectors.
+     * This bulk operation can be used to compute the square distance between a
+     * single query vector and a subset of vectors from a dataset (array of vectors). Each
+     * vector to include in the operation is identified by an offset inside the dataset.
+     *
+     * <p> The type of the method handle will have {@code void} as return type. The type of
+     * its arguments will be:
+     * <ol>
+     *     <li>a {@code MemorySegment} containing the vector data floats for several vectors;
+     *     in other words, a contiguous array of vectors</li>
+     *     <li>a {@code MemorySegment} containing the vector data floats for a single ("query") vector</li>
+     *     <li>an {@code int}, representing the dimensions of each vector</li>
+     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
+     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
+     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
+     *     on which we'll compute the square distance</li>
+     *     <li>an {@code int}, representing the number of vectors for which we'll compute the square distance
+     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
+     *     <li>a {@code MemorySegment}, into which the computed square distance float values will be stored</li>
+     * </ol>
+     */
+    MethodHandle squareDistanceHandleFloat32BulkWithOffsets();
 }

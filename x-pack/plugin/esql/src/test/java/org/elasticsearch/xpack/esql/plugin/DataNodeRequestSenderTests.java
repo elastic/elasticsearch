@@ -73,6 +73,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
@@ -322,6 +324,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             );
         }
 
+        // this will force requests to pile up
+        boolean forceConcurrent = randomBoolean();
+
         var concurrency = randomIntBetween(1, 2);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
@@ -339,12 +344,30 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> {
+                if (forceConcurrent) {
+                    int maxRetries = 0;
+                    // This forces the requests to pile up to test the concurrency limit is respected
+                    while (maxConcurrentRequests.get() < concurrency && maxRetries++ < 100) {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
                 concurrentRequests.decrementAndGet();
                 listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
             });
         }));
         assertThat(sent.size(), equalTo(shards));
-        assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        if (forceConcurrent) {
+            // Since we forced the concurrency, we should hit the exact concurrency limit here
+            assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        } else {
+            // Since the requests are not forced to run concurrently, we might not hit the concurrency limit
+            // But we never have to exceed it
+            assertThat(maxConcurrentRequests.get(), is(lessThanOrEqualTo(concurrency)));
+        }
         assertThat(response.totalShards, equalTo(shards));
         assertThat(response.successfulShards, equalTo(shards));
         assertThat(response.failedShards, equalTo(0));

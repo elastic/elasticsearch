@@ -32,12 +32,12 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
         @Override
         public ScalarFunctionFactory asFunction() {
             return switch (this) {
-                case EQ -> Equals::new;
-                case NEQ -> NotEquals::new;
-                case GT -> GreaterThan::new;
-                case GTE -> GreaterThanOrEqual::new;
-                case LT -> LessThan::new;
-                case LTE -> LessThanOrEqual::new;
+                case EQ -> (s, l, r, c) -> new Equals(s, l, r);
+                case NEQ -> (s, l, r, c) -> new NotEquals(s, l, r);
+                case GT -> (s, l, r, c) -> new GreaterThan(s, l, r);
+                case GTE -> (s, l, r, c) -> new GreaterThanOrEqual(s, l, r);
+                case LT -> (s, l, r, c) -> new LessThan(s, l, r);
+                case LTE -> (s, l, r, c) -> new LessThanOrEqual(s, l, r);
             };
         }
     }

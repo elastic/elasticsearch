@@ -22,18 +22,24 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -616,34 +622,83 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(literal.value(), equalTo(2.0));
     }
 
-    public void testTopLevelArithmeticOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m foo and bar", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m 1+foo", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo+bar", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-    }
-
     public void testUnsupportedBinaryOperators() {
         assertThat(
-            error("PROMQL index=k8s step=5m max(foo or bar)", tsAnalyzer),
+            error("PROMQL index=k8s step=5m foo or bar", tsAnalyzer),
             containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
         );
         assertThat(
-            error("PROMQL index=k8s step=5m max(foo > bar)", tsAnalyzer),
+            error("PROMQL index=k8s step=5m foo > bar", tsAnalyzer),
             containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
         );
+    }
+
+    public void testTopLevelBinaryArithmeticQuery() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m in_n_out=(
+                network.eth0.rx + network.eth0.tx
+              )
+            | SORT in_n_out""");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
+        Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
+        assertThat(add.left().sourceText(), equalTo("network.eth0.rx"));
+        assertThat(add.right().sourceText(), equalTo("network.eth0.tx"));
+    }
+
+    public void testGroupByAllWithinSeriesAggregate() {
+        var plan = planPromql("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("count", "step", "_timeseries")));
+    }
+
+    public void testBinaryInstantSelectorAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
+
+        Mul mul = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Mul.class);
+        assertThat(as(as(mul.left(), ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
+        assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
+
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryAcrossSeriesAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in) * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
+
+        Eval eval = plan.collect(Eval.class).getFirst();
+        Mul mul = as(eval.fields().getFirst().child(), Mul.class);
+        assertThat(mul.left().sourceText(), equalTo("max(network.total_bytes_in)"));
+        assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
+
+        Aggregate agg = eval.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(agg.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+
+        TimeSeriesAggregate tsAgg = agg.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAgg.timeBucket().buckets().fold(null), equalTo(Duration.ofMinutes(1)));
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+    }
+
+    public void testAcrossSeriesMultiplicationLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
+
+        Aggregate agg = plan.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(agg.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.total_bytes_in * 8"));
+
+        Eval eval = agg.collect(Eval.class).getFirst();
+        Mul mul = as(Alias.unwrap(eval.fields().getFirst().child()), Mul.class);
+        assertThat(mul.left().sourceText(), equalTo("network.total_bytes_in"));
+        assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
+
+        TimeSeriesAggregate tsAgg = eval.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAgg.timeBucket().buckets().fold(null), equalTo(Duration.ofMinutes(1)));
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
     }
 
     public void testGroupByAllInstantSelector() {

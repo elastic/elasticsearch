@@ -191,7 +191,14 @@ public class EsqlQueryLogTests extends ESTestCase {
 
             @Override
             public PlanningProfile planningProfile() {
-                return new PlanningProfile(randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan());
+                return new PlanningProfile(
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomIntBetween(0, 100)
+                );
             }
         };
 

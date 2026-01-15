@@ -23,6 +23,7 @@ emp_no:integer | _fork:keyword
 
 simpleForkWithStats
 required_capability: fork_v9
+required_capability: routing_function_update
 
 // tag::simpleForkWithStats[]
 FROM books METADATA _score
@@ -36,11 +37,11 @@ FROM books METADATA _score
 
 // tag::simpleForkWithStats-result[]
 author:text      | score:double | _fork:keyword | total:long
-William Faulkner | 2.39         | fork1         | null
-William Faulkner | 2.39         | fork1         | null
-Colleen Faulkner | 1.59         | fork1         | null
-Danny Faulkner   | 1.59         | fork1         | null
-Keith Faulkner   | 1.59         | fork1         | null
+Colleen Faulkner | 2.18         | fork1         | null
+William Faulkner | 2.18         | fork1         | null
+Danny Faulkner   | 2.02         | fork1         | null
+Paul Faulkner    | 2.02         | fork1         | null
+William Faulkner | 2.02         | fork1         | null
 null             | null         | fork2         | 18
 // end::simpleForkWithStats-result[]
 ;
@@ -961,4 +962,34 @@ FROM employees
 emp_no:integer | _fork:keyword
 10001          | fork1
 10002          | fork2
+;
+
+forkWithOneEmptyBranch
+required_capability: fork_v9
+
+FROM books METADATA _score
+| WHERE author:"Faulkner"
+| EVAL score = round(_score, 2)
+| FORK (SORT score DESC, author | LIMIT 5 | EVAL x = 1 | WHERE x > 100 | KEEP author)
+       (STATS total = COUNT(*))
+| SORT _fork DESC, author
+;
+
+author:text | _fork:keyword | total:long
+null        | fork2         | 18
+;
+
+forkWithAllEmptyBranches
+required_capability: fork_v9
+required_capability: fn_contains
+
+FROM books METADATA _score
+| WHERE author:"Faulkner"
+| EVAL score = round(_score, 2)
+| FORK (SORT score DESC, author | LIMIT 5 | EVAL x = 1 | WHERE x > 100 | KEEP author)
+       (STATS total = COUNT(*) | WHERE CONTAINS(CONCAT("abc", "def"), "ghi"))
+| SORT _fork DESC, author
+;
+
+author:text | _fork:keyword | total:long
 ;

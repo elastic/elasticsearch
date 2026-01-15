@@ -1733,7 +1733,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 searchRequest.getLocalClusterAlias(),
                 indicesAndAliases,
-                concreteLocalIndices
+                concreteLocalIndices,
+                searchPhaseProvider.getClass().getName().equals(CanMatchPreFilterSearchPhase.class.getName()) == false
             );
 
             // localShardIterators is empty since there are no matching indices. In such cases,
@@ -2361,7 +2362,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         String clusterAlias,
         Set<ResolvedExpression> indicesAndAliases,
-        String[] concreteIndices
+        String[] concreteIndices,
+        boolean shouldSort
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
@@ -2376,7 +2378,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 routingMap,
                 searchRequest.preference(),
                 responseCollectorService,
-                searchTransportService.getPendingSearchRequests()
+                searchTransportService.getPendingSearchRequests(),
+                shouldSort
             );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(
             projectState,

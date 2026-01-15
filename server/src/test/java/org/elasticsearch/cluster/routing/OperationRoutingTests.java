@@ -312,7 +312,7 @@ public class OperationRoutingTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
 
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
@@ -322,14 +322,14 @@ public class OperationRoutingTests extends ESTestCase {
         assertNotNull(firstChoice);
         searchedShards.add(firstChoice);
 
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
 
         assertThat(groupIterator.size(), equalTo(numIndices * numShards));
         ShardRouting secondChoice = groupIterator.get(0).nextOrNull();
         assertNotNull(secondChoice);
         searchedShards.add(secondChoice);
 
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), false);
 
         assertThat(groupIterator.size(), equalTo(numIndices * numShards));
         ShardRouting thirdChoice = groupIterator.get(0).nextOrNull();
@@ -344,26 +344,26 @@ public class OperationRoutingTests extends ESTestCase {
         collector.addNodeStatistics("node_1", 1, TimeValue.timeValueMillis(150).nanos(), TimeValue.timeValueMillis(50).nanos());
         collector.addNodeStatistics("node_2", 1, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(200).nanos());
 
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), false);
         ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
         // node 1 should be the lowest ranked node to start
         assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
 
         // node 1 starts getting more loaded...
         collector.addNodeStatistics("node_1", 1, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(100).nanos());
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
         shardChoice = groupIterator.get(0).nextOrNull();
         assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
 
         // and more loaded...
         collector.addNodeStatistics("node_1", 2, TimeValue.timeValueMillis(220).nanos(), TimeValue.timeValueMillis(120).nanos());
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), false);
         shardChoice = groupIterator.get(0).nextOrNull();
         assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
 
         // and even more
         collector.addNodeStatistics("node_1", 3, TimeValue.timeValueMillis(250).nanos(), TimeValue.timeValueMillis(150).nanos());
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
         shardChoice = groupIterator.get(0).nextOrNull();
         // finally, node 0 is chosen instead
         assertThat(shardChoice.currentNodeId(), equalTo("node_0"));
@@ -393,7 +393,7 @@ public class OperationRoutingTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
         // We have two nodes, where the second has more load
@@ -402,7 +402,7 @@ public class OperationRoutingTests extends ESTestCase {
 
         // Check the first node is usually selected, if it's stats don't change much
         for (int i = 0; i < 10; i++) {
-            groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+            groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
             ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
             assertThat(shardChoice.currentNodeId(), equalTo("node_0"));
 
@@ -418,7 +418,7 @@ public class OperationRoutingTests extends ESTestCase {
 
         // Check that we try the second when the first node slows down more
         collector.addNodeStatistics("node_0", 2, TimeValue.timeValueMillis(60).nanos(), TimeValue.timeValueMillis(50).nanos());
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
         ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
         assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
 
@@ -454,7 +454,15 @@ public class OperationRoutingTests extends ESTestCase {
         Map<String, Long> outstandingRequests = new HashMap<>();
 
         // Check that we choose to search over both nodes
-        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, outstandingRequests);
+        List<SearchShardRouting> groupIterator = opRouting.searchShards(
+            project,
+            indexNames,
+            null,
+            null,
+            collector,
+            outstandingRequests,
+            true
+        );
 
         Set<String> nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
@@ -468,7 +476,7 @@ public class OperationRoutingTests extends ESTestCase {
         outstandingRequests = new HashMap<>();
 
         // Check that we always choose the second node
-        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, outstandingRequests);
+        groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, outstandingRequests, true);
 
         nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());

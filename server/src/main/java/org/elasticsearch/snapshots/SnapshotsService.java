@@ -670,12 +670,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      ///
      /// Visible for tests.
     static Metadata adjustNewSnapshotMetadata(Metadata original, SnapshotsInProgress.Entry entry) {
+        logger.error(entry);
+
         Metadata.Builder builder = Metadata.builder(original);
 
         for (var project : original.projects().values()) {
             var indicesBuilder = ImmutableOpenMap.<String, IndexMetadata>builder();
             for (Map.Entry<String, IndexMetadata> indexNameAndMetadata : project.indices().entrySet()) {
                 IndexMetadata indexMetadata = indexNameAndMetadata.getValue();
+
+                if (entry.indices().containsKey(indexNameAndMetadata.getKey()) == false) {
+                    // Not in the snapshot, so no need to adjust the metadata.
+                    continue;
+                }
 
                 if (indexMetadata.getReshardingMetadata() != null) {
                     // This index is being resharded, strip the resharding metadata
@@ -706,6 +713,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         indexMetadata.getIndex(),
                         indexMetadata.getNumberOfShards()
                     );
+                    logger.error(numberOfShards);
+                    logger.error(indexMetadata.getNumberOfShards());
                     if (numberOfShards != indexMetadata.getNumberOfShards()) {
                         var newMetadata = IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShards).build();
                         indicesBuilder.put(indexNameAndMetadata.getKey(), newMetadata);
@@ -727,11 +736,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * we can't make any assumptions here and calculate it based on the index metadata.
      */
     private static int calculateNumberOfShardsAccordingToSnapshot(SnapshotsInProgress.Entry entry, Index index, int max) {
-        var maxPresentShardId = 0;
-        for (int i = 1; i < max; i++) {
-            if (entry.shards().get(new ShardId(index, i)) != null) {
-                maxPresentShardId = i;
-            }
+        logger.error(index);
+
+        int maxPresentShardId = 0;
+        assert entry.shards().get(new ShardId(index, 0)) != null;
+
+        int i = 1;
+        while (entry.shards().get(new ShardId(index, i)) != null) {
+            maxPresentShardId = i;
+            i++;
         }
 
         return maxPresentShardId + 1;

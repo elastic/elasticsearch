@@ -92,7 +92,20 @@ public enum ChickenArtBuilder {
                   \\____/
                     ><
         """),
-
+    REALISTIC("""
+             \\
+              \\  .-=-.
+                _/     `.
+               /_( 9    |.__
+                 \          ``-._
+                   |    _...     `
+                   |  .'    `-. _,'
+                    \ `-.    ,' ;
+                     `.  `~~'  /
+                     _ 7`"..."'
+                     ,'| __/
+                         ,'\
+        """),
     // Whistling Chicken
     WHISTLING("""
              \\           |

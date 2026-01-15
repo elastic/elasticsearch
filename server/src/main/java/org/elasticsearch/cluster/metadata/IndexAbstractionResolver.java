@@ -393,7 +393,7 @@ public class IndexAbstractionResolver {
     }
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+        return index.startsWith(".") && expression.startsWith(".");
     }
 
     private static boolean indexExists(ProjectMetadata projectMetadata, String indexAbstraction) {

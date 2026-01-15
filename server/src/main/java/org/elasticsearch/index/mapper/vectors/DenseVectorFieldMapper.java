@@ -1739,12 +1739,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
-                Object quantizeBitsNode = indexOptionsMap.remove("bits");
-                int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
-                if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4) == false) {
-                    throw new IllegalArgumentException(
-                        "quantize_bits must be 1, 2 or 4, got: " + quantizeBits + " for field [" + fieldName + "]"
-                    );
+                int quantizeBits;
+                if (Build.current().isSnapshot()) {
+                    Object quantizeBitsNode = indexOptionsMap.remove("bits");
+                    quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
+                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4) == false) {
+                        throw new IllegalArgumentException(
+                            "quantize_bits must be 1, 2 or 4, got: " + quantizeBits + " for field [" + fieldName + "]"
+                        );
+                    }
+                } else {
+                    quantizeBits = 1;
                 }
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -2460,12 +2465,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return clusterSize == that.clusterSize
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
+                && bits == that.bits
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, onDiskRescore, rescoreVector);
+            return Objects.hash(clusterSize, defaultVisitPercentage, onDiskRescore, rescoreVector, bits);
         }
 
         @Override
@@ -2484,6 +2490,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
+            }
+            if (Build.current().isSnapshot()) {
+                builder.field("bits", bits);
             }
             builder.endObject();
             return builder;

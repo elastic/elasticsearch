@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -229,7 +230,10 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             fi.vectorDataLength,
             quantizedVectorData
         );
-        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
+        var vectorValues = rawVectorsReader.getFloatVectorValues(field);
+        return vectorValues instanceof HasIndexSlice s
+            ? new SliceableBinarizedVectorValues(vectorValues, s, bvv)
+            : new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
     }
 
     @Override
@@ -373,9 +377,9 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     /** Binarized vector values holding row and quantized vector values */
-    protected static final class BinarizedVectorValues extends FloatVectorValues {
-        private final FloatVectorValues rawVectorValues;
-        private final BinarizedByteVectorValues quantizedVectorValues;
+    protected static class BinarizedVectorValues extends FloatVectorValues {
+        final FloatVectorValues rawVectorValues;
+        final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
             this.rawVectorValues = rawVectorValues;
@@ -424,6 +428,32 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
         BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
             return quantizedVectorValues;
+        }
+    }
+
+    protected static final class SliceableBinarizedVectorValues extends BinarizedVectorValues implements HasIndexSlice {
+        private final HasIndexSlice slicer;
+
+        SliceableBinarizedVectorValues(
+            FloatVectorValues rawVectorValues,
+            HasIndexSlice slicer,
+            BinarizedByteVectorValues quantizedVectorValues
+        ) {
+            super(rawVectorValues, quantizedVectorValues);
+            this.slicer = slicer;
+        }
+
+        @Override
+        public BinarizedVectorValues copy() throws IOException {
+            assert rawVectorValues instanceof HasIndexSlice;
+            var rawCopy = rawVectorValues.copy();
+            var slicerCopy = (HasIndexSlice) rawCopy;
+            return new SliceableBinarizedVectorValues(rawCopy, slicerCopy, quantizedVectorValues.copy());
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return slicer.getSlice();
         }
     }
 }

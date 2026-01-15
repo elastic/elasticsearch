@@ -22,7 +22,6 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
-import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -42,12 +41,12 @@ import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.search.internal.FilterFloatVectorValues;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -216,10 +215,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
             fi.vectorDataLength,
             quantizedVectorData
         );
-        var vectorValues = rawVectorsReader.getFloatVectorValues(field);
-        return vectorValues instanceof HasIndexSlice s
-            ? new SliceableBinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), s, bvv)
-            : new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
+        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
     }
 
     @Override
@@ -363,48 +359,17 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     /** Binarized vector values holding row and quantized vector values */
-    protected static class BinarizedVectorValues extends FloatVectorValues {
-        final FloatVectorValues rawVectorValues;
+    protected static class BinarizedVectorValues extends FilterFloatVectorValues {
         final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
-            this.rawVectorValues = rawVectorValues;
+            super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
         }
 
         @Override
-        public int dimension() {
-            return rawVectorValues.dimension();
-        }
-
-        @Override
-        public int size() {
-            return rawVectorValues.size();
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return rawVectorValues.vectorValue(ord);
-        }
-
-        @Override
         public BinarizedVectorValues copy() throws IOException {
-            return new BinarizedVectorValues(rawVectorValues.copy(), quantizedVectorValues.copy());
-        }
-
-        @Override
-        public Bits getAcceptOrds(Bits acceptDocs) {
-            return rawVectorValues.getAcceptOrds(acceptDocs);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return rawVectorValues.ordToDoc(ord);
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return rawVectorValues.iterator();
+            return new BinarizedVectorValues(in.copy(), quantizedVectorValues.copy());
         }
 
         @Override
@@ -414,31 +379,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
         protected BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
             return quantizedVectorValues;
-        }
-    }
-
-    protected static class SliceableBinarizedVectorValues extends BinarizedVectorValues implements HasIndexSlice {
-        private final HasIndexSlice slicer;
-
-        SliceableBinarizedVectorValues(
-            FloatVectorValues rawVectorValues,
-            HasIndexSlice slicer,
-            BinarizedByteVectorValues quantizedVectorValues
-        ) {
-            super(rawVectorValues, quantizedVectorValues);
-            this.slicer = slicer;
-        }
-
-        @Override
-        public BinarizedVectorValues copy() throws IOException {
-            var rawCopy = rawVectorValues.copy();
-            var slicerCopy = (HasIndexSlice) rawCopy;
-            return new SliceableBinarizedVectorValues(rawCopy, slicerCopy, quantizedVectorValues.copy());
-        }
-
-        @Override
-        public IndexInput getSlice() {
-            return slicer.getSlice();
         }
     }
 }

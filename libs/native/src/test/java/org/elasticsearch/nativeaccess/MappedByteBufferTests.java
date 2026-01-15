@@ -80,7 +80,7 @@ public class MappedByteBufferTests extends ESTestCase {
     }
 
     // We just check that the variations do not fail or crash - no
-    // positive assertion that the prefetch has any observable action
+    // positive assertion that the prefetch has any observable effect
     public void testPrefetchWithOffsets() throws IOException {
         int size = randomIntBetween(10, 4096);
         var tmp = createTempDir();
@@ -139,7 +139,7 @@ public class MappedByteBufferTests extends ESTestCase {
     }
 
     // Creates a byte array containing monotonically incrementing values, starting
-    // a value of 0 at the given offset. Useful to assert positional values.
+    // with a value of 0 at the given offset. Useful to assert positional values.
     private byte[] newByteArray(int size, int offset) {
         byte[] buffer = new byte[size];
         Arrays.fill(buffer, (byte) 0xFF);

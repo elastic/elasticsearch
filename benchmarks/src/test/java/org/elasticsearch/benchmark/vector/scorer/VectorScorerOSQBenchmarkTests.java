@@ -14,18 +14,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
-import org.hamcrest.TypeSafeMatcher;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
-import static java.lang.Math.abs;
-import static org.hamcrest.Matchers.closeTo;
-
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.function.DoubleFunction;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
@@ -76,107 +69,6 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         }
     }
 
-    @FunctionalInterface
-    interface BiFloatPredicate {
-        boolean test(float expected, float value);
-    }
-
-    @FunctionalInterface
-    interface FloatFunction<R> {
-        R apply(float v);
-    }
-
-    private static class FloatArrayMatcher extends TypeSafeMatcher<float[]> {
-        private final String transformDescription;
-        private final BiFloatPredicate matcher;
-        private final float[] values;
-
-        private FloatArrayMatcher(String transformDescription, float[] values, BiFloatPredicate elementMatcher) {
-            this.transformDescription = transformDescription;
-            this.matcher = elementMatcher;
-            this.values = values;
-        }
-
-        @Override
-        protected boolean matchesSafely(float[] item) {
-            try {
-                for (int i = 0; i < item.length; i++) {
-                    if (matcher.test(item[i], values[i]) == false) {
-                        return false;
-                    }
-                }
-            } catch (ClassCastException e) {
-                throw new AssertionError(e);
-            }
-            return true;
-        }
-
-        @Override
-        protected void describeMismatchSafely(float[] item, Description description) {
-
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText(transformDescription).appendText(" matches predicate");
-        }
-
-        static FloatArrayMatcher matchingItems(float[] values, BiFloatPredicate elementMatcher) {
-            return new FloatArrayMatcher("", values, elementMatcher);
-        }
-
-        static FloatArrayMatcher matchingItems(float[] values, FloatFunction<Matcher<Float>> elementMatcherProvider) {
-            return new FloatArrayMatcher("", values, (expected, value) -> elementMatcherProvider.apply(expected).matches(value));
-        }
-
-        static FloatArrayMatcher matchingItems(float[] values, DoubleFunction<Matcher<Double>> elementMatcherProvider) {
-            return new FloatArrayMatcher("", values, (expected, value) -> elementMatcherProvider.apply(expected).matches(value));
-        }
-    }
-
-    static class IsCloseToPercent extends TypeSafeMatcher<Float> {
-
-        private final double percent;
-        private final double value;
-
-        IsCloseToPercent(float value, float percent) {
-            this.percent = percent;
-            this.value = value;
-        }
-
-        @Override
-        public boolean matchesSafely(Float item) {
-            return actualDelta(item) <= 0.0;
-        }
-
-        @Override
-        public void describeMismatchSafely(Float item, Description mismatchDescription) {
-            mismatchDescription.appendValue(item)
-                .appendText(" differed by ")
-                .appendValue(actualDelta(item))
-                .appendText(" more than ")
-                .appendValue((int)(percent * 100))
-                .appendText("%");
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("a numeric value within ")
-                .appendValue((int)(percent * 100))
-                .appendText("% of ")
-                .appendValue(value);
-        }
-
-        private double actualDelta(float item) {
-            return abs(item - value) - (item * percent);
-        }
-
-        public static Matcher<Float> closeToPercent(float operand, float percent) {
-            return new IsCloseToPercent(operand, percent);
-        }
-
-    }
-
     public void testBulkScalarVsVectorized() throws Exception {
         for (int i = 0; i < 100; i++) {
             var seed = randomLong();
@@ -200,25 +92,6 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.bulkScore();
-
-                BiFloatPredicate isCloseTo = (exp, actual) -> Math.abs(exp - actual) > exp * deltaPercent;
-                assertThat(
-                    "bulk scoring, scalar VS vectorized",
-                    expected,
-                    FloatArrayMatcher.matchingItems(expected, isCloseTo)
-                );
-
-                assertThat(
-                    "bulk scoring, scalar VS vectorized",
-                    expected,
-                    FloatArrayMatcher.matchingItems(expected, (double e) -> closeTo(e, 1e-2))
-                );
-
-                assertThat(
-                    "bulk scoring, scalar VS vectorized",
-                    expected,
-                    FloatArrayMatcher.matchingItems(expected, (float e) -> IsCloseToPercent.closeToPercent(e, 0.1f))
-                );
 
                 assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent);
             } finally {

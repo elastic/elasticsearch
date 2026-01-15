@@ -42,9 +42,11 @@ import java.util.function.Function;
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
+    private final ClusterService clusterService;
     private final Environment environment;
     private final CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory;
 
+    private volatile ClusterState lastClusterState = null;
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
     // package private for testing
@@ -65,9 +67,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory
     ) {
         this.serverChannel = null;
+        this.clusterService = clusterService;
         this.environment = environment;
         this.socketChannelFactory = socketChannelFactory;
-        clusterService.addListener(this);
     }
 
     // package private for testing
@@ -156,6 +158,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     protected void doStart() {
         // Mark the service as active, we'll start the listener when ES is ready
         this.active = true;
+        this.lastClusterState = clusterService.state();
+        checkReadyState(null, lastClusterState);
+        clusterService.addListener(this);
     }
 
     // package private for testing
@@ -225,7 +230,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState clusterState = event.state();
+        checkReadyState(lastClusterState, event.state());
+        this.lastClusterState = event.state();
+    }
+
+    private void checkReadyState(ClusterState previousState, ClusterState clusterState) {
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
         boolean shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
 
@@ -236,10 +245,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("marking node as not ready because it's shutting down");
             }
         } else {
-            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean masterElected = getReadinessState(clusterState, previousState, this::isMasterElected, "masterElected");
             boolean fileSettingsApplied = getReadinessState(
                 clusterState,
-                event.previousState(),
+                previousState,
                 this::areFileSettingsApplied,
                 "fileSettingsApplied"
             );
@@ -254,7 +263,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         String description
     ) {
         boolean newStateValue = accessor.apply(clusterState);
-        boolean oldStateValue = accessor.apply(previousState);
+        boolean oldStateValue = previousState != null && accessor.apply(previousState);
         if (oldStateValue != newStateValue) {
             logger.info("readiness change: {}={}", description, newStateValue);
         }

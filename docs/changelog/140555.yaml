@@ -1,0 +1,5 @@
+pr: 140555
+summary: ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding) is GA
+area: ES|QL
+type: enhancement
+issues: []

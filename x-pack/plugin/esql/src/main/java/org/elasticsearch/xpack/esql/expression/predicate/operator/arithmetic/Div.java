@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.DivDenseVectorsEvaluator;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
@@ -34,7 +33,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
         then the result is `null`.
         note = "Division of two integer types will yield an integer result, rounding towards 0. "
         + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
-        For dense_vector operations, both arguments should be dense_vectors. If the dimensions are not same, the result is null
+        For dense_vector operations, both arguments should be dense_vectors. Unequal vector dimensions generate null result.
         """)
     public Div(
         Source source,
@@ -54,7 +53,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DivDenseVectorsEvaluator.Factory::new
+            DenseVectorsEvaluator.DivFactory::new
         );
         this.type = type;
     }
@@ -67,7 +66,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DivDenseVectorsEvaluator.Factory::new
+            DenseVectorsEvaluator.DivFactory::new
         );
     }
 

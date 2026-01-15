@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongMultiplyExact;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.MulDenseVectorsEvaluator;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 
 public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
@@ -28,8 +27,8 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @FunctionInfo(operator = "*", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
         Multiply two values together. For numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
-        then the result is `null`. For dense_vector operations, both arguments should be dense_vectors. If the dimensions are not same,
-        the result is null
+        then the result is `null`. For dense_vector operations, both arguments should be dense_vectors. Unequal vector dimensions generate
+        null result.
         """)
     public Mul(
         Source source,
@@ -53,7 +52,7 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
             MulDoublesEvaluator.Factory::new,
-            MulDenseVectorsEvaluator.Factory::new
+            DenseVectorsEvaluator.MulFactory::new
         );
     }
 
@@ -65,7 +64,7 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
             MulDoublesEvaluator.Factory::new,
-            MulDenseVectorsEvaluator.Factory::new
+            DenseVectorsEvaluator.MulFactory::new
         );
     }
 

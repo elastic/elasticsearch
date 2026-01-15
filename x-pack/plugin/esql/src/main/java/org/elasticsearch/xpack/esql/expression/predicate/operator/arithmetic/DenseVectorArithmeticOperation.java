@@ -64,7 +64,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
 
     @Override
     protected TypeResolution checkCompatibility() {
-        // dense_vectors arithmetic only supported when both arguments dense_vectors or one argument is null
+        // dense_vectors arithmetic only supported when both arguments are dense_vectors or one argument is null
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
         if (leftType == DENSE_VECTOR || rightType == DENSE_VECTOR) {
@@ -79,12 +79,6 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (dataType() == DENSE_VECTOR) {
-            if (left().dataType() == NULL) {
-                return this.denseVectors.apply(source(), EvalOperator.CONSTANT_NULL_FACTORY, toEvaluator.apply(right()));
-            }
-            if (right().dataType() == NULL) {
-                return this.denseVectors.apply(source(), toEvaluator.apply(left()), EvalOperator.CONSTANT_NULL_FACTORY);
-            }
             return this.denseVectors.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
         }
         return super.toEvaluator(toEvaluator);

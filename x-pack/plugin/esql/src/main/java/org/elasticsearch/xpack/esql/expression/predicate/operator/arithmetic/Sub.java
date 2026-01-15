@@ -34,7 +34,6 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.SubDenseVectorsEvaluator;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
 public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
@@ -47,8 +46,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
         returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" },
         description = """
             Subtract one value from another. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
-            then the result is `null`. For dense_vector fields, both arguments should be dense_vectors. If the dimensions are not same,
-            the result is null
+            then the result is `null`. For dense_vector fields, both arguments should be dense_vectors. Unequal vector dimensions generate
+            null result.
             """
     )
     public Sub(
@@ -74,7 +73,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDenseVectorsEvaluator.Factory::new,
+            DenseVectorsEvaluator.SubFactory::new,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
@@ -89,7 +88,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDenseVectorsEvaluator.Factory::new,
+            DenseVectorsEvaluator.SubFactory::new,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );

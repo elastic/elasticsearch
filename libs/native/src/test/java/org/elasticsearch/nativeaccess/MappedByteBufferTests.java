@@ -79,32 +79,40 @@ public class MappedByteBufferTests extends ESTestCase {
         }
     }
 
+    public void testPrefetchWithOffsets() throws IOException {
+        testPrefetchWithOffsetsImpl(0);
+        testPrefetchWithOffsetsImpl(1);
+        testPrefetchWithOffsetsImpl(2);
+        testPrefetchWithOffsetsImpl(3);
+    }
+
     // We just check that the variations do not fail or crash - no
     // positive assertion that the prefetch has any observable effect
-    public void testPrefetchWithOffsets() throws IOException {
+    void testPrefetchWithOffsetsImpl(int filePositionOffset) throws IOException {
         int size = randomIntBetween(10, 4096);
         var tmp = createTempDir();
         Path file = tmp.resolve("testPrefetchWithOffsets");
         Files.write(file, newByteArray(size, 0), CREATE, WRITE);
         // we need to unwrap our test-only file system layers
         file = Unwrappable.unwrapAll(file);
+        int len = size - filePositionOffset;
         try (
             FileChannel fileChannel = FileChannel.open(file, READ);
-            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, filePositionOffset, len)
         ) {
-            mappedByteBuffer.prefetch(0, size);
+            mappedByteBuffer.prefetch(0, len);
             mappedByteBuffer.prefetch(0, 0);
-            mappedByteBuffer.prefetch(0, size - 1);
-            mappedByteBuffer.prefetch(0, size - 2);
-            mappedByteBuffer.prefetch(0, size - 3);
-            mappedByteBuffer.prefetch(0, randomIntBetween(1, size));
-            mappedByteBuffer.prefetch(1, size - 1);
-            mappedByteBuffer.prefetch(2, size - 2);
-            mappedByteBuffer.prefetch(3, size - 3);
-            mappedByteBuffer.prefetch(4, size - 4);
-            mappedByteBuffer.prefetch(1, randomIntBetween(2, size - 1));
+            mappedByteBuffer.prefetch(0, len - 1);
+            mappedByteBuffer.prefetch(0, len - 2);
+            mappedByteBuffer.prefetch(0, len - 3);
+            mappedByteBuffer.prefetch(0, randomIntBetween(1, len));
+            mappedByteBuffer.prefetch(1, len - 1);
+            mappedByteBuffer.prefetch(2, len - 2);
+            mappedByteBuffer.prefetch(3, len - 3);
+            mappedByteBuffer.prefetch(4, len - 4);
+            mappedByteBuffer.prefetch(1, randomIntBetween(2, len - 1));
 
-            assertOutOfBounds(mappedByteBuffer, size);
+            assertOutOfBounds(mappedByteBuffer, len);
         }
     }
 

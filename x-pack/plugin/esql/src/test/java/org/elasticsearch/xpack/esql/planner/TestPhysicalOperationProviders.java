@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
-import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -295,19 +294,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
-        return switch (columnName) {
-            case MetadataAttribute.INDEX -> docBlock.blockFactory()
+        if (MetadataAttribute.INDEX.equals(columnName)) {
+            return docBlock.blockFactory()
                 .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount());
-            case DataTierFieldMapper.NAME -> docBlock.blockFactory()
-                .newConstantBytesRefBlockWith(new BytesRef("data_content"), blockCopier.docIndices.getPositionCount());
-            default -> {
-                int columnIndex = indexPage.columnIndex(columnName)
-                    .orElseThrow(
-                        () -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames)
-                    );
-                yield blockCopier.copyBlock(indexPage.page.getBlock(columnIndex));
-            }
-        };
+        }
+        int columnIndex = indexPage.columnIndex(columnName)
+            .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames));
+        var originalData = indexPage.page.getBlock(columnIndex);
+        return blockCopier.copyBlock(originalData);
     }
 
     private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {

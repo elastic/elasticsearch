@@ -136,6 +136,24 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "double",
           "optional" : false,
           "description" : "An expression."

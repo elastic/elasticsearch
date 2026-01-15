@@ -1,24 +1,52 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
-
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+// Trigger PR update
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
-public class InsensitiveEqualsTests extends ESTestCase {
+public class InsensitiveEqualsTests extends AbstractScalarFunctionTestCase {
 
-    public void testFold() {
+    public InsensitiveEqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.stringCases(
+                (l, r) -> l.toString().equalsIgnoreCase(r.toString()),
+                (lhsType, rhsType) -> "InsensitiveEqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                List.of(),
+                DataType.BOOLEAN
+            )
+        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new InsensitiveEquals(source, args.get(0), args.get(1));
+    }
+
+    public void testFoldSpecific() {
         assertTrue(insensitiveEquals(l("foo"), l("foo")).fold(FoldContext.small()));
         assertTrue(insensitiveEquals(l("Foo"), l("foo")).fold(FoldContext.small()));
         assertTrue(insensitiveEquals(l("Foo"), l("fOO")).fold(FoldContext.small()));

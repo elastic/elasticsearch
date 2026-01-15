@@ -113,7 +113,7 @@ denseVectorWithEnrich
 required_capability: enrich_load
 required_capability: enrich_dense_vector_bugfix
 
-from colors 
+from colors
 | enrich colors_policy
 | sort color_name
 | limit 10
@@ -165,7 +165,7 @@ from dense_vector
 ;
 
 count_vectors:long
-4               
+4
 ;
 
 denseVectorLiteralCount
@@ -176,6 +176,117 @@ row vector = to_dense_vector([0, 1, 2])
 ;
 
 count_vectors:long
-1               
+1
 ;
 
+denseVectorEqualsSameVector
+required_capability: dense_vector_equality
+
+row v1 = to_dense_vector([1.0, 2.0, 3.0])
+| eval v2 = v1, result = v1 == v2
+| keep result
+;
+
+result:boolean
+true
+;
+
+denseVectorEqualsDifferentVector
+required_capability: dense_vector_equality
+
+row v1 = to_dense_vector([1.0, 2.0, 3.0]), v2 = to_dense_vector([4.0, 5.0, 6.0])
+| eval result = v1 == v2
+| keep result
+;
+
+result:boolean
+false
+;
+
+denseVectorNotEqualsSameVector
+required_capability: dense_vector_equality
+
+row v1 = to_dense_vector([1.0, 2.0, 3.0])
+| eval v2 = v1, result = v1 != v2
+| keep result
+;
+
+result:boolean
+false
+;
+
+denseVectorNotEqualsDifferentVector
+required_capability: dense_vector_equality
+
+row v1 = to_dense_vector([1.0, 2.0, 3.0]), v2 = to_dense_vector([4.0, 5.0, 6.0])
+| eval result = v1 != v2
+| keep result
+;
+
+result:boolean
+true
+;
+
+denseVectorEqualsFromData
+required_capability: dense_vector_equality
+
+FROM dense_vector
+| EVAL same = float_vector == float_vector
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | true
+1    | true
+2    | true
+3    | true
+;
+
+denseVectorNotEqualsFromData
+required_capability: dense_vector_equality
+
+FROM dense_vector
+| EVAL different = float_vector != float_vector
+| KEEP id, different
+| SORT id
+;
+
+id:l | different:boolean
+0    | false
+1    | false
+2    | false
+3    | false
+;
+
+denseVectorCompareSpecifically
+required_capability: dense_vector_equality
+
+FROM dense_vector
+| EVAL same = float_vector == [1.0, 2.0, 3.0]
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | true
+1    | false
+2    | false
+3    | false
+;
+
+denseVectorCompareDifferentDimensions
+required_capability: dense_vector_equality
+
+FROM dense_vector
+| EVAL same = float_vector == [1.0, 2.0]
+| KEEP id, same
+| SORT id
+;
+
+id:l | same:boolean
+0    | false
+1    | false
+2    | false
+3    | false
+;

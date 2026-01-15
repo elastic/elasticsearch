@@ -1896,6 +1896,11 @@ public class EsqlCapabilities {
          */
         TS_STATS_BINARY_OPS,
 
+        /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

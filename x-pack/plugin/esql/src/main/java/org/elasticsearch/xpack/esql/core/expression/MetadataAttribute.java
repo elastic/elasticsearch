@@ -169,7 +169,7 @@ public class MetadataAttribute extends TypedAttribute {
             return new MetadataAttribute(source, name, t.dataType(), t.searchable());
         }
 
-        return new UnresolvedMetadataAttributeExpression(source, name, DataType.UNSUPPORTED);
+        return new UnresolvedMetadataAttributeExpression(source, name);
     }
 
     private static String prefix(String name) {

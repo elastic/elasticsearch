@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,12 +18,10 @@ import java.util.Objects;
 public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpression {
 
     private final String pattern;
-    private final DataType dataType;
 
-    public UnresolvedMetadataAttributeExpression(Source source, String pattern, DataType dataType) {
+    public UnresolvedMetadataAttributeExpression(Source source, String pattern) {
         super(source, List.of());
         this.pattern = pattern;
-        this.dataType = dataType;
     }
 
     @Override
@@ -44,7 +41,7 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, UnresolvedMetadataAttributeExpression::new, pattern, dataType);
+        return NodeInfo.create(this, UnresolvedMetadataAttributeExpression::new, pattern);
     }
 
     @Override
@@ -58,23 +55,18 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(ignoreIds), pattern, dataType);
+        return Objects.hash(super.innerHashCode(ignoreIds), pattern);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedMetadataAttributeExpression) o;
-        return super.innerEquals(other, false) && pattern == other.pattern && dataType == other.dataType;
+        return super.innerEquals(other, false) && pattern == other.pattern;
     }
 
     @Override
     public Nullability nullable() {
         return Nullability.TRUE;
-    }
-
-    @Override
-    public DataType dataType() {
-        return dataType;
     }
 
     @Override

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -16,7 +18,10 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class AnalyzerContext {
     private final Configuration configuration;
@@ -122,6 +127,26 @@ public class AnalyzerContext {
 
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
+    }
+
+    public Set<String> allowedTags() {
+        Set<String> result = new HashSet<>();
+        result.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
+        if (projectMetadata() != null) {
+            projectMetadata().customs()
+                .values()
+                .stream()
+                .filter(Metadata.TaggedProjectCustom.class::isInstance)
+                .map(Metadata.TaggedProjectCustom.class::cast)
+                .forEach(x -> {
+                    Set<String> tagNames = x.tags().tags().keySet();
+                    for (String tagName : tagNames) {
+                        result.add(x.tagPrefix() + tagName);
+                    }
+                });
+        }
+        // TODO it would be good to cache this, but some tags can change over time (eg. tags on linked projects)
+        return Collections.unmodifiableSet(result);
     }
 
     public AnalyzerContext(

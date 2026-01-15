@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -352,7 +351,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LinkedHashMap<String, NamedExpression> resolved = new LinkedHashMap<>();
             for (NamedExpression item : metadata) {
                 switch (item) {
-                    case MetadataAttribute ma -> resolved.put(ma.name(), ma);
+                    case MetadataAttribute ma -> {
+                        resolved.remove(ma.name());
+                        resolved.put(ma.name(), ma);
+                    }
                     case UnresolvedMetadataAttributeExpression um -> {
                         List<? extends NamedExpression> resolvedItems = tryResolveMetadata(um, context);
                         if (resolvedItems.isEmpty()) {
@@ -372,30 +374,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, AnalyzerContext context) {
             Pattern pattern = Pattern.compile(StringUtils.wildcardToJavaPattern(um.pattern(), '\\'));
-            Set<String> allowedTags = new HashSet<>();
-            allowedTags.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
-            if (context.projectMetadata() != null) {
-                context.projectMetadata()
-                    .customs()
-                    .values()
-                    .stream()
-                    .filter(Metadata.TaggedProjectCustom.class::isInstance)
-                    .map(Metadata.TaggedProjectCustom.class::cast)
-                    .forEach(x -> {
-                        Set<String> tagNames = x.tags().tags().keySet();
-                        for (String tagName : tagNames) {
-                            allowedTags.add(x.tagPrefix() + tagName);
-                        }
-                    });
-            }
 
-            List<String> found = allowedTags.stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
+            List<String> matchingMetadata = context.allowedTags().stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
             List<NamedExpression> result = new ArrayList<>();
-            for (String item : found) {
+            for (String item : matchingMetadata) {
+                // See if it's a known metadata attribute (we know the type there)
                 NamedExpression attribute = MetadataAttribute.create(um.source(), item);
-                // try to create it again, in case it's a known metadata attribute (it knows the type)
                 if (attribute instanceof UnresolvedMetadataAttributeExpression) {
-                    // we don't know the type here, but for now we can assume that they are all keywords
+                    // we don't know the type here, but for now we only have keywords as custom tags
                     attribute = new MetadataAttribute(um.source(), item, KEYWORD, false);
                 }
                 result.add(attribute);

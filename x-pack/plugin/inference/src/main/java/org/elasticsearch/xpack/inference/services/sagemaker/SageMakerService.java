@@ -34,12 +34,9 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
-import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings;
-import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerTaskSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 
 import java.io.IOException;
@@ -126,32 +123,17 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public Model parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return modelBuilder.fromStorage(modelId, taskType, NAME, config, secrets);
+        return modelBuilder.fromStorage(inferenceEntityId, taskType, NAME, config, secrets);
     }
 
     @Override
-    public SageMakerModel buildModelFromConfigAndSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        ModelConfigurations config,
-        ModelSecrets secrets
-    ) {
-        var serviceSettings = config.getServiceSettings();
-        var taskSettings = config.getTaskSettings();
-        var secretSettings = secrets.getSecretSettings();
-
-        return new SageMakerModel(
-            config,
-            secrets,
-            (SageMakerServiceSettings) serviceSettings,
-            (SageMakerTaskSettings) taskSettings,
-            (AwsSecretSettings) secretSettings
-        );
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return modelBuilder.fromStorage(config, secrets);
     }
 
     @Override

@@ -34,11 +34,8 @@ public final class MetadataBuffer implements MetadataWriter {
 
     private static final int DEFAULT_CAPACITY_BYTES = 64;
 
-    private static final int SINGLE_BYTE = Byte.BYTES;
     private static final int MAX_VINT_BYTES = Integer.BYTES + 1;
-    private static final int MAX_ZINT_BYTES = Integer.BYTES + 1;
     private static final int MAX_VLONG_BYTES = Long.BYTES + 1;
-    private static final int MAX_ZLONG_BYTES = Long.BYTES + 2;
 
     private byte[] buffer;
     private int size;
@@ -59,7 +56,7 @@ public final class MetadataBuffer implements MetadataWriter {
     @Override
     public void writeByte(final byte b) {
         if (size >= buffer.length) {
-            grow(SINGLE_BYTE);
+            grow(1);
         }
         buffer[size++] = b;
     }
@@ -107,8 +104,8 @@ public final class MetadataBuffer implements MetadataWriter {
      */
     @Override
     public void writeZInt(final int value) {
-        if (size + MAX_ZINT_BYTES > buffer.length) {
-            grow(MAX_ZINT_BYTES);
+        if (size + MAX_VINT_BYTES > buffer.length) {
+            grow(MAX_VINT_BYTES);
         }
         writeVarLong(ByteUtils.zigZagEncode(value) & 0xFFFFFFFFL);
     }
@@ -120,8 +117,8 @@ public final class MetadataBuffer implements MetadataWriter {
      */
     @Override
     public void writeZLong(final long value) {
-        if (size + MAX_ZLONG_BYTES > buffer.length) {
-            grow(MAX_ZLONG_BYTES);
+        if (size + MAX_VLONG_BYTES > buffer.length) {
+            grow(MAX_VLONG_BYTES);
         }
         writeVarLong(ByteUtils.zigZagEncode(value));
     }

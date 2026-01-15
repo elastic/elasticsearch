@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -118,18 +119,18 @@ public class ChickenArtBuilderTests extends ESTestCase {
 
     public void testFromNameExact() {
         // Test that fromName returns the correct chicken for each enum value
-        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toLowerCase()));
+        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toLowerCase(Locale.ROOT)));
     }
 
     public void testFromNameCaseInsensitive() {
         // Test case insensitivity
-        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toUpperCase()));
-        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toLowerCase()));
+        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toUpperCase(Locale.ROOT)));
+        assertEquals(chicken, ChickenArtBuilder.fromName(chicken.name().toLowerCase(Locale.ROOT)));
     }
 
     public void testFromNameBytesRef() {
         // Test BytesRef variant
-        assertEquals(chicken, ChickenArtBuilder.fromName(new BytesRef(chicken.name().toLowerCase())));
+        assertEquals(chicken, ChickenArtBuilder.fromName(new BytesRef(chicken.name().toLowerCase(Locale.ROOT))));
     }
 
     public void testFromNameNull() {
@@ -144,7 +145,7 @@ public class ChickenArtBuilderTests extends ESTestCase {
 
     public void testAvailableStylesContainsChicken() {
         String styles = ChickenArtBuilder.availableStyles();
-        assertTrue("Should contain current chicken style", styles.contains(chicken.name().toLowerCase()));
+        assertTrue("Should contain current chicken style", styles.contains(chicken.name().toLowerCase(Locale.ROOT)));
     }
 
     public void testRandomReturnsValidChicken() {

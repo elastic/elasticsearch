@@ -74,7 +74,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         // create a handle specifically for getting the preconditioner artifacts
         // do this because the ChecksumIndexInput can't be seeked backwards
         ivfMetaPreconditioning = openDataInput(state, versionMeta, IVF_META_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
-
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {

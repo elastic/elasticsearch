@@ -42,6 +42,6 @@ public final class HistogramMergeExponentialHistogramAggregatorFunctionSupplier 
 
   @Override
   public String describe() {
-    return "histogram_merge_exponential of histograms";
+    return "histogram_merge of exponential_histograms";
   }
 }

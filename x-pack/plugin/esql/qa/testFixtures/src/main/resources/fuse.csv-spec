@@ -841,3 +841,48 @@ a           | 0.0
 b           | 0.0
 c           | 0.0
 ;
+
+fuseWithRowWithNullValues
+required_capability: fuse_v6
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null, _id = "", _index = "", _score = 1.0, my_fork = ""
+| LIMIT 1
+| FUSE LINEAR GROUP BY my_fork
+;
+
+_score:double | x:null | _id:keyword | _index:keyword | my_fork:keyword
+1             | null   | ""          | ""             | ""
+;
+
+fuseWithForkAndRowWithNullValues
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null, _id = "", _index = "", _score = 1.0
+| FORK (EVAl y = 2) (EVAl y = 3)
+| FUSE LINEAR
+| EVAL y = mv_sort(y), _fork = mv_sort(_fork)
+;
+
+_score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword
+2             | null   | ""          | ""             | [2, 3]    | [fork1,fork2]
+;
+
+fuseWithForkAndFromWithNullValues
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+FROM employees METADATA _id, _index, _score
+| EVAL x = null
+| FORK ( WHERE emp_no:10001 )
+       ( WHERE emp_no:10002 )
+| FUSE
+| KEEP x
+;
+
+x:null
+null
+;

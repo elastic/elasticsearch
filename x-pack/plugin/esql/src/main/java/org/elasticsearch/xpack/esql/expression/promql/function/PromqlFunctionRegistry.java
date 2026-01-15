@@ -77,7 +77,6 @@ public class PromqlFunctionRegistry {
         withinSeries("first_over_time", FirstOverTime::new),
         withinSeries("last_over_time", LastOverTime::new),
         withinSeries("deriv", Deriv::new),
-        // Over time functions
         withinSeriesOverTimeUnary("avg_over_time", AvgOverTime::new),
         withinSeriesOverTimeUnary("count_over_time", CountOverTime::new),
         withinSeriesOverTimeUnary("max_over_time", MaxOverTime::new),

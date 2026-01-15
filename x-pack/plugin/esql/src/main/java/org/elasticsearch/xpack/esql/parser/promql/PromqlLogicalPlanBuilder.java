@@ -448,7 +448,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         LogicalPlan child = switch (params.getFirst()) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
-            default -> throw new IllegalStateException("Unexpected value: " + params.getFirst());
+            case Node n -> throw new IllegalStateException("Unexpected value: " + n);
         };
 
         // PromQL expects early validation of the tree so let's do it here

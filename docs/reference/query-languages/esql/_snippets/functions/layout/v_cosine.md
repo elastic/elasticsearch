@@ -2,8 +2,7 @@
 
 ### `V_COSINE` [esql-v_cosine]
 ```{applies_to}
-stack: preview 9.3.0
-serverless: preview
+stack: preview 9.3.0, ga 9.4.0
 ```
 
 **Syntax**

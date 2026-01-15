@@ -1,7 +1,7 @@
 {
   "project.delete_routing": {
     "documentation": {
-      "url": "",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Delete named project routing expression"
     },
     "stability": "stable",

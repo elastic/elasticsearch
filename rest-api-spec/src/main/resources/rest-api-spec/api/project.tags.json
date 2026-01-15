@@ -24,11 +24,13 @@
     },
     "params": {
       "project_routing": {
-        "type": "string"
+        "type": "string",
+        "description": "A Lucene query using project metadata tags used to filter which projects are returned in the response, such as _alias:_origin or _alias:*pr*."
       }
     },
     "body": {
-      "required": false
+      "required": false,
+      "description": "project_routing can also be set as part of the body"
     }
   }
 }

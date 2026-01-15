@@ -245,11 +245,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision explainShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        return explainShardAllocations(Set.of(shard), allocation).values().iterator().next();
+        Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancingWeightsFactory.create(),
+            balancerSettings.completeEarlyOnShardAssignmentChange()
+        );
+        return explainShardAllocation(shard, allocation, balancer);
     }
 
     @Override
-    public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
+    public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,

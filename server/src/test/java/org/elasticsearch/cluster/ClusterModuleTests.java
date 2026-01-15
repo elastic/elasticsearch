@@ -118,7 +118,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
+        public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
             return Map.of();
         }
     }

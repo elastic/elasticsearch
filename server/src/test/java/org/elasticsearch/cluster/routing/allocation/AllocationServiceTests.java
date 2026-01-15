@@ -153,7 +153,7 @@ public class AllocationServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+                public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                     Set<ShardRouting> shards,
                     RoutingAllocation allocation
                 ) {

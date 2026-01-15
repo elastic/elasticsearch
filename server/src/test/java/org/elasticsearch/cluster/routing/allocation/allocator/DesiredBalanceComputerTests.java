@@ -510,7 +510,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                 Set<ShardRouting> shards,
                 RoutingAllocation allocation
             ) {
@@ -654,7 +654,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                 Set<ShardRouting> shards,
                 RoutingAllocation allocation
             ) {
@@ -727,7 +727,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                 Set<ShardRouting> shards,
                 RoutingAllocation allocation
             ) {
@@ -1530,7 +1530,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                 Set<ShardRouting> shards,
                 RoutingAllocation allocation
             ) {
@@ -2107,7 +2107,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                 Set<ShardRouting> shards,
                 RoutingAllocation allocation
             ) {

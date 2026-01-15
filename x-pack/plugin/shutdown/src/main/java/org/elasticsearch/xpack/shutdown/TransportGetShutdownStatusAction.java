@@ -284,7 +284,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .shardsWithState(ShardRoutingState.STARTED)
             .peek(s -> cancellableTask.ensureNotCancelled())
             .collect(Collectors.toSet());
-        Map<ShardRouting, ShardAllocationDecision> shardAllocationDecisions = allocationService.explainShardsAllocation(shards, allocation);
+        Map<ShardRouting, ShardAllocationDecision> shardAllocationDecisions = allocationService.explainShardsAllocations(
+            shards,
+            allocation
+        );
         var unmovableShards = shardAllocationDecisions.entrySet().stream().filter(entry -> {
             assert entry.getValue().getMoveDecision().cannotRemain()
                 : "shard [" + entry.getKey() + "] can remain on node [" + nodeId + "], but that node is shutting down";

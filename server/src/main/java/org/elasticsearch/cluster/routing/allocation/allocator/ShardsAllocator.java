@@ -85,5 +85,13 @@ public interface ShardsAllocator {
      */
     ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation);
 
-    Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(Set<ShardRouting> shards, RoutingAllocation allocation);
+    /**
+     * Returns the decisions for where shards should reside in the cluster.  If a shard is unassigned,
+     * then its {@link AllocateUnassignedDecision} will be non-null.  If a shard is not in the unassigned
+     * state, then the {@link MoveDecision} will be non-null.
+     *
+     * If an implementation of this interface does not support explaining decisions for a single shard through
+     * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
+     */
+    Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(Set<ShardRouting> shards, RoutingAllocation allocation);
 }

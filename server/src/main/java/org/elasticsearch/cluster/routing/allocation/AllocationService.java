@@ -789,19 +789,21 @@ public class AllocationService {
         return existingShardsAllocators.values().stream().mapToInt(ExistingShardsAllocator::getNumberOfInFlightFetches).sum();
     }
 
-    public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocation(
+    public ShardAllocationDecision explainShardAllocation(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return explainShardsAllocations(Set.of(shardRouting), allocation).values().iterator().next();
+    }
+
+    public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
         Set<ShardRouting> shardRoutings,
         RoutingAllocation allocation
     ) {
         assert allocation.debugDecision();
         Map<ShardRouting, ShardAllocationDecision> result = new HashMap<>();
-        Map<ShardRouting, AllocateUnassignedDecision> shardRoutingToAllocationUnassignedDecisionMap = new HashMap<>();
         Set<ShardRouting> toBeExplained = new HashSet<>();
         for (ShardRouting shardRouting : shardRoutings) {
             AllocateUnassignedDecision allocateDecision = shardRouting.unassigned()
                 ? explainUnassignedShardAllocation(shardRouting, allocation)
                 : AllocateUnassignedDecision.NOT_TAKEN;
-            shardRoutingToAllocationUnassignedDecisionMap.put(shardRouting, allocateDecision);
             if (allocateDecision.isDecisionTaken()) {
                 result.put(shardRouting, new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN));
             } else {
@@ -809,13 +811,9 @@ public class AllocationService {
             }
         }
         if (toBeExplained.isEmpty() == false) {
-            result.putAll(shardsAllocator.explainShardAllocations(toBeExplained, allocation));
+            result.putAll(shardsAllocator.explainShardsAllocations(toBeExplained, allocation));
         }
         return result;
-    }
-
-    public ShardAllocationDecision explainShardAllocation(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return explainShardsAllocation(Set.of(shardRouting), allocation).values().iterator().next();
     }
 
     private AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting shardRouting, RoutingAllocation routingAllocation) {

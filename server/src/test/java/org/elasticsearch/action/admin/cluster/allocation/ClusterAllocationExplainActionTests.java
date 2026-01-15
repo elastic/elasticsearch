@@ -380,7 +380,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(
+                public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
                     Set<ShardRouting> shards,
                     RoutingAllocation allocation
                 ) {

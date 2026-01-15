@@ -260,8 +260,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public Map<ShardRouting, ShardAllocationDecision> explainShardAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
-        return delegateAllocator.explainShardAllocations(shards, allocation);
+    public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
+        return delegateAllocator.explainShardsAllocations(shards, allocation);
     }
 
     @Override

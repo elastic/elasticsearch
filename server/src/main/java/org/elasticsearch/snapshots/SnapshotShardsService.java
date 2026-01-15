@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -123,7 +124,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             threadPool
         );
         this.remoteFailedRequestDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
-        if (DiscoveryNode.canContainData(settings)) {
+        if (shouldActivateSnapshotShardsService(settings)) {
             // this is only useful on the nodes that can hold data
             clusterService.addListener(this);
         }
@@ -218,6 +219,23 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         } catch (Exception e) {
             assert false : new AssertionError(e);
             logger.warn("failed to update snapshot state", e);
+        }
+    }
+
+    /**
+     * The {@link SnapshotShardsService} should be activated for all nodes that contain data.
+     * On stateful, since nodes share both indexing and search functionality, this is determined by whether
+     * a node can contain data or not.
+     * On stateless, since indexing and search nodes are separated and search nodes do not run snapshots,
+     * {@link SnapshotShardsService} should only be activated for indexing nodes.
+     * @param settings The current node settings
+     * @return Returns whether we should activate the {@link SnapshotShardsService} for this node
+     */
+    static boolean shouldActivateSnapshotShardsService(Settings settings) {
+        if (DiscoveryNode.isStateless(settings)) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+        } else {
+            return DiscoveryNode.canContainData(settings);
         }
     }
 

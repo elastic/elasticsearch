@@ -10364,6 +10364,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Project[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
      * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
      * \_Limit[1000[INTEGER],false,false]
@@ -10375,13 +10376,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
      *       |   \_Limit[1000[INTEGER],false,false]
      *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     *       |_LocalRelation[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35, l
-     * ast_name{f}#30, long_noidx{f}#36, salary{f}#31, _fork{r}#9],EMPTY]
      *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
      * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
      *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
      *           \_Limit[1000[INTEGER],false,false]
      *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
+     * }</pre>
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
         var query = """
@@ -10402,6 +10402,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var fork = as(filter.child(), Fork.class);
         assertThat(fork.output().size(), equalTo(11));
 
+        // second branch is completely removed
+        assertEquals(2, fork.children().size());
+
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
         assertThat(firstBranchProject.projections().size(), equalTo(11));
@@ -10415,27 +10418,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
 
-        var secondBranch = fork.children().get(1);
-        var secondBranchLocalRelation = as(secondBranch, LocalRelation.class);
-        assertThat(
-            secondBranchLocalRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
-            hasItems(
-                "_meta_field",
-                "emp_no",
-                "first_name",
-                "gender",
-                "hire_date",
-                "job",
-                "job.raw",
-                "last_name",
-                "long_noidx",
-                "salary",
-                "_fork"
-            )
-        );
-        assertThat(secondBranchLocalRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
-
-        var thirdBranch = fork.children().get(2);
+        var thirdBranch = fork.children().get(1);
         var thirdBranchProject = as(thirdBranch, Project.class);
         assertThat(thirdBranchProject.projections().size(), equalTo(11));
         var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);

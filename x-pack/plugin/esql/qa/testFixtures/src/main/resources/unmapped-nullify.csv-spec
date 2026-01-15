@@ -1,0 +1,468 @@
+simpleKeep
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP foo
+| LIMIT 3
+;
+
+foo:null
+null
+null
+null
+;
+
+keepStar
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP *, foo
+| SORT emp_no
+| LIMIT 1
+;
+
+avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|foo:null
+268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null
+;
+
+
+keepStarSimpleKeep
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP *
+| KEEP foo
+| LIMIT 3
+;
+
+foo:null
+null
+null
+null
+;
+
+keepStarEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP *
+| EVAL foo = does_not_exist_field + 1
+| SORT emp_no
+| LIMIT 1
+;
+
+avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
+268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null |null
+;
+
+
+dropPatternSimpleKeep
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| DROP a*, b*, e*, fi*, g*, h*, i*, j*, l*, s*
+| KEEP foo
+| LIMIT 3
+;
+
+foo:null
+null
+null
+null
+;
+
+dropPatternEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| DROP a*, b*, e*, fi*, g*, h*, i*, j*, l*, s*
+| EVAL foo = does_not_exist_field + 1
+| LIMIT 3
+;
+
+does_not_exist_field:null | foo:integer
+null                      | null
+null                      | null
+null                      | null
+;
+
+keepWithPattern
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP emp_*, foo
+| SORT emp_no
+| LIMIT 1
+;
+
+emp_no:integer|foo:null
+10001         |null
+;
+
+rowKeep
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL y = does_not_exist_field1::INTEGER + x
+| KEEP *, does_not_exist_field2
+;
+
+x:integer      |does_not_exist_field1:null|y:integer      |does_not_exist_field2:null
+1              |null                      |null           |null
+;
+
+rowDrop
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| DROP does_not_exist
+;
+
+x:integer
+1
+;
+
+rowRename
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| RENAME x AS y, foo AS bar
+;
+
+y:integer | bar:null
+1         |null
+;
+
+fieldRename
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| RENAME foo AS bar
+| KEEP emp_no, bar, bazz
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | bar:null | bazz:null
+10001          | null     | null
+10002          | null     | null
+10003          | null     | null
+;
+
+rowRenameEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| RENAME x AS whatever
+| EVAL x = does_not_exist_field + 1
+;
+
+whatever:integer | does_not_exist_field:null | x:integer
+1                | null                      | null
+;
+
+casting
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL foo::LONG
+;
+
+x:integer |foo:null |foo::LONG:long
+1         |null     |null
+;
+
+shadowing
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| KEEP foo
+| EVAL foo = 2
+;
+
+foo:integer
+2
+;
+
+statsAggs
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(foo)
+;
+
+s:double
+null
+;
+
+statsGroups
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS BY foo
+;
+
+foo:null
+null
+;
+
+statsAggs
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(foo) BY bar
+;
+
+s:double | bar:null
+null     | null
+;
+
+statsExpressions
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(x) + bar BY bar
+;
+
+s:long | bar:null
+null   | null
+;
+
+statsExpressionsWithAliases
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(x) + b + c BY b = bar + baz, c = x
+;
+
+s:long | b:null | c:integer
+null   | null   | 1
+;
+
+statsFilteredAggs
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = COUNT(x) WHERE foo::LONG > 10
+;
+
+s:long
+0
+;
+
+statsFilteredAggsAndGroups
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = COUNT(x) WHERE foo::LONG > 10 BY bar
+;
+
+s:long | bar:null
+0      | null
+;
+
+inlinestatsSum
+required_capability: optional_fields_nullify_tech_preview
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| INLINE STATS s = SUM(x) + b + c BY b = bar + baz, c = x - 1
+;
+
+x:integer | bar:null | baz:null | s:long | b:null | c:integer
+1         | null     | null     | null   | null   | 0
+;
+
+filtering
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| WHERE foo IS NULL
+;
+
+x:integer | foo:null
+1         | null
+;
+
+filteringExpression
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE emp_no_foo::LONG > 0 OR emp_no < 10002
+| KEEP emp_n*
+;
+
+emp_no:integer | emp_no_foo:null
+10001          | null
+;
+
+sort
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = [1, 2]
+| MV_EXPAND x
+| SORT foo
+;
+
+x:integer | foo:null
+2         | null
+1         | null
+;
+
+sortExpression
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = [1, 2]
+| MV_EXPAND x
+| SORT foo::LONG + 2, x
+;
+
+x:integer | foo:null
+1         | null
+2         | null
+;
+
+mvExpand
+required_capability: optional_fields_nullify_tech_preview
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| MV_EXPAND foo
+;
+
+x:integer | foo:null
+1         | null
+;
+
+# TODO. FROMx: this fails in parsing with just FROM even if -Ignore'd(!), in bwc tests only(!)
+subqueryNoMainIndex-Ignore
+required_capability: optional_fields_nullify_tech_preview
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="nullify"\;
+FROMx
+    (FROM employees
+     | EVAL emp_no_plus = emp_no_foo::LONG + 1
+     | WHERE emp_no < 10003)
+| KEEP emp_no*
+| SORT emp_no, emp_no_plus
+;
+
+emp_no:integer | emp_no_foo:null | emp_no_plus:long
+10001          | null            | null
+10002          | null            | null
+;
+
+subqueryInFromWithStatsInMainQuery-Ignore
+required_capability: optional_fields_nullify_tech_preview
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, sample_data_str,
+    (FROM sample_data_ts_nanos
+     | WHERE client_ip == "172.21.3.15" OR foo::IP == "1.1.1.1"),
+    (FROM sample_data_ts_long
+     | EVAL @timestamp = @timestamp::date_nanos, bar = baz::KEYWORD
+     | WHERE client_ip == "172.21.0.5")
+| EVAL client_ip = client_ip::ip
+| STATS BY client_ip, foo, bar, baz
+| SORT client_ip
+;
+
+client_ip:ip   |foo:null       |bar:keyword    |baz:null
+172.21.0.5     |null           |null           |null
+172.21.2.113   |null           |null           |null
+172.21.2.162   |null           |null           |null
+172.21.3.15    |null           |null           |null
+;
+
+forkBranchesWithDifferentSchemas
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fork_v9
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE does_not_exist2 IS NULL
+| FORK (WHERE emp_no > 10000 | SORT does_not_exist3, emp_no | LIMIT 3 )
+       (WHERE emp_no < 10002 | EVAL xyz = COALESCE(does_not_exist4, "def", "abc"))
+       (DISSECT hire_date::KEYWORD "%{year}-%{month}-%{day}T"
+        | STATS x = MIN(year::LONG), y = MAX(month::LONG) WHERE year::LONG > 1000 + does_not_exist5::DOUBLE
+        | EVAL xyz = "abc")
+| KEEP emp_no, x, y, xyz, _fork
+| SORT _fork, emp_no
+;
+
+emp_no:integer |x:long         |y:long         |xyz:keyword    |_fork:keyword
+10001          |null           |null           |null           |fork1
+10002          |null           |null           |null           |fork1
+10003          |null           |null           |null           |fork1
+10001          |null           |null           |def            |fork2
+null           |1985           |null           |abc            |fork3
+;
+
+inlinestatsCount
+required_capability: optional_fields_nullify_tech_preview
+required_capability: inline_stats
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
+;
+
+# `c` should be just 0 : https://github.com/elastic/elasticsearch/issues/139887
+x:integer      |does_not_exist:null|c:long         |s:double       |d:null
+1              |null               |null           |null           |null
+;
+
+lookupJoin
+required_capability: optional_fields_nullify_tech_preview
+required_capability: join_lookup_v12
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL language_code = does_not_exist::INTEGER
+| LOOKUP JOIN languages_lookup ON language_code
+;
+
+x:integer      |does_not_exist:null |language_code:integer |language_name:keyword
+1              |null                |null                  |null
+;
+
+enrich
+required_capability: optional_fields_nullify_tech_preview
+required_capability: enrich_load
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL y = does_not_exist::KEYWORD
+| ENRICH languages_policy ON y
+;
+
+x:integer      |does_not_exist:null |y:keyword | language_name:keyword
+1              |null                |null      |null
+;

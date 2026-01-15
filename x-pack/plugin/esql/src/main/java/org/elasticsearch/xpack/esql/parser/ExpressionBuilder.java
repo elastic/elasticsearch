@@ -19,6 +19,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -124,7 +126,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
+    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -607,8 +609,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.ASTERISK -> new Mul(source, left, right);
             case EsqlBaseParser.SLASH -> new Div(source, left, right);
             case EsqlBaseParser.PERCENT -> new Mod(source, left, right);
-            case EsqlBaseParser.PLUS -> new Add(source, left, right);
-            case EsqlBaseParser.MINUS -> new Sub(source, left, right);
+            case EsqlBaseParser.PLUS -> new Add(source, left, right, ConfigurationAware.CONFIGURATION_MARKER);
+            case EsqlBaseParser.MINUS -> new Sub(source, left, right, ConfigurationAware.CONFIGURATION_MARKER);
             default -> throw new ParsingException(source, "Unknown arithmetic operator {}", source.text());
         };
     }
@@ -1203,6 +1205,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     QueryParam paramByNameOrPosition(TerminalNode node) {
+        return paramByNameOrPosition(node, context.params());
+    }
+
+    public static QueryParam paramByNameOrPosition(TerminalNode node, QueryParams params) {
         if (node == null) {
             return null;
         }
@@ -1211,28 +1217,26 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String nameOrPosition = nameOrPosition(token);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
-            if (context.params().get(index) == null) {
+            if (params.get(index) == null) {
                 String message = "";
-                int np = context.params().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                context.params()
-                    .addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
+                params.addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
             }
-            return context.params().get(index);
+            return params.get(index);
         } else {
-            if (context.params().contains(nameOrPosition) == false) {
+            if (params.contains(nameOrPosition) == false) {
                 String message = "";
-                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, context.params().namedParams().keySet());
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
                 if (potentialMatches.size() > 0) {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                context.params()
-                    .addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
+                params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
-            return context.params().get(nameOrPosition);
+            return params.get(nameOrPosition);
         }
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -156,6 +157,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             new TaskId(clusterService.localNode().getId(), task.getId()),
             task,
             request.allowPartialSearchResults(),
+            new CrossProjectModeDecider(clusterService.getSettings()).crossProjectEnabled(),
             request.projectRouting()
         );
 

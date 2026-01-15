@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -49,6 +50,8 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
 
         verifyOutputNotChanged(optimizedPlan, expectedOutputAttributes, failures);
 
+        ConfigurationAware.verifyNoMarkerConfiguration(optimizedPlan, failures);
+
         if (depFailures.hasFailures()) {
             throw new IllegalStateException(depFailures.toString());
         }
@@ -90,8 +93,8 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
             // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
             boolean hasTimeSeriesReplacingTsId = optimizedPlan.anyMatch(
                 a -> a instanceof TimeSeriesAggregate ts
-                    && ts.output().stream().anyMatch(g -> g.name().equals(MetadataAttribute.TIMESERIES))
-                    && expectedOutputAttributes.stream().noneMatch(g -> g.name().equals(MetadataAttribute.TIMESERIES))
+                    && ts.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
+                    && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute)
             );
 
             boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeSeriesReplacingTsId;

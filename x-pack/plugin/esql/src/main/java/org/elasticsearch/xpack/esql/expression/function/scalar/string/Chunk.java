@@ -16,8 +16,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.xpack.core.inference.chunking.Chunker;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -47,6 +45,8 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
@@ -77,9 +77,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
-        examples = {
-            @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "chunk", tag = "chunk-with-chunking-settings", applies_to = "stack: preview 9.3.0") }
+        examples = { @Example(file = "chunk", tag = "chunk-example", applies_to = "stack: preview 9.3.0") }
     )
     public Chunk(
         Source source,
@@ -223,25 +221,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, BytesRef str, @Fixed ChunkingSettings chunkingSettings) {
         String content = str.utf8ToString();
-
         List<String> chunks = chunkText(content, chunkingSettings);
-
-        boolean multivalued = chunks.size() > 1;
-        if (multivalued) {
-            builder.beginPositionEntry();
-        }
-        for (String chunk : chunks) {
-            builder.appendBytesRef(new BytesRef(chunk.trim()));
-        }
-
-        if (multivalued) {
-            builder.endPositionEntry();
-        }
-    }
-
-    public static List<String> chunkText(String content, ChunkingSettings chunkingSettings) {
-        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
-        return chunker.chunk(content, chunkingSettings).stream().map(offset -> content.substring(offset.start(), offset.end())).toList();
+        emitChunks(builder, chunks);
     }
 
     @Override

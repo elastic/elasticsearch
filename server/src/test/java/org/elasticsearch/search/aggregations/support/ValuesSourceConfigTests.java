@@ -407,6 +407,22 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
         });
     }
 
+    public void testMetadataConstantKeyword() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, ValueType.STRING, "_index", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
+
+            LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("index"), values.nextValue());
+            assertTrue(config.alignsWithSearchIndex());
+        });
+    }
+
     public void testFlattened() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
         withAggregationContext(mapperService, List.of(source(b -> b.startObject("field").field("key", "abc").endObject())), context -> {

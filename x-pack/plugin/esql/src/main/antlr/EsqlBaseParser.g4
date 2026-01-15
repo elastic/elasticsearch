@@ -347,10 +347,14 @@ fuseCommand
 
 fuseConfiguration
     : SCORE BY score=qualifiedName
-    | KEY BY key=fields
+    | KEY BY key=fuseKeyByFields
     | GROUP BY group=qualifiedName
     | WITH options=mapExpression
     ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
+   ;
 
 //
 // In development
@@ -368,6 +372,6 @@ setCommand
     ;
 
 setField
-    : identifier ASSIGN constant
+    : identifier ASSIGN ( constant | mapExpression )
     ;
 

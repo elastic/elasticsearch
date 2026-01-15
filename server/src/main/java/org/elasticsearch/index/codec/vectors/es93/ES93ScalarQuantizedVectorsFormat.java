@@ -9,13 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
@@ -28,8 +26,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -41,9 +37,9 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 
-public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
+public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     static final String NAME = "ES93ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
@@ -70,18 +66,19 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
     private final boolean compress;
 
     public ES93ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, null, 7, false);
+        this(elementType, null, 7, false, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(
         DenseVectorFieldMapper.ElementType elementType,
         Float confidenceInterval,
         int bits,
-        boolean compress
+        boolean compress,
+        boolean useDirectIO
     ) {
         super(NAME);
         if (confidenceInterval != null
@@ -101,14 +98,14 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;
     }
 
     @Override
-    public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99ScalarQuantizedVectorsWriter(
             state,
             confidenceInterval,
@@ -120,15 +117,10 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
     }
 
     @Override
-    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES93FlatVectorReader(
             new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
         );
-    }
-
-    @Override
-    public int getMaxDimensions(String fieldName) {
-        return MAX_DIMS_COUNT;
     }
 
     @Override
@@ -149,11 +141,12 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
             + ")";
     }
 
-    static class ES93FlatVectorReader extends KnnVectorsReader {
+    static class ES93FlatVectorReader extends FlatVectorsReader {
 
         private final FlatVectorsReader reader;
 
         ES93FlatVectorReader(FlatVectorsReader reader) {
+            super(reader.getFlatVectorScorer());
             this.reader = reader;
         }
 
@@ -174,30 +167,32 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
         @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
-        }
-
-        private void collectAllMatchingDocs(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer)
-            throws IOException {
-            OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-            Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
-            for (int i = 0; i < scorer.maxOrd(); i++) {
-                if (acceptedOrds == null || acceptedOrds.get(i)) {
-                    collector.collect(i, scorer.score(i));
-                    collector.incVisitedCount(1);
-                }
-            }
-            assert collector.earlyTerminated() == false;
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
         }
 
         @Override
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
             return reader.getOffHeapByteSize(fieldInfo);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return reader.ramBytesUsed();
         }
 
         @Override

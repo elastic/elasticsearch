@@ -43,6 +43,7 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
@@ -343,13 +344,10 @@ public class ScopedSettingsTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "unknown setting [archived.index.store.type] was archived after upgrading, and must be removed."
-                    + " See [https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster/archived-settings?version=master] "
-                    + "for details."
+            both(containsString("unknown setting [archived.index.store.type] was archived after upgrading, and must be removed.")).and(
+                containsString("https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster/archived-settings")
             )
         );
-
     }
 
     public void testTupleAffixUpdateConsumer() {

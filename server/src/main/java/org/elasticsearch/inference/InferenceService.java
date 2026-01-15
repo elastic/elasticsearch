@@ -139,6 +139,16 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Perform multimodal embedding inference on the model using the embedding schema.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
      * Chunk long text.
      *
      * @param model            The model

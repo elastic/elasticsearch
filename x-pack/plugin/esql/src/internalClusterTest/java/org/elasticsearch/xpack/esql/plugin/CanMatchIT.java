@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -388,6 +389,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSkipOnTierName() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var tiers = List.of("hot", "warm", "cold");
         for (String tier : tiers) {
             assertAcked(

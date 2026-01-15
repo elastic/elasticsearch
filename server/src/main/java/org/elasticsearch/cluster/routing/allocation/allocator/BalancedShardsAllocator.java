@@ -170,7 +170,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            balancerSettings.getThreshold(),
             balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
@@ -254,7 +253,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
@@ -315,7 +313,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final RoutingNodes routingNodes;
         private final Metadata metadata;
 
-        private final float threshold;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
@@ -327,7 +324,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
-            float threshold,
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange
         ) {
@@ -335,7 +331,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            this.threshold = threshold;
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = balancingWeights.diskUsageIgnored()
@@ -533,7 +528,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    final float localThreshold = sorter.minWeightDelta() * threshold;
+                    final float localThreshold = sorter.minWeightDelta() * sorter.getThreshold();
                     boolean deltaAboveThreshold = lessThan(currentDelta, localThreshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
@@ -652,7 +647,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
-                final float localThreshold = sorter.minWeightDelta() * threshold;
+                final float localThreshold = sorter.minWeightDelta() * sorter.getThreshold();
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
                     final ModelNode maxNode = modelNodes[highIdx];
@@ -1786,14 +1781,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /** The nodes weights with respect to the current weight function / index */
         final float[] weights;
         private final WeightFunction function;
-        private ProjectIndex index;
         private final Balancer balancer;
+        private final float threshold;
+        private ProjectIndex index;
         private float pivotWeight;
 
-        public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
+        public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer, float threshold) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;
+            this.threshold = threshold;
             weights = new float[modelNodes.length];
         }
 
@@ -1855,6 +1852,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public WeightFunction getWeightFunction() {
             return function;
+        }
+
+        public float getThreshold() {
+            return threshold;
         }
     }
 

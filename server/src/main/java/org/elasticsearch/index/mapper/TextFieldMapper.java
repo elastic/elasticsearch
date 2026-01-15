@@ -361,7 +361,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         private static boolean usesBinaryDocValues(final IndexSettings indexSettings) {
             IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
-            if (indexVersion.onOrAfter(IndexVersions.TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK)) {
+            if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
                 return indexSettings.useTimeSeriesDocValuesFormat();
             }
             // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in

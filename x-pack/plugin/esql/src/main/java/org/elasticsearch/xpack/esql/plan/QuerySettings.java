@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -74,22 +75,30 @@ public class QuerySettings {
         type = { "keyword" },
         description = "Defines how unmapped fields are treated. Possible values are: "
             + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
-            + "\"NULLIFY\" - treats unmapped fields as null values; "
-            + "\"LOAD\" - attempts to load the fields from the source."
+            + "\"NULLIFY\" - treats unmapped fields as null values. "
+        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,
         false,
         true,
-        true,
+        false,
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
-                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled() == false) {
+                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
+                }
+                return res;
             } catch (Exception exc) {
+                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+                    ? UnmappedResolution.values()
+                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
+
                 throw new IllegalArgumentException(
-                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
                 );
             }
         },

@@ -696,7 +696,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
     }
 
-    public static class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
+    public static final class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
         private final String key;
         private final BytesBinaryIndexFieldData delegate;
         private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;

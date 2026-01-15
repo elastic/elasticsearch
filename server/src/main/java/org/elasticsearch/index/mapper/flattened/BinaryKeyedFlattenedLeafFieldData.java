@@ -25,7 +25,7 @@ import java.util.Collection;
  * This class wraps the field data that is built directly on the keyed flattened field,
  * and filters out values whose prefix doesn't match the requested key.
  */
-public class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
+public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
 
     private final String key;
     private final LeafFieldData delegate;

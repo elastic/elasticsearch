@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -654,7 +655,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
-                b.field("bits", 4);
+                if (Build.current().isSnapshot()) {
+                    b.field("bits", 4);
+                }
                 b.endObject();
             }));
 
@@ -663,7 +666,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .fieldType()
                 .getIndexOptions();
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
-            assertEquals(4, indexOptions.bits, 0.0F);
+            if (Build.current().isSnapshot()) {
+                assertEquals(4, indexOptions.bits, 0.0F);
+            }
             assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
             assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
@@ -688,7 +693,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
             assertEquals(5.0, indexOptions.defaultVisitPercentage, 0.0);
-            assertEquals(1, indexOptions.bits, 0.0);
+            if (Build.current().isSnapshot()) {
+                assertEquals(1, indexOptions.bits, 0.0);
+            }
         }
     }
 

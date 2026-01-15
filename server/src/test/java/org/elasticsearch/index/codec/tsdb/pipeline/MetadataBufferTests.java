@@ -13,6 +13,7 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class MetadataBufferTests extends ESTestCase {
 
@@ -30,28 +31,24 @@ public class MetadataBufferTests extends ESTestCase {
 
         // THEN
         assertEquals(numBytes, buffer.size());
-        final byte[] bytes = buffer.toByteArray();
-        for (int i = 0; i < numBytes; i++) {
-            assertEquals(expected[i], bytes[i]);
-        }
+        assertArrayEquals(expected, buffer.toByteArray());
     }
 
     public void testWriteByteGrowsBuffer() {
         // GIVEN
         final MetadataBuffer buffer = new MetadataBuffer();
         final int numBytes = 200; // Exceeds default capacity of 64
+        final byte[] expected = new byte[numBytes];
 
         // WHEN
         for (int i = 0; i < numBytes; i++) {
-            buffer.writeByte((byte) i);
+            expected[i] = (byte) i;
+            buffer.writeByte(expected[i]);
         }
 
         // THEN
         assertEquals(numBytes, buffer.size());
-        final byte[] bytes = buffer.toByteArray();
-        for (int i = 0; i < numBytes; i++) {
-            assertEquals((byte) i, bytes[i]);
-        }
+        assertArrayEquals(expected, buffer.toByteArray());
     }
 
     public void testWriteRandomVInts() {
@@ -301,10 +298,7 @@ public class MetadataBufferTests extends ESTestCase {
 
         // THEN
         assertEquals(targetSize, buffer.size());
-        final byte[] bytes = buffer.toByteArray();
-        for (int i = 0; i < targetSize; i++) {
-            assertEquals(expected[i], bytes[i]);
-        }
+        assertArrayEquals(expected, buffer.toByteArray());
     }
 
     public void testLargeZLongSequence() throws IOException {
@@ -359,10 +353,7 @@ public class MetadataBufferTests extends ESTestCase {
 
         // THEN
         assertEquals(numBytes, buffer.size());
-        final byte[] bytes = buffer.toByteArray();
-        for (int i = 0; i < numBytes; i++) {
-            assertEquals(expected[i], bytes[i]);
-        }
+        assertArrayEquals(expected, buffer.toByteArray());
     }
 
     public void testClearAndReuseWithDifferentData() {
@@ -453,9 +444,7 @@ public class MetadataBufferTests extends ESTestCase {
 
         // THEN
         assertEquals(numBytes, bytesWritten);
-        for (int i = 0; i < numBytes; i++) {
-            assertEquals(expected[i], dest[offset + i]);
-        }
+        assertArrayEquals(expected, Arrays.copyOfRange(dest, offset, offset + numBytes));
     }
 
     public void testWriteToEmptyBuffer() {

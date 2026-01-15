@@ -14,6 +14,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,6 +31,7 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
     private final String keyedFieldFullPath;
     private final String keyedIgnoredValuesFieldFullPath;
     private final String leafName;
+    private final boolean usesBinaryDocValues;
 
     private DocValuesFieldValues docValues = NO_VALUES;
     private List<Object> ignoredValues = List.of();
@@ -46,12 +49,14 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
         String fieldFullPath,
         String keyedFieldFullPath,
         @Nullable String keyedIgnoredValuesFieldFullPath,
-        String leafName
+        String leafName,
+        boolean usesBinaryDocValues
     ) {
         this.fieldFullPath = fieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.leafName = leafName;
+        this.usesBinaryDocValues = usesBinaryDocValues;
     }
 
     @Override
@@ -73,14 +78,27 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);
-        if (dv.getValueCount() == 0) {
-            docValues = NO_VALUES;
-            return null;
+        if (usesBinaryDocValues) {
+            var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
+            if (binaryDv == null) {
+                return null;
+            }
+
+            SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedFieldFullPath, binaryDv);
+            MultiValuedBinaryFieldValues loader = new MultiValuedBinaryFieldValues(dv);
+            docValues = loader;
+            return loader;
+        } else {
+            final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);
+            if (dv.getValueCount() == 0) {
+                docValues = NO_VALUES;
+                return null;
+            }
+
+            SortedSetFieldValues loader = new SortedSetFieldValues(dv);
+            docValues = loader;
+            return loader;
         }
-        final FlattenedFieldDocValuesLoader loader = new FlattenedFieldDocValuesLoader(dv);
-        docValues = loader;
-        return loader;
     }
 
     @Override
@@ -94,7 +112,7 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
             return;
         }
 
-        FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = new DocValuesSortedKeyedValues(docValues);
+        FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         if (ignoredValues.isEmpty() == false) {
             var ignoredValuesSet = new TreeSet<BytesRef>();
             for (Object value : ignoredValues) {
@@ -118,7 +136,7 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
     private interface DocValuesFieldValues {
         int count();
 
-        SortedSetDocValues getValues();
+        FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues();
     }
 
     private static final DocValuesFieldValues NO_VALUES = new DocValuesFieldValues() {
@@ -128,36 +146,78 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
         }
 
         @Override
-        public SortedSetDocValues getValues() {
-            return null;
+        public FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues() {
+            return () -> null;
         }
     };
 
-    /**
-     * Load ordinals in line with populating the doc and immediately
-     * convert from ordinals into {@link BytesRef}s.
-     */
-    private static class FlattenedFieldDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
-        private final SortedSetDocValues dv;
+    private static final class SortedSetFieldValues implements DocValuesFieldValues, DocValuesLoader {
+        private final SortedSetDocValues docValues;
         private boolean hasValue;
 
-        FlattenedFieldDocValuesLoader(final SortedSetDocValues dv) {
-            this.dv = dv;
+        SortedSetFieldValues(SortedSetDocValues docValues) {
+            this.docValues = docValues;
         }
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
-            return hasValue = dv.advanceExact(docId);
+            return hasValue = docValues.advanceExact(docId);
         }
 
         @Override
         public int count() {
-            return hasValue ? dv.docValueCount() : 0;
+            return hasValue ? docValues.docValueCount() : 0;
         }
 
         @Override
-        public SortedSetDocValues getValues() {
-            return dv;
+        public FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues() {
+            return new FlattenedFieldSyntheticWriterHelper.SortedKeyedValues() {
+                private int seen = 0;
+
+                @Override
+                public BytesRef next() throws IOException {
+                    if (seen < count()) {
+                        seen += 1;
+                        return docValues.lookupOrd(docValues.nextOrd());
+                    }
+                    return null;
+                }
+            };
+        }
+    }
+
+    private static final class MultiValuedBinaryFieldValues implements DocValuesFieldValues, DocValuesLoader {
+        private final SortedBinaryDocValues docValues;
+        private boolean hasValue = false;
+
+        MultiValuedBinaryFieldValues(SortedBinaryDocValues docValues) {
+            this.docValues = docValues;
+        }
+
+        @Override
+        public boolean advanceToDoc(int docId) throws IOException {
+            return hasValue = docValues.advanceExact(docId);
+        }
+
+        @Override
+        public int count() {
+            return hasValue ? docValues.docValueCount() : 0;
+        }
+
+        @Override
+        public FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues() {
+            return new FlattenedFieldSyntheticWriterHelper.SortedKeyedValues() {
+                private int seen = 0;
+
+                @Override
+                public BytesRef next() throws IOException {
+                    if (seen < count()) {
+                        seen += 1;
+                        return docValues.nextValue();
+                    }
+                    return null;
+                }
+            };
         }
     }
 
@@ -207,23 +267,4 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
         }
     }
 
-    private static class DocValuesSortedKeyedValues implements FlattenedFieldSyntheticWriterHelper.SortedKeyedValues {
-        private final DocValuesFieldValues docValues;
-        private int seen = 0;
-
-        private DocValuesSortedKeyedValues(DocValuesFieldValues docValues) {
-            this.docValues = docValues;
-        }
-
-        @Override
-        public BytesRef next() throws IOException {
-            if (seen < docValues.count()) {
-                seen += 1;
-                var sortedSetDocValues = docValues.getValues();
-                return sortedSetDocValues.lookupOrd(sortedSetDocValues.nextOrd());
-            }
-
-            return null;
-        }
-    }
 }

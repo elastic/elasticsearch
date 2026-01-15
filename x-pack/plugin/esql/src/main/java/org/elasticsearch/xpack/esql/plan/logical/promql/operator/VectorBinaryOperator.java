@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract sealed class VectorBinaryOperator extends BinaryPlan permits VectorBinarySet, VectorBinaryComparison,
+public abstract sealed class VectorBinaryOperator extends BinaryPlan implements PromqlPlan permits VectorBinarySet, VectorBinaryComparison,
     VectorBinaryArithmetic {
 
     private final VectorMatch match;
@@ -83,29 +84,29 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
     }
 
     private List<Attribute> computeOutputAttributes() {
-        // TODO: this isn't tested and should be revised
+        if (left() instanceof LiteralSelector) {
+            return right().output();
+        }
+        if (right() instanceof LiteralSelector) {
+            return left().output();
+        }
+        Set<String> outputLabels;
         List<Attribute> leftAttrs = left().output();
         List<Attribute> rightAttrs = right().output();
-
         Set<String> leftLabels = extractLabelNames(leftAttrs);
         Set<String> rightLabels = extractLabelNames(rightAttrs);
-
-        Set<String> outputLabels;
-
-        if (match != null) {
-            if (match.filter() == VectorMatch.Filter.ON) {
-                outputLabels = new HashSet<>(match.filterLabels());
-            } else if (match.filter() == VectorMatch.Filter.IGNORING) {
-                outputLabels = new HashSet<>(leftLabels);
-                outputLabels.addAll(rightLabels);
-                outputLabels.removeAll(match.filterLabels());
-            } else {
-                outputLabels = new HashSet<>(leftLabels);
-                outputLabels.retainAll(rightLabels);
-            }
-        } else {
+        if (matchFilter() == VectorMatch.Filter.ON) {
+            outputLabels = new HashSet<>(match.filterLabels());
+        } else if (matchFilter() == VectorMatch.Filter.IGNORING) {
             outputLabels = new HashSet<>(leftLabels);
-            outputLabels.retainAll(rightLabels);
+            outputLabels.addAll(rightLabels);
+            outputLabels.removeAll(match.filterLabels());
+        } else if (leftLabels.equals(rightLabels)) {
+            return leftAttrs;
+        } else {
+            // If there's a mismatch in labels that is not handled by ON or IGNORING,
+            // the query result is an empty set by definition as non-matching series are dropped.
+            return List.of();
         }
 
         if (dropMetricName) {
@@ -120,8 +121,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
             }
         }
 
-        result.add(new ReferenceAttribute(source(), "value", DataType.DOUBLE));
         return result;
+    }
+
+    private VectorMatch.Filter matchFilter() {
+        if (match != null) {
+            return match.filter();
+        }
+        return VectorMatch.Filter.NONE;
     }
 
     private Set<String> extractLabelNames(List<Attribute> attrs) {
@@ -181,5 +188,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("PromQL plans should not be serialized");
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.INSTANT_VECTOR;
     }
 }

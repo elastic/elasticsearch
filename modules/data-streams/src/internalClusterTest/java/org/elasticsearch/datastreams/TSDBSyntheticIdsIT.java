@@ -13,10 +13,14 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageTestUtils;
 import org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageStats;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -44,6 +48,8 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,7 +57,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -60,11 +68,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -258,18 +268,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         // Delete by synthetic _id
-        var deletedDocs = randomSubsetOf(randomIntBetween(1, docs.size()), docs.keySet());
-        for (var docId : deletedDocs) {
-            var deletedDocIndex = docs.get(docId);
-            assertThat(deletedDocIndex, notNullValue());
-
-            // Delete
-            var deleteResponse = client().prepareDelete(deletedDocIndex, docId).get();
-            assertThat(deleteResponse.getId(), equalTo(docId));
-            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
-            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
-            assertThat(deleteResponse.getVersion(), equalTo(2L));
-        }
+        var deletedDocs = deleteRandomDocuments(docs);
 
         // Index more random docs
         if (randomBoolean()) {
@@ -316,17 +315,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Search by synthetic _id
         var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));
-        for (var docId : otherDocs) {
-            assertCheckedResponse(
-                client().prepareSearch(docs.get(docId))
-                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
-                searchResponse -> {
-                    assertHitCount(searchResponse, 1L);
-                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
-                    assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
-                }
-            );
-        }
+        assertSearchById(otherDocs, docs);
 
         flush(dataStreamName);
 
@@ -797,6 +786,176 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
             default:
                 throw new AssertionError("Unsupported operation type: " + operation);
+        }
+    }
+
+    /**
+     * Assert that we can still search by synthetic _id after restoring index from snapshot
+     */
+    public void testCreateSnapshot() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        // create index
+        final var dataStreamName = randomIdentifier();
+        int shards = randomIntBetween(1, 5);
+        putDataStreamTemplate(dataStreamName, shards);
+
+        final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
+        final var timestamp = Instant.now();
+        logger.info("timestamp is " + timestamp);
+
+        var bulkItemResponses = createDocuments(
+            dataStreamName,
+            // t + 0s
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp, "vm-dev02", "cpu-load", 1),
+            // t + 1s
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            // t + 0s out-of-order doc
+            document(timestamp, "vm-dev03", "cpu-load", 4),
+            // t + 2s
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            // t - 1s out-of-order doc
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            // t + 3s
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+        );
+
+        // Verify that documents are created
+        var docIdToIndex = new HashMap<String, String>();
+        for (var bulkItemResponse : bulkItemResponses) {
+            assertThat(bulkItemResponse.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(bulkItemResponse.getVersion(), equalTo(1L));
+            docIdToIndex.put(bulkItemResponse.getId(), bulkItemResponse.getIndex());
+        }
+
+        deleteRandomDocuments(docIdToIndex).forEach(docIdToIndex::remove);
+
+        refresh(docIdToIndex.values().toArray(String[]::new));
+        Set<String> docsToVerify = docIdToIndex.isEmpty()
+            ? Collections.emptySet()
+            : randomSet(1, 3, () -> randomFrom(docIdToIndex.keySet()));
+        Map<String, Map<String, Object>> documentSourcesBeforeSnapshot = documentSourcesAsMaps(dataStreamName, docsToVerify);
+
+        // create snapshot
+        String testRepoName = "test-repo";
+        createRepository(testRepoName);
+        final String snapshotName = "test-snap-" + System.currentTimeMillis();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            testRepoName,
+            snapshotName
+        ).setWaitForCompletion(true).setIndices(dataStreamName).setIncludeGlobalState(false).get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        // get snapshot
+        assertThat(
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, testRepoName)
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots()
+                .getFirst()
+                .state(),
+            equalTo(SnapshotState.SUCCESS)
+        );
+
+        // rollover data stream
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(dataStreamName)
+            .get();
+        var indexName = getIndexResponse.indices()[0];
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(dataStreamName).get();
+        assertTrue(rolloverResponse.isAcknowledged());
+        assertTrue(rolloverResponse.isRolledOver());
+        assertThat(
+            client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices().length,
+            equalTo(2)
+        );
+
+        // delete first backing index
+        assertThat(client().admin().indices().prepareDelete(indexName).get().isAcknowledged(), equalTo(true));
+        assertThat(
+            client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices().length,
+            equalTo(1)
+        );
+        assertThat(documentCount(dataStreamName), equalTo(0L));
+
+        // restore from snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            testRepoName,
+            snapshotName
+        ).setWaitForCompletion(true).setRestoreGlobalState(false).get();
+        assertNotNull(restoreSnapshotResponse.getRestoreInfo());
+
+        // Should be able to search by (synthetic) _id
+        assertSearchById(docsToVerify, docIdToIndex);
+
+        // All documents should be there
+        Map<String, Map<String, Object>> documentSourcesAfterRestore = documentSourcesAsMaps(dataStreamName, docsToVerify);
+        assertThat(documentSourcesAfterRestore, equalTo(documentSourcesBeforeSnapshot));
+    }
+
+    private static long documentCount(String dataStreamName) {
+        return indicesAdmin().prepareStats(dataStreamName).setDocs(true).get().getTotal().docs.getCount();
+    }
+
+    private static List<String> deleteRandomDocuments(Map<String, String> docIdToIndex) {
+        List<String> deletedDocs = randomSubsetOf(randomIntBetween(1, docIdToIndex.size()), docIdToIndex.keySet());
+        for (var docId : deletedDocs) {
+            var deletedDocIndex = docIdToIndex.get(docId);
+            assertThat(deletedDocIndex, notNullValue());
+
+            // Delete
+            var deleteResponse = client().prepareDelete(deletedDocIndex, docId).get();
+            assertThat(deleteResponse.getId(), equalTo(docId));
+            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+            assertThat(deleteResponse.getVersion(), equalTo(2L));
+        }
+        return deletedDocs;
+    }
+
+    private static Map<String, Map<String, Object>> documentSourcesAsMaps(String dataStreamName, Set<String> docIds) {
+        IdsQueryBuilder docIdsQuery = QueryBuilders.idsQuery().addIds(docIds.toArray(String[]::new));
+        var resp = client().prepareSearch(dataStreamName).setFetchSource(true).setQuery(docIdsQuery).get();
+        try {
+            var result = new HashMap<String, Map<String, Object>>();
+            for (SearchHit hit : resp.getHits().getHits()) {
+                result.put(hit.getId(), hit.getSourceAsMap());
+            }
+            return result;
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    private void createRepository(String repoName) {
+        Path location = randomRepoPath();
+        logger.info("--> creating repository [{}] [{}]", repoName, "fs");
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", location))
+        );
+    }
+
+    private static void assertSearchById(Collection<String> searchIds, HashMap<String, String> docIdToIndex) throws IOException {
+        for (var docId : searchIds) {
+            assertCheckedResponse(
+                client().prepareSearch(docIdToIndex.get(docId))
+                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                searchResponse -> {
+                    assertHitCount(searchResponse, 1L);
+                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                    assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                }
+            );
         }
     }
 

@@ -93,7 +93,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
                 enrichResolution,
                 emptyInferenceResolution(),
                 TransportVersion.current(),
-                UNMAPPED_FIELDS.defaultValue()
+                UNMAPPED_FIELDS.defaultValue(),
+                false,
+                false
             ),
             TEST_VERIFIER
         );

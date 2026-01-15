@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -202,6 +203,7 @@ import static org.elasticsearch.xpack.esql.core.expression.function.scalar.Funct
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -8700,7 +8702,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | keep s
             """;
 
-        PhysicalPlan plan = physicalPlan(query, testAllMapping);
+        PhysicalPlan plan = physicalPlan(query, testAllMapping, ESQL_DENSE_VECTOR_CREATED_VERSION);
         PhysicalPlan optimized = testData.physicalOptimizer().optimize(plan);
 
         // ProjectExec[[s{r}#6]]
@@ -8737,7 +8739,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalOptimizer().optimize(physicalPlan(query, data, false));
+        var plan = physicalOptimizer().optimize(physicalPlan(query, data, false, null));
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
 
@@ -9201,6 +9203,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return physicalPlan(query, dataSource, true);
     }
 
+    private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, TransportVersion minimumVersion) {
+        return physicalPlan(query, dataSource, true, minimumVersion);
+    }
+
     private PhysicalPlan physicalPlanNoSerializationCheck(String query) {
         return physicalPlan(query, testData, false);
     }
@@ -9208,9 +9214,34 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
-        // System.out.println("Logical\n" + logical);
-        var physical = mapper.map(new Versioned<>(logical, dataSource.minimumVersion()));
-        // System.out.println("Physical\n" + physical);
+        return logicalPlanToPhysicalPlan(logical, dataSource.minimumVersion(), assertSerialization);
+    }
+
+    private PhysicalPlan physicalPlan(
+        String query,
+        TestDataSource dataSource,
+        boolean assertSerialization,
+        TransportVersion minimumVersion
+    ) {
+        var logicalOptimizer = dataSource.logicalOptimizer();
+        var analyzer = dataSource.analyzer;
+        if (analyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minimumVersion)) {
+                var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+                var logicalPlan = logicalOptimizer.optimize(analyzed);
+                return logicalPlanToPhysicalPlan(logicalPlan, dataSource.minimumVersion(), assertSerialization);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
+    }
+
+    private PhysicalPlan logicalPlanToPhysicalPlan(
+        LogicalPlan logicalPlan,
+        TransportVersion transportVersion,
+        boolean assertSerialization
+    ) {
+        var physical = mapper.map(new Versioned<>(logicalPlan, transportVersion));
         if (assertSerialization) {
             assertSerialization(physical, config);
         }

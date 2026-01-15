@@ -127,6 +127,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
@@ -1097,7 +1099,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | eval s = %s
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Project[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
         var project = as(plan, Project.class);
@@ -1145,7 +1147,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep s
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Project[[s{r}#4]]
         var project = as(plan, Project.class);
@@ -1190,7 +1192,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep s
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats() {
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), new EsqlTestUtils.TestSearchStats() {
             @Override
             public boolean isIndexed(FieldAttribute.FieldName field) {
                 return field.string().equals("dense_vector") == false;
@@ -1224,7 +1226,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     public void testAggregateMetricDouble() {
         String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
 
-        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+        LogicalPlan plan = localPlan(
+            plan(query, tsAnalyzer, ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION),
+            new EsqlTestUtils.TestSearchStats()
+        );
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -1253,7 +1258,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
             """;
 
-        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+        LogicalPlan plan = localPlan(
+            plan(query, tsAnalyzer, ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION),
+            new EsqlTestUtils.TestSearchStats()
+        );
 
         // Project[[s{r}#5, a{r}#8]]
         var project = as(plan, Project.class);
@@ -1308,7 +1316,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                   a = avg(avg_over_time(network.eth0.tx))
             BY pod, time_bucket = BUCKET(@timestamp,5minute)
             """;
-        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+        LogicalPlan plan = localPlan(
+            plan(query, tsAnalyzer, ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION),
+            new EsqlTestUtils.TestSearchStats()
+        );
 
         // Project[[m{r}#9, c{r}#12, a{r}#15, pod{r}#19, time_bucket{r}#6]]
         var project = as(plan, Project.class);
@@ -1383,7 +1394,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | LIMIT 9
             """;
 
-        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+        LogicalPlan plan = localPlan(
+            plan(query, tsAnalyzer, ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION),
+            new EsqlTestUtils.TestSearchStats()
+        );
 
         // Project[[@timestamp{f}#972, cluster{f}#973, pod{f}#974, network.eth0.tx{f}#991, tx_max{r}#962]]
         var project = as(plan, Project.class);
@@ -1426,7 +1440,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep s
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats() {
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), new EsqlTestUtils.TestSearchStats() {
             @Override
             public boolean exists(FieldAttribute.FieldName field) {
                 return field.string().equals("dense_vector") == false;
@@ -1466,7 +1480,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep dense_vector
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Project[[dense_vector{f}#25]]
         var project = as(plan, Project.class);
@@ -1503,7 +1517,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | stats count(*) where %s > 0.5
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -1554,7 +1568,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | limit 1
             """, testCase.toQuery());
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Project with all fields including similarity and keyword
         var project = as(plan, Project.class);
@@ -1621,7 +1635,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             testCase3.toQuery()
         );
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Project[[s1{r}#5, s2{r}#8, r2{r}#14]]
         var project = as(plan, Project.class);
@@ -2013,7 +2027,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where knn(dense_vector, [0, 1, 2]) or match(text, "Doe")
             """;
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         var testStats = statsForMissingField("dense_vector");
         var localPlan = localPlan(plan, testStats);
@@ -2049,7 +2063,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 | LIMIT 10
                 | KEEP text, score
             """);
-        var logicalPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        var logicalPlan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Verify the logical plan structure:
         // Project[[text{f}#1105, score{r}#1085]]
@@ -2143,7 +2157,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 (eval t = v_dot_product(dense_vector, [1, 2, 3]) | keep t, u, keyword)
             | eval x = length(keyword)
             """;
-        var localPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        var localPlan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         var eval = as(localPlan, Eval.class);
         // Cosine function has not been pushed down as it targets a reference and not a field
@@ -2229,7 +2243,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
             | keep s, t
             """;
-        var localPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        var localPlan = localPlan(plan(query, allTypesAnalyzer, ESQL_DENSE_VECTOR_CREATED_VERSION), TEST_SEARCH_STATS);
 
         // Project[[s{r}#97, t{r}#9]]
         var project = as(localPlan, Project.class);

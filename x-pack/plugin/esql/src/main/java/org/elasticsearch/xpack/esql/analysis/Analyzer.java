@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -283,10 +284,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             IndexResolution indexResolution = plan.indexMode().equals(IndexMode.LOOKUP)
                 ? context.lookupResolution().get(plan.indexPattern().indexPattern())
                 : context.indexResolution().get(plan.indexPattern());
-            return resolveIndex(plan, indexResolution);
+            return resolveIndex(plan, indexResolution, context);
         }
 
-        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution, AnalyzerContext context) {
             if (indexResolution == null || indexResolution.isValid() == false) {
                 String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
                 return plan.unresolvedMessage().equals(indexResolutionMessage)
@@ -318,7 +319,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(
+                plan.source(),
+                esIndex.mapping(),
+                context.minimumVersion(),
+                context.useAggregateMetricDoubleWhenNotSupported(),
+                context.useDenseVectorWhenNotSupported()
+            );
             attributes.addAll(plan.metadataFields());
             return new EsRelation(
                 plan.source(),
@@ -340,14 +347,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *     Public for testing.
      * </p>
      */
-    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(
+        Source source,
+        Map<String, EsField> mapping,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, source, null, mapping);
+        mappingAsAttributes(
+            list,
+            source,
+            null,
+            mapping,
+            minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported
+        );
         list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(
+        List<Attribute> list,
+        Source source,
+        String parentName,
+        Map<String, EsField> mapping,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
@@ -355,7 +384,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
-                var type = t.getDataType().widenSmallNumeric();
+                DataType type = t.getDataType();
+                type = type.widenSmallNumeric();
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
                 if (type != t.getDataType()) {
@@ -365,16 +395,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
                     ? new UnsupportedAttribute(source, name, uef)
                     : new FieldAttribute(source, parentName, null, name, t);
+
+                // check data type against minimum transport version
+                boolean typeSupported = type.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot()) || switch (type) {
+                    case AGGREGATE_METRIC_DOUBLE -> useAggregateMetricDoubleWhenNotSupported;
+                    case DENSE_VECTOR -> useDenseVectorWhenNotSupported;
+                    default -> false;
+                };
+                if (typeSupported == false) {
+                    // this data type is not supported by the minimum transport version
+                    type = UNSUPPORTED;
+                    UnsupportedEsField unsupportedEsField = new UnsupportedEsField(
+                        t.getName(),
+                        List.of(t.getDataType().esType()),
+                        parentName,  // qualifier is not supported yet, this is the parent name of the nested field
+                        t.getProperties(),
+                        t.getTimeSeriesFieldType()
+                    );
+                    attribute = new UnsupportedAttribute(source, name, unsupportedEsField);
+                }
+
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown
+                // nested fields have non-empty properties
                 if (fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, attribute.name(), fieldProperties);
+                    mappingAsAttributes(
+                        list,
+                        source,
+                        attribute.name(),
+                        fieldProperties,
+                        minimumVersion,
+                        useAggregateMetricDoubleWhenNotSupported,
+                        useDenseVectorWhenNotSupported
+                    );
                 }
             }
         }
+
+        // TODO if the parent EsField is a UNSUPPORTED,
+        // mark its children as unsupported too, the children's field names have the parent field name as the prefix
+        // leave this as TODO to see which tests break
     }
 
     private static class ResolveEnrich extends ParameterizedAnalyzerRule<Enrich, AnalyzerContext> {
@@ -395,7 +458,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    mappingAsAttributes(
+                        plan.source(),
+                        resolved.mapping(),
+                        context.minimumVersion(),
+                        context.useAggregateMetricDoubleWhenNotSupported(),
+                        context.useDenseVectorWhenNotSupported()
+                    ),
                     plan.enrichFields(),
                     policy
                 );

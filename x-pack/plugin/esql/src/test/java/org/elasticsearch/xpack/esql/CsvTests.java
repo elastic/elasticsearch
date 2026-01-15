@@ -582,7 +582,9 @@ public class CsvTests extends ESTestCase {
                 enrichPolicies,
                 emptyInferenceResolution(),
                 minimumVersion,
-                parsed.setting(UNMAPPED_FIELDS)
+                parsed.setting(UNMAPPED_FIELDS),
+                false,
+                false
             ),
             TEST_VERIFIER
         );

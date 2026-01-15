@@ -27,6 +27,8 @@ public class AnalyzerContext {
     private final TransportVersion minimumVersion;
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    private final boolean useAggregateMetricDoubleWhenNotSupported;
+    private final boolean useDenseVectorWhenNotSupported;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -36,7 +38,9 @@ public class AnalyzerContext {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         TransportVersion minimumVersion,
-        UnmappedResolution unmappedResolution
+        UnmappedResolution unmappedResolution,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -46,6 +50,8 @@ public class AnalyzerContext {
         this.inferenceResolution = inferenceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.useAggregateMetricDoubleWhenNotSupported = useAggregateMetricDoubleWhenNotSupported;
+        this.useDenseVectorWhenNotSupported = useDenseVectorWhenNotSupported;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -92,6 +98,14 @@ public class AnalyzerContext {
         return unmappedResolution;
     }
 
+    public boolean useAggregateMetricDoubleWhenNotSupported() {
+        return useAggregateMetricDoubleWhenNotSupported;
+    }
+
+    public boolean useDenseVectorWhenNotSupported() {
+        return useDenseVectorWhenNotSupported;
+    }
+
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
@@ -106,7 +120,9 @@ public class AnalyzerContext {
             result.enrichResolution(),
             result.inferenceResolution(),
             result.minimumTransportVersion(),
-            unmappedResolution
+            unmappedResolution,
+            result.useAggregateMetricDoubleWhenNotSupported(),
+            result.useDenseVectorWhenNotSupported()
         );
     }
 }

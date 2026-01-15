@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -144,6 +145,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeOnTransportVersionSupportAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeOnTransportVersionSupportDenseVector;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
@@ -161,6 +164,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
@@ -2401,7 +2406,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
             """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2414,7 +2419,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorCastingHexKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
             """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2427,7 +2432,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorEvalCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
             """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2447,9 +2452,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, ?query_vector)
-            """, fieldName), DENSE_VECTOR_MAPPING_FILE, new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+        var plan = analyze(
+            String.format(Locale.ROOT, """
+                from test | where knn(%s, ?query_vector)
+                """, fieldName),
+            DENSE_VECTOR_MAPPING_FILE,
+            new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2483,7 +2493,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | eval similarity = %s
             """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2518,7 +2528,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
             """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2544,7 +2554,10 @@ public class AnalyzerTests extends ESTestCase {
 
     private void checkVectorFunctionHexImplicitCastingError(String clause) {
         var query = "from test | " + clause;
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, DENSE_VECTOR_MAPPING_FILE));
+        VerificationException error = expectThrows(
+            VerificationException.class,
+            () -> analyzeOnTransportVersionSupportDenseVector(query, DENSE_VECTOR_MAPPING_FILE)
+        );
         assertThat(
             error.getMessage(),
             containsString(
@@ -2557,7 +2570,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
         assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
 
-        var plan = analyze("""
+        var plan = analyzeOnTransportVersionSupportDenseVector("""
             from test | eval scalar = v_magnitude([1, 2, 3])
             """, DENSE_VECTOR_MAPPING_FILE);
 
@@ -3320,6 +3333,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveDenseVector() {
+        // find a transport version that does not support dense_vector
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(ESQL_DENSE_VECTOR_CREATED_VERSION);
+
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
@@ -3328,26 +3344,30 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, transportVersion),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            // force to support dense_vector
+            var plan = analyze("FROM foo", resolution, transportVersion, randomBoolean(), true);
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                new IndexResolver.FieldsInfo(caps, transportVersion),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyze("FROM foo", resolution, transportVersion, randomBoolean(), false);
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
     }
 
     public void testResolveAggregateMetricDouble() {
+        // find a transport version that does not support aggregate_metric_double
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION);
+
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(
@@ -3361,10 +3381,11 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, transportVersion),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            // force to support aggregate_metric_double
+            var plan = analyze("FROM foo", resolution, transportVersion, true, randomBoolean());
             assertThat(plan.output(), hasSize(1));
             assertThat(
                 plan.output().getFirst().dataType(),
@@ -3374,10 +3395,10 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                new IndexResolver.FieldsInfo(caps, transportVersion),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyze("FROM foo", resolution, transportVersion, false, randomBoolean());
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
@@ -3810,6 +3831,11 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(error));
     }
 
+    private void assertErrorOnTransportVersionSupportDenseVector(String query, String mapping, QueryParams params, String error) {
+        Throwable e = expectThrows(VerificationException.class, () -> analyze(query, mapping, params, ESQL_DENSE_VECTOR_CREATED_VERSION));
+        assertThat(e.getMessage(), containsString(error));
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
@@ -3914,7 +3940,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testKnnFunctionWithTextEmbedding() {
-        LogicalPlan plan = analyze(
+        LogicalPlan plan = analyzeOnTransportVersionSupportDenseVector(
             String.format(Locale.ROOT, """
                 from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
             DENSE_VECTOR_MAPPING_FILE
@@ -4143,7 +4169,7 @@ public class AnalyzerTests extends ESTestCase {
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
-            assertError(
+            assertErrorOnTransportVersionSupportDenseVector(
                 "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
                     + fieldName
                     + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
@@ -5461,7 +5487,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        // require a transport version that supports AggregateMetricDouble type
+        LogicalPlan plan = analyzeOnTransportVersionSupportAggregateMetricDouble("""
             FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
             """, "k8s-downsampled-mappings.json");
@@ -5501,7 +5528,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        // require a transport version that supports AggregateMetricDouble type
+        LogicalPlan plan = analyzeOnTransportVersionSupportAggregateMetricDouble("""
             FROM sample_data,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
@@ -5546,7 +5574,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        // require a transport version that supports AggregateMetricDouble type
+        LogicalPlan plan = analyzeOnTransportVersionSupportAggregateMetricDouble("""
             FROM k8s,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
@@ -5809,6 +5838,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current());
     }
 }

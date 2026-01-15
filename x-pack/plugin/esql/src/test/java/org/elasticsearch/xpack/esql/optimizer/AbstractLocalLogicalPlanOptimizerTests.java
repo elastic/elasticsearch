@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -137,6 +139,16 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     protected LogicalPlan plan(String query, Analyzer analyzer) {
         var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
+    }
+
+    protected LogicalPlan plan(String query, Analyzer analyzer, TransportVersion minimumVersion) {
+        if (analyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minimumVersion)) {
+                return plan(query, analyzer);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
     }
 
     protected LogicalPlan localPlan(String query) {

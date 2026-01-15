@@ -2399,7 +2399,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
-        final int quantizeBits;
+        final int bits;
 
         BBQIVFIndexOptions(
             int clusterSize,
@@ -2407,14 +2407,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean onDiskRescore,
             RescoreVector rescoreVector,
             IndexVersion indexVersionCreated,
-            int quantizeBits
+            int bits
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
             this.indexVersionCreated = indexVersionCreated;
-            this.quantizeBits = quantizeBits;
+            this.bits = bits;
         }
 
         @Override
@@ -2430,7 +2430,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (Build.current().isSnapshot()) {
                 return new ESNextDiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(quantizeBits >> 1),
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(bits >> 1),
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,

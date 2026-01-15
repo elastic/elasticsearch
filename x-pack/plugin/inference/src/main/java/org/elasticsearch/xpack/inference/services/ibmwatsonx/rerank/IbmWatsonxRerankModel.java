@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -60,11 +61,11 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         IbmWatsonxRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings
-        );
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+    }
+
+    public IbmWatsonxRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (IbmWatsonxRateLimitServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     private IbmWatsonxRerankModel(IbmWatsonxRerankModel model, IbmWatsonxRerankTaskSettings taskSettings) {

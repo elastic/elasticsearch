@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testStartRemoveNodeButDoNotComplete
   issue: https://github.com/elastic/elasticsearch/issues/140759
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testAbortSnapshotWhileRemovingNode
+  issue: https://github.com/elastic/elasticsearch/issues/140760
 
 # Examples:
 #

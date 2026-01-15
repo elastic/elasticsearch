@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Unwrappable;
-import org.elasticsearch.nativeaccess.jdk.JdkPosixCLibraryAccess;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -36,7 +36,7 @@ public class PosixCLibraryTests extends ESTestCase {
     @Before
     public void setup() {
         nativeAccess = NativeAccess.instance();
-        clib = JdkPosixCLibraryAccess.get();
+        clib = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
         if (Constants.LINUX || Constants.MAC_OS_X) {
             assertNotNull(clib);
         } else {

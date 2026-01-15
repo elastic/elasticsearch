@@ -12,7 +12,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -97,25 +96,6 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
-            }
-        }
-    }
-
-    static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent) {
-        if (expected.length == actual.length) {
-            for (int i = 0; i < expected.length; i++) {
-                var expectedValue = expected[i];
-                if (Math.abs(expectedValue - actual[i]) > expectedValue * deltaPercent) {
-                    fail(
-                        Strings.format(
-                            "%s: arrays first differed at element [%d]; expected:<%f> but was:<%f>",
-                            message,
-                            i,
-                            expectedValue,
-                            actual[i]
-                        )
-                    );
-                }
             }
         }
     }

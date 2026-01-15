@@ -8,4 +8,5 @@ pull_request:
     - ":Delivery/Packaging"
     - "auto-merge-without-approval"
     - "dependencies"
+    - ">non-issue"
 

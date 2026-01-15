@@ -18,10 +18,12 @@ public final class IngestSettings {
         // utility class
     }
 
+    // this watchdog interval setting is deprecated because it no longer controls any behavior
     public static final Setting<TimeValue> GROK_WATCHDOG_INTERVAL = Setting.timeSetting(
         "ingest.grok.watchdog.interval",
         TimeValue.timeValueSeconds(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
     public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
         "ingest.grok.watchdog.max_execution_time",

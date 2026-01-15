@@ -225,16 +225,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation(),
-            new TimeSeriesGroupByAll()
+            new DateMillisToNanosInEsRelation()
         ),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
+            new TimeSeriesGroupByAll(),
             new ResolveUnionTypesInUnionAll(),
             new ResolveUnmapped()
         ),
@@ -1734,6 +1735,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {
+            // do not append an implicit limit to subqueries below a UnionAll
+            if (fork instanceof UnionAll) {
+                return fork;
+            }
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             for (var subPlan : fork.children()) {
                 newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));

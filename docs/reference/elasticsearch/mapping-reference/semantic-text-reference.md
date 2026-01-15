@@ -24,11 +24,7 @@ endpoint will only be used at index time. Learn more about [configuring this par
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.0" }
-This parameter cannot be updated.
-:::
-
-:::{applies-item} { "stack": "ga 9.3" }
+:::{applies-item} stack: ga 9.3+
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
@@ -38,6 +34,10 @@ You can update the {{infer}} endpoint if no values have been indexed or if the n
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
 ::::
 
+:::
+
+:::{applies-item} stack: ga 9.0-9.2
+This parameter cannot be updated.
 :::
 
 ::::

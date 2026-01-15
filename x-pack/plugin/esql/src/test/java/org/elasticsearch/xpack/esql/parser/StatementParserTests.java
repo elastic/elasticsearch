@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -30,7 +31,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -297,7 +301,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Eval(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                List.of(new Alias(EMPTY, "b", attribute("a")), new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1))))
+                List.of(
+                    new Alias(EMPTY, "b", attribute("a")),
+                    new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                )
             ),
             processingCommand("eval b = a, c = a + 1")
         );
@@ -317,7 +324,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(
                         EMPTY,
                         "fn(a + 1)",
-                        new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "fn",
+                            DEFAULT,
+                            List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                        )
                     )
                 )
             ),
@@ -1248,10 +1260,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldMultipleDeclarations() {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
-    }
-
-    public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test metadata _tier", "line 1:20: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
@@ -2548,7 +2556,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2561,7 +2570,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2584,7 +2594,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     ),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
             )
         );
         assertQuery(
@@ -2594,7 +2605,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
             )
         );
         assertQuery(
@@ -2604,7 +2616,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2614,7 +2627,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2624,7 +2638,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
             )
         );
         assertQuery(
@@ -2638,7 +2653,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("c"),
                     attribute("d.e")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
             )
         );
     }

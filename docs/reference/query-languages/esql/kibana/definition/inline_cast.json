@@ -7,6 +7,7 @@
   "date" : "to_datetime",
   "date_nanos" : "to_date_nanos",
   "date_period" : "to_dateperiod",
+  "date_range" : "to_date_range",
   "datetime" : "to_datetime",
   "dense_vector" : "to_dense_vector",
   "double" : "to_double",

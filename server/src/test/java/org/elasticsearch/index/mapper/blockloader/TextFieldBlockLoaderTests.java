@@ -9,10 +9,18 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.datageneration.FieldType;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -21,8 +29,29 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public TextFieldBlockLoaderTests(Params params) {
-        super(FieldType.TEXT.toString(), params);
+
+    private final boolean useBinaryDocValues;
+
+    public TextFieldBlockLoaderTests(
+        boolean syntheticSource,
+        MappedFieldType.FieldExtractPreference preference,
+        boolean useBinaryDocValues
+    ) {
+        super(FieldType.TEXT.toString(), new Params(syntheticSource, preference));
+        this.useBinaryDocValues = useBinaryDocValues;
+    }
+
+    @ParametersFactory(argumentFormatting = "syntheticSource=%s, preference=%s, useBinaryDocValues=%s")
+    public static List<Object[]> args() {
+        List<Object[]> args = new ArrayList<>();
+        for (var preference : PREFERENCES) {
+            for (boolean syntheticSource : new boolean[] { false, true }) {
+                for (boolean useBinaryDocValues : new boolean[] { false, true }) {
+                    args.add(new Object[] { syntheticSource, preference, useBinaryDocValues });
+                }
+            }
+        }
+        return args;
     }
 
     @Override
@@ -30,11 +59,17 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
         logger.info("field mapping={}", fieldMapping);
         logger.info("value={}", value);
         logger.info("params={}", params.toString());
-        return expectedValue(fieldMapping, value, params, testContext);
+        return expectedValue(fieldMapping, value, params, testContext, useBinaryDocValues);
     }
 
     @SuppressWarnings("unchecked")
-    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
+    public static Object expectedValue(
+        Map<String, Object> fieldMapping,
+        Object value,
+        Params params,
+        TestContext testContext,
+        boolean useBinaryDocValues
+    ) {
         if (fieldMapping.getOrDefault("store", false).equals(true)) {
             return valuesInSourceOrder(value);
         }
@@ -106,8 +141,27 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
+        // Loading from binary doc values
+        if (params.syntheticSource() && useBinaryDocValues) {
+            return valuesInSortedOrder(value);
+        }
+
         // Loading from stored field, _ignored_source or stored _source
         return valuesInSourceOrder(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object valuesInSortedOrder(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof String s) {
+            return new BytesRef(s);
+        }
+
+        var resultList = ((List<String>) value).stream().filter(Objects::nonNull).map(BytesRef::new).sorted().toList();
+        return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")
@@ -122,5 +176,24 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         var resultList = ((List<String>) value).stream().filter(Objects::nonNull).map(BytesRef::new).toList();
         return maybeFoldList(resultList);
+    }
+
+    @Override
+    protected MapperService createMapperServiceForParams(XContentBuilder mappings) throws IOException {
+        if (params.syntheticSource()) {
+            if (useBinaryDocValues) {
+                // enable time series doc values format whenever binary doc values are to be used. TextFieldMapper will switch to using
+                // binary doc values when this format is enabled
+                Settings settings = Settings.builder()
+                    .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+                    .put("index.mapping.source.mode", "synthetic")
+                    .build();
+                return createMapperService(settings, mappings);
+            } else {
+                return createSytheticSourceMapperService(mappings);
+            }
+        } else {
+            return createMapperService(mappings);
+        }
     }
 }

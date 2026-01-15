@@ -489,11 +489,11 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                                 + " but got "
                                 + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
                         bloomFilterFieldReader.checkIntegrity();
-                        IndexInput bloomFilterData = bloomFilterFieldReader.bloomFilterData;
+                        RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
 
                         bloomFilterData.prefetch(0, bitSetSizeInBytes);
                         for (int i = 0; i < bitSetSizeInBytes; i++) {
-                            var existingBloomFilterByte = bloomFilterData.readByte();
+                            var existingBloomFilterByte = bloomFilterData.readByte(i);
                             var resultingBloomFilterByte = buffer.get(i);
                             buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
                         }
@@ -644,7 +644,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                         bloomFilterData
                     );
                 }
-                CodecUtil.checksumEntireFile(bloomFilterData);
+                CodecUtil.retrieveChecksum(bloomFilterData);
 
                 var bloomFilterFieldReader = new BloomFilterFieldReader(
                     bloomFilterMetadata.fieldInfo(),

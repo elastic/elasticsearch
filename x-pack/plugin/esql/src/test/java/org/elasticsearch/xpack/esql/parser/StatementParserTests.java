@@ -4443,6 +4443,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testInvalidMMRCommands() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        expectError("row a = 1 | mmr some_field", "line 1:27: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
+        expectError("row a = 1 | mmr some_field limit", "line 1:33: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError(
+            "row a = 1 | mmr some_field limit 5 {\"unknown\": true}",
+            "line 1:36: mismatched input '{' expecting {<EOF>, '|', 'with'}"
+        );
+        expectError(
+            "row a = 1 | mmr some_field limit 5 with {\"unknown\": true}",
+            "line 1:36: Invalid option [unknown] in <NNR>, expected one of [[lambda]]"
+        );
+        expectError("row a = 1 | mmr not_a_param on some_field limit 5", "line 1:29: mismatched input 'on' expecting {'.', MMR_LIMIT}");
+        expectError(
+            "row a = 1 | mmr [\"invalid\", \"array\"] on some_field limit 5",
+            "line 1:17: Invalid parameter value for query vector [[\"invalid\",\"array\"]on]"
+        );
+    }
+
     public void testInvalidSample() {
         expectError(
             "row a = 1 | sample \"foo\"",

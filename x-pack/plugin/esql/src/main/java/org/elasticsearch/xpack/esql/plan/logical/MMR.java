@@ -47,11 +47,14 @@ public class MMR extends UnaryPlan {
     }
 
     public MMR(StreamInput in) throws IOException {
-        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-        this.diversifyField = in.readNamedWriteable(Attribute.class);
-        this.limit = in.readNamedWriteable(Expression.class);
-        this.queryVector = in.readOptionalNamedWriteable(Expression.class);
-        this.lambdaValue = in.readOptionalNamedWriteable(Expression.class);
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(Attribute.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
     }
 
     public Attribute diversifyField() {
@@ -76,17 +79,12 @@ public class MMR extends UnaryPlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return null;
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return false;
+        return new MMR(source(), newChild, diversifyField, limit, queryVector, lambdaValue);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return null;
+        return NodeInfo.create(this, MMR::new, child(), diversifyField, limit, queryVector, lambdaValue);
     }
 
     @Override
@@ -95,27 +93,25 @@ public class MMR extends UnaryPlan {
     }
 
     @Override
+    public boolean expressionsResolved() {
+        return diversifyField.resolved();
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(this.diversifyField);
         out.writeNamedWriteable(limit);
-        if (this.queryVector != null) {
-            out.writeOptionalNamedWriteable(queryVector);
-        }
-        if (this.lambdaValue != null) {
-            out.writeOptionalNamedWriteable(lambdaValue);
-        }
+        out.writeOptionalNamedWriteable(queryVector);
+        out.writeOptionalNamedWriteable(lambdaValue);
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
         MMR mmr = (MMR) o;
         return Objects.equals(this.diversifyField, mmr.diversifyField)
             && Objects.equals(this.limit, mmr.limit)

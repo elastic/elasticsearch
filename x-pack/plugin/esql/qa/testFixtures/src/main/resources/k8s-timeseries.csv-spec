@@ -1284,5 +1284,5 @@ TS k8s*
 min:double | std_dev:double | pod:keyword
 193.0      | 427.9853269    | one
 715.0      | 208.6955678    | three
-602.0      | 375.7757842    | two
+602.0      | 375.7757842    | testFixtures/src/main/resources/k8s-timeseries.csv-specwo
 ;

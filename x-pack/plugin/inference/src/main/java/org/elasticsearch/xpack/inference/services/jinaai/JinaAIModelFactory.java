@@ -24,9 +24,12 @@ import java.util.Map;
  * Factory class for creating {@link JinaAIModel} instances based on task type.
  */
 public class JinaAIModelFactory implements ModelFactory<JinaAIModel> {
+    private static final JinaAIEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new JinaAIEmbeddingsModelCreator();
     private static final Map<TaskType, ModelCreator<? extends JinaAIModel>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
-        new JinaAIEmbeddingsModelCreator(),
+        EMBEDDINGS_MODEL_CREATOR,
+        TaskType.EMBEDDING,
+        EMBEDDINGS_MODEL_CREATOR,
         TaskType.RERANK,
         new JinaAIRerankModelCreator()
     );

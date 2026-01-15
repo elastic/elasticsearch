@@ -61,8 +61,8 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         );
     }
 
-    public JinaAIEmbeddingsModel(
-        String modelId,
+    JinaAIEmbeddingsModel(
+        String inferenceId,
         BaseJinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
@@ -71,7 +71,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         TaskType taskType
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),
@@ -79,12 +79,18 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         );
     }
 
+    /**
+     * Constructor for creating {@link JinaAIEmbeddingsModel} instances
+     * from {@link ModelConfigurations} and {@link ModelSecrets}.
+     * @param config a model configurations object
+     * @param secrets a model secrets object
+     */
     public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
         super(
             config,
             secrets,
             (DefaultSecretSettings) secrets.getSecretSettings(),
-            ((JinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            ((BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
             buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
         );
     }

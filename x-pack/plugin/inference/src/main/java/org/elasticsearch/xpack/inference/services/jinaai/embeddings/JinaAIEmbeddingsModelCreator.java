@@ -33,7 +33,7 @@ public class JinaAIEmbeddingsModelCreator implements ModelCreator<JinaAIEmbeddin
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new JinaAIEmbeddingsModel(inferenceId, serviceSettings, taskSettings, chunkingSettings, secretSettings, context);
+        return new JinaAIEmbeddingsModel(inferenceId, serviceSettings, taskSettings, chunkingSettings, secretSettings, context, taskType);
     }
 
     @Override

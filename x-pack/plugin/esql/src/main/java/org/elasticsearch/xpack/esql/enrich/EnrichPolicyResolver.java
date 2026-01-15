@@ -337,6 +337,7 @@ public class EnrichPolicyResolver {
                     getRemoteConnection(cluster, skipOnFailure == false, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
+                            executionInfo.planningProfile().incFieldCapsCalls();
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
@@ -363,6 +364,7 @@ public class EnrichPolicyResolver {
                 .map(u -> u.name)
                 .collect(toSet());
             if (localPolicies.isEmpty() == false) {
+                executionInfo.planningProfile().incFieldCapsCalls();
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,

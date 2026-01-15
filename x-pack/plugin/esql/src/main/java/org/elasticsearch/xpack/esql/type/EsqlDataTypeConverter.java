@@ -48,8 +48,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
@@ -182,24 +180,6 @@ public class EsqlDataTypeConverter {
             Map.entry(DATETIME, ToDatetime::new),
             Map.entry(DATE_NANOS, ToDateNanos::new)
         );
-
-    /**
-     * Converters that should be resolved after parsing
-     */
-    private static final Map<DataType, BiFunction<Source, Expression, UnresolvedFunction>> TYPE_TO_UNRESOLVED_FUNCTION = Map.ofEntries(
-        Map.entry(
-            KEYWORD,
-            (source, expression) -> new UnresolvedFunction(source, "to_string", FunctionResolutionStrategy.DEFAULT, List.of(expression))
-        ),
-        Map.entry(
-            DATETIME,
-            (source, expression) -> new UnresolvedFunction(source, "to_datetime", FunctionResolutionStrategy.DEFAULT, List.of(expression))
-        ),
-        Map.entry(
-            DATE_NANOS,
-            (source, expression) -> new UnresolvedFunction(source, "to_date_nanos", FunctionResolutionStrategy.DEFAULT, List.of(expression))
-        )
-    );
 
     public enum INTERVALS {
         // TIME_DURATION,
@@ -980,21 +960,5 @@ public class EsqlDataTypeConverter {
         }
 
         return TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.get(toType);
-    }
-
-    public static
-        BiFunction<Source, Expression, org.elasticsearch.xpack.esql.core.expression.function.Function>
-        converterFunctionFactoryForParser(DataType toType) {
-        var converter = TYPE_TO_CONVERTER_FUNCTION.get(toType);
-        if (converter != null) {
-            return converter::apply;
-        }
-
-        var functionConverter = TYPE_TO_UNRESOLVED_FUNCTION.get(toType);
-        if (functionConverter != null) {
-            return functionConverter::apply;
-        }
-
-        return null;
     }
 }

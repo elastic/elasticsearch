@@ -14,12 +14,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToS
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public class ToString extends AbstractConvertFunction implements EvaluatorMapper, ConfigurationFunction {
+public class ToString extends AbstractConvertFunction implements EvaluatorMapper, ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
@@ -291,6 +291,16 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromHistogram(BytesRef histogram) {
         return new BytesRef(EsqlDataTypeConverter.histogramToString(histogram));
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public ToString withConfiguration(Configuration configuration) {
+        return new ToString(source(), field(), configuration);
     }
 
     @Override

@@ -342,6 +342,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testPushDownMetadataTierInAndNotOperator {default}
   issue: https://github.com/elastic/elasticsearch/issues/140752
+- class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/140763
 
 # Examples:
 #

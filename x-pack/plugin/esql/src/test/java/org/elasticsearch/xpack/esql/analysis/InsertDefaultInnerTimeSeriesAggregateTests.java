@@ -51,11 +51,6 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
         assertStatsEqual(expected, expected);
     }
 
-    /*
-    `Avg(to_long(foo))` should translate to `Avg(last_over_time(to_long(foo)))`
-    - `Avg(to_long(foo+5))` should translate to `Avg(to_long(last_over_time(foo))+5)`
-    - `Avg(to_long(to_int(foo)))` would translate to `Avg(last_over_time(to_long(to_int(foo))))`
-     */
     public void testConversionFunctions() {
         // Basic casting case should happen before the inner aggregation
         assertStatsEqual("Avg(to_double(network.eth0.tx))", "Avg(last_over_time(to_double(network.eth0.tx)))");

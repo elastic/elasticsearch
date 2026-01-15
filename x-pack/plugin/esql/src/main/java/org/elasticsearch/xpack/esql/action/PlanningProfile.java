@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Tracks profiling for the planning phase
@@ -32,33 +33,38 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     public static final String ANALYSIS = "analysis";
 
     /** Time elapsed since start of query to calling ComputeService.execute */
-    private final transient TimeSpanMarker planningMarker;
-
+    private final TimeSpanMarker planningMarker;
     /** Time elapsed for query parsing */
-    private final transient TimeSpanMarker parsingMarker;
-
+    private final TimeSpanMarker parsingMarker;
     /** Time elapsed for index preanalysis, including lookup indices */
-    private final transient TimeSpanMarker preAnalysisMarker;
-
+    private final TimeSpanMarker preAnalysisMarker;
     /** Time elapsed for checking dependencies (field_caps, enrich policies, inference ids) */
-    private final transient TimeSpanMarker dependencyResolutionMarker;
-
+    private final TimeSpanMarker dependencyResolutionMarker;
     /** Time elapsed for plan analysis */
-    private final transient TimeSpanMarker analysisMarker;
+    private final TimeSpanMarker analysisMarker;
+    private final transient AtomicInteger fieldCapsCalls;
 
     private static final TransportVersion ESQL_QUERY_PLANNING_PROFILE = TransportVersion.fromName("esql_query_planning_profile");
 
     public PlanningProfile() {
-        this(null, null, null, null, null);
+        this(null, null, null, null, null, 0);
     }
 
     // For testing
-    public PlanningProfile(TimeSpan planning, TimeSpan parsing, TimeSpan preAnalysis, TimeSpan dependencyResolution, TimeSpan analysis) {
-        planningMarker = new TimeSpanMarker(PLANNING, false, planning);
-        parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
-        preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
-        dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true, dependencyResolution);
-        analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
+    public PlanningProfile(
+        TimeSpan planning,
+        TimeSpan parsing,
+        TimeSpan preAnalysis,
+        TimeSpan dependencyResolution,
+        TimeSpan analysis,
+        int fieldCapsCalls
+    ) {
+        this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
+        this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
+        this.preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
+        this.dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true, dependencyResolution);
+        this.analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
+        this.fieldCapsCalls = new AtomicInteger(fieldCapsCalls);
     }
 
     public static PlanningProfile readFrom(StreamInput in) throws IOException {
@@ -70,7 +76,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             analysis = in.readOptionalWriteable(TimeSpan::readFrom);
         }
-        return new PlanningProfile(planning, parsing, preAnalysis, dependencyResolution, analysis);
+        return new PlanningProfile(planning, parsing, preAnalysis, dependencyResolution, analysis, 0);
     }
 
     @Override
@@ -92,12 +98,20 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             && Objects.equals(parsingMarker, that.parsingMarker)
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
             && Objects.equals(dependencyResolutionMarker, that.dependencyResolutionMarker)
-            && Objects.equals(analysisMarker, that.analysisMarker);
+            && Objects.equals(analysisMarker, that.analysisMarker)
+            && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
+        return Objects.hash(
+            planningMarker,
+            parsingMarker,
+            preAnalysisMarker,
+            dependencyResolutionMarker,
+            analysisMarker,
+            fieldCapsCalls.get()
+        );
     }
 
     @Override
@@ -113,6 +127,8 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             + dependencyResolutionMarker
             + ", analysisMarker="
             + analysisMarker
+            + ", fieldCapsCalls="
+            + fieldCapsCalls.get()
             + '}';
     }
 
@@ -154,6 +170,14 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         return analysisMarker;
     }
 
+    public int fieldCapsCalls() {
+        return fieldCapsCalls.get();
+    }
+
+    public void incFieldCapsCalls() {
+        fieldCapsCalls.incrementAndGet();
+    }
+
     public Collection<TimeSpanMarker> timeSpanMarkers() {
         return List.of(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
     }
@@ -163,7 +187,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {
             builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan);
         }
-
+        builder.field("field_caps_calls", fieldCapsCalls.get());
         return builder;
     }
 

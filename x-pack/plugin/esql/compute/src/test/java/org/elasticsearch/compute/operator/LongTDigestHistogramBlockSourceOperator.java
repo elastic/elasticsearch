@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 
 /**
  * A source operator whose output is the given tuple values. This operator produces pages
- * with two Blocks. The returned pages preserve the order of values as given in the in initial list.
+ * with two Blocks. The returned pages preserve the order of values as given in the initial list.
  */
 public class LongTDigestHistogramBlockSourceOperator extends TupleAbstractBlockSourceOperator<Long, TDigestHolder> {
 

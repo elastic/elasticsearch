@@ -106,7 +106,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
-        assertThat(error.getMessage(), containsString("Attribute name [index] is forbidden"));
+        assertThat(error.getMessage(), containsString("Attribute [index] of [es.test.name.total] is forbidden"));
     }
 
     public void testDoubleWithInvalidAttribute() {
@@ -118,7 +118,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
-        assertThat(error.getMessage(), containsString("Attribute name [es_has_timestamp] is forbidden"));
+        assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
     }
 
     public void testNullRecord() throws Exception {

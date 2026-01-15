@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class EncodeIncreasingIntegerBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
     private int bitsPerValue;
@@ -60,7 +59,7 @@ public class EncodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        encode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        encode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
         encode.setupInvocation();
         encode.run();
     }
@@ -68,7 +67,7 @@ public class EncodeIncreasingIntegerBenchmark {
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
     }
 
     /**
@@ -83,6 +82,6 @@ public class EncodeIncreasingIntegerBenchmark {
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize(), bitsPerValue);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
     }
 }

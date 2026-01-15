@@ -109,7 +109,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
-            false,
+            false, /* do not allow empty index resolution for lookups and enriches */
             minimumVersion,
             false,
             false,
@@ -153,7 +153,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
-            true,
+            true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -187,7 +187,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
-            true,
+            true, /* cps/flat index expression might resolve to empty */
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,

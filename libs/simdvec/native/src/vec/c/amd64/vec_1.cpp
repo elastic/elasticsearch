@@ -107,24 +107,22 @@ EXPORT int vec_caps() {
         int ebx = cpuInfo[1];
         int ecx = cpuInfo[2];
         // AVX2 flag is the 5th bit
+        // https://github.com/llvm/llvm-project/blob/50598f0ff44f3a4e75706f8c53f3380fe7faa896/clang/lib/Headers/cpuid.h#L148
         // We assume that all processors that have AVX2 also have FMA3
         int avx2 = (ebx & 0x00000020) != 0;
+
+        // AVX512F
+        // https://github.com/llvm/llvm-project/blob/50598f0ff44f3a4e75706f8c53f3380fe7faa896/clang/lib/Headers/cpuid.h#L155
         int avx512 = (ebx & 0x00010000) != 0;
-        // int avx512_vnni = (ecx & 0x00000800) != 0;
-        // if (avx512 && avx512_vnni) {
-        if (avx512) {
-            if (avxEnabledInOS) {
-                return 2;
-            } else {
-                return -2;
-            }
+        // AVX512VNNI (ECX register)
+        int avx512_vnni = (ecx & 0x00000800) != 0;
+        // AVX512VPOPCNTDQ (ECX register)
+        int avx512_vpopcntdq = (ecx & 0x00004000) != 0;
+        if (avx512 && avx512_vnni && avx512_vpopcntdq) {
+            return avxEnabledInOS ? 2 : -2;
         }
         if (avx2) {
-            if (avxEnabledInOS) {
-                return 1;
-            } else {
-                return -1;
-            }
+            return avxEnabledInOS ? 1 : -1;
         }
     }
     return 0;

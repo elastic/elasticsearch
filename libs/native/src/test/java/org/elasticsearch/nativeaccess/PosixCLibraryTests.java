@@ -36,11 +36,10 @@ public class PosixCLibraryTests extends ESTestCase {
     @Before
     public void setup() {
         nativeAccess = NativeAccess.instance();
-        clib = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
         if (Constants.LINUX || Constants.MAC_OS_X) {
+            clib = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
             assertNotNull(clib);
         } else {
-            assertNull(clib);
             assumeFalse("posix only available on Mac/Linux", Constants.WINDOWS);
         }
     }

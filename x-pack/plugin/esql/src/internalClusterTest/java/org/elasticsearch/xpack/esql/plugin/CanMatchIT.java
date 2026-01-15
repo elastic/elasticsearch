@@ -162,15 +162,11 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 queriedIndices.clear();
             }
 
-            try (
-                EsqlQueryResponse resp = run(
-                    syncEsqlQueryRequest(
-                        "from events_* "
-                            + "| WHERE @timestamp >= date_parse(\"yyyy-MM-dd\", \"2023-01-01\") "
-                            + "| STATS count() BY DATE_FORMAT(\"yyyy-MM-dd\", @timestamp)"
-                    ).pragmas(randomPragmas())
-                )
-            ) {
+            try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("""
+                from events_*
+                | WHERE @timestamp >= date_parse("yyyy-MM-dd", "2023-01-01")
+                | STATS count() BY DATE_FORMAT("yyyy-MM-dd", @timestamp)
+                """).pragmas(randomPragmas()))) {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();

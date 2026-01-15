@@ -214,6 +214,8 @@ public class IndexVersions {
     public static final IndexVersion KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES = def(9_061_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_062_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES = def(9_063_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion MOD_ROUTING_FUNCTION = def(9_064_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK = def(9_065_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

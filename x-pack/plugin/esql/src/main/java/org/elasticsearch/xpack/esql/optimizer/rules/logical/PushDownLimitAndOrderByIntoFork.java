@@ -11,13 +11,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,19 +88,20 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.OptimizerRul
     }
 
     private boolean shouldPushDownIntoForkBranch(LogicalPlan plan) {
-        // We only push down when no pipeline breaker can be found
-        Holder<Boolean> shouldPushDown = new Holder<>(false);
+        // We only push down when no pipeline breaker can be found, and we query an index.
+        // If no EsRelation is found, we likely have a LocalRelation and we should definitely not push Limit and OrderBy
+        // as they will be removed by other optimizations.
+        Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
+        Holder<Boolean> hasEsRelation = new Holder<>(false);
         plan.forEachDown(p -> {
             if (p instanceof PipelineBreaker) {
-                shouldPushDown.set(true);
+                hasPipelineBreaker.set(true);
             }
-            // this is pretty much a hack until we get an optimization to trim
-            // empty FORK branches
-            if (p instanceof LocalRelation) {
-                shouldPushDown.set(true);
+            if (p instanceof EsRelation) {
+                hasEsRelation.set(true);
             }
         });
 
-        return shouldPushDown.get() == false;
+        return hasEsRelation.get() && hasPipelineBreaker.get() == false;
     }
 }

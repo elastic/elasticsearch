@@ -9,9 +9,11 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractDocValuesForUtilBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.IncreasingIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -29,19 +31,22 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Benchmark for encoding increasing integer patterns.
+ */
 @Fork(value = 1)
 @Warmup(iterations = 3)
-@Measurement(iterations = 10)
-@BenchmarkMode(value = Mode.AverageTime)
-@OutputTimeUnit(value = TimeUnit.NANOSECONDS)
-@State(value = Scope.Benchmark)
+@Measurement(iterations = 5)
+@BenchmarkMode(Mode.Throughput)
+@OutputTimeUnit(TimeUnit.SECONDS)
+@State(Scope.Benchmark)
 public class EncodeIncreasingIntegerBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
-    @Param({ "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60", "64" })
+
+    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
     private int bitsPerValue;
 
-    private final AbstractDocValuesForUtilBenchmark encode;
+    private final AbstractTSDBCodecBenchmark encode;
 
     public EncodeIncreasingIntegerBenchmark() {
         this.encode = new EncodeBenchmark();
@@ -49,16 +54,34 @@ public class EncodeIncreasingIntegerBenchmark {
 
     @Setup(Level.Invocation)
     public void setupInvocation() throws IOException {
-        encode.setupInvocation(bitsPerValue);
+        encode.setupInvocation();
     }
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        encode.setupIteration(bitsPerValue, new IncreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        encode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
+        encode.setupInvocation();
+        encode.run();
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh) throws IOException {
-        encode.benchmark(bitsPerValue, bh);
+    public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
+        encode.benchmark(bh);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
+    }
+
+    /**
+     * Measures compression efficiency metrics (compression ratio, encoded bits/bytes per value).
+     *
+     * <p>Uses zero warmup and single iteration because compression metrics are deterministic:
+     * the same input data always produces the same encoded size. Unlike throughput measurements
+     * which vary due to JIT compilation and CPU state, compression ratios are constant across runs.
+     */
+    @Benchmark
+    @Warmup(iterations = 0)
+    @Measurement(iterations = 1)
+    public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
+        encode.benchmark(bh);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
     }
 }

@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testRemoveNodeAndFailoverMasterDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/140764
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testRestartNodeDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/140765
 
 # Examples:
 #

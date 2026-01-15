@@ -100,7 +100,7 @@ public class IndexResolver {
      * Like {@code IndexResolver#resolveIndicesVersioned}
      * but simplified and does not pass on the determined minimum transport version to the listener.
      */
-    public void resolveIndices(
+    public void resolveLookupIndices(
         String indexPattern,
         Set<String> fieldNames,
         TransportVersion minimumVersion,
@@ -109,7 +109,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
-            false, /* do not allow empty index resolution for lookups and enriches */
+            false, /* lookup indices should do not be empty */
             minimumVersion,
             false,
             false,
@@ -139,7 +139,7 @@ public class IndexResolver {
      * <p>
      * The overall minimum version is updated using the field caps response and is passed on to the listener.
      */
-    public void resolveIndicesVersioned(
+    public void resolveMainIndicesVersioned(
         String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -169,7 +169,7 @@ public class IndexResolver {
      * Like {@code IndexResolver#resolveIndicesVersioned}
      * but for flat world queries.
      */
-    public void resolveFlatWorldIndicesVersioned(
+    public void resolveMainFlatWorldIndicesVersioned(
         String indexPattern,
         String projectRouting,
         Set<String> fieldNames,

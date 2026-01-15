@@ -37,6 +37,7 @@ public class QuerySettings {
         description = "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled."
+        // TODO add a link to CPS docs when available
     )
     @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(

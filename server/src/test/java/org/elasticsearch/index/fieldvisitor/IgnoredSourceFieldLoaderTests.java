@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.ESTestCase;
@@ -35,34 +34,22 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     public void testSupports() {
         assertTrue(
             IgnoredSourceFieldLoader.supports(
-                new StoredFieldsSpec(
-                    false,
-                    false,
-                    Set.of(),
-                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+                StoredFieldsSpec.withSourcePaths(
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+                    Set.of("foo")
                 )
             )
         );
 
         assertFalse(
             IgnoredSourceFieldLoader.supports(
-                new StoredFieldsSpec(
-                    false,
-                    false,
-                    Set.of(),
-                    new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
-                )
+                StoredFieldsSpec.withSourcePaths(IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE, Set.of())
             )
         );
 
         assertFalse(
             IgnoredSourceFieldLoader.supports(
-                new StoredFieldsSpec(
-                    true,
-                    false,
-                    Set.of(),
-                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
-                )
+                StoredFieldsSpec.withSourcePaths(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("foo"))
             )
         );
 
@@ -125,11 +112,9 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         Consumer<List<List<IgnoredSourceFieldMapper.NameValue>>> ignoredSourceTest
     ) throws IOException {
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
-            StoredFieldsSpec spec = new StoredFieldsSpec(
-                false,
-                false,
-                Set.of(),
-                new IgnoredFieldsSpec(fieldsToLoad, IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+            StoredFieldsSpec spec = StoredFieldsSpec.withSourcePaths(
+                IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+                fieldsToLoad
             );
             assertTrue(IgnoredSourceFieldLoader.supports(spec));
             iw.addDocument(doc);

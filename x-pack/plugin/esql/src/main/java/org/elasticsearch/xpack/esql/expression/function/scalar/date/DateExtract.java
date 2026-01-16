@@ -160,7 +160,7 @@ public class DateExtract extends EsqlConfigurationFunction {
                 if (field.foldable() && DataType.isString(field.dataType())) {
                     var foldedValue = field.fold(ctx);
                     if (foldedValue != null) {
-                        chronoField = stringToChrono(field.fold(ctx));
+                        chronoField = stringToChrono(foldedValue);
                     }
                 }
             } catch (Exception e) {

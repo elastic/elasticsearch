@@ -13,15 +13,15 @@ import co.elastic.logging.log4j2.EcsLayout;
 
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
-import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
+import org.apache.logging.log4j.core.config.plugins.PluginConfiguration;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.elasticsearch.common.logging.ECSJsonLayout;
 
@@ -29,8 +29,8 @@ import org.elasticsearch.common.logging.ECSJsonLayout;
 public final class ActionLoggerAppender extends AbstractAppender {
     private final RollingFileAppender delegate;
 
-    private ActionLoggerAppender(String name, Filter filter, Layout<?> layout, boolean ignoreExceptions, RollingFileAppender delegate) {
-        super(name, filter, layout, ignoreExceptions, null);
+    private ActionLoggerAppender(String name, RollingFileAppender delegate) {
+        super(name, null, null, true, null);
         this.delegate = delegate;
     }
 
@@ -55,21 +55,23 @@ public final class ActionLoggerAppender extends AbstractAppender {
     public static ActionLoggerAppender createAppender(
         @PluginAttribute("name") String name,
         @PluginAttribute("actionType") String actionType,
-        @PluginAttribute("basePath") String basePath
+        @PluginAttribute("basePath") String basePath,
+        @PluginConfiguration Configuration config
     ) {
-        EcsLayout layout = ECSJsonLayout.newBuilder().setDataset("elasticsearch.actionlog." + actionType).build();
+        EcsLayout layout = ECSJsonLayout.newBuilder().setDataset("elasticsearch.actionlog." + actionType).setConfiguration(config).build();
         String fileName = basePath + "_" + actionType + "_log.json";
         String filePattern = basePath + "_" + actionType + "_log-%i.json.gz";
         SizeBasedTriggeringPolicy policy = SizeBasedTriggeringPolicy.createPolicy("1GB");
-        DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder().withMax("4").build();
+        DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder().withMax("4").withConfig(config).build();
         var roller = RollingFileAppender.newBuilder()
-            .setName(name)
+            .setName(name + "_roller")
             .withFileName(fileName)
             .withFilePattern(filePattern)
             .setLayout(layout)
             .withPolicy(policy)
             .withStrategy(strategy)
+            .setConfiguration(config)
             .build();
-        return new ActionLoggerAppender(name, null, roller.getLayout(), true, roller);
+        return new ActionLoggerAppender(name, roller);
     }
 }

@@ -240,7 +240,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.actionLogger = new ActionLogger<>(
             "search",
             clusterService.getClusterSettings(),
-            new SearchLogProducer(namedWriteableRegistry),
+            new SearchLogProducer(),
             new Log4jActionWriter(SearchLogProducer.LOGGER_NAME),
             fieldProvider
         );
@@ -362,7 +362,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         executeRequest(
             (SearchTask) task,
             searchRequest,
-            actionLogger.wrap(listener, new SearchLogContextBuilder(task, searchRequest)),
+            actionLogger.wrap(
+                listener,
+                new SearchLogContextBuilder(
+                    task,
+                    namedWriteableRegistry,
+                    projectResolver.getProjectState(clusterService.state()),
+                    searchRequest
+                )
+            ),
             AsyncSearchActionProvider::new,
             true
         );

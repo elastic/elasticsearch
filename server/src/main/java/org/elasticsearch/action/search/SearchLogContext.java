@@ -11,26 +11,50 @@ package org.elasticsearch.action.search;
 
 import joptsimple.internal.Strings;
 
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.action.ActionLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
+import java.util.Arrays;
+
 public class SearchLogContext extends ActionLoggerContext {
     private static final String TYPE = "search";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
+    private String[] indexNames = null;
+    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final ProjectState projectState;
 
-    public SearchLogContext(Task task, SearchRequest request, SearchResponse response) {
+    public SearchLogContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ProjectState projectState,
+        SearchRequest request,
+        SearchResponse response
+    ) {
         super(task, TYPE, response.getTook().nanos());
         this.request = request;
         this.response = response;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.projectState = projectState;
     }
 
-    SearchLogContext(Task task, SearchRequest request, long tookInNanos, Exception error) {
+    SearchLogContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ProjectState projectState,
+        SearchRequest request,
+        long tookInNanos,
+        Exception error
+    ) {
         super(task, TYPE, tookInNanos, error);
         this.request = request;
         this.response = null;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.projectState = projectState;
     }
 
     String getQuery() {
@@ -38,7 +62,7 @@ public class SearchLogContext extends ActionLoggerContext {
         if (source == null) {
             return "{}";
         } else {
-            return escapeJson(source.toString(FORMAT_PARAMS));
+            return source.toString(FORMAT_PARAMS);
         }
     }
 
@@ -49,12 +73,41 @@ public class SearchLogContext extends ActionLoggerContext {
         return response.getHits().getTotalHits().value();
     }
 
-    public String getIndices(NamedWriteableRegistry namedWriteableRegistry) {
-        if (request.pointInTimeBuilder() == null) {
-            return Strings.join(request.indices(), ",");
-        } else {
-            final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
-            return Strings.join(searchContextId.getActualIndices(), ",");
+    String[] getIndexNames() {
+        if (indexNames == null) {
+            if (request.pointInTimeBuilder() == null) {
+                indexNames = request.indices();
+            } else {
+                final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
+                indexNames = searchContextId.getActualIndices();
+            }
         }
+        return indexNames;
+    }
+
+    boolean isSystemIndex(String index) {
+        ProjectMetadata metadata = projectState.metadata();
+        if (metadata.hasAlias(index) && metadata.aliasedIndices(index).stream().allMatch(i -> metadata.index(i).isSystem())) {
+            return true;
+        }
+        return metadata.hasIndex(index) && metadata.index(index).isSystem();
+    }
+
+    boolean isSystemSearch() {
+        String opaqueId = getOpaqueId();
+        // Kibana task manager queries
+        // TODO: refine the check
+        if (opaqueId != null && (opaqueId.startsWith("kibana:") || opaqueId.contains(";kibana:"))) {
+            return true;
+        }
+        // Request that only asks for system indices is system search
+        if (Arrays.stream(getIndexNames()).allMatch(this::isSystemIndex)) {
+            return true;
+        }
+        return false;
+    }
+
+    public String getIndices() {
+        return Strings.join(getIndexNames(), ",");
     }
 }

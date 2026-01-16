@@ -10,20 +10,16 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.index.SlowLogFields;
 
+import java.util.Arrays;
+
 public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext> {
 
     public static final String LOGGER_NAME = "search.actionlog";
-
-    private final NamedWriteableRegistry namedWriteableRegistry;
-
-    SearchLogProducer(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-    }
+    public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
 
     @Override
     public ESLogMessage produce(SearchLogContext context, SlowLogFields additionalFields) {
@@ -31,14 +27,13 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
         if (isSystemUser(msg)) {
             return null;
         }
-        return msg.with("query", context.getQuery())
-            .with("indices", context.getIndices(namedWriteableRegistry))
-            .with("hits", context.getHits());
+        return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
     }
 
     @Override
     public Level logLevel(SearchLogContext context, Level defaultLevel) {
-        if (isSystemSearch(context)) {
+        // Exclude system searches, exclude empty patterns (can we do this?)
+        if (context.isSystemSearch() || Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
             return Level.OFF;
         }
         return defaultLevel;
@@ -56,17 +51,5 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
             return false;
         }
         return realm.equals("__attach") && type.equals("INTERNAL");
-    }
-
-    /**
-     * Is this a system search which should not be logged?
-     */
-    private boolean isSystemSearch(SearchLogContext context) {
-        String opaqueId = context.getOpaqueId();
-        // Kibana task manager queries
-        if (opaqueId != null && opaqueId.contains("kibana:task%20manager:run")) {
-            return true;
-        }
-        return false;
     }
 }

@@ -2109,7 +2109,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * and thereby get used in FieldExtractExec
          */
         private static LogicalPlan addGeneratedFieldsToEsRelations(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
-            return plan.transformDown(EsRelation.class, esr -> {
+            var res = plan.transformDown(EsRelation.class, esr -> {
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
                     // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
@@ -2123,6 +2123,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return esr;
             });
+            if (res.equals(plan) == false) {
+                res = res.transformUp(Project.class, p -> {
+                    List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+                    for (Attribute attr : p.inputSet()) {
+                        if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                            syntheticAttributesToCarryOver.add(attr);
+                        }
+                    }
+
+                    if (syntheticAttributesToCarryOver.isEmpty()) {
+                        return p;
+                    }
+
+                    List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+                    newProjections.addAll(syntheticAttributesToCarryOver);
+                    return new Project(p.source(), p.child(), newProjections);
+                });
+            }
+            return res;
         }
 
         private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
@@ -2286,16 +2305,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(
+
+            // We start by dropping synthetic attributes if the plan is resolved
+            LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
+
+            // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
+            // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
+            // unsupported / unresolved fields can be explicitly retained
+            return cleanPlan.transformUp(
                 LogicalPlan.class,
                 p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
             );
-
-            // To drop synthetic attributes at the end, we need to compute the plan's output.
-            // This is only legal to do if the plan is resolved.
-            return planWithCheckedUnionTypes.resolved()
-                ? planWithoutSyntheticAttributes(planWithCheckedUnionTypes)
-                : planWithCheckedUnionTypes;
         }
 
         static Attribute checkUnresolved(FieldAttribute fa) {

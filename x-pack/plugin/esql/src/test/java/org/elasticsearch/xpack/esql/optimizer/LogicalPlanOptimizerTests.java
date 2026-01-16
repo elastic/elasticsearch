@@ -203,7 +203,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -9855,6 +9857,97 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals("test", relation.indexPattern());
     }
 
+    /**
+     * Project[[foo{r}#12, $$id$converted_to$keyword{f$}#13 AS id#9]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[foo{f}#11,foo{r}#12]
+     *     \_Project[[!id, foo{f}#11, $$id$converted_to$keyword{f$}#13]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[union_index*][foo{f}#11, !id, $$id$converted_to$keyword{f$}#13]
+     */
+    public void testUnionTypesResolvePastProjections() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_index*
+            | KEEP id, foo
+            | MV_EXPAND foo
+            | EVAL id = id::keyword
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var topOutput = topProject.output();
+        assertThat(topOutput, hasSize(2));
+
+        var idAttr = topOutput.get(1);
+        assertThat(idAttr.name(), equalTo("id"));
+
+        // The id attribute should be a ReferenceAttribute that references the converted field
+        ReferenceAttribute idRef = as(idAttr, ReferenceAttribute.class);
+        assertThat(idRef.dataType(), equalTo(KEYWORD));
+
+        Limit limit1 = asLimit(topProject.child(), 1000, true);
+        MvExpand mvExpand = as(limit1.child(), MvExpand.class);
+
+        Project innerProject = as(mvExpand.child(), Project.class);
+        var innerOutput = innerProject.output();
+        assertThat(innerOutput, hasSize(3));
+        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "foo", "$$id$converted_to$keyword"));
+
+        Limit limit2 = asLimit(innerProject.child(), 1000, false);
+        EsRelation relation = as(limit2.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(3));
+
+        assertThat(relationOutput.get(0).name(), equalTo("foo"));
+        assertThat(relationOutput.get(0).dataType(), equalTo(KEYWORD));
+
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(UNSUPPORTED));
+
+        assertThat(relationOutput.get(2).name(), equalTo("$$id$converted_to$keyword"));
+        assertThat(relationOutput.get(2).dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * Project[[!id, $$id$converted_to$long{f$}#9 AS x#6]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_EsRelation[union_index*][foo{f}#7, !id, $$id$converted_to$long{f$}#9]
+     */
+    public void testExplicitRetainOriginalFieldWithCast() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_index*
+            | KEEP id
+            | EVAL x = id::long
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var projections = topProject.projections();
+        assertThat(projections, hasSize(2));
+        assertThat(projections.get(0).name(), equalTo("id"));
+        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+
+        Alias xAlias = as(projections.get(1), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        assertThat(xAlias.dataType(), equalTo(LONG));
+        FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
+        assertThat(syntheticFieldAttr.name(), equalTo("$$id$converted_to$long"));
+        ReferenceAttribute xRef = as(topProject.output().get(1), ReferenceAttribute.class);
+        assertThat(xRef, is(xAlias.toAttribute()));
+
+        Limit limit = asLimit(topProject.child(), 1000, false);
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(3));
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(UNSUPPORTED));
+        var syntheticField = relationOutput.get(2);
+        assertThat(syntheticField.name(), equalTo("$$id$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+        assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
+    }
+
     /*
      * Renaming or shadowing the @timestamp field prior to running stats with TS command is not allowed.
      */
@@ -10271,6 +10364,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Project[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
      * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
      * \_Limit[1000[INTEGER],false,false]
@@ -10282,13 +10376,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
      *       |   \_Limit[1000[INTEGER],false,false]
      *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     *       |_LocalRelation[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35, l
-     * ast_name{f}#30, long_noidx{f}#36, salary{f}#31, _fork{r}#9],EMPTY]
      *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
      * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
      *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
      *           \_Limit[1000[INTEGER],false,false]
      *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
+     * }</pre>
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
         var query = """
@@ -10309,6 +10402,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var fork = as(filter.child(), Fork.class);
         assertThat(fork.output().size(), equalTo(11));
 
+        // second branch is completely removed
+        assertEquals(2, fork.children().size());
+
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
         assertThat(firstBranchProject.projections().size(), equalTo(11));
@@ -10322,27 +10418,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
 
-        var secondBranch = fork.children().get(1);
-        var secondBranchLocalRelation = as(secondBranch, LocalRelation.class);
-        assertThat(
-            secondBranchLocalRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
-            hasItems(
-                "_meta_field",
-                "emp_no",
-                "first_name",
-                "gender",
-                "hire_date",
-                "job",
-                "job.raw",
-                "last_name",
-                "long_noidx",
-                "salary",
-                "_fork"
-            )
-        );
-        assertThat(secondBranchLocalRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
-
-        var thirdBranch = fork.children().get(2);
+        var thirdBranch = fork.children().get(1);
         var thirdBranchProject = as(thirdBranch, Project.class);
         assertThat(thirdBranchProject.projections().size(), equalTo(11));
         var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);

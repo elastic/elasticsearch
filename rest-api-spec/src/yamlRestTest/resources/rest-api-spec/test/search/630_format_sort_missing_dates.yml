@@ -1,8 +1,8 @@
 ---
 "Format sort values for missing dates":
   - requires:
-      cluster_features: ["gte_v7.13.0"]
-      reason: Format sort output is introduced in 7.13
+      cluster_features: ["search.sort.date_format_missing_as_null"]
+      reason: missing values as null requires search.sort.date_format_missing_as_null
 
   - do:
       indices.create:
@@ -95,8 +95,8 @@
 ---
 "Format sort values for missing date_nanos":
   - requires:
-      cluster_features: ["gte_v7.13.0"]
-      reason: Format sort output is introduced in 7.13
+      cluster_features: ["search.sort.date_format_missing_as_null"]
+      reason: missing values as null requires search.sort.date_format_missing_as_null
 
   - do:
       indices.create:

@@ -321,7 +321,7 @@ public class LookupExecutionMapper {
                                 if (shardIdx != 0) {
                                     throw new IllegalStateException("only one shard");
                                 }
-                                return loader;
+                                return ValuesSourceReaderOperator.load(loader);
                             }
                         )
                     );
@@ -334,7 +334,7 @@ public class LookupExecutionMapper {
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
                 );
-                return new ValuesSourceReaderOperator(driverContext.blockFactory(), jumboSize.getBytes(), fields, shardContexts, 0);
+                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, 0);
             }
 
             @Override

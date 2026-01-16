@@ -697,6 +697,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         nodeRoleCombinationsToTest.add(nodeRoles);
         logger.info("Testing {} roles", nodeRoles);
 
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         // Now test each combination of node roles
         for (List<String> roles : nodeRoleCombinationsToTest) {
             String nodeRolesString = String.join(",", roles);
@@ -719,13 +720,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             );
 
             // Put shutdown metadata to trigger shutdown progress tracker
-            final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
             putShutdownForRemovalMetadata(nodeName, clusterService);
 
             // Wait for log expectation to be matched
             mockLog.awaitAllExpectationsMatched();
             resetMockLog();
         }
+
+        clearShutdownMetadata(clusterService);
     }
 
     /**
@@ -765,8 +767,10 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 Level.INFO,
                 "Shard snapshot completion stats since shutdown began*"
             );
-        snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
+        mockLog.addExpectation(snapshotShutdownProgressTrackerToNotRunExpectation);
 
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var originalSize = internalCluster().size();
         // Now test each combination of node roles
         for (List<String> roles : nodeRoleCombinationsToTest) {
             String nodeRolesString = String.join(",", roles);
@@ -779,10 +783,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             );
 
             // Put shutdown metadata to trigger shutdown progress tracker
-            final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
             putShutdownForRemovalMetadata(nodeName, clusterService);
         }
+        ensureStableCluster(originalSize + nodeRoleCombinationsToTest.size());
+        snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
         mockLog.assertAllExpectationsMatched();
+
+        clearShutdownMetadata(clusterService);
     }
 
     /**
@@ -790,11 +797,6 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
      * A coordinating only node has no role, does not contain any data, hence has no snapshotting, and so we do not expect any logging
      */
     public void testStatefulCoordinatingOnlyNodeDoesNotLogSnapshotShuttingDownProgress() throws InterruptedException {
-        final var nodeName = internalCluster().startCoordinatingOnlyNode(
-            // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
-            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
-        );
-
         MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation =
             new MockLog.PatternNotSeenEventExpectation(
                 "Expect SnapshotShutdownProgressTracker to not run",
@@ -802,14 +804,24 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 Level.INFO,
                 "Shard snapshot completion stats since shutdown began*"
             );
-        snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
+        mockLog.addExpectation(snapshotShutdownProgressTrackerToNotRunExpectation);
+
+        final var originalSize = internalCluster().size();
+        final var nodeName = internalCluster().startCoordinatingOnlyNode(
+            // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
+            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
+        );
+        ensureStableCluster(originalSize + 1);
 
         // Put shutdown metadata to trigger shutdown progress tracker
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         putShutdownForRemovalMetadata(nodeName, clusterService);
 
         // Wait for log expectation to be matched
+        snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
         mockLog.assertAllExpectationsMatched();
+
+        clearShutdownMetadata(clusterService);
     }
 
     private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {

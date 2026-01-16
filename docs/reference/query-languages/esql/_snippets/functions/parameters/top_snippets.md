@@ -9,5 +9,5 @@
 :   The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. 
 
 `options`
-:   (Optional) TopSnippets additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+:   (Optional) `TOP_SNIPPETS` additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
 

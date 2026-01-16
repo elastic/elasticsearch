@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -19,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.Collection;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -31,10 +34,15 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
-public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
+public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation implements ConfigurationAware {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
-        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
+        ExpressionEvaluator.Factory apply(
+            Source source,
+            ExpressionEvaluator.Factory expressionEvaluator,
+            TemporalAmount temporalAmount,
+            ZoneId zoneId
+        );
     }
 
     private final DatetimeArithmeticEvaluator millisEvaluator;
@@ -167,6 +175,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ZoneId zoneId = configuration().zoneId();
         if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;
@@ -182,7 +191,8 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
             return millisEvaluator.apply(
                 source(),
                 toEvaluator.apply(datetimeArgument),
-                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx()),
+                zoneId
             );
         } else if (dataType() == DATE_NANOS) {
             // One of the arguments has to be a date_nanos and the other a temporal amount.
@@ -199,10 +209,26 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
             return nanosEvaluator.apply(
                 source(),
                 toEvaluator.apply(dateNanosArgument),
-                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx()),
+                zoneId
             );
         } else {
             return super.toEvaluator(toEvaluator);
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        DateTimeArithmeticOperation other = (DateTimeArithmeticOperation) obj;
+
+        return configuration().equals(other.configuration());
     }
 }

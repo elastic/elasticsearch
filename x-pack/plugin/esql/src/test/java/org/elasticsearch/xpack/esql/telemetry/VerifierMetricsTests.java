@@ -724,8 +724,8 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testTimeSeriesAggregate() {
         assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         Counters c = esql("""
-            TS metrics
-            | STATS sum(avg_over_time(salary))""");
+            TS k8s
+            | STATS sum(avg_over_time(network.cost))""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -813,11 +813,10 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, function("min", c));
     }
 
-    @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
         assumeTrue("PromQL required", PromqlFeatures.isEnabled());
         Counters c = esql("""
-            PROMQL metrics step 5m (sum(salary))""");
+            PROMQL index=k8s step=5m sum(network.cost)""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -954,8 +953,9 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);
+        IndexResolution k8sIndex = loadMapping("k8s-mappings.json", "k8s", IndexMode.TIME_SERIES);
         IndexResolution employees = loadMapping("mapping-basic.json", "employees");
-        analyzer(indexResolutions(metricsIndex, employees), verifier).analyze(EsqlParser.INSTANCE.parseQuery(esql));
+        analyzer(indexResolutions(metricsIndex, k8sIndex, employees), verifier).analyze(EsqlParser.INSTANCE.parseQuery(esql));
 
         return metrics == null ? null : metrics.stats();
     }

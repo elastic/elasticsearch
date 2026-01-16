@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
@@ -24,12 +23,12 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -203,7 +202,9 @@ public class TopNOperator implements Operator, Accountable {
             int orderByCompositeKeyCurrentPosition = 0;
             for (int i = 0; i < keyFactories.length; i++) {
                 int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
-                assert valueAsBytesSize > 0 : valueAsBytesSize;
+                if (valueAsBytesSize < 0) {
+                    throw new IllegalStateException("empty keys to allowed. " + valueAsBytesSize + " must be > 0");
+                }
                 orderByCompositeKeyCurrentPosition += valueAsBytesSize;
                 row.bytesOrder.endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
             }
@@ -302,7 +303,7 @@ public class TopNOperator implements Operator, Accountable {
     private int spareValuesPreAllocSize = 0;
     private int spareKeysPreAllocSize = 0;
 
-    private Iterator<Page> output;
+    private ReleasableIterator<Page> output;
 
     private long receiveNanos;
     private long emitNanos;
@@ -443,107 +444,8 @@ public class TopNOperator implements Operator, Accountable {
     public void finish() {
         if (output == null) {
             long start = System.nanoTime();
-            output = toPages();
+            output = buildResult();
             emitNanos += System.nanoTime() - start;
-        }
-    }
-
-    private Iterator<Page> toPages() {
-        if (spare != null) {
-            // Remove the spare, we're never going to use it again.
-            spare.close();
-            spare = null;
-        }
-        if (inputQueue.size() == 0) {
-            return Collections.emptyIterator();
-        }
-        List<Row> list = new ArrayList<>(inputQueue.size());
-        List<Page> result = new ArrayList<>();
-        ResultBuilder[] builders = null;
-        boolean success = false;
-        try {
-            while (inputQueue.size() > 0) {
-                list.add(inputQueue.pop());
-            }
-            Collections.reverse(list);
-            inputQueue.close();
-            inputQueue = null;
-
-            int p = 0;
-            int size = 0;
-            for (int i = 0; i < list.size(); i++) {
-                if (builders == null) {
-                    size = Math.min(maxPageSize, list.size() - i);
-                    builders = new ResultBuilder[elementTypes.size()];
-                    for (int b = 0; b < builders.length; b++) {
-                        builders[b] = ResultBuilder.resultBuilderFor(
-                            blockFactory,
-                            elementTypes.get(b),
-                            encoders.get(b).toUnsortable(),
-                            channelInKey(sortOrders, b),
-                            size
-
-                        );
-                    }
-                    p = 0;
-                }
-
-                try (Row row = list.get(i)) {
-                    BytesRef keys = row.keys.bytesRefView();
-                    for (SortOrder so : sortOrders) {
-                        if (keys.bytes[keys.offset] == so.nul()) {
-                            keys.offset++;
-                            keys.length--;
-                            continue;
-                        }
-                        keys.offset++;
-                        keys.length--;
-                        builders[so.channel].decodeKey(keys);
-                    }
-                    if (keys.length != 0) {
-                        throw new IllegalArgumentException("didn't read all keys");
-                    }
-
-                    BytesRef values = row.values.bytesRefView();
-                    for (ResultBuilder builder : builders) {
-                        builder.decodeValue(values);
-                    }
-                    if (values.length != 0) {
-                        throw new IllegalArgumentException("didn't read all values");
-                    }
-
-                    list.set(i, null);
-
-                    p++;
-                    if (p == size) {
-                        Block[] blocks = new Block[builders.length];
-                        try {
-                            for (int b = 0; b < blocks.length; b++) {
-                                blocks[b] = builders[b].build();
-                            }
-                        } finally {
-                            if (blocks[blocks.length - 1] == null) {
-                                Releasables.closeExpectNoException(blocks);
-                            }
-                        }
-                        result.add(new Page(blocks));
-                        Releasables.closeExpectNoException(builders);
-                        builders = null;
-                    }
-                }
-            }
-            assert builders == null;
-            success = true;
-            return result.iterator();
-        } finally {
-            if (success == false) {
-                List<Releasable> close = new ArrayList<>(list);
-                for (Page p : result) {
-                    close.add(p::releaseBlocks);
-                }
-                Collections.addAll(close, builders);
-                Releasables.closeExpectNoException(Releasables.wrap(close));
-            }
         }
     }
 
@@ -593,10 +495,13 @@ public class TopNOperator implements Operator, Accountable {
             inputQueue,
             /*
              * If we're in the process of outputting pages then output will contain all
-             * allocated but un-emitted pages.
+             * allocated but un-emitted rows.
              */
-            output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
+            output
         );
+        // Aggressively null these so they can be GCed more quickly.
+        inputQueue = null;
+        output = null;
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
@@ -690,8 +595,22 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public void close() {
             Releasables.close(
-                // Release all entries in the topn
-                Releasables.wrap(this),
+                /*
+                 * Release all entries in the topn, nulling references to each row after closing them
+                 * so they can be GC immediately. Without this nulling very large heaps can race with
+                 * the circuit breaker itself. With this we're still racing, but we're only racing a
+                 * single row at a time. And single rows can only be so large. And we have enough slop
+                 * to live with being inaccurate by one row.
+                 */
+                () -> {
+                    for (int i = 0; i < getHeapArray().length; i++) {
+                        Row row = (Row) getHeapArray()[i];
+                        if (row != null) {
+                            row.close();
+                            getHeapArray()[i] = null;
+                        }
+                    }
+                },
                 // Release the array itself
                 () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
             );
@@ -703,6 +622,125 @@ public class TopNOperator implements Operator, Accountable {
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
             );
             return total;
+        }
+    }
+
+    /**
+     * Build the result iterator. Moves all rows from the {@link #inputQueue} and
+     * {@link #close}s it.
+     */
+    private ReleasableIterator<Page> buildResult() {
+        if (spare != null) {
+            // Remove the spare, we're never going to use it again.
+            spare.close();
+            spare = null;
+        }
+
+        if (inputQueue.size() == 0) {
+            return ReleasableIterator.empty();
+        }
+
+        List<Row> rows = new ArrayList<>(inputQueue.size());
+        while (inputQueue.size() > 0) {
+            rows.add(inputQueue.pop());
+        }
+        Collections.reverse(rows);
+        inputQueue.close();
+        inputQueue = null;
+        return new Result(rows);
+    }
+
+    private class Result implements ReleasableIterator<Page> {
+        private final List<Row> rows;
+        private int r;
+
+        private Result(List<Row> rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return r < rows.size();
+        }
+
+        @Override
+        public Page next() {
+            long start = System.nanoTime();
+            int size = Math.min(maxPageSize, rows.size() - r);
+            if (size <= 0) {
+                throw new IllegalStateException("can't make empty pages. " + size + " must be > 0");
+            }
+            ResultBuilder[] builders = new ResultBuilder[elementTypes.size()];
+            try {
+                for (int b = 0; b < builders.length; b++) {
+                    builders[b] = ResultBuilder.resultBuilderFor(
+                        blockFactory,
+                        elementTypes.get(b),
+                        encoders.get(b).toUnsortable(),
+                        channelInKey(sortOrders, b),
+                        size
+                    );
+                }
+                int rEnd = r + size;
+                while (r < rEnd) {
+                    try (Row row = rows.set(r++, null)) {
+                        readKeys(builders, row.keys.bytesRefView());
+                        readValues(builders, row.values.bytesRefView());
+                    }
+                }
+
+                Block[] blocks = new Block[builders.length];
+                try {
+                    for (int b = 0; b < blocks.length; b++) {
+                        blocks[b] = builders[b].build();
+                    }
+                } finally {
+                    if (blocks[blocks.length - 1] == null) {
+                        Releasables.closeExpectNoException(blocks);
+                    }
+                }
+                Releasables.closeExpectNoException(builders);
+                return new Page(blocks);
+            } finally {
+                Releasables.close(builders);
+                emitNanos += System.nanoTime() - start;
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(rows);
+        }
+
+        /**
+         * Read keys into the results. See {@link KeyExtractor} for the key layout.
+         */
+        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+            for (SortOrder so : sortOrders) {
+                if (keys.bytes[keys.offset] == so.nul()) {
+                    // Discard the null byte.
+                    keys.offset++;
+                    keys.length--;
+                    continue;
+                }
+                // Discard the non_null byte.
+                keys.offset++;
+                keys.length--;
+                // Read the key. This will modify offset and length for the next iteration.
+                builders[so.channel].decodeKey(keys);
+            }
+            if (keys.length != 0) {
+                throw new IllegalArgumentException("didn't read all keys");
+            }
+        }
+
+        private void readValues(ResultBuilder[] builders, BytesRef values) {
+            for (ResultBuilder builder : builders) {
+                builder.decodeValue(values);
+            }
+            if (values.length != 0) {
+                throw new IllegalArgumentException("didn't read all values");
+            }
         }
     }
 }

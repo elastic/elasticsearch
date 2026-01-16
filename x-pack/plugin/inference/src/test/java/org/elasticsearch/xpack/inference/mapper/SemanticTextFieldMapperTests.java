@@ -205,7 +205,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         IndexVersion maxIndexVersion
     ) throws IOException {
         validateIndexVersion(minIndexVersion, useLegacyFormat);
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion, maxIndexVersion);
         return createMapperServiceWithIndexVersion(mappings, useLegacyFormat, indexVersion);
     }
 

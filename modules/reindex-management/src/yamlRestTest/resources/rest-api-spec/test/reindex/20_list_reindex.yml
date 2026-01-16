@@ -1,0 +1,214 @@
+setup:
+  - requires:
+      test_runner_features: capabilities
+      reason: Reindex list is added as part of reindex management feature
+      capabilities:
+        - method: GET
+          path: /_reindex
+          capabilities: [reindex_management_api]
+
+  - do:
+      # index enough documents for reindex to take some time to complete
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "test_key": "test_value" }'
+---
+"List returns empty when no tasks":
+  - do:
+      reindex_list: {}
+  - match: { reindex: [] }
+---
+"List returns running reindex task":
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 1    # make it slow so list can catch it
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - is_true: task
+  - set: { task: taskId }
+
+  - do:
+      reindex_list:
+        human: true
+        detailed: true
+  - is_true: reindex
+  - length: { reindex: 1 }
+  - match: { reindex.0.id: $taskId }
+  - match: { reindex.0.cancelled: false }
+  - exists: reindex.0.start_time
+  - exists: reindex.0.start_time_in_millis
+  - exists: reindex.0.running_time
+  - exists: reindex.0.running_time_in_nanos
+  - exists: reindex.0.status
+
+  # Increase speed to finish test faster
+  - do:
+      reindex_rethrottle:
+        task_id: $taskId
+        requests_per_second: 1000
+
+  # Wait for reindex to complete
+  - do:
+      reindex_get:
+        task_id: $taskId
+        wait_for_completion: true
+
+  - do:
+      reindex_list: {}
+  - match: { reindex: [] }
+---
+"List returns multiple reindex tasks":
+  # first reindex task
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 1    # make it slow so list can catch it
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest1
+  - is_true: task
+  - set: { task: taskId1 }
+
+  # second reindex task
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 1    # make it slow so list can catch it
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest2
+  - is_true: task
+  - set: { task: taskId2 }
+
+  - do:
+      reindex_list:
+        human: true
+  - is_true: reindex
+  - length: { reindex: 2 }
+  - exists: reindex.0.start_time
+  - exists: reindex.0.start_time_in_millis
+  - exists: reindex.0.running_time
+  - is_false: reindex.0.status
+  - exists: reindex.1.start_time
+  - exists: reindex.1.start_time_in_millis
+  - exists: reindex.1.running_time
+  - is_false: reindex.1.status
+
+  # Increase speed to finish test faster
+  - do:
+      reindex_rethrottle:
+        task_id: $taskId1
+        requests_per_second: 1000
+  - do:
+      reindex_rethrottle:
+        task_id: $taskId2
+        requests_per_second: 1000
+
+  # Wait for reindex to complete
+  - do:
+      reindex_get:
+        task_id: $taskId1
+        wait_for_completion: true
+  - do:
+      reindex_get:
+        task_id: $taskId2
+        wait_for_completion: true
+
+  - do:
+      reindex_list: {}
+  - match: { reindex: [] }
+---
+"List returns only parent reindex tasks":
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 1    # make it slow so list can catch it
+        slices: 4     # create sub-tasks
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - is_true: task
+  - set: { task: taskId }
+
+  - do:
+      reindex_list:
+        human: true
+  - is_true: reindex
+  - length: { reindex: 1 }
+  - match: { reindex.0.id: $taskId }
+  - match: { reindex.0.cancelled: false }
+  - exists: reindex.0.start_time
+  - exists: reindex.0.start_time_in_millis
+  - exists: reindex.0.running_time
+  - exists: reindex.0.running_time_in_nanos
+  - is_false: reindex.0.status
+
+  # Increase speed to finish test faster
+  - do:
+      reindex_rethrottle:
+        task_id: $taskId
+        requests_per_second: 1000
+
+  # Wait for reindex to complete
+  - do:
+      reindex_get:
+        task_id: $taskId
+        wait_for_completion: true
+
+  - do:
+      reindex_list: {}
+  - match: { reindex: [] }

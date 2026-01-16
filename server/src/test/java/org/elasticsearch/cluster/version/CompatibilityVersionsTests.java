@@ -32,11 +32,8 @@ public class CompatibilityVersionsTests extends ESTestCase {
     }
 
     public void testMinimumTransportVersions() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            TransportVersionUtils.getNextVersion(version1, true),
-            TransportVersion.current()
-        );
+        TransportVersion version1 = TransportVersion.minimumCompatible();
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion(random());
 
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, Map.of());
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2, Map.of());
@@ -78,11 +75,8 @@ public class CompatibilityVersionsTests extends ESTestCase {
      * complaint.
      */
     public void testMinimumsAreMerged() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            TransportVersionUtils.getNextVersion(version1, true),
-            TransportVersion.current()
-        );
+        TransportVersion version1 = TransportVersion.minimumCompatible();
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion(random());
 
         SystemIndexDescriptor.MappingsVersion v1 = new SystemIndexDescriptor.MappingsVersion(1, 1);
         SystemIndexDescriptor.MappingsVersion v2 = new SystemIndexDescriptor.MappingsVersion(2, 2);
@@ -108,7 +102,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
         // should not throw
         CompatibilityVersions.ensureVersionsCompatibility(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(min, TransportVersion.current()), Map.of()),
+            new CompatibilityVersions(TransportVersionUtils.getNextVersion(min, true), Map.of()),
             compatibilityVersions
         );
 

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -25,7 +26,8 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public abstract sealed class PromqlFunctionCall extends UnaryPlan permits AcrossSeriesAggregate, WithinSeriesAggregate {
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+    WithinSeriesAggregate, ValueTransformationFunction, VectorFunction {
     // implements TelemetryAware {
 
     private final String functionName;
@@ -88,5 +90,12 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan permits Across
     @Override
     public List<Attribute> output() {
         return List.of();
+    }
+
+    public abstract FunctionType functionType();
+
+    @Override
+    public final PromqlDataType returnType() {
+        return functionType().outputType();
     }
 }

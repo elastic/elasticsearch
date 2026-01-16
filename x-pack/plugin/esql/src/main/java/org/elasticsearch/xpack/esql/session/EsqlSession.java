@@ -86,6 +86,10 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -99,6 +103,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
@@ -215,12 +220,14 @@ public class EsqlSession {
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
+        ZoneId timeZone = request.timeZone() == null
+            ? statement.setting(QuerySettings.TIME_ZONE)
+            : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
         Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
 
         Configuration configuration = new Configuration(
-            request.timeZone() == null
-                ? statement.setting(QuerySettings.TIME_ZONE)
-                : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone()),
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
@@ -239,14 +246,14 @@ public class EsqlSession {
         );
         FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = statement.plan();
-        if (plan instanceof Explain explain) {
+        if (statement.plan() instanceof Explain explain) {
             explainMode = true;
-            plan = explain.query();
-            parsedPlanString = plan.toString();
+            statement = new EsqlStatement(explain.query(), statement.settings());
+            parsedPlanString = explain.query().toString();
         }
+
         analyzedPlan(
-            plan,
+            statement,
             configuration,
             executionInfo,
             request.filter(),
@@ -585,7 +592,7 @@ public class EsqlSession {
     }
 
     public void analyzedPlan(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
@@ -595,12 +602,12 @@ public class EsqlSession {
 
         PlanningProfile.TimeSpanMarker preAnalysisProfile = executionInfo.planningProfile().preAnalysis();
         preAnalysisProfile.start();
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed.plan());
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed.plan(), preAnalysis.enriches().isEmpty() == false)
             .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
@@ -617,7 +624,7 @@ public class EsqlSession {
     }
 
     private void resolveIndicesAndAnalyze(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         String description,
@@ -687,7 +694,7 @@ public class EsqlSession {
                 );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
-                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
+                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed.plan(), l.map(r::withInferenceResolution));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 dependencyResolutionProfile.stop();
@@ -724,7 +731,8 @@ public class EsqlSession {
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        indexResolver.resolveIndices(
+        executionInfo.planningProfile().incFieldCapsCalls();
+        indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
@@ -986,7 +994,8 @@ public class EsqlSession {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            indexResolver.resolveIndicesVersioned(
+            executionInfo.planningProfile().incFieldCapsCalls();
+            indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
@@ -1025,7 +1034,8 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        indexResolver.resolveFlatWorldIndicesVersioned(
+        executionInfo.planningProfile().incFieldCapsCalls();
+        indexResolver.resolveMainFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,
@@ -1058,7 +1068,7 @@ public class EsqlSession {
     }
 
     private void analyzeWithRetry(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         String description,
@@ -1120,11 +1130,16 @@ public class EsqlSession {
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    private LogicalPlan analyzedPlan(LogicalPlan parsed, Configuration configuration, PreAnalysisResult r, EsqlExecutionInfo executionInfo)
-        throws Exception {
+    private LogicalPlan analyzedPlan(
+        EsqlStatement parsed,
+        Configuration configuration,
+        PreAnalysisResult r,
+        EsqlExecutionInfo executionInfo
+    ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, r), verifier);
-        LogicalPlan plan = analyzer.analyze(parsed);
+        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, parsed.setting(UNMAPPED_FIELDS), r);
+        Analyzer analyzer = new Analyzer(analyzerContext, verifier);
+        LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();
         return plan;
     }

@@ -666,14 +666,32 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             follower0.heal();
             follower1.heal();
-            cluster.stabilise();
-            assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
-            assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
+
             if (expectLeaderAcksSuccessfullyInStateless) {
                 // A stateless leader directly updates the cluster state in the remote blob store: it does not require communication with
-                // the other cluster nodes to procceed with an update commit to the cluster state.
+                // the other cluster nodes to proceed with an update commit to the cluster state, so in fact the publication doesn't really
+                // time out in this case. However, this means the nodes may remain lagging until the next cluster state update - there's no
+                // master failover to resync them in this case. The nacks happen when the blackholed requests are processed.
+
+                while (leader.deliverBlackholedRequests()) {
+                    // two tasks: (i) deliver the error response, and then (ii) handle it
+                    cluster.runFor(DEFAULT_DELAY_VARIABILITY * 2, "processing blackholed cluster state update requests");
+                }
+
+                assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+                assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
+
+                // one more task delay for the final ack
+                cluster.runFor(DEFAULT_DELAY_VARIABILITY, "processing final ack from leader");
                 assertTrue("expected ack from leader, " + leader, ackCollector.hasAckedSuccessfully(leader));
+
+                leader.submitValue(randomLong());
+                cluster.stabilise();
             } else {
+                // The timeout causes the publication to fail, the leader stands down and runs another election, and everything settles:
+                cluster.stabilise();
+                assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+                assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
                 assertTrue("expected eventual nack from leader, " + leader, ackCollector.hasAckedUnsuccessfully(leader));
             }
         }

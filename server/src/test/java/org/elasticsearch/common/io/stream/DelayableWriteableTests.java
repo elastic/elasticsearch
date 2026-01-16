@@ -202,9 +202,6 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static TransportVersion randomOldVersion() {
-        return TransportVersionUtils.randomVersionBetween(
-            TransportVersion.minimumCompatible(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-        );
+        return TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
     }
 }

@@ -60,9 +60,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
-  issue: https://github.com/elastic/elasticsearch/issues/122102
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568

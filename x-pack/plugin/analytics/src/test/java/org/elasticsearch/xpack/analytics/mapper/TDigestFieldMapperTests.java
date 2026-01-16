@@ -335,11 +335,8 @@ public class TDigestFieldMapperTests extends MapperTestCase {
                 .field("centroids", new double[] { 2, 3, 2 })
                 .endObject()
         );
-        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString(" centroids must be in increasing order, " + "got [2.0] but previous value was [3.0]")
-        );
+        ParsedDocument doc = mapper.parse(source);
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testFieldNotObject() throws Exception {

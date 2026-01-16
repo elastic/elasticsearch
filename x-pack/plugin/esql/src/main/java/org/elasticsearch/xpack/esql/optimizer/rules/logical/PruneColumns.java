@@ -79,10 +79,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck.set(false);
                 p = switch (p) {
-                    case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
-                    case InlineJoin inj -> pruneColumnsInInlineJoinRight(inj, used, recheck);
+                    case Aggregate agg -> pruneColumnsInAggregate(agg, used, false);
+                    case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
-                    case Project project -> inlineJoin ? pruneColumnsInProject(project, used, recheck) : p;
+                    case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case Fork fork -> {
                         forkPresent.set(true);
@@ -139,33 +139,35 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
 
-        var right = pruneColumns(ij.right(), used, true);
-        if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
+        used.addAll(ij.references());
+
+        var right = pruneColumns(ij.right(), used, false);
+        if (right.outputSet().subtract(ij.references()).isEmpty() || isLocalEmptyRelation(right)) {
             p = pruneRightSideAndProject(ij);
             recheck.set(true);
         } else if (right != ij.right()) {
-            if (right.anyMatch(plan -> plan instanceof Aggregate) == false) {// there is no aggregation on the right side anymore
-                if (right instanceof StubRelation) {// right is just a StubRelation, meaning nothing is needed from the right side
-                    p = pruneRightSideAndProject(ij);
-                } else {
-                    // if the right has no aggregation anymore, but it still has some other plans (evals, projects),
-                    // we keep those and integrate them into the main plan. The InlineJoin is also replaced entirely.
-                    p = InlineJoin.replaceStub(ij.left(), right);
-                    p = new Project(ij.source(), p, mergeOutputExpressions(p.output(), ij.left().output()));
-                }
-            } else {
-                // if the right side has been updated, replace it
-                p = ij.replaceRight(right);
-            }
-            recheck.set(true);
+//            if (right.anyMatch(plan -> plan instanceof Aggregate) == false) {// there is no aggregation on the right side anymore
+//                if (right instanceof StubRelation) {// right is just a StubRelation, meaning nothing is needed from the right side
+//                    p = pruneRightSideAndProject(ij);
+//                } else {
+//                    // if the right has no aggregation anymore, but it still has some other plans (evals, projects),
+//                    // we keep those and integrate them into the main plan. The InlineJoin is also replaced entirely.
+//                    p = InlineJoin.replaceStub(ij.left(), right);
+//                    p = new Project(ij.source(), p, mergeOutputExpressions(p.output(), ij.left().output()));
+//                }
+//            } else {
+//                // if the right side has been updated, replace it
+//                p = ij.replaceRight(right);
+//            }
+//            recheck.set(true);
         }
 
-        if (recheck.get() == false) {
-            used.addAll(p.references());
-        }
+//        if (recheck.get() == false) {
+//            used.addAll(p.references());
+//        }
 
         return p;
     }
@@ -204,7 +206,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
         if (remaining != null) {
-            p = remaining.isEmpty() ? emptyLocalRelation(project) : new Project(project.source(), project.child(), remaining);
+            p = new Project(project.source(), project.child(), remaining);
             recheck.set(true);
         }
 

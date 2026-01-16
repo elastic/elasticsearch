@@ -59,7 +59,7 @@ setup:
 
 ---
 "kNN query with base64 float vector":
-  # [0.1, 0.2, 0.3] is encoded as 'zczMPc3MTD6amZk+'
+  # [0.1, 0.2, 0.3] is encoded as 'PczMzT5MzM0+mZma'
   - do:
       search:
         index: knn_query_base64_index
@@ -68,7 +68,7 @@ setup:
           query:
             knn:
               field: vector_float
-              query_vector_base64: "zczMPc3MTD6amZk+"
+              query_vector_base64: "PczMzT5MzM0+mZma"
               k: 2
               num_candidates: 3
 
@@ -116,7 +116,7 @@ setup:
   - set: { hits.hits.0._id: array_result_1 }
   - set: { hits.hits.1._id: array_result_2 }
 
-  # [0.1, 0.2, 0.3] is encoded as 'zczMPc3MTD6amZk+'
+  # [0.1, 0.2, 0.3] is encoded as 'PczMzT5MzM0+mZma'
   - do:
       search:
         index: knn_query_base64_index
@@ -125,7 +125,7 @@ setup:
           query:
             knn:
               field: vector_float
-              query_vector_base64: "zczMPc3MTD6amZk+"
+              query_vector_base64: "PczMzT5MzM0+mZma"
               k: 2
               num_candidates: 3
 
@@ -143,7 +143,7 @@ setup:
             knn:
               field: vector_float
               query_vector: [0.1, 0.2, 0.3]
-              query_vector_base64: "zczMPc3MTD6amZk+"
+              query_vector_base64: "PczMzT5MzM0+mZma"
               k: 2
               num_candidates: 3
 
@@ -172,7 +172,7 @@ setup:
             knn:
               field: vector_float
               # [0.1, 0.2] - only 2 dimensions instead of 3
-              query_vector_base64: "zczMPc3MTD4="
+              query_vector_base64: "PczMzT5MzM0="
               k: 2
               num_candidates: 3
 

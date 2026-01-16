@@ -239,7 +239,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private void checkReadyState(ClusterState previousState, ClusterState clusterState) {
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
-        boolean shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
+        String localNodeId = clusterState.nodes().getLocalNodeId();
+        boolean shuttingDown = localNodeId != null && shutdownNodeIds.contains(localNodeId);
 
         if (shuttingDown) {
             // only disable the probe and log if the probe is running

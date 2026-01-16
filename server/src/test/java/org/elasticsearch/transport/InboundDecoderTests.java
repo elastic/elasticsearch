@@ -367,7 +367,7 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testCheckVersionCompatibility() {
         try {
-            InboundDecoder.checkVersionCompatibility(TransportVersionUtils.randomCompatibleVersion(random()));
+            InboundDecoder.checkVersionCompatibility(TransportVersionUtils.randomCompatibleVersion());
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }

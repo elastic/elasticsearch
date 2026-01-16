@@ -233,7 +233,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     )
                     .build();
                 allNodes.add(node);
-                nodeTransports.put(node, TransportVersionUtils.randomCompatibleVersion(random()));
+                nodeTransports.put(node, TransportVersionUtils.randomCompatibleVersion());
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();

@@ -904,7 +904,6 @@ public class AuthenticationTests extends ESTestCase {
             .build();
         // pick a version before that of the authentication instance to force a rewrite
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
-            random(),
             authentication.getEffectiveSubject().getTransportVersion()
         );
 
@@ -945,8 +944,8 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionSupporting(random(), olderVersion);
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionSupporting(olderVersion);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
             // Use CURRENT to force newer version in case randomVersionSupporting above picks olderVersion

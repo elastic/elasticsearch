@@ -33,7 +33,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testMinimumTransportVersions() {
         TransportVersion version1 = TransportVersion.minimumCompatible();
-        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion();
 
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, Map.of());
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2, Map.of());
@@ -76,7 +76,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
      */
     public void testMinimumsAreMerged() {
         TransportVersion version1 = TransportVersion.minimumCompatible();
-        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion();
 
         SystemIndexDescriptor.MappingsVersion v1 = new SystemIndexDescriptor.MappingsVersion(1, 1);
         SystemIndexDescriptor.MappingsVersion v2 = new SystemIndexDescriptor.MappingsVersion(2, 2);

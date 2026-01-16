@@ -50,25 +50,20 @@ public class TransportVersionUtils {
         return ESTestCase.randomFrom(allReleasedVersions().stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link TransportVersion} from all available versions. */
-    public static TransportVersion randomVersion(Random random) {
-        return RandomPicks.randomFrom(random, allReleasedVersions());
-    }
-
     /**
      * Returns a random {@link TransportVersion} which supports the given version. Effectively, this returns a version equal to, or "later"
      * than the given version.
      */
-    public static TransportVersion randomVersionSupporting(Random random, TransportVersion minVersion) {
-        return RandomPicks.randomFrom(random, RELEASED_VERSIONS.stream().filter(v -> v.supports(minVersion)).toList());
+    public static TransportVersion randomVersionSupporting(TransportVersion minVersion) {
+        return RandomPicks.randomFrom(random(), RELEASED_VERSIONS.stream().filter(v -> v.supports(minVersion)).toList());
     }
 
     /**
      * Returns a random {@link TransportVersion} which does not supports the given version. Effectively, this returns a version "before"
      * the given version.
      */
-    public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
-        return RandomPicks.randomFrom(random, RELEASED_VERSIONS.stream().filter(v -> v.supports(version) == false).toList());
+    public static TransportVersion randomVersionNotSupporting(TransportVersion version) {
+        return RandomPicks.randomFrom(random(), RELEASED_VERSIONS.stream().filter(v -> v.supports(version) == false).toList());
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {

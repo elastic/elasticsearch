@@ -1,0 +1,5 @@
+pr: 140832
+summary: Accept unordered centroids in TDigestParser
+area: Mapping
+type: bug
+issues: []

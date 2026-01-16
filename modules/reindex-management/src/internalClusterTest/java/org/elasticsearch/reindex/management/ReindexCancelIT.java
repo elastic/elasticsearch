@@ -30,15 +30,19 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 /** Integration tests for <code>POST _reindex/{taskId}/_cancel</code> endpoint. */
@@ -116,6 +120,12 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final CancelReindexResponse cancelResponse = cancelReindexSynchronously(parentTaskId);
         assertThat(cancelResponse.getTaskFailures(), empty());
         assertThat(cancelResponse.getNodeFailures(), empty());
+        final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
+        assertThat(
+            "reindex is cancelled and contains GET response",
+            responseBody,
+            allOf(hasEntry("cancelled", true), hasEntry("completed", true))
+        );
 
         final var notFoundException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(parentTaskId));
         assertThat(notFoundException.getMessage(), is(Strings.format("reindex task [%s] either not found or completed", parentTaskId)));
@@ -161,6 +171,8 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final CancelReindexResponse cancelResponse = cancelReindexAsynchronously(parentTaskId);
         assertThat(cancelResponse.getTaskFailures(), empty());
         assertThat(cancelResponse.getNodeFailures(), empty());
+        final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
+        assertThat("reindex is cancelled and contains acknowledged response", responseBody, equalTo(Map.of("acknowledged", true)));
 
         assertBusy(() -> assertThat("there are no open scroll contexts", currentNumberOfScrollContexts(), equalTo(0L)));
         assertBusy(() -> assertThat("parent group should be absent", findTaskGroup(parentTaskId).isEmpty(), is(true)));

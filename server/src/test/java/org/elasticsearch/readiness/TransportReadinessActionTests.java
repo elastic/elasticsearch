@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -26,6 +28,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportReadinessActionTests extends ESTestCase {
 
@@ -46,7 +50,10 @@ public class TransportReadinessActionTests extends ESTestCase {
         );
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
         readinessService = new ReadinessService(clusterService, env);
-        action = new TransportReadinessAction(new ActionFilters(Set.of()), null, readinessService);
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        action = new TransportReadinessAction(new ActionFilters(Set.of()), transportService, readinessService);
     }
 
     @After

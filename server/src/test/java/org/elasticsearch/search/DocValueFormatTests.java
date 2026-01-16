@@ -240,7 +240,7 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testFormatSortFieldOutputForMissingValues() {
-        DateFormatter formatter = DateFormatter.forPattern(FormatNames.STRICT_DATE_TIME.getName());
+        DateFormatter formatter = DateFormatter.forPattern(randomFrom(FormatNames.values()).getName());
         DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(
             formatter,
             ZoneOffset.ofHours(randomInt(6)),

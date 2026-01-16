@@ -230,7 +230,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         for (int i = 0; i < iterations; i++) {
             TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
-                version = TransportVersionUtils.randomVersionBetween(TransportVersion.minimumCompatible(), TransportVersion.current());
+                version = TransportVersionUtils.randomCompatibleVersion(random());
             }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);

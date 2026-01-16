@@ -408,6 +408,9 @@ tests:
 - class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/140805
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140809
 
 # Examples:
 #

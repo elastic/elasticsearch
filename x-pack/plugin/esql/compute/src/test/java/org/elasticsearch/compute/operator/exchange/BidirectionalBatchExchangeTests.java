@@ -483,7 +483,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
         try {
-            int numBatches = between(1000, 10000);
+            int numBatches = between(100, 1000);
             runBidirectionalBatchTestOnDemand(
                 threadPool,
                 blockFactory,

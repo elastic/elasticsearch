@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -131,12 +132,6 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         super();
         this.operation = operation;
         this.applyRightFilterAsJoinOnFilter = randomBoolean();
-    }
-
-    @Before
-    public void ensureNonStreamingOperator() {
-        // Ensure the factory uses the non-streaming LookupFromIndexOperator
-        LookupFromIndexOperator.Factory.USE_STREAMING_OPERATOR = false;
     }
 
     @Before
@@ -295,7 +290,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             loadFields,
             Source.EMPTY,
             rightPlanWithOptionalPreJoinFilter,
-            joinOnExpression
+            joinOnExpression,
+            false,  // useStreamingOperator - testing non-streaming operator
+            QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY)
         );
     }
 

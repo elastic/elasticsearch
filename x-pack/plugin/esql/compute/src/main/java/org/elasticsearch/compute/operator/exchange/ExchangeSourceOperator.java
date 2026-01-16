@@ -68,8 +68,6 @@ public class ExchangeSourceOperator extends SourceOperator {
     @Override
     public Page getOutput() {
         final var page = source.pollPage();
-        // Only log for BatchPages (marker pages) which are only used by client driver
-        // Regular pages are used by both client and server drivers, so skip logging to reduce noise
         if (page != null) {
             pagesEmitted++;
             rowsEmitted += page.getPositionCount();

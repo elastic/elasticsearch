@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -158,12 +159,6 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
                 writer.addDocument(fields);
             }
         }
-    }
-
-    @Before
-    public void ensureStreamingOperatorEnabled() {
-        // Ensure the factory uses StreamingLookupFromIndexOperator
-        LookupFromIndexOperator.Factory.USE_STREAMING_OPERATOR = true;
     }
 
     @Override
@@ -304,7 +299,9 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
             loadFields,
             Source.EMPTY,
             rightPlanWithOptionalPreJoinFilter,
-            joinOnExpression
+            joinOnExpression,
+            true,  // useStreamingOperator - testing streaming operator
+            QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY)
         );
     }
 
@@ -343,7 +340,7 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
         String suffix = (operation == null) ? "" : ("_left");
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
+        sb.append("StreamingLookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
             // match_field=match<i>_left (index first, then suffix)
             sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");

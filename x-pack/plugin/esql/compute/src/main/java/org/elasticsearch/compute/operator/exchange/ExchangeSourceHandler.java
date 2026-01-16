@@ -104,22 +104,7 @@ public final class ExchangeSourceHandler {
         @Override
         public boolean isFinished() {
             checkFailure();
-            boolean bufferFinished = buffer.isFinished();
-            boolean result = finished || bufferFinished;
-            // Log at INFO level when isFinished() is called to diagnose deadlocks
-            // This helps understand when and why the source reports as finished
-            if (result) {
-                logger.info(
-                    "[{}] ExchangeSourceImpl.isFinished() returning TRUE: finished={}, bufferFinished={}, bufferSize={}, "
-                        + "bufferNoMoreInputs={}",
-                    name,
-                    finished,
-                    bufferFinished,
-                    buffer.size(),
-                    buffer.noMoreInputs()
-                );
-            }
-            return result;
+            return finished || buffer.isFinished();
         }
 
         @Override

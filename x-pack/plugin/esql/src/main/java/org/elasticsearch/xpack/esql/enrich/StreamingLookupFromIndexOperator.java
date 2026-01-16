@@ -71,6 +71,7 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
     }
 
     private final Map<Long, BatchState> activeBatches = new ConcurrentHashMap<>();
+    private final int exchangeBufferSize;
 
     public StreamingLookupFromIndexOperator(
         List<MatchConfig> matchFields,
@@ -84,7 +85,8 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
         List<NamedExpression> loadFields,
         Source source,
         PhysicalPlan rightPreJoinPlan,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        int exchangeBufferSize
     ) {
         super(
             matchFields,
@@ -101,6 +103,12 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
             joinOnConditions
         );
         this.driverContext = driverContext;
+        this.exchangeBufferSize = exchangeBufferSize;
+    }
+
+    @Override
+    protected String getOperatorName() {
+        return "StreamingLookupOperator";
     }
 
     @Override
@@ -217,7 +225,7 @@ public class StreamingLookupFromIndexOperator extends LookupFromIndexOperator {
                 lookupService.getClusterService().getClusterName().value(),
                 exchangeService,
                 lookupService.getExecutor(),  // Use same executor as server
-                1, // maxBufferSize
+                exchangeBufferSize,
                 lookupService.getTransportService(),
                 parentTask,
                 serverNode,

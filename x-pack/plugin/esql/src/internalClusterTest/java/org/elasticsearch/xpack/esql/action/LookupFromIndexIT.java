@@ -416,7 +416,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY,
                 pushedDownFilter,
-                Predicates.combineAnd(joinOnConditions)
+                Predicates.combineAnd(joinOnConditions),
+                true,  // useStreamingOperator
+                QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY)
             );
             DriverContext driverContext = driverContext();
             try (

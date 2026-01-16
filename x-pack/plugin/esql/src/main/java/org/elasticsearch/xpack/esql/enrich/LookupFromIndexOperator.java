@@ -55,19 +55,19 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
         List<NamedExpression> loadFields,
         Source source,
         PhysicalPlan rightPreJoinPlan,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        boolean useStreamingOperator,
+        int exchangeBufferSize
     ) implements OperatorFactory {
 
-        /**
-         * Static variable to control which operator class to use.
-         * Set to false to use the old LookupFromIndexOperator, true to use StreamingLookupFromIndexOperator (default).
-         */
-        public static boolean USE_STREAMING_OPERATOR = true;
+        private String operatorName() {
+            return useStreamingOperator ? "StreamingLookupOperator" : "LookupOperator";
+        }
 
         @Override
         public String describe() {
             StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+            stringBuilder.append(operatorName()).append("[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
             for (MatchConfig matchField : matchFields) {
                 stringBuilder.append(" input_type=")
                     .append(matchField.type())
@@ -84,7 +84,7 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
 
         @Override
         public Operator get(DriverContext driverContext) {
-            if (USE_STREAMING_OPERATOR) {
+            if (useStreamingOperator) {
                 return new StreamingLookupFromIndexOperator(
                     matchFields,
                     sessionId,
@@ -97,7 +97,8 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
                     loadFields,
                     source,
                     rightPreJoinPlan,
-                    joinOnConditions
+                    joinOnConditions,
+                    exchangeBufferSize
                 );
             } else {
                 return new LookupFromIndexOperator(
@@ -285,10 +286,18 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
         ongoingJoin.releaseOnAnyThread();
     }
 
+    /**
+     * Returns the name of this operator for use in toString() and describe().
+     * Subclasses can override this to provide a different name.
+     */
+    protected String getOperatorName() {
+        return "LookupOperator";
+    }
+
     @Override
     public String toString() {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+        stringBuilder.append(getOperatorName()).append("[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
         for (MatchConfig matchField : matchFields) {
             stringBuilder.append(" input_type=")
                 .append(matchField.type())

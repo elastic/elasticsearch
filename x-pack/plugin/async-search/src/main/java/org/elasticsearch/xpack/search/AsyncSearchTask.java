@@ -191,7 +191,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
-    public boolean addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public boolean addCompletionListener(
+        ActionListener<AsyncSearchResponse> listener,
+        TimeValue waitForCompletion,
+        boolean returnPartialResultsInResponse
+    ) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -207,12 +211,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                     } else {
                         remainingWaitForCompletion = TimeValue.ZERO;
                     }
-                    internalAddCompletionListener(listener, remainingWaitForCompletion);
+                    internalAddCompletionListener(listener, remainingWaitForCompletion, returnPartialResultsInResponse);
                 });
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            getResponseWithHeaders(listener, returnPartialResultsInResponse);
         }
         return true; // unused
     }
@@ -262,11 +266,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 } finally {
                     failureResponse.decRef();
                 }
-            }));
+            }), true);
         }
     }
 
-    private void internalAddCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    private void internalAddCompletionListener(
+        ActionListener<AsyncSearchResponse> listener,
+        TimeValue waitForCompletion,
+        boolean returnPartialResultsInResponse
+    ) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
@@ -281,7 +289,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            getResponseWithHeaders(listener);
+                            getResponseWithHeaders(listener, returnPartialResultsInResponse);
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -298,7 +306,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            getResponseWithHeaders(listener, returnPartialResultsInResponse);
         }
     }
 
@@ -396,18 +404,22 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * Visible for testing
      */
     void getResponse(ActionListener<AsyncSearchResponse> listener) {
-        getResponse(false, listener);
+        getResponse(false, true, listener);
     }
 
     /**
      * Invokes the listener with the current {@link AsyncSearchResponse},
      * restoring response headers into the calling thread context.
      */
-    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener) {
-        getResponse(true, listener);
+    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener, boolean returnPartialResultsInResponse) {
+        getResponse(true, returnPartialResultsInResponse, listener);
     }
 
-    private void getResponse(boolean restoreResponseHeaders, ActionListener<AsyncSearchResponse> listener) {
+    private void getResponse(
+        boolean restoreResponseHeaders,
+        boolean returnPartialResultsInResponse,
+        ActionListener<AsyncSearchResponse> listener
+    ) {
         final MutableSearchResponse mutableSearchResponse = searchResponse;
         assert mutableSearchResponse != null;
         checkCancellation();
@@ -435,7 +447,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         try {
             AsyncSearchResponse asyncSearchResponse;
             try {
-                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(
+                    this,
+                    expirationTimeMillis,
+                    restoreResponseHeaders,
+                    returnPartialResultsInResponse
+                );
             } catch (Exception e) {
                 final ElasticsearchException ex = new ElasticsearchStatusException(
                     "Async search: error while reducing partial results",

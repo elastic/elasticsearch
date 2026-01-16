@@ -1,21 +1,13 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package co.elastic.elasticsearch.serverless.health;
+package org.elasticsearch.cluster.routing.allocation.shards;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,8 +19,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -53,7 +45,7 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
 
-public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAvailabilityHealthIndicatorService {
+public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAvailabilityHealthIndicatorService {
     public static final String ALL_REPLICAS_UNASSIGNED_IMPACT_ID = "all_replicas_unassigned";
 
     private static final String SHARD_ROLE_DECIDER_NAME = "stateless_shard_role";
@@ -63,7 +55,6 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
         DiscoveryNodeRole.INDEX_ROLE.roleName()
     );
 
-    private static final String DEBUG_NODES_ACTION_GUIDE = "https://ela.st/serverless-debug-nodes";
     private static final Map<String, Diagnosis.Definition> ACTION_DEBUG_NODES_LOOKUP = SHARD_ROLES.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -76,12 +67,11 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
                         + role
                         + " nodes and there are no such nodes found in the cluster.",
                     "Ensure that " + role + " nodes are healthy and are able to join the cluster.",
-                    DEBUG_NODES_ACTION_GUIDE
+                    ENABLE_TIER_ACTION_GUIDE
                 )
             )
         );
 
-    private static final String ADJUST_SEARCH_CAPACITY_ACTION_GUIDE = "https://ela.st/serverless-fix-replicas";
     private static final Diagnosis.Definition ACTION_ADJUST_SEARCH_CAPACITY = new Diagnosis.Definition(
         NAME,
         "update_shards:role:" + DiscoveryNodeRole.SEARCH_ROLE.roleName(),
@@ -91,10 +81,9 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
         "Ensure that all the "
             + DiscoveryNodeRole.SEARCH_ROLE.roleName()
             + " nodes configured have joined the cluster or decrease the number of replica shards in the affected indices.",
-        ADJUST_SEARCH_CAPACITY_ACTION_GUIDE
+        TIER_CAPACITY_ACTION_GUIDE
     );
 
-    private static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "https://ela.st/serverless-cluster-total-shards";
     private static final Map<String, Diagnosis.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = SHARD_ROLES.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -115,7 +104,6 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
             )
         );
 
-    private static final String INCREASE_INDEX_SHARD_LIMIT_ACTION_GUIDE = "https://ela.st/serverless-index-total-shards";
     private static final Map<String, Diagnosis.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = SHARD_ROLES.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -131,12 +119,12 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
                         + " nodes have joined the cluster or increase the values for the '"
                         + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "' index setting on each index.",
-                    INCREASE_INDEX_SHARD_LIMIT_ACTION_GUIDE
+                    INCREASE_SHARD_LIMIT_ACTION_GUIDE
                 )
             )
         );
 
-    public ServerlessShardsAvailabilityHealthIndicatorService(
+    public StatelessShardsAvailabilityHealthIndicatorService(
         ClusterService clusterService,
         AllocationService allocationService,
         SystemIndices systemIndices,
@@ -150,12 +138,12 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
         Metadata metadata,
         int maxAffectedResourcesCount
     ) {
-        return new ServerlessShardAllocationStatus(metadata, maxAffectedResourcesCount);
+        return new StatelessShardAllocationStatus(metadata, maxAffectedResourcesCount);
     }
 
-    public class ServerlessShardAllocationStatus extends ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus {
+    public class StatelessShardAllocationStatus extends ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus {
 
-        ServerlessShardAllocationStatus(Metadata clusterMetadata, int maxAffectedResourcesCount) {
+        StatelessShardAllocationStatus(Metadata clusterMetadata, int maxAffectedResourcesCount) {
             super(clusterMetadata, maxAffectedResourcesCount);
         }
 
@@ -254,7 +242,7 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
             .toList();
         if (shardRoleAllocationResults.isEmpty()) {
             // No nodes were found with the specific role.
-            Optional.ofNullable(ACTION_DEBUG_NODES_LOOKUP.get(role)).ifPresent(diagnosisDefs::add);
+            Optional.ofNullable(getAddNodesWithRoleAction(role)).ifPresent(diagnosisDefs::add);
         } else {
             // Collect the nodes the index is allowed on
             Set<DiscoveryNode> candidateNodes = shardRoleAllocationResults.stream()
@@ -269,6 +257,11 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
             checkNotEnoughNodesWithRole(shardRoleAllocationResults, role).ifPresent(diagnosisDefs::add);
         }
         return diagnosisDefs;
+    }
+
+    @Nullable
+    public Diagnosis.Definition getAddNodesWithRoleAction(String role) {
+        return ACTION_DEBUG_NODES_LOOKUP.get(role);
     }
 
     @Override

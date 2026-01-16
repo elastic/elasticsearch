@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Delete named project routing expression"
     },
-    "stability": "stable",
+    "stability": "experimental",
     "visibility": "public",
     "headers": {
       "accept": ["application/json"]

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -131,6 +132,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 ),
                 "CoalesceExponentialHistogramEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.EXPONENTIAL_HISTOGRAM,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
+            BytesRef firstHisto = randomBoolean() ? null : EsqlTestUtils.randomHistogram();
+            BytesRef secondHisto = EsqlTestUtils.randomHistogram();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.HISTOGRAM, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.HISTOGRAM, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.HISTOGRAM,
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));

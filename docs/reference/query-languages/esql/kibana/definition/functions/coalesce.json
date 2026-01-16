@@ -218,6 +218,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "histogram",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression to evaluate."

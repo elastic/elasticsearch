@@ -59,10 +59,7 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             ? new MapExpression(Source.EMPTY, List.of())
             : new MapExpression(
                 Source.EMPTY,
-                List.of(
-                    Literal.keyword(Source.EMPTY, randomIdentifier()),
-                    Literal.fromDouble(Source.EMPTY, randomDouble())
-                )
+                List.of(Literal.keyword(Source.EMPTY, randomIdentifier()), Literal.fromDouble(Source.EMPTY, randomDouble()))
             );
     }
 

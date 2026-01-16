@@ -12,7 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -38,7 +38,7 @@ public final class BytesRefLongBlockHash extends BlockHash {
     private final boolean reverseOutput;
     private final int emitBatchSize;
     private final BytesRefBlockHash bytesHash;
-    private final LongLongHash finalHash;
+    private final LongLongHashTable finalHash;
     private long minLongKey = Long.MAX_VALUE;
 
     BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
@@ -53,7 +53,7 @@ public final class BytesRefLongBlockHash extends BlockHash {
         try {
             bytesHash = new BytesRefBlockHash(bytesChannel, blockFactory);
             this.bytesHash = bytesHash;
-            this.finalHash = new LongLongHash(1, blockFactory.bigArrays());
+            this.finalHash = HashImplFactory.newLongLongHash(blockFactory);
             success = true;
         } finally {
             if (success == false) {

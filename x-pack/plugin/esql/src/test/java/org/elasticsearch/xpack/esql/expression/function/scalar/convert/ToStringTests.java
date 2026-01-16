@@ -236,7 +236,8 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         long dateAsLong = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
         long dateAsNanos = DateUtils.toNanoSeconds(dateAsLong);
 
-        var suppliers = List.of(
+        var suppliers = new ArrayList<TestCaseSupplier>();
+        suppliers.add(
             new TestCaseSupplier(
                 "millis: " + date + ", " + zoneIdString + ", " + expectedString,
                 List.of(DataType.DATETIME),
@@ -247,8 +248,9 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
-            ),
-
+            )
+        );
+        suppliers.add(
             new TestCaseSupplier(
                 "nanos: " + date + ", " + zoneIdString + ", " + expectedString,
                 List.of(DataType.DATE_NANOS),

@@ -118,6 +118,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
+    private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
     final String field;
     final VectorData queryVector;
@@ -350,7 +351,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             this.visitPercentage = null;
         }
         this.queryVector = in.readOptionalWriteable(VectorData::new);
-        this.queryVectorBase64 = in.readOptionalString();
+        if (in.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
+            this.queryVectorBase64 = in.readOptionalString();
+        } else {
+            this.queryVectorBase64 = null;
+        }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
         this.queryName = in.readOptionalString();
@@ -610,7 +615,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             out.writeOptionalFloat(visitPercentage);
         }
         out.writeOptionalWriteable(queryVector);
-        out.writeOptionalString(queryVectorBase64);
+        if (out.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
+            out.writeOptionalString(queryVectorBase64);
+        }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
         out.writeOptionalString(queryName);

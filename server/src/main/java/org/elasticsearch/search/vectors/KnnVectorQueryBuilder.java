@@ -143,6 +143,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     public static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
+    public static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
     private final String fieldName;
     private final VectorData queryVector;
@@ -315,7 +316,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.visitPercentage = null;
         }
         this.queryVector = in.readOptionalWriteable(VectorData::new);
-        this.queryVectorBase64 = in.readOptionalString();
+        if (in.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
+            this.queryVectorBase64 = in.readOptionalString();
+        } else {
+            this.queryVectorBase64 = null;
+        }
         this.filterQueries.addAll(readQueries(in));
         this.vectorSimilarity = in.readOptionalFloat();
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
@@ -401,7 +406,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             out.writeOptionalFloat(visitPercentage);
         }
         out.writeOptionalWriteable(queryVector);
-        out.writeOptionalString(queryVectorBase64);
+        if (out.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
+            out.writeOptionalString(queryVectorBase64);
+        }
         writeQueries(out, filterQueries);
         out.writeOptionalFloat(vectorSimilarity);
         out.writeOptionalNamedWriteable(queryVectorBuilder);

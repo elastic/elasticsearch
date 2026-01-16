@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SortedDocValues;
@@ -195,9 +196,8 @@ class TSDBSyntheticIdDocValuesHolder {
      */
     int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
         final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
-        if (startDocId == DocIdSetIterator.NO_MORE_DOCS) {
-            return startDocId;
-        }
+        assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
+
         // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
         if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
@@ -221,6 +221,7 @@ class TSDBSyntheticIdDocValuesHolder {
         }
         cachedTsIdOrd = -1;
         cachedTsId = null;
+        assert false : "Method must be called with an existing _tsid ordinal: " + tsIdOrd;
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
@@ -264,23 +265,10 @@ class TSDBSyntheticIdDocValuesHolder {
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
-    /**
-     * Skip as many documents as possible after a given document ID to find the first document ID matching the timestamp.
-     *
-     * @param timestamp the timestamp to match
-     * @param minDocID the min. document ID
-     * @return a docID to start scanning documents from in order to find the first document ID matching the provided timestamp
-     * @throws IOException if any I/O exception occurs
-     */
-    int skipDocIDForTimestamp(long timestamp, int minDocID) throws IOException {
+    DocValuesSkipper docValuesSkipperForTimestamp() throws IOException {
         var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
         assert skipper != null;
-        if (skipper.minValue() > timestamp || timestamp > skipper.maxValue()) {
-            return DocIdSetIterator.NO_MORE_DOCS;
-        }
-        skipper.advance(minDocID);
-        skipper.advance(timestamp, Long.MAX_VALUE);
-        return Math.max(minDocID, skipper.minDocID(0));
+        return skipper;
     }
 
     int getTsIdValueCount() throws IOException {

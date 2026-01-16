@@ -217,12 +217,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 // set the terms enum on the first non-matching document
                 if (tsIdOrd < docValues.getTsIdValueCount()) {
                     int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
-                    if (firstDocID != DocIdSetIterator.NO_MORE_DOCS) {
-                        docID = firstDocID;
-                        docTsIdOrd = tsIdOrd;
-                        docTimestamp = null;
-                        return SeekStatus.NOT_FOUND;
-                    }
+                    assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
+                    docID = firstDocID;
+                    docTsIdOrd = tsIdOrd;
+                    docTimestamp = null;
+                    return SeekStatus.NOT_FOUND;
                 }
                 // no docs/terms to iterate on
                 resetDocID(DocIdSetIterator.NO_MORE_DOCS);
@@ -231,48 +230,78 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             // Find the first document ID matching the _tsid
             int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
+            assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
             assert firstDocID >= 0 : firstDocID;
 
-            if (firstDocID != DocIdSetIterator.NO_MORE_DOCS) {
-                // _tsid found, extract the timestamp
-                final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
+            // Extract the timestamp
+            final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
 
-                firstDocID = docValues.skipDocIDForTimestamp(timestamp, firstDocID);
-                if (firstDocID != DocIdSetIterator.NO_MORE_DOCS) {
-                    int nextDocID = firstDocID;
-                    int nextDocTsIdOrd = tsIdOrd;
-                    long nextDocTimestamp;
+            // Use doc values skipper on timestamp to early exit or skip to the first document matching the timestamp
+            var skipper = docValues.docValuesSkipperForTimestamp();
+            if (timestamp > skipper.maxValue()) {
+                // timestamp is greater than the global maximum value in the segment, so the first docID matching the _tsid is guaranteed to
+                // have a smaller timestamp that the one we're looking for and we can early exit at the current docID position.
+                docID = firstDocID;
+                docTsIdOrd = tsIdOrd;
+                docTimestamp = null;
+                return SeekStatus.NOT_FOUND;
+            }
+            if (skipper.minValue() > timestamp) {
+                // timestamp is smaller than the global maximum value in the segment, so no docs matching the _tsid will also match the
+                // timestamp, so we can early exit at the position of the next _tsid (if there is such one).
+                int nextDocTsIdOrd = tsIdOrd + 1;
+                if (nextDocTsIdOrd < docValues.getTsIdValueCount()) {
+                    docID = docValues.findFirstDocWithTsIdOrdinalEqualTo(nextDocTsIdOrd);
+                    docTsIdOrd = nextDocTsIdOrd;
+                    docTimestamp = null;
+                    return SeekStatus.NOT_FOUND;
+                }
+                // no docs/terms to iterate on
+                resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                return SeekStatus.END;
+            }
+            skipper.advance(firstDocID);
+            skipper.advance(timestamp, Long.MAX_VALUE);
+            if (skipper.minDocID(0) == DocIdSetIterator.NO_MORE_DOCS) {
+                // we exhausted the doc values skipper
+                return SeekStatus.END;
+            }
 
-                    // Iterate over documents to find the first one matching the timestamp
-                    for (; nextDocID < maxDocs; nextDocID++) {
-                        nextDocTimestamp = docValues.docTimestamp(nextDocID);
-                        if (firstDocID < nextDocID) {
-                            // After the first doc, we need to check again if _tsid matches
-                            nextDocTsIdOrd = docValues.docTsIdOrdinal(nextDocID);
-                        }
-                        if (nextDocTsIdOrd == tsIdOrd && nextDocTimestamp == timestamp) {
-                            if (Assertions.ENABLED) {
-                                // _ts_routing_hash read from doc values
-                                var routingHashDVBytes = docValues.docRoutingHash(nextDocID);
-                                int routingHashDV = TimeSeriesRoutingHashFieldMapper.decode(
-                                    Uid.decodeId(routingHashDVBytes.bytes, routingHashDVBytes.offset, routingHashDVBytes.length)
-                                );
-                                // _ts_routing_hash from the synthetic id
-                                int routingHashSyntheticId = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(id);
-                                assert Objects.equals(routingHashDV, routingHashSyntheticId)
-                                    : routingHashDV + "!=" + routingHashSyntheticId;
-                            }
-                            // Document is found
-                            docID = nextDocID;
-                            docTsIdOrd = nextDocTsIdOrd;
-                            docTimestamp = nextDocTimestamp;
-                            return SeekStatus.FOUND;
-                        }
-                        // Remaining docs don't match, stop here
-                        if (tsIdOrd < nextDocTsIdOrd || nextDocTimestamp < timestamp) {
-                            break;
-                        }
+            int nextDocID = Math.max(firstDocID, skipper.minDocID(0));
+            int nextDocTsIdOrd = tsIdOrd;
+            long nextDocTimestamp;
+
+            // Iterate over documents to find the first one matching the timestamp
+            for (; nextDocID < maxDocs; nextDocID++) {
+                nextDocTimestamp = docValues.docTimestamp(nextDocID);
+                if (firstDocID < nextDocID) {
+                    // After the first doc, we need to check again if _tsid matches
+                    nextDocTsIdOrd = docValues.docTsIdOrdinal(nextDocID);
+                }
+                if (nextDocTsIdOrd == tsIdOrd && nextDocTimestamp == timestamp) {
+                    if (Assertions.ENABLED) {
+                        // _ts_routing_hash read from doc values
+                        var routingHashDVBytes = docValues.docRoutingHash(nextDocID);
+                        int routingHashDV = TimeSeriesRoutingHashFieldMapper.decode(
+                            Uid.decodeId(routingHashDVBytes.bytes, routingHashDVBytes.offset, routingHashDVBytes.length)
+                        );
+                        // _ts_routing_hash from the synthetic id
+                        int routingHashSyntheticId = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(id);
+                        assert Objects.equals(routingHashDV, routingHashSyntheticId)
+                            : routingHashDV + "!=" + routingHashSyntheticId;
                     }
+                    // Document is found
+                    docID = nextDocID;
+                    docTsIdOrd = nextDocTsIdOrd;
+                    docTimestamp = nextDocTimestamp;
+                    return SeekStatus.FOUND;
+                }
+                // Remaining docs don't match, position the enum on the last doc seeked
+                if (tsIdOrd < nextDocTsIdOrd || nextDocTimestamp < timestamp) {
+                    docID = nextDocID;
+                    docTsIdOrd = nextDocTsIdOrd;
+                    docTimestamp = nextDocTimestamp;
+                    return SeekStatus.NOT_FOUND;
                 }
             }
             resetDocID(DocIdSetIterator.NO_MORE_DOCS);

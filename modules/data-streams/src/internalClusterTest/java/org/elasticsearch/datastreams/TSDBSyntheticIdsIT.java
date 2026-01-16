@@ -561,8 +561,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         // Delete some random docs
-        // TODO There are some tests failures with deletions and peer-recovery (under investigation)
-        final List<String> deletedDocs = false /*randomBoolean()*/ ? randomNonEmptySubsetOf(docsIndicesById.keySet()) : List.of();
+        final List<String> deletedDocs = randomBoolean() ? randomNonEmptySubsetOf(docsIndicesById.keySet()) : List.of();
         for (var deletedDocId : deletedDocs) {
             var deletedDocIndex = docsIndicesById.get(deletedDocId);
             assertThat(deletedDocIndex, notNullValue());
@@ -719,6 +718,27 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
                         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
                     }
+                );
+            }
+        }
+
+        randomDocIds = randomSubsetOf(deletedDocs);
+        for (var docId : randomDocIds) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Found deleted doc: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(false));
+                assertThat(getResponse.getVersion(), equalTo(-1L));
+
+            } else {
+                assertHitCount(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId)))
+                        .setSize(0),
+                    0L
                 );
             }
         }

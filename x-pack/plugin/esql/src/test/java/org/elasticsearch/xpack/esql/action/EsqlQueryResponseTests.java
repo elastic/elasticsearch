@@ -1534,7 +1534,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                     case DATE_RANGE -> {
                         BlockLoader.LongRangeBuilder b = (BlockLoader.LongRangeBuilder) builder;
-                        var ll = parseDateRange(value.toString());
+                        var ll = parseDateRange(value.toString(), ZoneOffset.UTC);
                         b.from().appendLong(ll.from());
                         b.to().appendLong(ll.to());
                     }

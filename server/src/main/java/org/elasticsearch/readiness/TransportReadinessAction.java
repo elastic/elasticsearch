@@ -15,16 +15,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
 /**
  * Exposes {@link ReadinessService readiness info} over the transport protocol to facilitate calling it form other nodes.
  */
-public class TransportReadinessAction extends TransportAction<ReadinessRequest, ActionResponse.Empty> {
+public class TransportReadinessAction extends HandledTransportAction<ReadinessRequest, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportReadinessAction.class);
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:internal/readiness");
@@ -32,8 +34,8 @@ public class TransportReadinessAction extends TransportAction<ReadinessRequest, 
     private final ReadinessService readinessService;
 
     @Inject
-    public TransportReadinessAction(ActionFilters actionFilters, TaskManager taskManager, ReadinessService readinessService) {
-        super(TYPE.name(), actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    public TransportReadinessAction(ActionFilters actionFilters, TransportService transportService, ReadinessService readinessService) {
+        super(TYPE.name(), transportService, actionFilters, ReadinessRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.readinessService = readinessService;
     }
 
@@ -41,7 +43,7 @@ public class TransportReadinessAction extends TransportAction<ReadinessRequest, 
     protected void doExecute(Task task, ReadinessRequest request, ActionListener<ActionResponse.Empty> listener) {
         logger.debug("readiness check requested");
         // A bound address indicates the node is ready. This transport action will not respond until the node is ready.
-        readinessService.addBoundAddressListener(address -> { listener.onResponse(ActionResponse.Empty.INSTANCE); });
+        readinessService.addBoundAddressListener(address -> listener.onResponse(ActionResponse.Empty.INSTANCE));
         logger.debug("readiness check done");
     }
 }

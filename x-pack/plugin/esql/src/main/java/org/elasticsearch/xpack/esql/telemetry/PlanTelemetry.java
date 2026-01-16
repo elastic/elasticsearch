@@ -23,13 +23,22 @@ public class PlanTelemetry {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<String, Integer> commands = new HashMap<>();
     private final Map<String, Integer> functions = new HashMap<>();
+    private int projects = 0;
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
     }
 
-    private void add(Map<String, Integer> map, String key) {
+    private static void add(Map<String, Integer> map, String key) {
         map.compute(key.toUpperCase(Locale.ROOT), (k, count) -> count == null ? 1 : count + 1);
+    }
+
+    public void projects(int patterns) {
+        this.projects = patterns;
+    }
+
+    public int projects() {
+        return projects;
     }
 
     public void command(TelemetryAware command) {

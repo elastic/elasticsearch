@@ -72,13 +72,13 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         LeafStoredFieldLoader storedTemplateLoader;
         BinaryDocValues rawBinaryDocValues;
         if (fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
-            // use an empty object here to avoid making null checks later
             rawBinaryDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
             if (rawBinaryDocValues == null) {
-                rawBinaryDocValues = DocValues.emptyBinary();
+                return docValues;
             }
             storedTemplateLoader = StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
         } else {
+            // use an empty object here to avoid making null checks later
             rawBinaryDocValues = DocValues.emptyBinary();
             // load stored field loader (for older indices that store raw values in stored fields)
             StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));

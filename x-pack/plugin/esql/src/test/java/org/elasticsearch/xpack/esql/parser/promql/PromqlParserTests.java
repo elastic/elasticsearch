@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
-import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -43,11 +41,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class PromqlParserTests extends ESTestCase {
 
     private static final EsqlParser parser = EsqlParser.INSTANCE;
-
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
 
     public void testNoParenthesis() {
         Stream.of(

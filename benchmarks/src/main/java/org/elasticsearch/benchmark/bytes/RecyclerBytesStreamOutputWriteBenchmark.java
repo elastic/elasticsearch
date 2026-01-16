@@ -78,7 +78,7 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
         vint3Bytes = randomArray(3, false);
         vint4Bytes = randomArray(4, false);
         vint5Bytes = randomArray(5, false);
-        vintNegBytes = randomArray(random.nextInt(1,6),true);
+        vintNegBytes = randomArray(random.nextInt(1, 6), true);
     }
 
     private void writeLoop(int[] nums) throws IOException {

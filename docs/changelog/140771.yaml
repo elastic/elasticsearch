@@ -1,0 +1,6 @@
+pr: 140771
+summary: Sort the values of a legacy histogram during downsampling
+area: Downsampling
+type: bug
+issues:
+ - 139382

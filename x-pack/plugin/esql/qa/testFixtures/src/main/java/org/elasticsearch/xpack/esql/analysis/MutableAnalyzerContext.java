@@ -62,7 +62,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public RestoreTransportVersion setTemporaryTransportVersionOnOrAfter(TransportVersion minVersion) {
         TransportVersion oldVersion = this.currentVersion;
         // Set to a random version between minVersion and current
-        this.currentVersion = TransportVersionUtils.randomVersionBetween(ESTestCase.random(), minVersion, TransportVersion.current());
+        this.currentVersion = TransportVersionUtils.randomVersionSupporting(ESTestCase.random(), minVersion);
         return new RestoreTransportVersion(oldVersion);
     }
 

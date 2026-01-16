@@ -202,20 +202,25 @@ public class KnnSearchRequestParser {
         static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
         static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
         static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
+        static final ParseField QUERY_VECTOR_BASE64_FIELD = new ParseField("query_vector_base64");
 
         private static final ConstructingObjectParser<KnnSearch, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
             @SuppressWarnings("unchecked")
             List<Float> vector = (List<Float>) args[1];
-            float[] vectorArray = new float[vector.size()];
-            for (int i = 0; i < vector.size(); i++) {
-                vectorArray[i] = vector.get(i);
+            float[] vectorArray = null;
+            if (vector != null) {
+                vectorArray = new float[vector.size()];
+                for (int i = 0; i < vector.size(); i++) {
+                    vectorArray[i] = vector.get(i);
+                }
             }
-            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
+            return new KnnSearch((String) args[0], vectorArray, (String) args[2], (int) args[3], (int) args[4], (Float) args[5]);
         });
 
         static {
             PARSER.declareString(constructorArg(), FIELD_FIELD);
-            PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
+            PARSER.declareFloatArray(optionalConstructorArg(), QUERY_VECTOR_FIELD);
+            PARSER.declareString(optionalConstructorArg(), QUERY_VECTOR_BASE64_FIELD);
             PARSER.declareInt(constructorArg(), K_FIELD);
             PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
             PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
@@ -230,6 +235,7 @@ public class KnnSearchRequestParser {
         final int k;
         final int numCands;
         final Float visitPercentage;
+        final String queryVectorBase64;
 
         /**
          * Defines a kNN search.
@@ -239,9 +245,28 @@ public class KnnSearchRequestParser {
          * @param k the final number of nearest neighbors to return as top hits
          * @param numCands the number of nearest neighbor candidates to consider per shard
          */
-        KnnSearch(String field, float[] queryVector, int k, int numCands, Float visitPercentage) {
+        KnnSearch(String field, float[] queryVector, String queryVectorBase64, int k, int numCands, Float visitPercentage) {
+            if (queryVector == null && queryVectorBase64 == null) {
+                throw new IllegalArgumentException(
+                    "either ["
+                        + QUERY_VECTOR_FIELD.getPreferredName()
+                        + "] or ["
+                        + QUERY_VECTOR_BASE64_FIELD.getPreferredName()
+                        + "] must be provided"
+                );
+            }
+            if (queryVector != null && queryVectorBase64 != null) {
+                throw new IllegalArgumentException(
+                    "only one of ["
+                        + QUERY_VECTOR_FIELD.getPreferredName()
+                        + "] and ["
+                        + QUERY_VECTOR_BASE64_FIELD.getPreferredName()
+                        + "] must be provided"
+                );
+            }
             this.field = field;
             this.queryVector = queryVector;
+            this.queryVectorBase64 = queryVectorBase64;
             this.k = k;
             this.numCands = numCands;
             this.visitPercentage = visitPercentage;
@@ -264,7 +289,10 @@ public class KnnSearchRequestParser {
             if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
                 throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
             }
-            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null);
+            if (queryVectorBase64 != null) {
+                return new KnnVectorQueryBuilder(field, queryVectorBase64, k, numCands, visitPercentage, null, null);
+            }
+            return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, null, null);
         }
 
         @Override
@@ -276,12 +304,13 @@ public class KnnSearchRequestParser {
                 && numCands == that.numCands
                 && Objects.equals(visitPercentage, that.visitPercentage)
                 && Objects.equals(field, that.field)
+                && Objects.equals(queryVectorBase64, that.queryVectorBase64)
                 && Arrays.equals(queryVector, that.queryVector);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(field, k, numCands, visitPercentage);
+            int result = Objects.hash(field, k, numCands, visitPercentage, queryVectorBase64);
             result = 31 * result + Arrays.hashCode(queryVector);
             return result;
         }

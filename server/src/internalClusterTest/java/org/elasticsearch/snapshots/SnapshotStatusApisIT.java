@@ -68,7 +68,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    public void testStatusApiConsistency() throws Exception {
+    public void testStatusApiConsistency() {
         createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");

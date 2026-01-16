@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 
 public class ESTestCaseTests extends ESTestCase {
@@ -473,15 +474,19 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(ex.getMessage(), is("test message: expected array was null"));
     }
 
-    public void testAssertArrayEqualsPercentSameElements() {
+    public void testAssertArrayEqualsPercentElementsAreEqual() {
         assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2, 3 }, 1e-9f);
     }
 
-    public void testAssertArrayEqualsPercentSimilarElements() {
+    public void testAssertArrayEqualsPercentElementsAreSimilar() {
         assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 0.99f, 1.99f, 2.99f }, 0.01f);
     }
 
-    public void testAssertArrayEqualsPercentNotEnoughSimilarElements() {
-        assertArrayEqualsPercent(new float[] { 100, 2, 3 }, new float[] { 99, 1.99f, 2.99f }, 0.001f);
+    public void testAssertArrayEqualsPercentElementsAreNotSimilarEnough() {
+        var ex = expectThrows(
+            AssertionError.class,
+            () -> assertArrayEqualsPercent(new float[] { 100, 2, 3 }, new float[] { 99, 1.99f, 2.99f }, 0.001f)
+        );
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
     }
 }

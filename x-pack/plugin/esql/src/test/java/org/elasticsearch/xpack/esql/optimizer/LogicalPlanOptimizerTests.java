@@ -10896,10 +10896,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[salary{f}#15, aaaaa{r}#7]]
+     * Project[[salary{f}#15, aaaaa{r}#7]]
      * \_Limit[10[INTEGER],false,false]
      *   \_InlineJoin[LEFT,[languages{f}#13],[languages{r}#13]]
-     *     |_EsqlProject[[languages{f}#13, salary{f}#15]]
+     *     |_Project[[languages{f}#13, salary{f}#15]]
      *     | \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *     \_Project[[aaaaa{r}#7, languages{f}#13]]
      *       \_Eval[[$$SUM$aaaaa$0{r$}#21 / $$COUNT$aaaaa$1{r$}#22 AS aaaaa#7]]
@@ -10916,9 +10916,34 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = as(optimizedPlan(query), Project.class);
+        var limit = as(plan.child(), Limit.class);
+        var join = as(limit.child(), InlineJoin.class);
+        // Left
+        var leftProject = as(join.left(), Project.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("languages", "salary")));
+        as(leftProject.child(), EsRelation.class);
+        // Right
+        var rightProject = as(join.right(), Project.class);
+        assertMap(Expressions.names(rightProject.projections()), is(List.of("aaaaa", "languages")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var aggregate = as(rightEval.child(), Aggregate.class);
+        assertMap(Expressions.names(aggregate.aggregates()), is(List.of("$$SUM$aaaaa$0", "$$COUNT$aaaaa$1", "languages")));
+        as(aggregate.child(), StubRelation.class);
     }
 
+    /*
+     * Project[[salary{f}#16, aaaaa{r}#7]]
+     * \_Limit[10[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[languages{f}#14],[languages{r}#14]]
+     *     |_Project[[languages{f}#14, salary{f}#16]]
+     *     | \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[aaaaa{r}#7, languages{f}#14]]
+     *       \_Eval[[$$SUM$aaaaa$0{r$}#22 / $$COUNT$aaaaa$1{r$}#23 AS aaaaa#7]]
+     *         \_Aggregate[[languages{f}#14],[SUM(salary{f}#16,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$aaaaa$0#22
+     * , COUNT(salary{f}#16,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$aaaaa$1#23, languages{f}#14]]
+     *           \_StubRelation[[languages{f}#14, salary{f}#16]]
+     */
     public void testKeepExceptInlineStatsGrouping() {
         var query = """
             FROM employees
@@ -10929,8 +10954,36 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         var plan = optimizedPlan(query);
+        Project project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var join = as(limit.child(), InlineJoin.class);
+        // Left
+        var leftProject = as(join.left(), Project.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("languages", "salary")));
+        as(leftProject.child(), EsRelation.class);
+        // Right
+        var rightProject = as(join.right(), Project.class);
+        assertMap(Expressions.names(rightProject.projections()), is(List.of("aaaaa", "languages")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var aggregate = as(rightEval.child(), Aggregate.class);
+        assertMap(Expressions.names(aggregate.aggregates()), is(List.of("$$SUM$aaaaa$0", "$$COUNT$aaaaa$1", "languages")));
+        as(aggregate.child(), StubRelation.class);
     }
 
+    /*
+     * Project[[salary{f}#26, languages1{r}#7, languages2{r}#14, avg{r}#17]]
+     * \_TopN[[Order[salary{f}#26,ASC,LAST]],10[INTEGER],false]
+     *   \_InlineJoin[LEFT,[languages{f}#24],[languages{r}#24]]
+     *     |_Project[[salary{f}#26, languages1{r}#7, languages{f}#24]]
+     *     | \_Eval[[MVAVG(languages{f}#24) AS languages1#7]]
+     *     |   \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *     \_Project[[languages2{r}#14, avg{r}#17, languages{f}#24]]
+     *       \_Eval[[$$SUM$avg$0{r$}#34 / $$COUNT$avg$1{r$}#35 AS avg#17]]
+     *         \_Aggregate[[languages{f}#24],[SUM(languages1{r}#7,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS languages2#14
+     * , SUM(salary{f}#26,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#34,
+     * COUNT(salary{f}#26,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg$1#35, languages{f}#24]]
+     *           \_StubRelation[[salary{f}#26, languages1{r}#7, avg{r}#10, languages{f}#24]]
+     */
     public void testDropDoubleInlineStatsGrouping() {
         var query = """
             FROM employees
@@ -10943,8 +10996,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         var plan = optimizedPlan(query);
+        Project project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        var join = as(topN.child(), InlineJoin.class);
+        // Left
+        var leftProject = as(join.left(), Project.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
+        var leftEval = as(leftProject.child(), Eval.class);
+        as(leftEval.child(), EsRelation.class);
+        // Right
+        var rightProject = as(join.right(), Project.class);
+        assertMap(Expressions.names(rightProject.projections()), is(List.of("languages2", "avg", "languages")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var aggregate = as(rightEval.child(), Aggregate.class);
+        assertMap(Expressions.names(aggregate.aggregates()), is(List.of("languages2", "$$SUM$avg$0", "$$COUNT$avg$1", "languages")));
+        as(aggregate.child(), StubRelation.class);
     }
 
+    /*
+     * Project[[salary{f}#30, languages1{r}#9, long_noidx{f}#35, languages2{r}#17, avg{r}#20, gender{f}#27]]
+     * \_TopN[[Order[salary{f}#30,ASC,LAST]],10[INTEGER],false]
+     *   \_InlineJoin[LEFT,[languages{f}#28, gender{f}#27],[languages{r}#28, gender{r}#27]]
+     *     |_Project[[salary{f}#30, gender{f}#27, languages1{r}#9, languages{f}#28, long_noidx{f}#35]]
+     *     | \_Eval[[MVAVG(long_noidx{f}#35) AS languages1#9]]
+     *     |   \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *     \_Project[[languages2{r}#17, avg{r}#20, languages{f}#28, gender{f}#27]]
+     *       \_Eval[[$$SUM$avg$0{r$}#38 / $$COUNT$avg$1{r$}#39 AS avg#20]]
+     *         \_Aggregate[[languages{f}#28, gender{f}#27],[SUM(languages1{r}#9,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS
+     *  languages2#17, SUM(salary{f}#30,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#38,
+     *  COUNT(salary{f}#30,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg$1#39, languages{f}#28, gender{f}#27]]
+     *           \_StubRelation[[salary{f}#30, gender{f}#27, languages1{r}#9, avg{r}#12, languages{f}#28, long_noidx{f}#35]]
+     */
     public void testDropDoubleInlineStats_PartialMultipleGroupings() {
         var query = """
             FROM employees
@@ -10957,5 +11039,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         var plan = optimizedPlan(query);
+        Project project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        var join = as(topN.child(), InlineJoin.class);
+        // Left
+        var leftProject = as(join.left(), Project.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "gender", "languages1", "languages", "long_noidx")));
+        var leftEval = as(leftProject.child(), Eval.class);
+        var leftRelation = as(leftEval.child(), EsRelation.class);
+        // Right
+        var rightProject = as(join.right(), Project.class);
+        assertMap(Expressions.names(rightProject.projections()), is(List.of("languages2", "avg", "languages", "gender")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var aggregate = as(rightEval.child(), Aggregate.class);
+        assertMap(
+            Expressions.names(aggregate.aggregates()),
+            is(List.of("languages2", "$$SUM$avg$0", "$$COUNT$avg$1", "languages", "gender"))
+        );
+        as(aggregate.child(), StubRelation.class);
     }
 }

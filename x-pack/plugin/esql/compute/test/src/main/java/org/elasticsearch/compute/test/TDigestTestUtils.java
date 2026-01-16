@@ -16,11 +16,13 @@ import java.util.Collection;
 
 public class TDigestTestUtils {
 
+    /**
+     * Utility method for verifying that a TDigestHolder is a correct merge of a collection of TDigestHolders.
+     * TDigest is non-deterministic, we just do a sanity check here:
+     * the total count, min and max should match exactly and the sum should be close (1% error allowed).
+     * In addition, we check the p1 and p99 with a rather large tolerance.
+     */
     public static boolean isMergedFrom(TDigestHolder merged, Collection<TDigestHolder> inputValues) {
-        // TDigest is non-deterministic, we just do a sanity check here:
-        // the total count, min and max should match exactly and the sum should be close (1% error allowed)
-        // in addition we check the p1 and p99 with a rather large tolerance
-
         long totalCount = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;

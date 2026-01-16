@@ -141,56 +141,11 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
-Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields),
-any queries on `text` fields that do not explicitly use the full-text functions,
+Note that any queries on `text` fields that do not explicitly use the full-text functions,
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
 [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
 [`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
-
-
-## `text` fields behave like `keyword` fields [esql-limitations-text-fields]
-
-While {{esql}} supports [`text`](/reference/elasticsearch/mapping-reference/text.md) fields, {{esql}} does not treat these fields like the Search API does. {{esql}} queries do not query or aggregate the [analyzed string](docs-content://manage-data/data-store/text-analysis.md). Instead, an {{esql}} query will try to get a `text` field’s subfield of the [keyword family type](/reference/elasticsearch/mapping-reference/keyword.md) and query/aggregate that. If it’s not possible to retrieve a `keyword` subfield, {{esql}} will get the string from a document’s `_source`. If the `_source` cannot be retrieved, for example when using synthetic source, `null` is returned.
-
-Once a `text` field is retrieved, if the query touches it in any way, for example passing it into a function, the type will be converted to `keyword`. In fact, functions that operate on both `text` and `keyword` fields will perform as if the `text` field was a `keyword` field all along.
-
-For example, the following query will return a column `greatest` of type `keyword` no matter whether any or all of `field1`, `field2`, and `field3` are of type `text`:
-
-```esql
-| FROM index
-| EVAL greatest = GREATEST(field1, field2, field3)
-```
-
-Note that {{esql}}'s retrieval of `keyword` subfields may have unexpected consequences.
-Other than when explicitly using the full-text functions,
-[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) and
-[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr),
-any {{esql}} query on a `text` field is case-sensitive.
-
-For example, after indexing a field of type `text` with the value `Elasticsearch query language`, the following `WHERE` clause does not match because the `LIKE` operator is case-sensitive:
-
-```esql
-| WHERE field LIKE "elasticsearch query language"
-```
-
-The following `WHERE` clause does not match either, because the `LIKE` operator tries to match the whole string:
-
-```esql
-| WHERE field LIKE "Elasticsearch"
-```
-
-As a workaround, use wildcards and regular expressions. For example:
-
-```esql
-| WHERE field RLIKE "[Ee]lasticsearch.*"
-```
-
-Furthermore, a subfield may have been mapped with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md), which can transform the original string. Or it may have been mapped with [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md), which can truncate the string. None of these mapping operations are applied to an {{esql}} query, which may lead to false positives or negatives.
-
-To avoid these issues, a best practice is to be explicit about the field that you query,
-and query `keyword` sub-fields instead of `text` fields.
-Or consider using one of the [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) functions.
 
 
 ## Using {{esql}} to query multiple indices [esql-multi-index-limitations]

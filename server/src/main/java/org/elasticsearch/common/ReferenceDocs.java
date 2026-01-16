@@ -88,6 +88,7 @@ public enum ReferenceDocs {
     DELETE_INDEX_BLOCK,
     ARCHIVED_SETTINGS,
     MAX_INDICES_PER_PROJECT,
+    MACHINE_LEARNING_SETTINGS
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

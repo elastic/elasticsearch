@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -31,9 +32,19 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution
     ) {
-        super(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution, minimumVersion);
+        super(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            unmappedResolution
+        );
         this.currentVersion = minimumVersion;
     }
 
@@ -51,7 +62,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public RestoreTransportVersion setTemporaryTransportVersionOnOrAfter(TransportVersion minVersion) {
         TransportVersion oldVersion = this.currentVersion;
         // Set to a random version between minVersion and current
-        this.currentVersion = TransportVersionUtils.randomVersionBetween(minVersion, TransportVersion.current());
+        this.currentVersion = TransportVersionUtils.randomVersionSupporting(ESTestCase.random(), minVersion);
         return new RestoreTransportVersion(oldVersion);
     }
 

@@ -1009,6 +1009,24 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
+         * Optimistically try to load the data from the region into main memory using madvise system call.
+         * @return true if successful, i.e., not evicted and data available, false if evicted or mmap is not used underneath.
+         */
+        boolean tryPrefetch(long offset, long length) throws IOException {
+            SharedBytes.IO ioRef = nonVolatileIO();
+            if (ioRef != null) {
+                ioRef.prefetch(blobCacheService.getRegionRelativePosition(offset), length);
+                if (isEvicted()) {
+                    return false;
+                }
+                return true;
+            } else {
+                // taken by someone else
+                return false;
+            }
+        }
+
+        /**
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
@@ -1239,6 +1257,36 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         public KeyType getCacheKey() {
             return cacheKey;
+        }
+
+        public boolean tryPrefetch(long offset, long length) throws IOException {
+            assert assertOffsetsWithinFileLength(offset, length, this.length);
+            final int startRegion = getRegion(offset);
+            final long end = offset + length;
+            final int endRegion = getEndingRegion(end);
+            final var rangeToRead = ByteRange.of(offset, offset + length);
+            for (int region = startRegion; region <= endRegion; region++) {
+                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
+                if (subRangeToRead.isEmpty()) {
+                    // nothing to read, skip
+                    continue;
+                }
+                var fileRegion = lastAccessedRegion;
+                try {
+                    fileRegion = cache.get(cacheKey, this.length, region);
+                } catch (AlreadyClosedException exc) {
+                    // consider missing
+                    continue;
+                }
+                final var chunk = fileRegion.chunk;
+                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                    continue;
+                }
+                if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {
+                    length -= subRangeToRead.length();
+                }
+            }
+            return length == 0;
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {

@@ -213,6 +213,12 @@ public class IndexVersions {
     public static final IndexVersion PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES = def(9_060_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES = def(9_061_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_062_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES = def(9_063_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion MOD_ROUTING_FUNCTION = def(9_064_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK = def(9_065_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS = def(9_066_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES = def(9_067_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_PATTERN_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_068_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

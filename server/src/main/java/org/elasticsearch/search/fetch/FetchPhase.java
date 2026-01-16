@@ -428,30 +428,28 @@ public final class FetchPhase {
             // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives
             // When all acquired listeners complete, the completion callback below runs
             // returning the final SearchHits (last chunk) to the caller
-            final RefCountingListener chunkCompletionRefs = new RefCountingListener(
-                listener.delegateFailureAndWrap((l, ignored) -> {
-                    ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
-                    try {
-                        // Store sequence info in context
-                        long seqStart = lastChunkSequenceStartRef.get();
-                        if (seqStart >= 0) {
-                            context.fetchResult().setLastChunkSequenceStart(seqStart);
-                        }
-
-                        // Deserialize and return last chunk as SearchHits
-                        long countLong = lastChunkHitCountRef.get();
-                        if (lastChunkBytes != null && countLong > 0) {
-                            int hitCount = Math.toIntExact(countLong);
-                            context.fetchResult().setLastChunkBytes(lastChunkBytes, hitCount);
-                            lastChunkBytes = null; // ownership transferred; don't close here
-                        }
-
-                        l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
-                    } finally {
-                        Releasables.closeWhileHandlingException(lastChunkBytes);
+            final RefCountingListener chunkCompletionRefs = new RefCountingListener(listener.delegateFailureAndWrap((l, ignored) -> {
+                ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
+                try {
+                    // Store sequence info in context
+                    long seqStart = lastChunkSequenceStartRef.get();
+                    if (seqStart >= 0) {
+                        context.fetchResult().setLastChunkSequenceStart(seqStart);
                     }
-                })
-            );
+
+                    // Deserialize and return last chunk as SearchHits
+                    long countLong = lastChunkHitCountRef.get();
+                    if (lastChunkBytes != null && countLong > 0) {
+                        int hitCount = Math.toIntExact(countLong);
+                        context.fetchResult().setLastChunkBytes(lastChunkBytes, hitCount);
+                        lastChunkBytes = null; // ownership transferred; don't close here
+                    }
+
+                    l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                } finally {
+                    Releasables.closeWhileHandlingException(lastChunkBytes);
+                }
+            }));
 
             // Acquire a listener for the main iteration. This prevents RefCountingListener from
             // completing until we explicitly signal success/failure after iteration finishes.

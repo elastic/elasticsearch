@@ -717,7 +717,8 @@ public class SearchTransportService {
                     .newRestorableContext(true);
 
                 // Create chunk writer that provides both sending and buffer allocation. Each chunk is sent to the coordinator's
-                // TransportFetchPhaseResponseChunkAction endpoint. The coordinator accumulates chunks in a FetchPhaseResponseStream and sends ACKs.
+                // TransportFetchPhaseResponseChunkAction endpoint. The coordinator accumulates chunks in a FetchPhaseResponseStream and
+                // sends ACKs.
                 chunkWriter = new FetchPhaseResponseChunk.Writer() {
                     @Override
                     public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {

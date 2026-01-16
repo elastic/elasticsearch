@@ -12,7 +12,6 @@ package org.elasticsearch.search.fetch.chunk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -143,14 +142,37 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     // Getters
-    public long timestampMillis() { return timestampMillis; }
-    public Type type() { return type; }
-    public ShardId shardId() { return shardId; }
-    public int hitCount() { return hitCount; }
-    public int from() { return from; }
-    public int expectedDocs() { return expectedDocs; }
-    public long sequenceStart() { return sequenceStart; }
-    public BytesReference serializedHits() { return serializedHits; }
+    public long timestampMillis() {
+        return timestampMillis;
+    }
+
+    public Type type() {
+        return type;
+    }
+
+    public ShardId shardId() {
+        return shardId;
+    }
+
+    public int hitCount() {
+        return hitCount;
+    }
+
+    public int from() {
+        return from;
+    }
+
+    public int expectedDocs() {
+        return expectedDocs;
+    }
+
+    public long sequenceStart() {
+        return sequenceStart;
+    }
+
+    public BytesReference serializedHits() {
+        return serializedHits;
+    }
 
     @Override
     public void close() {

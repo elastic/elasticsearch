@@ -1832,6 +1832,11 @@ public class EsqlCapabilities {
          */
         ENRICH_DENSE_VECTOR_BUGFIX,
 
+        /**
+         * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
+         */
+        CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

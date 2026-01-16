@@ -553,6 +553,13 @@ public class EsqlCapabilities {
         UNION_TYPES_NUMERIC_WIDENING,
 
         /**
+         * Fix for resolving union type casts past projections (KEEP) and MV_EXPAND operations.
+         * Ensures that casting a union type field works correctly when the field has been projected
+         * and expanded through MV_EXPAND. See #137923
+         */
+        UNION_TYPES_RESOLVE_PAST_PROJECTIONS,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */

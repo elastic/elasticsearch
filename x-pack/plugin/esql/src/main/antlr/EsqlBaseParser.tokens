@@ -168,6 +168,7 @@ SHOW_WS=164
 'dissect'=8
 'eval'=9
 'grok'=10
+'limit'=11
 'rerank'=12
 'row'=13
 'sample'=14

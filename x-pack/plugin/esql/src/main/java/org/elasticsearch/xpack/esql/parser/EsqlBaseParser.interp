@@ -10,7 +10,7 @@ null
 'dissect'
 'eval'
 'grok'
-null
+'limit'
 'rerank'
 'row'
 'sample'

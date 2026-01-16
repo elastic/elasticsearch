@@ -11,7 +11,7 @@ DEV_MMR : {this.isDevVersion()}? 'mmr' -> pushMode(MMR_MODE);
 
 mode MMR_MODE;
 
-MMR_LIMIT: 'limit' -> popMode, pushMode(EXPRESSION_MODE);
+MMR_LIMIT: LIMIT -> popMode, pushMode(EXPRESSION_MODE);
 
 MMR_ON: ON -> type(ON);
 MMR_UNQUOTED_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);

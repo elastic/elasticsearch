@@ -132,7 +132,7 @@ public class EsqlBaseParser extends ParserConfig {
   private static String[] makeLiteralNames() {
     return new String[] {
       null, null, null, null, "'change_point'", "'enrich'", null, "'completion'", 
-      "'dissect'", "'eval'", "'grok'", null, "'rerank'", "'row'", "'sample'", 
+      "'dissect'", "'eval'", "'grok'", "'limit'", "'rerank'", "'row'", "'sample'", 
       "'sort'", null, "'where'", "'from'", "'ts'", "'fork'", "'fuse'", "'inline'", 
       "'inlinestats'", "'lookup'", null, null, null, null, null, "'mv_expand'", 
       "'drop'", "'keep'", null, null, "'rename'", "'set'", "'show'", null, 

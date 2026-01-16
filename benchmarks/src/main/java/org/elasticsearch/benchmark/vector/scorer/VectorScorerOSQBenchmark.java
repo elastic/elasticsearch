@@ -70,8 +70,7 @@ public class VectorScorerOSQBenchmark {
     @Param({ "1", "2", "4" })
     public int bits;
 
-    @Param({ "16", "32", "64" })
-    public int bulkSize;
+    int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
 
     @Param
     public VectorImplementation implementation;

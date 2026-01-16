@@ -1794,13 +1794,9 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
-         * PromQL support in ESQL, before it is released into tech preview.
-         * When implementing new functionality or breaking changes,
-         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
-         * At this point, we need to add new capabilities for any further changes.
+         * PromQL support in ESQL, in the state it was when first released as tech preview.
          */
-        PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
+        PROMQL_TECH_PREVIEW,
 
         /**
          * KNN function adds support for k and visit_percentage options

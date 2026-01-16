@@ -28,6 +28,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
     enum Storage {
         DOC_VALUE,
         STORED_FIELD,
+        RAW_DOC_VALUE,
         EMPTY
     }
 
@@ -62,13 +63,20 @@ public class PatternTextDocValuesTests extends ESTestCase {
         static Message empty() {
             return new Message(Storage.EMPTY, false, null);
         }
+
+        static Message rawDocValue(String message) {
+            return new Message(Storage.RAW_DOC_VALUE, false, message);
+        }
     }
 
-    private static List<Message> makeRandomMessages(int numDocs, boolean includeStored) {
+    /**
+     * @param includeRawText indicates whether values that will be stored as raw text should be generated
+     */
+    private static List<Message> makeRandomMessages(int numDocs, boolean includeRawText) {
         List<Message> messages = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             // if arg is present, it's at the beginning
-            Storage storage = includeStored ? randomFrom(Storage.values()) : randomFrom(Storage.DOC_VALUE, Storage.EMPTY);
+            Storage storage = includeRawText ? randomFrom(Storage.values()) : randomFrom(Storage.DOC_VALUE, Storage.EMPTY);
             String message = randomAlphaOfLength(10) + " " + i;
             boolean hasArg = storage == Storage.DOC_VALUE && randomBoolean();
             messages.add(new Message(storage, hasArg, storage == Storage.EMPTY ? null : message));
@@ -94,7 +102,12 @@ public class PatternTextDocValuesTests extends ESTestCase {
         String storedFieldName = "message.stored";
         var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
         var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
-        return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId);
+        var rawDocValues = messages.stream()
+            .map(m -> m.storage == Storage.RAW_DOC_VALUE ? m.message : null)
+            .toList()
+            .toArray(new String[0]);
+        var rawBinaryDocValues = new SimpleBinaryDocValues(rawDocValues);
+        return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId, rawBinaryDocValues);
     }
 
     private static BinaryDocValues makeDocValuesDense() throws IOException {
@@ -108,12 +121,21 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     private static BinaryDocValues makeCompositeDense() throws IOException {
-        return makeCompositeDocValues(List.of(Message.stored("1 a"), Message.withArg("2 b"), Message.stored("3 c"), Message.noArg("4 d")));
+        return makeCompositeDocValues(
+            List.of(Message.stored("1 a"), Message.withArg("2 b"), Message.rawDocValue("3 c"), Message.noArg("4 d"))
+        );
     }
 
     private static BinaryDocValues makeCompositeMissingValues() throws IOException {
         return makeCompositeDocValues(
-            List.of(Message.stored("1 a"), Message.empty(), Message.withArg("3 c"), Message.empty(), Message.noArg("5 e"), Message.empty())
+            List.of(
+                Message.stored("1 a"),
+                Message.empty(),
+                Message.rawDocValue("3 c"),
+                Message.empty(),
+                Message.noArg("5 e"),
+                Message.empty()
+            )
         );
     }
 

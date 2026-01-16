@@ -1113,11 +1113,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             String message = randomAlphaOfLengthBetween(5, 10);
             ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                requestId,requestIndex,
+                requestId,
+                requestIndex,
                 new RuntimeException(message, aCause)
             );
             ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                requestId,requestIndex,
+                requestId,
+                requestIndex,
                 new RuntimeException(message, bCause)
             );
 
@@ -1155,13 +1157,19 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             String message = randomAlphaOfLengthBetween(5, 10);
             ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                requestId,requestIndex,
+                requestId,
+                requestIndex,
                 new RuntimeException(message, aCause)
             );
             ShardBulkInferenceActionFilter.FailureSignature bSignature = rarely()
-                ? new ShardBulkInferenceActionFilter.FailureSignature(randomAlphaOfLength(5), requestIndex, new RuntimeException(message, bCause))
+                ? new ShardBulkInferenceActionFilter.FailureSignature(
+                    randomAlphaOfLength(5),
+                    requestIndex,
+                    new RuntimeException(message, bCause)
+                )
                 : new ShardBulkInferenceActionFilter.FailureSignature(
-                    requestId,requestIndex,
+                    requestId,
+                    requestIndex,
                     inequalityLevel == 0 ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause)
                 );
 

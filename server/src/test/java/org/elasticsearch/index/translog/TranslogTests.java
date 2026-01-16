@@ -3471,10 +3471,7 @@ public class TranslogTests extends ESTestCase {
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
-        TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
-            TransportVersion.minimumCompatible(),
-            TransportVersion.current()
-        );
+        TransportVersion wireVersion = TransportVersionUtils.randomCompatibleVersion(random());
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(wireVersion);
         index.writeTo(out);

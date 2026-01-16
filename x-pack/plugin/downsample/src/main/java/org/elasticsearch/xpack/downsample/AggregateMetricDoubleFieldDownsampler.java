@@ -8,40 +8,48 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-
-import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducer.MAX_NO_VALUE;
-import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducer.MIN_NO_VALUE;
+import java.util.List;
 
 /**
- * A producer that can be used for downsampling aggregate metric double fields whether is a metric or a label. We need a separate producer
- * for each a sub-metric of an aggregate metric double, this means to downsample an aggregate metric double we will need 4.
+ * A downsampler that can be used for downsampling aggregate metric double fields whether is a metric or a label. We need a separate
+ * downsampler for each a sub-metric of an aggregate metric double, this means to downsample an aggregate metric double we will need 4.
  * This is mainly used when downsampling already downsampled indices.
  */
-abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFieldProducer<SortedNumericDoubleValues> {
+abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetricFieldDownsampler {
 
     protected final AggregateMetricDoubleFieldMapper.Metric metric;
 
-    AggregateMetricDoubleFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
-        super(name);
+    AggregateMetricDoubleFieldDownsampler(
+        String name,
+        AggregateMetricDoubleFieldMapper.Metric metric,
+        MappedFieldType fieldType,
+        IndexFieldData<?> fieldData
+    ) {
+        super(name, fieldType, fieldData);
         this.metric = metric;
     }
 
-    static final class Aggregate extends AggregateMetricDoubleFieldProducer {
+    static final class Aggregate extends AggregateMetricDoubleFieldDownsampler {
 
         private double max = MAX_NO_VALUE;
         private double min = MIN_NO_VALUE;
         private final CompensatedSum sum = new CompensatedSum();
         private long count;
 
-        Aggregate(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
-            super(name, metric);
+        Aggregate(String name, AggregateMetricDoubleFieldMapper.Metric metric, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, metric, fieldType, fieldData);
         }
 
         @Override
@@ -59,7 +67,6 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
                         case min -> min = Math.min(value, min);
                         case max -> max = Math.max(value, max);
                         case sum -> sum.add(value);
-                        // This is the reason why we can't use GaugeMetricFieldProducer
                         // For downsampled indices aggregate metric double's value count field needs to be summed.
                         // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
                         case value_count -> count += Math.round(value);
@@ -93,13 +100,19 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
     /**
      * Important note: This class assumes that field values are collected and sorted by descending order by time
      */
-    static final class LastValue extends AggregateMetricDoubleFieldProducer {
+    static final class LastValue extends AggregateMetricDoubleFieldDownsampler {
 
         private final boolean supportsMultiValue;
         private Object lastValue = null;
 
-        LastValue(String name, AggregateMetricDoubleFieldMapper.Metric metric, boolean supportsMultiValue) {
-            super(name, metric);
+        LastValue(
+            String name,
+            AggregateMetricDoubleFieldMapper.Metric metric,
+            MappedFieldType fieldType,
+            IndexFieldData<?> fieldData,
+            boolean supportsMultiValue
+        ) {
+            super(name, metric, fieldType, fieldData);
             this.supportsMultiValue = supportsMultiValue;
         }
 
@@ -145,21 +158,21 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
     }
 
     /**
-     * We use a specialised serializer because we are combining all the available submetric producers.
+     * We use a specialised serializer because we are combining all the available submetric downsamplers.
      */
     static class Serializer implements DownsampleFieldSerializer {
-        private final Collection<AbstractDownsampleFieldProducer<?>> producers;
+        private final Collection<AbstractFieldDownsampler<?>> downsamplers;
         private final String name;
 
         /**
          * @param name the name of the aggregate_metric_double field as it will be serialized
          *             in the downsampled index
-         * @param producers a collection of {@link AggregateMetricDoubleFieldProducer} instances with the subfields
+         * @param downsamplers a collection of {@link AggregateMetricDoubleFieldDownsampler} instances with the subfields
          *                  of the aggregate_metric_double field.
          */
-        Serializer(String name, Collection<AbstractDownsampleFieldProducer<?>> producers) {
+        Serializer(String name, Collection<AbstractFieldDownsampler<?>> downsamplers) {
             this.name = name;
-            this.producers = producers;
+            this.downsamplers = downsamplers;
         }
 
         @Override
@@ -169,28 +182,84 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
             }
 
             builder.startObject(name);
-            for (AbstractDownsampleFieldProducer<?> fieldProducer : producers) {
-                assert name.equals(fieldProducer.name()) : "producer has a different name";
-                if (fieldProducer.isEmpty()) {
+            for (AbstractFieldDownsampler<?> fieldDownsampler : downsamplers) {
+                assert name.equals(fieldDownsampler.name()) : "downsampler has a different name";
+                if (fieldDownsampler.isEmpty()) {
                     continue;
                 }
-                if (fieldProducer instanceof AggregateMetricDoubleFieldProducer == false) {
+                if (fieldDownsampler instanceof AggregateMetricDoubleFieldDownsampler == false) {
                     throw new IllegalStateException(
-                        "Unexpected field producer class: " + fieldProducer.getClass().getSimpleName() + " for " + name + " field"
+                        "Unexpected field downsampler class: " + fieldDownsampler.getClass().getSimpleName() + " for " + name + " field"
                     );
                 }
-                fieldProducer.write(builder);
+                fieldDownsampler.write(builder);
             }
             builder.endObject();
         }
 
         private boolean isEmpty() {
-            for (AbstractDownsampleFieldProducer<?> p : producers) {
-                if (p.isEmpty() == false) {
+            for (AbstractFieldDownsampler<?> d : downsamplers) {
+                if (d.isEmpty() == false) {
                     return false;
                 }
             }
             return true;
         }
+    }
+
+    /**
+     * For aggregate_metric_double fields we create separate fetchers for each sub-metric. This is usually a downsample-of-downsample case.
+     */
+    static List<AggregateMetricDoubleFieldDownsampler> create(
+        SearchExecutionContext context,
+        AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
+        List<AggregateMetricDoubleFieldDownsampler> downsamplers = new ArrayList<>();
+        // If the field is an aggregate_metric_double field, we should load all its subfields
+        // This is usually a downsample-of-downsample case
+        for (var metricField : aggMetricFieldType.getMetricFields().entrySet()) {
+            var metric = metricField.getKey();
+            var metricSubField = metricField.getValue();
+            if (context.fieldExistsInIndex(metricSubField.name())) {
+                IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
+                if (aggMetricFieldType.getMetricType() != null) {
+                    if (samplingMethod != DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                        // If the field is an aggregate_metric_double field, we should use the correct subfields
+                        // for each aggregation. This is a downsample-of-downsample case
+                        downsamplers.add(
+                            new AggregateMetricDoubleFieldDownsampler.Aggregate(
+                                aggMetricFieldType.name(),
+                                metric,
+                                metricSubField,
+                                fieldData
+                            )
+                        );
+                    } else {
+                        downsamplers.add(
+                            new AggregateMetricDoubleFieldDownsampler.LastValue(
+                                aggMetricFieldType.name(),
+                                metric,
+                                metricSubField,
+                                fieldData,
+                                false
+                            )
+                        );
+                    }
+                } else {
+                    // If a field is not a metric, we downsample it as a label
+                    downsamplers.add(
+                        new AggregateMetricDoubleFieldDownsampler.LastValue(
+                            aggMetricFieldType.name(),
+                            metric,
+                            metricSubField,
+                            fieldData,
+                            true
+                        )
+                    );
+                }
+            }
+        }
+        return downsamplers;
     }
 }

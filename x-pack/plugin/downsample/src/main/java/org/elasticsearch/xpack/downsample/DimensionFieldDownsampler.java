@@ -9,8 +9,16 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -20,10 +28,10 @@ import java.util.Objects;
  * - that all TSIDs that are being collected for a round have the same value.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-public class DimensionFieldProducer extends LastValueFieldProducer {
+public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
 
-    DimensionFieldProducer(final String name) {
-        super(name);
+    DimensionFieldDownsampler(final String name, final MappedFieldType fieldType, final IndexFieldData<?> fieldData) {
+        super(name, fieldType, fieldData);
     }
 
     void collectOnce(final Object value) {
@@ -73,5 +81,33 @@ public class DimensionFieldProducer extends LastValueFieldProducer {
             // same.
             return;
         }
+    }
+
+    /**
+     * Retrieve field value fetchers for a list of dimensions.
+     */
+    static List<DimensionFieldDownsampler> create(
+        final SearchExecutionContext context,
+        final String[] dimensions,
+        final Map<String, String> multiFieldSources
+    ) {
+        List<DimensionFieldDownsampler> downsamplers = new ArrayList<>();
+        for (String dimension : dimensions) {
+            String sourceFieldName = multiFieldSources.getOrDefault(dimension, dimension);
+            MappedFieldType fieldType = context.getFieldType(sourceFieldName);
+            assert fieldType != null : "Unknown type for dimension field: [" + sourceFieldName + "]";
+
+            if (context.fieldExistsInIndex(fieldType.name())) {
+                final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType flattenedFieldType) {
+                    // Name of the field type and name of the dimension are different in this case.
+                    var dimensionName = flattenedFieldType.rootName() + '.' + flattenedFieldType.key();
+                    downsamplers.add(new DimensionFieldDownsampler(dimensionName, fieldType, fieldData));
+                } else {
+                    downsamplers.add(new DimensionFieldDownsampler(dimension, fieldType, fieldData));
+                }
+            }
+        }
+        return Collections.unmodifiableList(downsamplers);
     }
 }

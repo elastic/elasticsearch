@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,31 +29,36 @@ import java.util.List;
  * Class that collects all raw values for an exponential histogram metric field and computes its aggregate (downsampled)
  * values.
  */
-abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
+abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler<HistogramValues> {
 
     static final String TYPE = "histogram";
     public static final int COMPRESSION = 100;
 
-    TDigestHistogramFieldProducer(String name) {
-        super(name);
+    TDigestHistogramFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+        super(name, new TDigestHistogramFieldFetcher(name, fieldType, fieldData));
     }
 
     /**
      * @return the requested produces based on the sampling method for metric of type exponential histogram
      */
-    public static TDigestHistogramFieldProducer create(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    public static TDigestHistogramFieldDownsampler create(
+        String name,
+        MappedFieldType fieldType,
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new Aggregate(name);
-            case LAST_VALUE -> new LastValue(name);
+            case AGGREGATE -> new Aggregate(name, fieldType, fieldData);
+            case LAST_VALUE -> new LastValue(name, fieldType, fieldData);
         };
     }
 
-    private static class Aggregate extends TDigestHistogramFieldProducer {
+    private static class Aggregate extends TDigestHistogramFieldDownsampler {
 
         private TDigestState tDigestState = null;
 
-        Aggregate(String name) {
-            super(name);
+        Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, fieldType, fieldData);
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -93,12 +102,12 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         }
     }
 
-    private static class LastValue extends TDigestHistogramFieldProducer {
+    private static class LastValue extends TDigestHistogramFieldDownsampler {
 
         private HistogramValue lastValue = null;
 
-        LastValue(String name) {
-            super(name);
+        LastValue(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, fieldType, fieldData);
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -134,6 +143,19 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
             }
+        }
+    }
+
+    static class TDigestHistogramFieldFetcher extends AbstractFieldDownsampler.FieldValueFetcher<HistogramValues> {
+
+        TDigestHistogramFieldFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, fieldType, fieldData);
+        }
+
+        @Override
+        HistogramValues getLeaf(LeafReaderContext context) throws IOException {
+            LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
+            return histogramFieldData.getHistogramValues();
         }
     }
 }

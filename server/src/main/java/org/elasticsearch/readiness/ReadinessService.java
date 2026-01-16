@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -158,8 +159,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     protected void doStart() {
         // Mark the service as active, we'll start the listener when ES is ready
         this.active = true;
-        this.lastClusterState = clusterService.state();
-        checkReadyState(null, lastClusterState);
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            this.lastClusterState = clusterService.state();
+            checkReadyState(null, lastClusterState);
+        }
         clusterService.addListener(this);
     }
 

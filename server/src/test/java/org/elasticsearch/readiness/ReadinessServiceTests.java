@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -51,6 +52,9 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
@@ -101,12 +105,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     public void setUp() throws Exception {
         super.setUp();
         threadpool = new TestThreadPool("readiness_service_tests");
-        clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool,
-            null
-        );
+        clusterService = mock(ClusterService.class);
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        when(clusterService.state()).thenReturn(emptyState());
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 
         httpTransport = new FakeHttpTransport();
@@ -303,6 +304,16 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         readinessService.clusterChanged(event);
         assertTrue(readinessService.ready());
 
+        readinessService.stop();
+        readinessService.close();
+    }
+
+    public void testAlreadyReadyWhenStarted() throws Exception {
+        ClusterState readyState = ClusterState.builder(noFileSettingsState()).metadata(emptyReservedStateMetadata).build();
+        when(clusterService.state()).thenReturn(readyState);
+        readinessService.start();
+        assertTrue(readinessService.ready());
+        
         readinessService.stop();
         readinessService.close();
     }

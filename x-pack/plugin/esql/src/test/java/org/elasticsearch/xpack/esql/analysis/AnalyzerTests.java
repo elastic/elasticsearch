@@ -5650,6 +5650,52 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("sample_data", subqueryIndex.indexPattern());
     }
 
+    public void testSubqueryInFromWithNewDataTypes() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = analyzeOnTransportVersionSupportDenseVector("""
+            FROM
+              (FROM colors metadata _score | WHERE knn(rgb_vector, "007800")),
+              (FROM languages)
+              metadata _score
+            | where knn(rgb_vector, "007800")
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, "mapping-colors.json");
+
+        // TODO why the data type of rgb_vector after unionall is correct??
+        Limit limit = as(plan, Limit.class);
+        limit = as(limit.child(), Limit.class);
+        Project project = as(limit.child(), Project.class);
+        OrderBy orderBy = as(project.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        Knn knn = as(filter.condition(), Knn.class);
+        ReferenceAttribute rgb_vector = as(knn.field(), ReferenceAttribute.class);
+        assertEquals("rgb_vector", rgb_vector.name());
+        assertEquals(DENSE_VECTOR, rgb_vector.dataType());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(1), Project.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        knn = as(filter.condition(), Knn.class);
+        FieldAttribute rgb_vector_field = as(knn.field(), FieldAttribute.class);
+        assertEquals("rgb_vector", rgb_vector_field.name());
+        assertEquals(DENSE_VECTOR, rgb_vector_field.dataType());
+        EsRelation subqueryIndex = as(filter.child(), EsRelation.class);
+        assertEquals("colors", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(0), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        subquery = as(subqueryEval.child(), Subquery.class);
+        EsRelation subqueryIndex2 = as(subquery.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex2.indexPattern());
+    }
+
     public void testLookupJoinOnFieldNotAnywhereElse() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

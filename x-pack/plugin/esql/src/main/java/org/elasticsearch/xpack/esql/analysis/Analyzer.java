@@ -435,10 +435,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
         }
-
-        // TODO if the parent EsField is a UNSUPPORTED,
-        // mark its children as unsupported too, the children's field names have the parent field name as the prefix
-        // leave this as TODO to see which tests break
     }
 
     private static class ResolveEnrich extends ParameterizedAnalyzerRule<Enrich, AnalyzerContext> {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -3312,6 +3313,37 @@ public class VerifierTests extends ESTestCase {
         assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
     }
 
+    public void testSubqueryInFromWithNewDataTypes() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // pick a transport version that does not support dense_vector
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(ESQL_DENSE_VECTOR_CREATED_VERSION);
+        String errorMessage = errorOnExactTransportVersion("""
+            FROM (FROM colors | WHERE knn(rgb_vector, "007800")), (FROM languages) metadata _score
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, defaultAnalyzer, transportVersion, VerificationException.class);
+        assertThat(errorMessage, containsString("1:31: Cannot use field [rgb_vector] with unsupported type [dense_vector]"));
+
+        errorMessage = errorOnExactTransportVersion("""
+            FROM colors, (FROM languages) metadata _score
+            | where knn(rgb_vector, "007800")
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, defaultAnalyzer, transportVersion, VerificationException.class);
+        assertThat(errorMessage, containsString("Column [rgb_vector] has conflicting data types in subqueries: [unsupported, keyword]"));
+
+        errorMessage = errorOnExactTransportVersion("""
+            FROM (FROM colors | WHERE knn(rgb_vector, "007800")), (FROM languages) metadata _score
+            | where knn(rgb_vector, "007800")
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, defaultAnalyzer, transportVersion, VerificationException.class);
+        assertThat(errorMessage, containsString("1:31: Cannot use field [rgb_vector] with unsupported type [dense_vector]"));
+    }
+
     public void testChunkFunctionInvalidInputs() {
         assertThat(
             error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
@@ -3644,6 +3676,22 @@ public class VerifierTests extends ESTestCase {
             }
         } else {
             return error(query, analyzer, exception, params);
+        }
+    }
+
+    private static String errorOnExactTransportVersion(
+        String query,
+        Analyzer analyzer,
+        TransportVersion transportVersion,
+        Class<? extends Exception> exception
+    ) {
+        if (transportVersion != null) {
+            MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
+            try (var restore = mutableContext.setTemporaryTransportVersion(transportVersion, false, false)) {
+                return error(query, analyzer, exception);
+            }
+        } else {
+            return error(query, analyzer, exception);
         }
     }
 

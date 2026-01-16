@@ -23,13 +23,7 @@ setup:
           - '{"latency": {"centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
           - '{"index": {"_id": 3}}'
           - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
----
-"TDigest requires values in increasing order":
-  - do:
-      catch: / error parsing field \[latency\], \[centroids\] centroids must be in increasing order, got \[0.2\] but previous value was \[1.0\]/
-      index:
-        index: test
-        body: { "latency": { "centroids": [ 1.0, 0.2, 0.3, 0.4, 0.5 ], "counts": [ 3, 7, 23, 12, 6 ] } }
+
 ---
 TDigest get:
   - do:

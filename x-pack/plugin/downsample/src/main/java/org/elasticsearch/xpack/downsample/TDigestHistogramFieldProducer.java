@@ -85,8 +85,13 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                     sortedCentroids.add(centroids.next());
                 }
                 sortedCentroids.sort(Centroid::compareTo);
-                double[] values = sortedCentroids.stream().mapToDouble(Centroid::mean).toArray();
-                long[] counts = sortedCentroids.stream().mapToLong(Centroid::count).toArray();
+                double[] values = new double[sortedCentroids.size()];
+                long[] counts = new long[sortedCentroids.size()];
+                for (int i = 0; i < sortedCentroids.size(); i++) {
+                    Centroid centroid = sortedCentroids.get(i);
+                    values[i] = centroid.mean();
+                    counts[i] = centroid.count();
+                }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
                 tDigestState.close();
             }

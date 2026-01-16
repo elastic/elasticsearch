@@ -22,3 +22,5 @@ GET hockey/_search
   }
 }
 ```
+
+Refer to [Using datetime in Painless](./using-datetime-in-painless.md) to learn more.

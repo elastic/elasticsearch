@@ -12,6 +12,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -72,13 +73,15 @@ public class PromqlAstTests extends ESTestCase {
                     LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
                     assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
 
-                    LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
-                    Explain explain = explainPlan.collect(Explain.class).getFirst();
-                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                    if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+                        LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
+                        Explain explain = explainPlan.collect(Explain.class).getFirst();
+                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
 
-                    explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
-                    explain = explainPlan.collect(Explain.class).getFirst();
-                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                        explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
+                        explain = explainPlan.collect(Explain.class).getFirst();
+                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                    }
                 });
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));

@@ -223,27 +223,19 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             h -> matchesBytesRef(EsqlDataTypeConverter.histogramToString(h)),
             List.of()
         );
-        //doesn't matter if it's not an actual encoded histogram, as we should never get to the decoding step
-        BytesRef largeTDigest = new BytesRef(new byte[3 * 1024*1024]);
+        // doesn't matter if it's not an actual encoded histogram, as we should never get to the decoding step
+        BytesRef largeTDigest = new BytesRef(new byte[3 * 1024 * 1024]);
         suppliers.add(
             new TestCaseSupplier(
                 "<too large histograms>",
                 List.of(DataType.HISTOGRAM),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(
-                            largeTDigest,
-                            DataType.HISTOGRAM,
-                            "large histogram"
-                        )
-                    ),
+                    List.of(new TestCaseSupplier.TypedData(largeTDigest, DataType.HISTOGRAM, "large histogram")),
                     "ToStringFromHistogramEvaluator[histogram=" + read + "]",
                     DataType.KEYWORD,
                     is(nullValue())
                 ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning(
-                        "Line 1:1: java.lang.IllegalArgumentException: Histogram length is greater than 2MB"
-                    )
+                    .withWarning("Line 1:1: java.lang.IllegalArgumentException: Histogram length is greater than 2MB")
             )
         );
 

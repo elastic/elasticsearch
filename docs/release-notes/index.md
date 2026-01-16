@@ -20,6 +20,10 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+:::{include} _snippets/9.3.0/index.md
+:::
+
+
 ## 9.2.4 [elasticsearch-9.2.4-release-notes]
 ```{applies_to}
 stack: ga 9.2.4

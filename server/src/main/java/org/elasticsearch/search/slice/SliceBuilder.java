@@ -223,7 +223,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             int shardSlice = id / numShards;
             return createSliceQuery(shardSlice, numSlicesInShard, context, isScroll);
         }
-        // the number of shards is greater or equal to than the number of slices
+        // the number of shards is greater than or equal to the number of slices
 
         // check if the shard is assigned to the slice
         int targetSlice = shardIndex % max;

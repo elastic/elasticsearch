@@ -1053,9 +1053,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         private final AtomicBoolean closed = new AtomicBoolean();
                         private volatile SearchContext searchContext;
 
-                        // Guard to ensure SearchContext and reader resources are released exactly once.
-                        // Completion paths may race (build failure, synchronous exception, or normal completion),
-                        // so cleanup must be idempotent.
+                        // Guard to ensure SearchContext and reader resources are released.
                         private final Runnable closeOnce = () -> {
                             if (closed.compareAndSet(false, true)) {
                                 try {

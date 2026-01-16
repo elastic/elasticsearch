@@ -9,9 +9,12 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -40,6 +43,17 @@ public final class FetchSearchResult extends SearchPhaseResult {
      */
     private long lastChunkSequenceStart = -1;
 
+    /**
+     *  Raw serialized bytes of the last chunk's hits.
+     */
+    private BytesReference lastChunkBytes;
+
+    /**
+     * Number of hits in the last chunk bytes.
+     * Used by the coordinator to know how many hits to deserialize from lastChunkBytes.
+     */
+    private int lastChunkHitCount;
+
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public FetchSearchResult() {}
@@ -56,6 +70,10 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
         if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             lastChunkSequenceStart = in.readLong();
+            lastChunkHitCount = in.readInt();
+            if (lastChunkHitCount > 0) {
+                lastChunkBytes = in.readReleasableBytesReference();
+            }
         }
     }
 
@@ -68,6 +86,10 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
         if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             out.writeLong(lastChunkSequenceStart);
+            out.writeInt(lastChunkHitCount);
+            if (lastChunkHitCount > 0 && lastChunkBytes != null) {
+                out.writeBytesReference(lastChunkBytes);
+            }
         }
     }
 
@@ -137,6 +159,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
             hits.decRef();
             hits = null;
         }
+        releaseLastChunkBytes();
     }
 
     @Override
@@ -162,5 +185,51 @@ public final class FetchSearchResult extends SearchPhaseResult {
      */
     public long getLastChunkSequenceStart() {
         return lastChunkSequenceStart;
+    }
+
+    /**
+     * Sets the raw bytes of the last chunk.
+     * Called on the data node in chunked fetch mode to avoid deserializing
+     * large hit data that would cause OOM.
+     *
+     * <p>Takes ownership of the bytes reference - caller must not release it.
+     *
+     * @param bytes the serialized hit bytes
+     * @param hitCount the number of hits in the bytes
+     */
+    public void setLastChunkBytes(BytesReference bytes, int hitCount) {
+        releaseLastChunkBytes(); // Release any existing bytes
+        this.lastChunkBytes = bytes;
+        this.lastChunkHitCount = hitCount;
+    }
+
+    /**
+     * Gets the raw bytes of the last chunk.
+     * Used by the coordinator to deserialize and merge with other accumulated chunks.
+     *
+     * @return the serialized hit bytes, or null if not set
+     */
+    public BytesReference getLastChunkBytes() {
+        return lastChunkBytes;
+    }
+
+    /**
+     * Gets the number of hits in the last chunk bytes.
+     *
+     * @return the hit count, or 0 if no last chunk
+     */
+    public int getLastChunkHitCount() {
+        return lastChunkHitCount;
+    }
+
+    /**
+     * Releases the last chunk bytes if they are releasable.
+     */
+    private void releaseLastChunkBytes() {
+        if (lastChunkBytes instanceof Releasable releasable) {
+            Releasables.closeWhileHandlingException(releasable);
+        }
+        lastChunkBytes = null;
+        lastChunkHitCount = 0;
     }
 }

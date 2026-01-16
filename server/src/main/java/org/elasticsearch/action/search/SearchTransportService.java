@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -715,30 +716,44 @@ public class SearchTransportService {
                     .getThreadContext()
                     .newRestorableContext(true);
 
-                // Create chunk writer that sends each chunk to the coordinator's TransportFetchPhaseResponseChunkAction endpoint.
-                // The coordinator accumulates chunks in a FetchPhaseResponseStream and sends ACKs.
-                chunkWriter = (responseChunk, listener) -> {
-                    // Restore the ThreadContext before sending the chunk
-                    try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
-                        transportService.sendChildRequest(
-                            transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
-                            TransportFetchPhaseResponseChunkAction.TYPE.name(),
-                            new TransportFetchPhaseResponseChunkAction.Request(
-                                fetchSearchReq.getCoordinatingTaskId(),
-                                responseChunk,
-                                indices,
-                                indicesOptions
-                            ),
-                            task,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(
-                                listener.map(ignored2 -> null),
-                                in -> ActionResponse.Empty.INSTANCE,
-                                EsExecutors.DIRECT_EXECUTOR_SERVICE
-                            )
-                        );
-                    } catch (Exception e) {
-                        listener.onFailure(e);
+                // Create chunk writer that provides both sending and buffer allocation. Each chunk is sent to the coordinator's
+                // TransportFetchPhaseResponseChunkAction endpoint. The coordinator accumulates chunks in a FetchPhaseResponseStream and sends ACKs.
+                chunkWriter = new FetchPhaseResponseChunk.Writer() {
+                    @Override
+                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
+                        boolean success = false;
+
+                        // Restore the ThreadContext before sending the chunk
+                        try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
+                            transportService.sendChildRequest(
+                                transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
+                                TransportFetchPhaseResponseChunkAction.TYPE.name(),
+                                new TransportFetchPhaseResponseChunkAction.Request(
+                                    fetchSearchReq.getCoordinatingTaskId(),
+                                    responseChunk,
+                                    indices,
+                                    indicesOptions
+                                ),
+                                task,
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(
+                                    listener.map(ignored2 -> null),
+                                    in -> ActionResponse.Empty.INSTANCE,
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                                )
+                            );
+                            success = true;
+                        } catch (Exception e) {
+                            if (success == false) {
+                                responseChunk.close();
+                            }
+                            listener.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                        return transportService.newNetworkBytesStream();
                     }
                 };
             }

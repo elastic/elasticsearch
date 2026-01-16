@@ -17,8 +17,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -416,17 +418,19 @@ public final class FetchPhase {
                 }
             }
         } else {  // Streaming mode
-            // Preserve last chunk to return after all ACKs complete
-            final AtomicReference<SearchHits> lastChunkRef = new AtomicReference<>();
+            final AtomicReference<ReleasableBytesReference> lastChunkBytesRef = new AtomicReference<>();
+            final AtomicLong lastChunkHitCountRef = new AtomicLong(0);
             final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
+
+            final int targetChunkBytes = FetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
 
             // RefCountingListener tracks chunk ACKs in streaming mode.
             // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives
             // When all acquired listeners complete, the completion callback below runs
             // returning the final SearchHits (last chunk) to the caller
-            final RefCountingListener chunkCompletionRefs = writer != null
-                ? new RefCountingListener(listener.delegateFailureAndWrap((l, ignored) -> {
-                    SearchHits lastChunk = lastChunkRef.getAndSet(null);
+            final RefCountingListener chunkCompletionRefs = new RefCountingListener(
+                listener.delegateFailureAndWrap((l, ignored) -> {
+                    ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     try {
                         // Store sequence info in context
                         long seqStart = lastChunkSequenceStartRef.get();
@@ -434,38 +438,34 @@ public final class FetchPhase {
                             context.fetchResult().setLastChunkSequenceStart(seqStart);
                         }
 
-                        // Return last chunk - transfer our reference to listener
-                        if (lastChunk != null) {
-                            l.onResponse(lastChunk);
-                            lastChunk = null;  // Ownership transferred
-                        } else {
-                            l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                        // Deserialize and return last chunk as SearchHits
+                        long countLong = lastChunkHitCountRef.get();
+                        if (lastChunkBytes != null && countLong > 0) {
+                            int hitCount = Math.toIntExact(countLong);
+                            context.fetchResult().setLastChunkBytes(lastChunkBytes, hitCount);
+                            lastChunkBytes = null; // ownership transferred; don't close here
                         }
+
+                        l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
                     } finally {
-                        // Release if onResponse() threw an exception
-                        if (lastChunk != null) {
-                            lastChunk.decRef();
-                        }
+                        Releasables.closeWhileHandlingException(lastChunkBytes);
                     }
-                }))
-                : null;
+                })
+            );
 
             // Acquire a listener for the main iteration. This prevents RefCountingListener from
             // completing until we explicitly signal success/failure after iteration finishes.
-            final ActionListener<Void> mainBuildListener = chunkCompletionRefs != null ? chunkCompletionRefs.acquire() : null;
+            final ActionListener<Void> mainBuildListener = chunkCompletionRefs.acquire();
 
-            // Streaming mode: use async iteration with ThrottledIterator
             docsIterator.iterateAsync(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
                 writer,
-                5,  // chunkSize - TODO make configurable
+                targetChunkBytes,
                 chunkCompletionRefs,
-                3,  // maxInFlightChunks - TODO make configurable
+                3, // maxInFlightChunks - TODO make configurable
                 sendFailure,
-                context.getTotalHits(),
-                context.getMaxScore(),
                 context::isCancelled,
                 new ActionListener<>() {
                     @Override
@@ -475,27 +475,21 @@ public final class FetchPhase {
                                 throw new TaskCancelledException("cancelled");
                             }
 
-                            // Take ownership of lastChunk for the completion callback
-                            if (result.lastChunk != null) {
-                                result.lastChunk.incRef();
-                                lastChunkRef.set(result.lastChunk);
+                            // Take ownership of last chunk bytes
+                            if (result.lastChunkBytes != null) {
+                                lastChunkBytesRef.set(result.takeLastChunkBytes());
+                                lastChunkHitCountRef.set(result.lastChunkHitCount);
                                 lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
                             }
 
-                            // Signal build completion
+                            // Signal main build listener to decrement RefCountingListener
                             if (buildListener != null) {
                                 buildListener.onResponse(null);
                             }
 
-                            // Signal main build listener to decrement RefCountingListener
-                            if (mainBuildListener != null) {
-                                mainBuildListener.onResponse(null);
-                            }
-
                             // Close RefCountingListener to release initial reference
-                            if (chunkCompletionRefs != null) {
-                                chunkCompletionRefs.close();
-                            }
+                            mainBuildListener.onResponse(null);
+                            chunkCompletionRefs.close();
                         } catch (Exception e) {
                             onFailure(e);
                         }
@@ -503,10 +497,8 @@ public final class FetchPhase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        SearchHits lastChunk = lastChunkRef.getAndSet(null);
-                        if (lastChunk != null) {
-                            lastChunk.decRef();
-                        }
+                        ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
+                        Releasables.closeWhileHandlingException(lastChunkBytes);
 
                         if (buildListener != null) {
                             buildListener.onFailure(e);

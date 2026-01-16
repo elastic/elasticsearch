@@ -12,13 +12,14 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -27,15 +28,9 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -48,16 +43,11 @@ import java.util.function.Supplier;
  *   <li><b>Non-streaming mode</b> ({@link #iterate}): Documents are sorted by doc ID for
  *       efficient sequential Lucene access, then results are mapped back to their original
  *       score-based order. All hits are collected in memory and returned at once.</li>
- *   <li><b>Streaming mode</b> ({@link #iterateAsync}): Documents are fetched in chunks and
- *       streamed to the coordinator as they become ready. A semaphore-based backpressure
- *       mechanism limits in-flight chunks to bound memory usage. Sequence numbers track
- *       hit ordering for reassembly at the coordinator.</li>
+ *   <li><b>Streaming mode</b> ({@link #iterateAsync}): Documents are fetched in small batches,
+ *       serialized immediately to byte buffers from Netty's pool, and streamed when the buffer
+ *       exceeds a byte threshold. SearchHit objects are released immediately after serialization
+ *       to minimize heap usage.</li>
  * </ul>
- * <p>
- * In both modes, the iterator splits documents by leaf reader and calls
- * {@link #setNextReader(LeafReaderContext, int[])} when crossing segment boundaries,
- * then {@link #nextDoc(int)} for each document.
- * <p>
  * <b>Threading:</b> All Lucene operations execute on a single thread to satisfy
  * Lucene's thread-affinity requirements. In streaming mode, only network transmission
  * and ACK handling occur asynchronously.
@@ -71,17 +61,16 @@ abstract class FetchPhaseDocsIterator {
     private static final long CANCELLATION_CHECK_INTERVAL_MS = 200;
 
     /**
-     * Accounts for FetchPhase memory usage.
+     * Default target chunk size in bytes (256KB).
+     * Chunks may slightly exceed this as we complete the current hit before checking.
+     */
+    static final int DEFAULT_TARGET_CHUNK_BYTES = 256 * 1024;
+
+    /**
+     * Accounts for FetchPhase memory usage
      * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
      */
     private long requestBreakerBytes;
-
-    /**
-     * Sequence counter for tracking hit order in streaming mode.
-     * Each hit gets a unique sequence number allowing the coordinator to restore correct order
-     * even if chunks arrive out of order.
-     */
-    private final AtomicLong hitSequenceCounter = new AtomicLong(0);
 
     public void addRequestBreakerBytes(long delta) {
         requestBreakerBytes += delta;
@@ -92,15 +81,17 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
-     * Called when a new leaf reader is reached
-     * @param ctx           the leaf reader for this set of doc ids
-     * @param docsInLeaf    the reader-specific docids to be fetched in this leaf reader
+     * Called when a new leaf reader is reached.
+     *
+     * @param ctx        the leaf reader for this set of doc ids
+     * @param docsInLeaf the reader-specific docids to be fetched in this leaf reader
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
 
     /**
-     * Called for each document within a leaf reader
-     * @param doc   the global doc id
+     * Called for each document within a leaf reader.
+     *
+     * @param doc the global doc id
      * @return a {@link SearchHit} for the document
      */
     protected abstract SearchHit nextDoc(int doc) throws IOException;
@@ -116,7 +107,7 @@ abstract class FetchPhaseDocsIterator {
      * @param allowPartialResults if true, return partial results on timeout instead of failing
      * @param querySearchResult   query result for recording timeout state
      * @return IterateResult containing fetched hits in original score order
-     * @throws SearchTimeoutException if timeout occurs and partial results not allowed
+     * @throws SearchTimeoutException       if timeout occurs and partial results not allowed
      * @throws FetchPhaseExecutionException if fetch fails for a document
      */
     public final IterateResult iterate(
@@ -133,22 +124,24 @@ abstract class FetchPhaseDocsIterator {
         }
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
-        int currentDoc = docs[0].docId;
+        int currentDoc = docs.length > 0 ? docs[0].docId : -1;
+
         try {
             if (docs.length == 0) {
-                return new IterateResult(searchHits, null, -1);
+                return new IterateResult(searchHits);
             }
 
             int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
             LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
             int endReaderIdx = endReaderIdx(ctx, 0, docs);
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
+
             try {
                 setNextReader(ctx, docsInLeaf);
             } catch (ContextIndexSearcher.TimeExceededException e) {
                 SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                 assert allowPartialResults;
-                return new IterateResult(new SearchHit[0], null, -1);
+                return new IterateResult(new SearchHit[0]);
             }
 
             for (int i = 0; i < docs.length; i++) {
@@ -171,7 +164,7 @@ abstract class FetchPhaseDocsIterator {
                     assert allowPartialResults;
                     SearchHit[] partialSearchHits = new SearchHit[i];
                     System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
-                    return new IterateResult(partialSearchHits, null, -1);
+                    return new IterateResult(partialSearchHits);
                 }
             }
         } catch (SearchTimeoutException e) {
@@ -183,15 +176,11 @@ abstract class FetchPhaseDocsIterator {
             purgeSearchHits(searchHits);
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
-        return new IterateResult(searchHits, null, -1);
+        return new IterateResult(searchHits);
     }
 
     /**
-     * Asynchronous iteration for streaming mode with backpressure.
-     * <p>
-     * Fetches documents in chunks and streams them to the coordinator as they're ready.
-     * Uses a semaphore-based backpressure mechanism to limit in-flight chunks, preventing
-     * memory exhaustion when the coordinator is slow to acknowledge.
+     * Asynchronous iteration with byte-based chunking for streaming mode.
      * <p>
      * <b>Threading model:</b> All Lucene operations (setNextReader, nextDoc) execute on the
      * calling thread to maintain Lucene's thread-affinity requirements. Only the network
@@ -209,98 +198,114 @@ abstract class FetchPhaseDocsIterator {
      * heavy backpressure.
      *
      * @param shardTarget         the shard being fetched from
-     * @param indexReader         the index reader for accessing documents
-     * @param docIds              document IDs to fetch (in score order, not modified)
-     * @param chunkWriter         writer for sending chunks to the coordinator
-     * @param chunkSize           number of hits per chunk
-     * @param chunkCompletionRefs ref-counting listener for tracking outstanding chunk ACKs;
-     *                            caller uses this to know when all chunks are acknowledged
-     * @param maxInFlightChunks   maximum concurrent unacknowledged chunks (backpressure limit)
-     * @param sendFailure         atomic reference to capture the first send failure;
-     *                            checked before each chunk to fail fast
-     * @param totalHits           total hits count for SearchHits metadata
-     * @param maxScore            maximum score for SearchHits metadata
-     * @param isCancelled         supplier that returns true if the task has been cancelled;
-     *                            checked periodically to support responsive cancellation
-     * @param listener            receives the result: empty hits array plus the last chunk
-     *                            (which caller must send) with its sequence start position
+     * @param indexReader         the index reader
+     * @param docIds              document IDs to fetch (in score order)
+     * @param chunkWriter         writer for sending chunks (also provides buffer allocation)
+     * @param targetChunkBytes    target size in bytes for each chunk
+     * @param chunkCompletionRefs ref-counting listener for tracking chunk ACKs
+     * @param maxInFlightChunks   maximum concurrent unacknowledged chunks
+     * @param sendFailure         atomic reference to capture send failures
+     * @param isCancelled         supplier for cancellation checking
+     * @param listener            receives the result with the last chunk bytes
      */
     void iterateAsync(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
-        int[] docIds,  // in score order
+        int[] docIds,
         FetchPhaseResponseChunk.Writer chunkWriter,
-        int chunkSize,
+        int targetChunkBytes,
         RefCountingListener chunkCompletionRefs,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
-        TotalHits totalHits,
-        float maxScore,
         Supplier<Boolean> isCancelled,
         ActionListener<IterateResult> listener
     ) {
         if (docIds == null || docIds.length == 0) {
-            listener.onResponse(new IterateResult(new SearchHit[0], null, -1));
+            listener.onResponse(new IterateResult(new SearchHit[0]));
             return;
         }
 
         // Semaphore controls backpressure, each in-flight chunk holds one permit.
         // When maxInFlightChunks are in flight, we block until an ACK releases a permit.
         Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
-
-        SearchHits lastChunk = null;
-        long lastChunkSeqStart = -1;
         ShardId shardId = shardTarget.getShardId();
         int totalDocs = docIds.length;
 
+        // Last chunk state
+        ReleasableBytesReference lastChunkBytes = null;
+        int lastChunkHitCount = 0;
+        long lastChunkSeqStart = -1;
+
+        RecyclerBytesStreamOutput chunkBuffer = null;
         try {
-            // Process in SCORE-ORDER chunks (not all at once)
-            for (int chunkStart = 0; chunkStart < totalDocs; chunkStart += chunkSize) {
-                int chunkEnd = Math.min(chunkStart + chunkSize, totalDocs);
-                boolean isLast = (chunkEnd == totalDocs);
+            // Allocate from Netty's pool via the writer
+            chunkBuffer = chunkWriter.newNetworkBytesStream();
+            int chunkStartIndex = 0;
+            int hitsInChunk = 0;
 
-                if (isCancelled.get()) {
-                    throw new TaskCancelledException("cancelled");
-                }
-
-                // Check for prior send failure
-                Throwable failure = sendFailure.get();
-                if (failure != null) {
-                    throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
-                }
-
-                SearchHit[] chunkHits = fetchChunkInScoreOrder(indexReader, docIds, chunkStart, chunkEnd);
-
-                SearchHits chunk = createSearchHits(Arrays.asList(chunkHits), totalHits, maxScore);
-                long sequenceStart = chunkStart;
-
-                if (isLast) {
-                    // Hold back last chunk - caller sends it after all ACKs received
-                    lastChunk = chunk;
-                    lastChunkSeqStart = sequenceStart;
-                } else {
-                    // Wait for permit before sending
-                    // This blocks if maxInFlightChunks are already in flight,
-                    // with periodic cancellation checks to remain responsive
-                    try {
-                        acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
-                    } catch (Exception e) {
-                        chunk.decRef();
-                        throw e;
+            for (int scoreIndex = 0; scoreIndex < totalDocs; scoreIndex++) {
+                // Periodic cancellation check
+                if (scoreIndex % 64 == 0) {
+                    if (isCancelled.get()) {
+                        throw new TaskCancelledException("cancelled");
                     }
+                    Throwable failure = sendFailure.get();
+                    if (failure != null) {
+                        throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
+                    }
+                }
 
-                    // Send chunk asynchronously - permit released when ACK arrives
-                    sendChunk(
-                        chunk,
-                        chunkWriter,
-                        shardId,
-                        sequenceStart,
-                        chunkStart,
-                        totalDocs,
-                        sendFailure,
-                        chunkCompletionRefs.acquire(),
-                        transmitPermits
-                    );
+                int docId = docIds[scoreIndex];
+
+                // Set up the correct leaf reader for this doc
+                int leafOrd = ReaderUtil.subIndex(docId, indexReader.leaves());
+                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+                int leafDocId = docId - ctx.docBase;
+                setNextReader(ctx, new int[] { leafDocId });
+
+                // Fetch and serialize immediately
+                SearchHit hit = nextDoc(docId);
+                try {
+                    hit.writeTo(chunkBuffer);
+                } finally {
+                    hit.decRef();
+                }
+                hitsInChunk++;
+
+                // Check if chunk is ready to send
+                boolean isLast = (scoreIndex == totalDocs - 1);
+                boolean bufferFull = chunkBuffer.size() >= targetChunkBytes;
+
+                if (bufferFull || isLast) {
+                    ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
+                    chunkBuffer = null;
+
+                    if (isLast) {
+                        // Hold back last chunk for final response
+                        lastChunkBytes = chunkBytes;
+                        lastChunkHitCount = hitsInChunk;
+                        lastChunkSeqStart = chunkStartIndex;
+                    } else {
+                        acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
+
+                        sendChunk(
+                            chunkBytes,
+                            hitsInChunk,
+                            chunkStartIndex,
+                            chunkStartIndex,
+                            totalDocs,
+                            chunkWriter,
+                            shardId,
+                            sendFailure,
+                            chunkCompletionRefs.acquire(),
+                            transmitPermits
+                        );
+
+                        // Start new chunk buffer
+                        chunkBuffer = chunkWriter.newNetworkBytesStream();
+                        chunkStartIndex = scoreIndex + 1;
+                        hitsInChunk = 0;
+                    }
                 }
             }
 
@@ -310,58 +315,17 @@ abstract class FetchPhaseDocsIterator {
             // Final failure check after all chunks sent
             Throwable failure = sendFailure.get();
             if (failure != null) {
-                if (lastChunk != null) lastChunk.decRef();
+                Releasables.closeWhileHandlingException(lastChunkBytes);
                 throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
             }
 
-            // Return last chunk for caller to send (completes the streaming response)
-            listener.onResponse(new IterateResult(new SearchHit[0], lastChunk, lastChunkSeqStart));
+            listener.onResponse(new IterateResult(lastChunkBytes, lastChunkHitCount, lastChunkSeqStart));
         } catch (Exception e) {
-            // Clean up last chunk on any failure
-            if (lastChunk != null) lastChunk.decRef();
+            if (chunkBuffer != null) {
+                Releasables.closeWhileHandlingException(chunkBuffer);
+            }
+            Releasables.closeWhileHandlingException(lastChunkBytes);
             listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Fetches only the documents for a single chunk, returning them in score order.
-     * Internally sorts by docId for efficient Lucene access within the chunk.
-     */
-    private SearchHit[] fetchChunkInScoreOrder(IndexReader indexReader, int[] allDocIds, int start, int end) throws IOException {
-        int chunkSize = end - start;
-
-        // docIds is in score order (top docs order). We sort by docId only for efficient Lucene access,
-        // but we have preserve score-order positions for correct streaming sequence numbers.
-        DocIdToIndex[] docs = new DocIdToIndex[chunkSize];
-        for (int i = 0; i < chunkSize; i++) {
-            docs[i] = new DocIdToIndex(allDocIds[start + i], i);
-        }
-        Arrays.sort(docs);
-
-        // Pre-compute all docs per leaf
-        Map<Integer, int[]> docsInLeafByOrd = precomputeDocsPerLeaf(docs, indexReader);
-
-        // Fetch in docId order, place in score-order position
-        SearchHit[] hits = new SearchHit[chunkSize];
-        boolean success = false;
-        try {
-            int currentLeafOrd = -1;
-            for (DocIdToIndex doc : docs) {
-                int leafOrd = ReaderUtil.subIndex(doc.docId, indexReader.leaves());
-                if (leafOrd != currentLeafOrd) {
-                    currentLeafOrd = leafOrd;
-                    LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-                    setNextReader(ctx, docsInLeafByOrd.get(leafOrd));
-                }
-                hits[doc.index] = nextDoc(doc.docId);
-            }
-            success = true;
-            return hits;
-        } finally {
-            if (success == false) {
-                // Clean up any hits that were created before the failure
-                purgeSearchHits(hits);
-            }
         }
     }
 
@@ -371,54 +335,51 @@ abstract class FetchPhaseDocsIterator {
      * Wraps the hits in a {@link FetchPhaseResponseChunk} message and writes it via the
      * chunk writer. Handles reference counting and permit management for both success
      * and failure cases.
-     *
-     * @param chunk          the search hits to send (reference will be released)
-     * @param writer         the chunk writer for network transmission
-     * @param shardId        the source shard identifier
-     * @param sequenceStart  starting sequence number for hit ordering at coordinator
-     * @param fromIndex      index of first doc in this chunk (for progress tracking)
-     * @param totalDocs      total documents being fetched (for progress tracking)
-     * @param sendFailure    atomic reference to capture first failure
-     * @param ackListener    listener to signal when ACK received (for RefCountingListener)
-     * @param transmitPermits semaphore to release when ACK received (backpressure control)
      */
     private void sendChunk(
-        SearchHits chunk,
-        FetchPhaseResponseChunk.Writer writer,
-        ShardId shardId,
+        ReleasableBytesReference chunkBytes,
+        int hitCount,
         long sequenceStart,
         int fromIndex,
         int totalDocs,
+        FetchPhaseResponseChunk.Writer writer,
+        ShardId shardId,
         AtomicReference<Throwable> sendFailure,
         ActionListener<Void> ackListener,
         Semaphore transmitPermits
     ) {
+        FetchPhaseResponseChunk chunk = null;
         try {
-            FetchPhaseResponseChunk chunkMsg = new FetchPhaseResponseChunk(
+            chunk = new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
                 FetchPhaseResponseChunk.Type.HITS,
                 shardId,
-                chunk,
+                chunkBytes,
+                hitCount,
                 fromIndex,
-                chunk.getHits().length,
                 totalDocs,
                 sequenceStart
             );
 
-            writer.writeResponseChunk(chunkMsg, ActionListener.wrap(ack -> {
-                // Success: clean up and signal completion
-                chunk.decRef();
+            final FetchPhaseResponseChunk chunkToClose = chunk;
+            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
+                chunkToClose.close();
                 ackListener.onResponse(null);
-                transmitPermits.release();  // Allow next chunk to proceed
+                transmitPermits.release();
             }, e -> {
-                // Failure: clean up, record error, and release permit
-                chunk.decRef();
+                chunkToClose.close();
                 sendFailure.compareAndSet(null, e);
                 ackListener.onFailure(e);
-                transmitPermits.release();  // Release even on failure
+                transmitPermits.release();
             }));
+
+            chunk = null;
         } catch (Exception e) {
-            chunk.decRef();
+            if (chunk != null) {
+                chunk.close();
+            } else {
+                Releasables.closeWhileHandlingException(chunkBytes);
+            }
             sendFailure.compareAndSet(null, e);
             ackListener.onFailure(e);
             transmitPermits.release();
@@ -454,71 +415,10 @@ abstract class FetchPhaseDocsIterator {
                 acquired++;
             }
         } finally {
-            // Release all acquired permits - we were just checking completion
             if (acquired > 0) {
                 semaphore.release(acquired);
             }
         }
-    }
-
-    /**
-     * Pre-computes all document IDs per leaf reader from sorted docs.
-     *
-     * @param sortedDocs docs sorted by doc ID
-     * @param indexReader the index reader
-     * @return map from leaf ordinal to array of leaf-relative doc IDs
-     */
-    private Map<Integer, int[]> precomputeDocsPerLeaf(DocIdToIndex[] sortedDocs, IndexReader indexReader) {
-        // Group global doc IDs by their leaf segment
-        Map<Integer, List<Integer>> docsPerLeaf = new HashMap<>();
-        for (DocIdToIndex doc : sortedDocs) {
-            int leafOrd = ReaderUtil.subIndex(doc.docId, indexReader.leaves());
-            docsPerLeaf.computeIfAbsent(leafOrd, k -> new ArrayList<>()).add(doc.docId);
-        }
-
-        // Convert global doc IDs to leaf-relative doc IDs (subtract docBase)
-        Map<Integer, int[]> result = new HashMap<>();
-        for (var entry : docsPerLeaf.entrySet()) {
-            int leafOrd = entry.getKey();
-            LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-            int docBase = ctx.docBase;
-            int[] docsInLeaf = entry.getValue().stream().mapToInt(docId -> docId - docBase).toArray();
-            result.put(leafOrd, docsInLeaf);
-        }
-        return result;
-    }
-
-    /**
-     * Reorders hits based on their original indices to preserve score-based ordering.
-     * Hits are fetched in doc ID order (required by Lucene), but must be returned in
-     * score order (original query result order). This method restores that ordering.
-     *
-     * @param hits the hits in doc ID order
-     * @param originalIndices the original position of each hit in the score-ordered array
-     * @return hits reordered to score-based order
-     */
-    private SearchHit[] reorderByOriginalIndex(SearchHit[] hits, int[] originalIndices) {
-        // Create pairs and sort by original index
-        Integer[] indices = new Integer[hits.length];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-        Arrays.sort(indices, Comparator.comparingInt(i -> originalIndices[i]));
-
-        // Reorder hits according to sorted indices
-        SearchHit[] reordered = new SearchHit[hits.length];
-        for (int i = 0; i < hits.length; i++) {
-            reordered[i] = hits[indices[i]];
-        }
-        return reordered;
-    }
-
-    private SearchHits createSearchHits(List<SearchHit> hits, TotalHits totalHits, float maxScore) {
-        if (hits.isEmpty()) {
-            return SearchHits.empty(totalHits, maxScore);
-        }
-        SearchHit[] hitsArray = hits.toArray(new SearchHit[0]);
-        return new SearchHits(hitsArray, totalHits, maxScore);
     }
 
     private static void purgeSearchHits(SearchHit[] searchHits) {
@@ -567,30 +467,50 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
-     * Result class that carries hits array, last chunk, and sequence information.
-     * The lastChunkSequenceStart is used by the coordinator to properly order the last chunk's hits.
+     * Result of iteration.
+     * For non-streaming: contains hits array.
+     * For streaming: contains last chunk bytes to be sent after all ACKs.
      */
     static class IterateResult implements AutoCloseable {
-        final SearchHit[] hits;
-        final SearchHits lastChunk;  // null for non-streaming mode
-        final long lastChunkSequenceStart;  // -1 if no last chunk
+        final SearchHit[] hits;  // Non-streaming mode only
+        final ReleasableBytesReference lastChunkBytes;  // Streaming mode only
+        final int lastChunkHitCount;
+        final long lastChunkSequenceStart;
         private boolean closed = false;
+        private boolean bytesOwnershipTransferred = false;
 
-        IterateResult(SearchHit[] hits, SearchHits lastChunk, long lastChunkSequenceStart) {
+        // Non-streaming constructor
+        IterateResult(SearchHit[] hits) {
             this.hits = hits;
-            this.lastChunk = lastChunk;
-            this.lastChunkSequenceStart = lastChunkSequenceStart;
+            this.lastChunkBytes = null;
+            this.lastChunkHitCount = 0;
+            this.lastChunkSequenceStart = -1;
+        }
+
+        // Streaming constructor
+        IterateResult(ReleasableBytesReference lastChunkBytes, int hitCount, long seqStart) {
+            this.hits = null;
+            this.lastChunkBytes = lastChunkBytes;
+            this.lastChunkHitCount = hitCount;
+            this.lastChunkSequenceStart = seqStart;
+        }
+
+        /**
+         * Takes ownership of the last chunk bytes.
+         * After calling, close() will not release the bytes.
+         */
+        ReleasableBytesReference takeLastChunkBytes() {
+            bytesOwnershipTransferred = true;
+            return lastChunkBytes;
         }
 
         @Override
         public void close() {
-            if (closed) {
-                return;
-            }
+            if (closed) return;
             closed = true;
 
-            if (lastChunk != null) {
-                lastChunk.decRef();
+            if (bytesOwnershipTransferred == false) {
+                Releasables.closeWhileHandlingException(lastChunkBytes);
             }
         }
     }

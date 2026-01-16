@@ -779,7 +779,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 for (SearchHit hit : hits.getHits()) {
                     assertEquals(hit.getRank(), 3 + index);
                     assertTrue(hit.getScore() >= 0);
-                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.getId());
                     index++;
                 }
             }

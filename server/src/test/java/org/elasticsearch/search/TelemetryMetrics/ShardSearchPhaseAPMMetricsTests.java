@@ -214,7 +214,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSearchTransportMetricsScroll() {
+    public void testSearchTransportMetricsScroll() throws Exception {
         assertScrollResponsesAndHitCount(
             client(),
             TimeValue.timeValueSeconds(60),
@@ -226,10 +226,21 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 assertAttributes(queryMeasurements, false, true);
                 // No hits, no fetching done
                 if (response.getHits().getHits().length > 0) {
+                    try {
+                        assertBusy(() -> {
+                            final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                                FETCH_SEARCH_PHASE_METRIC
+                            );
+                            assertThat(fetchMeasurements.size(), Matchers.greaterThan(0));
+                        });
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    // Get fresh list for subsequent assertions
                     final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
                         FETCH_SEARCH_PHASE_METRIC
                     );
-                    assertThat(fetchMeasurements.size(), Matchers.greaterThan(0));
                     int numFetchShards = Math.min(2, num_primaries);
                     assertThat(fetchMeasurements.size(), Matchers.lessThanOrEqualTo(numFetchShards));
                     assertAttributes(fetchMeasurements, false, true);

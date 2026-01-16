@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
@@ -213,38 +214,37 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         // Listener that builds final result from accumulated chunks
         ActionListener<FetchSearchResult> childListener = ActionListener.wrap(dataNodeResult -> {
-
             try {
+                BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
+                int hitCount = dataNodeResult.getLastChunkHitCount();
+                long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
+
                 // Process the embedded last chunk if present
-                SearchHits lastChunk = dataNodeResult.hits();
-                if (lastChunk != null && lastChunk.getHits().length > 0) {
-
+                if (lastChunkBytes != null && hitCount > 0) {
                     // Get sequence start for last chunk from the result metadata
-                    long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
 
-                    if (logger.isTraceEnabled()) {
-                        logger.info(
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
                             "Received final chunk [{}] for shard [{}]",
-                            lastChunk.getHits().length,
                             request.shardFetchRequest.getShardSearchRequest().shardId()
                         );
                     }
 
-                    // Add last chunk hits to the stream with sequence numbers
-                    for (int i = 0; i < lastChunk.getHits().length; i++) {
-                        SearchHit hit = lastChunk.getHits()[i];
-                        hit.incRef();
+                    try (StreamInput in = lastChunkBytes.streamInput()) {
+                        for (int i = 0; i < hitCount; i++) {
+                            SearchHit hit = SearchHit.readFrom(in, false);
 
-                        // Add with explicit sequence number
-                        long hitSequence = lastChunkSequenceStart + i;
-                        responseStream.addHitWithSequence(hit, hitSequence);
+                            // Add with explicit sequence number
+                            long hitSequence = lastChunkSequenceStart + i;
+                            responseStream.addHitWithSequence(hit, hitSequence);
 
-                        // Track circuit breaker for last chunk
-                        BytesReference sourceRef = hit.getSourceRef();
-                        if (sourceRef != null) {
-                            int hitBytes = sourceRef.length() * 2;
-                            circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_last_chunk");
-                            responseStream.trackBreakerBytes(hitBytes);
+                            // Track memory
+                            BytesReference sourceRef = hit.getSourceRef();
+                            if (sourceRef != null) {
+                                int hitBytes = sourceRef.length() * 2;
+                                circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_last_chunk");
+                                responseStream.trackBreakerBytes(hitBytes);
+                            }
                         }
                     }
                 }

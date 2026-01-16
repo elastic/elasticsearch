@@ -24,6 +24,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -77,43 +78,42 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param releasable a releasable to close after processing (typically releases the acquired stream reference)
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
-
         boolean success = false;
         try {
-            if (chunk.hits() != null) {
-                SearchHit[] chunkHits = chunk.hits().getHits();
-                long sequenceStart = chunk.sequenceStart();
+            SearchHit[] chunkHits = chunk.getHits();
+            long sequenceStart = chunk.sequenceStart();
 
-                for (int i = 0; i < chunkHits.length; i++) {
-                    SearchHit hit = chunkHits[i];
-                    hit.incRef();
+            for (int i = 0; i < chunkHits.length; i++) {
+                SearchHit hit = chunkHits[i];
+                hit.incRef();
 
-                    // Calculate sequence: chunk start + index within chunk
-                    long hitSequence = sequenceStart + i;
-                    queue.add(new SequencedHit(hit, hitSequence));
+                // Calculate sequence: chunk start + index within chunk
+                long hitSequence = sequenceStart + i;
+                queue.add(new SequencedHit(hit, hitSequence));
 
-                    // Estimate memory usage from source size
-                    BytesReference sourceRef = hit.getSourceRef();
-                    if (sourceRef != null) {
-                        int hitBytes = sourceRef.length() * 2;
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_chunk_accumulation");
-                        totalBreakerBytes.addAndGet(hitBytes);
-                    }
+                // Track memory usage
+                BytesReference sourceRef = hit.getSourceRef();
+                if (sourceRef != null) {
+                    int hitBytes = sourceRef.length() * 2;
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_chunk_accumulation");
+                    totalBreakerBytes.addAndGet(hitBytes);
                 }
             }
 
-            // if (logger.isTraceEnabled()) {
-            logger.info(
-                "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                chunk.hits() == null ? 0 : chunk.hits().getHits().length,
-                shardIndex,
-                queue.size(),
-                expectedDocs,
-                totalBreakerBytes.get(),
-                circuitBreaker.getUsed()
-            );
-            // }
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
+                    chunkHits == null ? 0 : chunkHits.length,
+                    shardIndex,
+                    queue.size(),
+                    expectedDocs,
+                    totalBreakerBytes.get(),
+                    circuitBreaker.getUsed()
+                );
+            }
             success = true;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to deserialize hits from chunk", e);
         } finally {
             if (success) {
                 releasable.close();
@@ -131,8 +131,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @return a complete {@link FetchSearchResult} containing all accumulated hits in correct order
      */
     FetchSearchResult buildFinalResult(ShardSearchContextId ctxId, SearchShardTarget shardTarget, @Nullable ProfileResult profileResult) {
-        if (logger.isTraceEnabled()) {
-            logger.info("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
+        if (logger.isDebugEnabled()) {
+            logger.debug("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
         }
 
         // Convert queue to list and sort by sequence number to restore correct order
@@ -200,8 +200,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      */
     @Override
     protected void closeInternal() {
-        if (logger.isTraceEnabled()) {
-            logger.info(
+        if (logger.isDebugEnabled()) {
+            logger.debug(
                 "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
                 shardIndex,
                 queue.size(),
@@ -219,8 +219,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
             circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
-            if (logger.isTraceEnabled()) {
-                logger.info(
+            if (logger.isDebugEnabled()) {
+                logger.debug(
                     "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
                     totalBreakerBytes.get(),
                     shardIndex,

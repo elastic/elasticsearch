@@ -10,75 +10,99 @@
 package org.elasticsearch.search.fetch.chunk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 
 /**
  * A single chunk of fetch results streamed from a data node to the coordinator.
  * Contains sequence information to maintain correct ordering when chunks arrive out of order.
- **/
-public record FetchPhaseResponseChunk(
-    long timestampMillis,
-    Type type,
-    ShardId shardId,
-    SearchHits hits,
-    int from,
-    int size,
-    int expectedDocs,
-    long sequenceStart  // Sequence number of first hit in this chunk
-) implements Writeable {
+ *
+ * <p>Supports zero-copy transport by separating header metadata from serialized hits.
+ * The header is created after hits are serialized (since we don't know hit count until
+ * the buffer is full), then combined using {@link CompositeBytesReference} to avoid copying.
+ */
+public class FetchPhaseResponseChunk implements Writeable, Releasable {
+
+    private final long timestampMillis;
+    private final Type type;
+    private final ShardId shardId;
+    private final int hitCount;
+    private final int from;
+    private final int expectedDocs;
+    private final long sequenceStart;
+
+    // The raw serialized hits - may be a ReleasableBytesReference from Netty pool
+    private BytesReference serializedHits;
+
+    // Lazily deserialized on receiving side
+    private SearchHit[] deserializedHits;
 
     /**
      * The type of chunk being sent.
      */
     public enum Type {
-        /**
-         * Contains a batch of search hits. Multiple HITS chunks may be sent for a single
-         * shard fetch operation.
-         */
         HITS
     }
 
     /**
-     * Compact constructor with validation.
+     * Creates a chunk with pre-serialized hits.
+     * Takes ownership of serializedHits - caller must not release it.
      *
-     * @throws IllegalArgumentException if shardIndex is invalid
+     * @param timestampMillis  creation timestamp
+     * @param type             chunk type
+     * @param shardId          source shard
+     * @param serializedHits   pre-serialized hit bytes
+     * @param hitCount         number of hits in the serialized bytes
+     * @param from             index of first hit in the overall result set
+     * @param expectedDocs     total documents expected across all chunks
+     * @param sequenceStart    sequence number of first hit for ordering
      */
-    public FetchPhaseResponseChunk {
+    public FetchPhaseResponseChunk(
+        long timestampMillis,
+        Type type,
+        ShardId shardId,
+        BytesReference serializedHits,
+        int hitCount,
+        int from,
+        int expectedDocs,
+        long sequenceStart
+    ) {
         if (shardId.getId() < -1) {
-            throw new IllegalArgumentException("invalid: " + this);
+            throw new IllegalArgumentException("invalid shardId: " + shardId);
         }
+        this.timestampMillis = timestampMillis;
+        this.type = type;
+        this.shardId = shardId;
+        this.serializedHits = serializedHits;
+        this.hitCount = hitCount;
+        this.from = from;
+        this.expectedDocs = expectedDocs;
+        this.sequenceStart = sequenceStart;
     }
 
     /**
-     * Deserializes a chunk from the given stream.
-     *
-     * @param in the stream to read from
-     * @throws IOException if deserialization fails
+     * Deserializes from stream (receiving side).
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
-        this(
-            in.readVLong(),
-            in.readEnum(Type.class),
-            new ShardId(in),
-            readOptionalHits(in),
-            in.readVInt(),
-            in.readVInt(),
-            in.readVInt(),
-            in.readVLong()
-        );
-    }
-
-    private static SearchHits readOptionalHits(StreamInput in) throws IOException {
-        if (in.readBoolean() == false) {
-            return null;
-        }
-        return SearchHits.readFrom(in, false);
+        this.timestampMillis = in.readVLong();
+        this.type = in.readEnum(Type.class);
+        this.shardId = new ShardId(in);
+        this.hitCount = in.readVInt();
+        this.from = in.readVInt();
+        this.expectedDocs = in.readVInt();
+        this.sequenceStart = in.readVLong();
+        this.serializedHits = in.readBytesReference();
     }
 
     @Override
@@ -86,25 +110,90 @@ public record FetchPhaseResponseChunk(
         out.writeVLong(timestampMillis);
         out.writeEnum(type);
         shardId.writeTo(out);
-
-        if (hits == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            hits.writeTo(out);
-        }
+        out.writeVInt(hitCount);
         out.writeVInt(from);
-        out.writeVInt(size);
         out.writeVInt(expectedDocs);
         out.writeVLong(sequenceStart);
+        out.writeBytesReference(serializedHits);
+    }
+
+    /**
+     * Deserializes and returns the hits. Results are cached.
+     */
+    public SearchHit[] getHits() throws IOException {
+        if (deserializedHits == null && serializedHits != null && hitCount > 0) {
+            deserializedHits = new SearchHit[hitCount];
+            try (StreamInput in = serializedHits.streamInput()) {
+                for (int i = 0; i < hitCount; i++) {
+                    deserializedHits[i] = SearchHit.readFrom(in, false);
+                }
+            }
+        }
+        return deserializedHits != null ? deserializedHits : new SearchHit[0];
+    }
+
+    /**
+     * Takes ownership of the serialized hits bytes.
+     * After calling this, close() will not release the bytes.
+     */
+    public BytesReference takeSerializedHits() {
+        BytesReference bytes = this.serializedHits;
+        this.serializedHits = null;
+        return bytes;
+    }
+
+    // Getters
+    public long timestampMillis() { return timestampMillis; }
+    public Type type() { return type; }
+    public ShardId shardId() { return shardId; }
+    public int hitCount() { return hitCount; }
+    public int from() { return from; }
+    public int expectedDocs() { return expectedDocs; }
+    public long sequenceStart() { return sequenceStart; }
+    public BytesReference serializedHits() { return serializedHits; }
+
+    @Override
+    public void close() {
+        if (serializedHits instanceof Releasable) {
+            Releasables.closeWhileHandlingException((Releasable) serializedHits);
+        }
+        serializedHits = null;
+
+        if (deserializedHits != null) {
+            for (SearchHit hit : deserializedHits) {
+                if (hit != null) {
+                    hit.decRef();
+                }
+            }
+            deserializedHits = null;
+        }
     }
 
     /**
      * Interface for sending chunk responses from the data node to the coordinator.
      * <p>
-     * Implementations send chunks via {@link TransportFetchPhaseResponseChunkAction}.
+     * Implementations handle network transport and provide buffer allocation
+     * using Netty's pooled allocator for efficient memory management.
      */
     public interface Writer {
+
+        /**
+         * Sends a chunk to the coordinator.
+         *
+         * @param responseChunk the chunk to send (ownership transferred to writer)
+         * @param listener      called when the chunk is acknowledged or fails
+         */
         void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener);
+
+        /**
+         * Creates a new byte stream for serializing hits.
+         * <p>
+         * Uses {@link org.elasticsearch.transport.TransportService#newNetworkBytesStream()}
+         * which allocates buffers from Netty's pooled allocator. This avoids heap allocation
+         * and enables zero-copy network transmission.
+         *
+         * @return a new RecyclerBytesStreamOutput from the network buffer pool
+         */
+        RecyclerBytesStreamOutput newNetworkBytesStream();
     }
 }

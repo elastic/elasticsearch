@@ -5,17 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb;
-
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+package org.elasticsearch.xpack.logsdb.templates;
 
 import java.util.Arrays;
 
-public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
+/**
+ * Template configurations for match_only_text field type rolling upgrade tests.
+ */
+public final class MatchOnlyTextTemplates {
 
-    private static final String DATA_STREAM_NAME_PREFIX = "logs-text-bwc-test";
+    public static final String DATA_STREAM_NAME_PREFIX = "logs-match-only-text-bwc-test";
 
-    private static final String TEMPLATE = """
+    public static final String TEMPLATE = """
         {
             "settings": {
               "index": {
@@ -34,13 +35,13 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
                   "type": "double"
                 },
                 "message": {
-                  "type": "text"
+                  "type": "match_only_text"
                 }
               }
             }
         }""";
 
-    private static final String TEMPLATE_WITH_MULTI_FIELD = """
+    public static final String TEMPLATE_WITH_MULTI_FIELD = """
         {
             "settings": {
               "index": {
@@ -59,7 +60,7 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
                   "type": "double"
                 },
                 "message": {
-                  "type": "text",
+                  "type": "match_only_text",
                   "fields": {
                     "kwd": {
                       "type": "keyword"
@@ -70,7 +71,7 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
             }
         }""";
 
-    private static final String TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE = """
+    public static final String TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE = """
         {
             "settings": {
               "index": {
@@ -89,7 +90,7 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
                   "type": "double"
                 },
                 "message": {
-                  "type": "text",
+                  "type": "match_only_text",
                   "fields": {
                     "kwd": {
                       "type": "keyword",
@@ -101,12 +102,7 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
             }
         }""";
 
-    public TextRollingUpgradeIT(String template, String testScenario) {
-        super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> data() {
+    public static Iterable<Object[]> templates() {
         return Arrays.asList(
             new Object[][] {
                 { TEMPLATE, "basic" },
@@ -114,5 +110,4 @@ public class TextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgrade
                 { TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE, "with-keyword-multi-field-and-ignore-above" } }
         );
     }
-
 }

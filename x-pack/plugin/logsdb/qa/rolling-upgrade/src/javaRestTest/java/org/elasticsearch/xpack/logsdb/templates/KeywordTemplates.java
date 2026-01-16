@@ -5,20 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb;
-
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+package org.elasticsearch.xpack.logsdb.templates;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.Mapper;
 
 import java.util.Arrays;
 
-public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollingUpgradeTestCase {
+/**
+ * Template configurations for keyword field type rolling upgrade tests.
+ */
+public final class KeywordTemplates {
 
-    private static final String DATA_STREAM_NAME_PREFIX = "logs-keyword-bwc-test";
+    public static final String DATA_STREAM_NAME_PREFIX = "logs-keyword-bwc-test";
 
-    private static final String TEMPLATE = """
+    public static final String TEMPLATE = """
         {
             "settings": {
               "index": {
@@ -43,7 +44,7 @@ public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollin
             }
         }""";
 
-    private static final String TEMPLATE_WITH_IGNORE_ABOVE = """
+    public static final String TEMPLATE_WITH_IGNORE_ABOVE = """
         {
             "settings": {
               "index": {
@@ -69,12 +70,7 @@ public class KeywordRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollin
             }
         }""";
 
-    public KeywordRollingUpgradeIT(String template, String testScenario, Mapper.IgnoreAbove ignoreAbove) {
-        super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template, ignoreAbove);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> data() {
+    public static Iterable<Object[]> templates() {
         return Arrays.asList(
             new Object[][] {
                 { TEMPLATE, "basic", new Mapper.IgnoreAbove(null, IndexMode.LOGSDB) },

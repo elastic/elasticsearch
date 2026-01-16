@@ -55,7 +55,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     }
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);
+    public static final ElasticsearchCluster cluster = Clusters.oldVersionClusterWithLogsEnabled(USER, PASS);
 
     @Override
     protected String getTestRestCluster() {

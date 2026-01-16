@@ -12,17 +12,20 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
+import static org.elasticsearch.test.ESTestCase.initTestSeed;
+
 public class Clusters {
 
-    public static ElasticsearchCluster oldVersionCluster(String user, String pass) {
+    public static ElasticsearchCluster oldVersionClusterWithLogsEnabled(String user, String pass) {
         return clusterBuilder(user, pass).build();
     }
 
     public static ElasticsearchCluster oldVersionClusterWithLogsDisabled(String user, String pass) {
         var cluster = clusterBuilder(user, pass);
 
-        // disable logsdb
-        cluster.setting("cluster.logsdb.enabled", "false").setting("stack.templates.enabled", "false");
+        cluster.setting("cluster.logsdb.enabled", "false")
+            .setting("stack.templates.enabled", "false")
+            .setting("xpack.license.self_generated.type", initTestSeed().nextBoolean() ? "trial" : "basic");
 
         return cluster.build();
     }

@@ -19,19 +19,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Abstract base class for rolling upgrade tests of string field types that support ignore_above.
- *
- * This class provides common query verification logic that handles ignored field values. More specifically, the verification logic takes
- * into account the block loaders return null for ignored values.
+ * Base class for string field types that support ignore_above. Provides query verification that handles ignored values.
  */
-public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
+public abstract class AbstractStringTypeWithIgnoreAboveLogsdbRollingUpgradeTestCase extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
 
-    private final String dataStreamName;
     private final Mapper.IgnoreAbove ignoreAbove;
 
-    public AbstractStringWithIgnoreAboveRollingUpgradeTestCase(String dataStreamName, String template, Mapper.IgnoreAbove ignoreAbove) {
+    protected AbstractStringTypeWithIgnoreAboveLogsdbRollingUpgradeTestCase(
+        String dataStreamName,
+        String template,
+        Mapper.IgnoreAbove ignoreAbove
+    ) {
         super(dataStreamName, template);
-        this.dataStreamName = dataStreamName;
         this.ignoreAbove = ignoreAbove;
     }
 
@@ -43,7 +42,7 @@ public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extend
             {
                 "query": "FROM $ds | STATS max(length), max(factor) BY message | LIMIT 1000"
             }
-            """.replace("$ds", dataStreamName));
+            """.replace("$ds", getDataStreamName()));
 
         var response = client().performRequest(queryRequest);
         assertOK(response);
@@ -72,6 +71,7 @@ public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extend
 
             // collect message for later verification
             String message = (String) row.get(2);
+
             // block loaders return null for ignored fields, so we must filter those out
             if (message != null) {
                 queryMessages.add(message);

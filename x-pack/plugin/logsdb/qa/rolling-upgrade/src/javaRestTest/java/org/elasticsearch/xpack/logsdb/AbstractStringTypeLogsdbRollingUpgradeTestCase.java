@@ -13,23 +13,21 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends AbstractLogsdbRollingUpgradeTestCase {
-
-    @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionClusterWithLogsDisabled(USER, PASS);
 
     // template for individual log items
     private static final String ITEM_TEMPLATE = """
@@ -44,7 +42,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
 
     private String templateId;
 
-    public AbstractStringTypeLogsdbRollingUpgradeTestCase(String dataStreamName, String template) {
+    protected AbstractStringTypeLogsdbRollingUpgradeTestCase(String dataStreamName, String template) {
         this.dataStreamName = dataStreamName;
         this.template = template;
         this.numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
@@ -52,17 +50,34 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getCluster().getHttpAddresses();
     }
 
     @Override
-    protected ElasticsearchCluster getCluster() {
-        return cluster;
-    }
+    protected abstract ElasticsearchCluster getCluster();
 
     @Before
-    public void checkFeatures() {
+    public void checkSetup() throws IOException {
         checkRequiredFeatures();
+        verifyAllNodesOnOldVersion();
+    }
+
+    /**
+     * Verifies that all nodes in the cluster are running the expected old version.
+     * This ensures tests start with an old-version cluster before any upgrades.
+     */
+    private void verifyAllNodesOnOldVersion() throws IOException {
+        String expectedOldVersion = System.getProperty("tests.old_cluster_version");
+        if (expectedOldVersion == null) {
+            return;
+        }
+
+        Set<String> nodeVersions = readVersionsFromNodesInfo(adminClient());
+        assertThat(
+            "All nodes should be running the old cluster version [" + expectedOldVersion + "], but found: " + nodeVersions,
+            nodeVersions,
+            everyItem(equalTo(expectedOldVersion))
+        );
     }
 
     /**
@@ -70,60 +85,20 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
      * Use {@code assumeTrue} to skip the test if required features are not available.
      */
     protected void checkRequiredFeatures() {
-        // default: no additional feature requirements
+        // Default: no additional feature requirements
     }
 
-    public void testIndexingWithLogsEnabledFromTheStart() throws Exception {
-        enableLogsDb();
-        createIndex();
-
-        // before upgrading
-        indexDocumentsAndVerifyResults();
-
-        // verify that logsdb and synthetic source are enabled before proceeding
-        verifyIndexMode(IndexMode.LOGSDB);
-
-        // during upgrade
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
-            indexDocumentsAndVerifyResults();
-        }
-
-        // after everything is upgraded
-        indexDocumentsAndVerifyResults();
+    protected int getNumNodes() {
+        return numNodes;
     }
 
-    public void testIndexingWithLogsEnabledAfterUpgrading() throws Exception {
-        createIndex();
-
-        // before upgrading (this also creates the data stream via lazy initialization)
-        indexDocumentsAndVerifyResults();
-
-        // verify that standard mode is being used
-        verifyIndexMode(IndexMode.STANDARD);
-
-        // during upgrade
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
-            indexDocumentsAndVerifyResults();
-        }
-
-        // enable logsdb
-        enableLogsDb();
-        rolloverDataStream();
-        verifyIndexMode(IndexMode.LOGSDB);
-
-        // after everything is upgraded
-        indexDocumentsAndVerifyResults();
-    }
-
-    private void createIndex() throws Exception {
+    protected void createIndex() throws Exception {
         // data stream name should already be reflective of whats being tested, so template id can be random
         templateId = UUID.randomUUID().toString();
         LogsdbIndexingRollingUpgradeIT.createTemplate(dataStreamName, templateId, template);
     }
 
-    private void enableLogsDb() throws IOException {
+    protected void enableLogsDb() throws IOException {
         // enable logsdb cluster setting
         var request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("""
@@ -136,7 +111,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         assertOK(client().performRequest(request));
     }
 
-    private void rolloverDataStream() throws IOException {
+    protected void rolloverDataStream() throws IOException {
         var request = new Request("POST", "/" + dataStreamName + "/_rollover");
         final Response response = client().performRequest(request);
         assertOK(response);
@@ -183,8 +158,8 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
     }
 
     /**
-     * Generates a string containing a random number of tokens. Tokens are either random length alpha sequences or random integers and are
-     * delimited by spaces.
+     * Generates a string containing a random number of tokens. Tokens are either
+     * random length alpha sequences or random integers and are delimited by spaces.
      */
     private static String randomTokensDelimitedBySpace(int maxTokens, int minCodeUnits, int maxCodeUnits) {
         int numTokens = randomIntBetween(1, maxTokens);
@@ -327,8 +302,11 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         );
     }
 
-    List<String> getMessages() {
-        return messages;
+    protected String getDataStreamName() {
+        return dataStreamName;
     }
 
+    protected List<String> getMessages() {
+        return messages;
+    }
 }

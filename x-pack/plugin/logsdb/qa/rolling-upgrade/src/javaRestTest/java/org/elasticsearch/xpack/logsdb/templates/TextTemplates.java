@@ -5,19 +5,24 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb;
-
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+package org.elasticsearch.xpack.logsdb.templates;
 
 import java.util.Arrays;
 
-public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
+/**
+ * Template configurations for text field type rolling upgrade tests.
+ */
+public final class TextTemplates {
 
-    private static final String MIN_VERSION = "gte_v9.2.0";
-    private static final String DATA_STREAM_NAME_PREFIX = "logs-pattern-text-bwc-test";
+    public static final String DATA_STREAM_NAME_PREFIX = "logs-text-bwc-test";
 
-    private static final String TEMPLATE = """
+    public static final String TEMPLATE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -30,14 +35,19 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolling
                   "type": "double"
                 },
                 "message": {
-                  "type": "pattern_text"
+                  "type": "text"
                 }
               }
             }
         }""";
 
-    private static final String TEMPLATE_WITH_MULTI_FIELD = """
+    public static final String TEMPLATE_WITH_MULTI_FIELD = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -50,7 +60,7 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolling
                   "type": "double"
                 },
                 "message": {
-                  "type": "pattern_text",
+                  "type": "text",
                   "fields": {
                     "kwd": {
                       "type": "keyword"
@@ -61,8 +71,13 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolling
             }
         }""";
 
-    private static final String TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE = """
+    public static final String TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE = """
         {
+            "settings": {
+              "index": {
+                "mapping.source.mode": "synthetic"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -75,7 +90,7 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolling
                   "type": "double"
                 },
                 "message": {
-                  "type": "pattern_text",
+                  "type": "text",
                   "fields": {
                     "kwd": {
                       "type": "keyword",
@@ -87,12 +102,7 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolling
             }
         }""";
 
-    public PatternTextRollingUpgradeIT(String template, String testScenario) {
-        super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> data() {
+    public static Iterable<Object[]> templates() {
         return Arrays.asList(
             new Object[][] {
                 { TEMPLATE, "basic" },
@@ -100,10 +110,4 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolling
                 { TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE, "with-keyword-multi-field-and-ignore-above" } }
         );
     }
-
-    @Override
-    protected void checkRequiredFeatures() {
-        assumeTrue("pattern_text only available from 9.2.0 onward", oldClusterHasFeature(MIN_VERSION));
-    }
-
 }

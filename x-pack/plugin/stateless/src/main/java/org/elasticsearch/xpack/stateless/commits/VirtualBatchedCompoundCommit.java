@@ -917,19 +917,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             + '}';
     }
 
-    public static long calculateBccBlobLength(BatchedCompoundCommit bcc) {
-        long blobLength = 0;
-        for (int i = 0; i < bcc.compoundCommits().size(); i++) {
-            var compoundCommit = bcc.compoundCommits().get(i);
-            if (i == bcc.compoundCommits().size() - 1) {
-                blobLength += compoundCommit.sizeInBytes();
-            } else {
-                blobLength += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
-            }
-        }
-        return blobLength;
-    }
-
     public static ResourceNotFoundException buildResourceNotFoundException(
         ShardId shardId,
         PrimaryTermAndGeneration primaryTermAndGeneration

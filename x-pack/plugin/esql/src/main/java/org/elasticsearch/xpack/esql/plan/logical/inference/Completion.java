@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -20,9 +18,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -34,9 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -45,7 +39,7 @@ import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETIO
 
 public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
 
-    private static final TransportVersion ESQL_INFERENCE_TASK_SETTINGS = TransportVersion.fromName("esql_inference_task_settings");
+    private static final TransportVersion ESQL_COMPLETION_TASK_SETTINGS = TransportVersion.fromName("esql_completion_task_settings");
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
@@ -58,9 +52,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     );
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
-    private static final MapExpression DEFAULT_TASK_SETTINGS = new MapExpression(Source.EMPTY, List.of());
-
-    private static final Set<String> FORBIDDEN_TASK_SETTINGS_KEYS = Set.of("top_n", "return_docs", "return_documents");
+    public static final MapExpression DEFAULT_TASK_SETTINGS = new MapExpression(Source.EMPTY, List.of());
 
     private final Expression prompt;
     private final Attribute targetField;
@@ -105,7 +97,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_TASK_SETTINGS)
+            in.getTransportVersion().supports(ESQL_COMPLETION_TASK_SETTINGS)
                 ? (MapExpression) in.readNamedWriteable(Expression.class)
                 : DEFAULT_TASK_SETTINGS
         );
@@ -116,7 +108,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
-        if (out.getTransportVersion().supports(ESQL_INFERENCE_TASK_SETTINGS)) {
+        if (out.getTransportVersion().supports(ESQL_COMPLETION_TASK_SETTINGS)) {
             out.writeNamedWriteable(taskSettings);
         }
     }
@@ -222,19 +214,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             if (taskSettings.resolved() == false) {
                 failures.add(fail(taskSettings, "task_settings must be fully resolved"));
                 return;
-            }
-            for (EntryExpression entry : taskSettings.entryExpressions()) {
-                Expression keyExpression = entry.key();
-                if (keyExpression.foldable()) {
-                    Object keyValue = keyExpression.fold(FoldContext.small());
-                    String key = keyValue == null
-                        ? "null"
-                        : (keyValue instanceof BytesRef bytesRef ? BytesRefs.toString(bytesRef) : keyValue.toString());
-                    String folded = key.toLowerCase(Locale.ROOT);
-                    if (FORBIDDEN_TASK_SETTINGS_KEYS.contains(folded)) {
-                        failures.add(fail(entry.key(), "task_settings cannot contain [{}]", key));
-                    }
-                }
             }
         }
     }

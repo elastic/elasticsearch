@@ -10,18 +10,28 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
+import java.util.List;
 
 public class CompletionSerializationTests extends AbstractLogicalPlanSerializationTests<Completion> {
 
     @Override
     protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomRowLimit(), randomPrompt(), randomAttribute());
+        return new Completion(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            randomRowLimit(),
+            randomPrompt(),
+            randomAttribute(),
+            randomTaskSettings()
+        );
     }
 
     @Override
@@ -31,15 +41,29 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         Expression rowLimit = instance.rowLimit();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
+        MapExpression taskSettings = instance.taskSettings();
 
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
             case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 5 -> taskSettings = randomValueOtherThan(taskSettings, this::randomTaskSettings);
         }
-        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, instance.taskSettings());
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, taskSettings);
+    }
+
+    private MapExpression randomTaskSettings() {
+        return randomBoolean()
+            ? new MapExpression(Source.EMPTY, List.of())
+            : new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, randomIdentifier()),
+                    Literal.fromDouble(Source.EMPTY, randomDouble())
+                )
+            );
     }
 
     private Literal randomInferenceId() {

@@ -112,12 +112,6 @@ public class Verifier {
 
             planCheckers.forEach(c -> c.accept(p, failures));
 
-            p.forEachExpression(e -> {
-                if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(failures);
-                }
-            });
-
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkUnsupportedAttributeRenaming(p, failures);

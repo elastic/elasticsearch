@@ -3825,10 +3825,61 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(taskSettings.get("temperature"), equalTo(Literal.fromDouble(null, 0.5)));
     }
 
+    public void testCompletionWithEmptyTaskSettings() {
+        var plan = as(
+            processingCommand("COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {} }"),
+            Completion.class
+        );
+
+        assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
+    }
+
+    public void testCompletionWithMultipleTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"foo\": \"bar\", \"baz\": \"qux\"} }"
+            ),
+            Completion.class
+        );
+
+        MapExpression taskSettings = plan.taskSettings();
+        assertThat(taskSettings.get("foo"), equalTo(literalString("bar")));
+        assertThat(taskSettings.get("baz"), equalTo(literalString("qux")));
+    }
+
+    public void testCompletionWithNestedTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"nested_map\": {\"foo\": \"bar\"}} }"
+            ),
+            Completion.class
+        );
+
+        MapExpression taskSettings = plan.taskSettings();
+        MapExpression nestedMap = (MapExpression) taskSettings.get("nested_map");
+        assertThat(nestedMap.get("foo"), equalTo(literalString("bar")));
+    }
+
     public void testCompletionInvalidTaskSettingsType() {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": 3 }",
             "Option [task_settings] must be a map, found [3]"
+        );
+    }
+
+    public void testCompletionTaskSettingsNull() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
+            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
+        );
+    }
+
+    public void testCompletionTaskSettingsNotAMap() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": \"not_a_valid_map\" }",
+            "Option [task_settings] must be a map, found [\"not_a_valid_map\"]"
         );
     }
 

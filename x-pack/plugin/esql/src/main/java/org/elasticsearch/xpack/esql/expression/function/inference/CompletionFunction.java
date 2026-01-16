@@ -7,15 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,11 +18,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -57,19 +48,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The pre-optimizer then evaluates this function using {@code InferenceFunctionEvaluator} and
  * replaces it with a literal result.
  */
-public class CompletionFunction extends InferenceFunction<CompletionFunction> implements PostAnalysisVerificationAware {
-
-    private static final MapExpression DEFAULT_TASK_SETTINGS = new MapExpression(Source.EMPTY, List.of());
-
-    private static final Set<String> FORBIDDEN_TASK_SETTINGS_KEYS = Set.of("top_n", "return_docs", "return_documents");
+public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     private final Expression inferenceId;
     private final Expression prompt;
     private final MapExpression taskSettings;
-
-    public CompletionFunction(Source source, Expression prompt, Expression inferenceId) {
-        this(source, prompt, inferenceId, DEFAULT_TASK_SETTINGS);
-    }
 
     public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings) {
         super(source, List.of(prompt, inferenceId, taskSettings));
@@ -154,28 +137,6 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> im
     @Override
     public CompletionFunction withInferenceResolutionError(String inferenceId, String error) {
         return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), taskSettings);
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        if (taskSettings != null && taskSettings.resolved() == false) {
-            failures.add(fail(taskSettings, "task_settings must be fully resolved"));
-            return;
-        }
-        if (taskSettings != null) {
-            for (EntryExpression entry : taskSettings.entryExpressions()) {
-                Expression keyExpression = entry.key();
-                if (keyExpression.foldable()) {
-                    Object keyValue = keyExpression.fold(FoldContext.small());
-                    String key = keyValue == null
-                        ? "null"
-                        : (keyValue instanceof BytesRef bytesRef ? BytesRefs.toString(bytesRef) : keyValue.toString());
-                    if (FORBIDDEN_TASK_SETTINGS_KEYS.contains(key.toLowerCase(Locale.ROOT))) {
-                        failures.add(fail(entry.key(), "task_settings cannot contain [{}]", key));
-                    }
-                }
-            }
-        }
     }
 
     @Override

@@ -330,18 +330,6 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testRecoveredOperations
   issue: https://github.com/elastic/elasticsearch/issues/140665
-- class: org.elasticsearch.xpack.esql.parser.SetParserTests
-  method: testSetUnmappedFieldsWrongValue
-  issue: https://github.com/elastic/elasticsearch/issues/140673
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInOrOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140750
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140751
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInAndNotOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140752
 - class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140763

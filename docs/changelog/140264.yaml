@@ -1,5 +1,5 @@
 pr: 140264
-summary: "[Native] BBQ Int4 to 1-bit dot product functions"
+summary: "New optimized (native) functions for BBQ Int4 to 1-bit scoring"
 area: Vector Search
 type: enhancement
 issues: []

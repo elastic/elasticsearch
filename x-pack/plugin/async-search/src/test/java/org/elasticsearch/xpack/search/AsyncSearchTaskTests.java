@@ -268,16 +268,47 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 task.getSearchProgressActionListener()
                     .onPartialReduce(shards.subList(i, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-                assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false);
+                assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false, false);
             }
             task.getSearchProgressActionListener()
                 .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, false);
             ActionListener.respondAndRelease(
                 (AsyncSearchTask.Listener) task.getProgressListener(),
                 newSearchResponse(totalShards, totalShards, numSkippedShards)
             );
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, false);
+        }
+    }
+
+    public void testCompletionTimeoutAndSuppressPartialResults() throws InterruptedException {
+        try (AsyncSearchTask task = createAsyncSearchTask()) {
+            int numShards = randomIntBetween(0, 10);
+            List<SearchShard> shards = new ArrayList<>();
+            for (int i = 0; i < numShards; i++) {
+                shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+            }
+            List<SearchShard> skippedShards = new ArrayList<>();
+            int numSkippedShards = randomIntBetween(0, 10);
+            for (int i = 0; i < numSkippedShards; i++) {
+                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+            }
+            int totalShards = numShards + numSkippedShards;
+            task.getSearchProgressActionListener()
+                .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+            for (int i = 0; i < numShards; i++) {
+                task.getSearchProgressActionListener()
+                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+                assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false, true);
+            }
+            task.getSearchProgressActionListener()
+                .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, true);
+            ActionListener.respondAndRelease(
+                (AsyncSearchTask.Listener) task.getProgressListener(),
+                newSearchResponse(totalShards, totalShards, numSkippedShards)
+            );
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, false);
         }
     }
 
@@ -299,7 +330,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 task.getSearchProgressActionListener()
                     .onPartialReduce(shards.subList(i, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-                assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false);
+                assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false, false);
             }
             task.getSearchProgressActionListener()
                 .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
@@ -312,12 +343,21 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     .onFetchFailure(i, new SearchShardTarget("0", new ShardId("0", "0", 1), null), failure);
                 shardSearchFailures[i] = new ShardSearchFailure(failure);
             }
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, false);
             ActionListener.respondAndRelease(
                 (AsyncSearchTask.Listener) task.getProgressListener(),
                 newSearchResponse(totalShards, totalShards - numFetchFailures, numSkippedShards, shardSearchFailures)
             );
-            assertCompletionListeners(task, totalShards, totalShards - numFetchFailures, numSkippedShards, numFetchFailures, false, false);
+            assertCompletionListeners(
+                task,
+                totalShards,
+                totalShards - numFetchFailures,
+                numSkippedShards,
+                numFetchFailures,
+                false,
+                false,
+                false
+            );
         }
     }
 
@@ -339,7 +379,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 task.getSearchProgressActionListener()
                     .onPartialReduce(shards.subList(0, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-                assertCompletionListeners(task, totalShards, i + 1 + numSkippedShards, numSkippedShards, 0, true, false);
+                assertCompletionListeners(task, totalShards, i + 1 + numSkippedShards, numSkippedShards, 0, true, false, false);
             }
             task.getSearchProgressActionListener()
                 .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
@@ -348,9 +388,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 task.getSearchProgressActionListener()
                     .onFetchFailure(i, new SearchShardTarget("0", new ShardId("0", "0", 1), null), new IOException("boum"));
             }
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, false);
             ((AsyncSearchTask.Listener) task.getProgressListener()).onFailure(new IOException("boum"));
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, true);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, true, false);
         }
     }
 
@@ -372,7 +412,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
             listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
-            assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true, true);
+            assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true, true, false);
         }
     }
 
@@ -466,7 +506,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
             ActionListener.respondAndRelease((AsyncSearchTask.Listener) task.getProgressListener(), searchResponse);
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, false);
         }
     }
 
@@ -489,7 +529,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int expectedSkippedShards,
         int expectedShardFailures,
         boolean isPartial,
-        boolean totalFailureExpected
+        boolean totalFailureExpected,
+        boolean partialResultsSuppressed
     ) throws InterruptedException {
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
@@ -511,6 +552,12 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     assertNotNull(resp.getFailure());
                 } else {
                     assertNull(resp.getFailure());
+                }
+                if (partialResultsSuppressed && resp.isPartial()) {
+                    assertThat(resp.getSearchResponse().getHits().getTotalHits().value(), equalTo(0L));
+                } else if (partialResultsSuppressed) {
+                    // if we're asserting this way, we're also injecting hits during partial reduces
+                    assertThat(resp.getSearchResponse().getHits().getTotalHits().value(), equalTo(1L));
                 }
                 latch.countDown();
             }), TimeValue.timeValueMillis(1)));

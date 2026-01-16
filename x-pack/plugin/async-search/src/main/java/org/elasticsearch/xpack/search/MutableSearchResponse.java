@@ -238,7 +238,12 @@ class MutableSearchResponse extends AbstractRefCounted {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      * This method also restores the response headers in the current thread context when requested, if the final response is available.
      */
-    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime, boolean restoreResponseHeaders) {
+    synchronized AsyncSearchResponse toAsyncSearchResponse(
+        AsyncSearchTask task,
+        long expirationTime,
+        boolean restoreResponseHeaders,
+        boolean returnPartialResultsInResponse
+    ) {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
@@ -255,7 +260,9 @@ class MutableSearchResponse extends AbstractRefCounted {
             // partial results branch
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(task);
             try {
-                if (searchResponseMerger == null) { // local-only search or CCS MRT=false
+                if (returnPartialResultsInResponse == false) {
+                    searchResponse = buildResponse(task.getStartTimeNanos(), null);
+                } else if (searchResponseMerger == null) { // local-only search or CCS MRT=false
                     /*
                      * Build the response, reducing aggs if we haven't already and
                      * storing the result of the reduction, so we won't have to reduce
@@ -276,13 +283,13 @@ class MutableSearchResponse extends AbstractRefCounted {
                     reducedAggsSource = () -> reducedAggs;
                     SearchResponse partialAggsSearchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
                     try {
-                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse);
+                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse, returnPartialResultsInResponse);
                     } finally {
                         partialAggsSearchResponse.decRef();
                     }
                 } else {
                     // For CCS MRT=true when the local cluster has reported back full results (via updateResponseMinimizeRoundtrips)
-                    searchResponse = getMergedResponse(searchResponseMerger);
+                    searchResponse = getMergedResponse(searchResponseMerger, returnPartialResultsInResponse);
                 }
             } finally {
                 if (searchResponseMerger != null) {
@@ -326,11 +333,15 @@ class MutableSearchResponse extends AbstractRefCounted {
         return task.getSearchResponseMergerSupplier().get();
     }
 
-    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
-        return getMergedResponse(merger, null);
+    private SearchResponse getMergedResponse(SearchResponseMerger merger, boolean returnPartialResultsInResponse) {
+        return getMergedResponse(merger, null, returnPartialResultsInResponse);
     }
 
-    private SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
+    private SearchResponse getMergedResponse(
+        SearchResponseMerger merger,
+        SearchResponse localPartialAggsOnly,
+        boolean returnPartialResultsInResponse
+    ) {
         if (clusterResponses != null) {
             for (SearchResponse response : clusterResponses) {
                 merger.add(response);
@@ -339,7 +350,7 @@ class MutableSearchResponse extends AbstractRefCounted {
         if (localPartialAggsOnly != null) {
             merger.add(localPartialAggsOnly);
         }
-        return merger.getMergedResponse(clusters);
+        return merger.getMergedResponse(clusters, returnPartialResultsInResponse);
     }
 
     /**

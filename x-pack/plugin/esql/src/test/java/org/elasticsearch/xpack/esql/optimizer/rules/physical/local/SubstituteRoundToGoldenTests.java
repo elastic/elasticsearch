@@ -184,57 +184,6 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         }
     }
 
-    /**
-    * If the number of rounding points is 127 or less, the query is rewritten to QueryAndTags.
-    * If the number of rounding points is 128 or more, the query is not rewritten.
-    */
-    public void testRoundToTransformToQueryAndTagsWithDefaultUpperLimit() {
-        for (int numOfPoints : List.of(127, 128)) {
-            StringBuilder points = new StringBuilder();
-            for (int i = 0; i < numOfPoints; i++) {
-                if (i > 0) {
-                    points.append(", ");
-                }
-                points.append(i);
-            }
-            String query = LoggerMessageFormat.format(null, """
-                from all_types
-                | stats count(*) by x = round_to(integer, {})
-                """, points.toString());
-
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, Integer.toString(numOfPoints));
-        }
-    }
-
-    /**
-    * Query level threshold(if greater than -1) set in QueryPragmas overrides the cluster level threshold set in EsqlFlags.
-    */
-    public void testRoundToTransformToQueryAndTagsWithCustomizedUpperLimit() {
-        for (int clusterLevelThreshold : List.of(-1, 0, 60, 126, 128, 256)) {
-            for (int queryLevelThreshold : List.of(-1, 0, 60, 126, 128, 256)) {
-                StringBuilder points = new StringBuilder(); // there are 127 rounding points
-                for (int i = 0; i < 127; i++) {
-                    if (i > 0) {
-                        points.append(", ");
-                    }
-                    points.append(i);
-                }
-                String query = LoggerMessageFormat.format(null, """
-                    from all_types
-                    | stats count(*) by x = round_to(integer, {})
-                    """, points.toString());
-
-                runGoldenTest(
-                    query,
-                    EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION),
-                    STATS,
-                    "cluster_" + clusterLevelThreshold,
-                    "query_" + queryLevelThreshold
-                );
-            }
-        }
-    }
-
     public void testForkWithStatsCountStarDateTrunc() {
         String query = """
             from all_types

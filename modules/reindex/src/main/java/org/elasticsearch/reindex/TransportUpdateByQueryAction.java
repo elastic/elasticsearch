@@ -1,12 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
-
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
@@ -26,7 +17,6 @@ import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -49,7 +39,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ClusterService clusterService;
     private final UpdateByQueryMetrics updateByQueryMetrics;
 
-    @Inject
     public TransportUpdateByQueryAction(
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -69,6 +58,25 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
+        // ✅ Convert doc to script if needed
+        if (request.getScript() == null && request.getDoc() != null) {
+            StringBuilder scriptBuilder = new StringBuilder();
+            for (Map.Entry<String, Object> entry : request.getDoc().entrySet()) {
+                scriptBuilder.append("ctx._source.")
+                             .append(entry.getKey())
+                             .append(" = params.")
+                             .append(entry.getKey())
+                             .append("; ");
+            }
+            Script generatedScript = new Script(
+                Script.DEFAULT_SCRIPT_TYPE,
+                Script.DEFAULT_SCRIPT_LANG,
+                scriptBuilder.toString().trim(),
+                request.getDoc()
+            );
+            request.setScript(generatedScript);
+        }
+
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
         BulkByScrollParallelizationHelper.startSlicedAction(
@@ -104,9 +112,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         );
     }
 
-    /**
-     * Simple implementation of update-by-query using scrolling and bulk.
-     */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
         AsyncIndexBySearchAction(
@@ -121,7 +126,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ) {
             super(
                 task,
-                // use sequence number powered optimistic concurrency control unless requested
                 request.getSearchRequest().source() != null && Boolean.TRUE.equals(request.getSearchRequest().source().version()),
                 true,
                 true,
@@ -191,7 +195,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
             @Override
             protected void updateRequest(RequestWrapper<?> request, UpdateByQueryMetadata metadata) {
-                // do nothing
+                // no-op
             }
         }
     }

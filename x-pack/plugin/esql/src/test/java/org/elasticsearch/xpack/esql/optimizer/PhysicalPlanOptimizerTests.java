@@ -3023,6 +3023,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"terms":{"_tier":["data_hot","data_warm"],"boost":0.0}}
      */
     public void testPushDownMetadataTierInOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier IN ("data_hot", "data_warm")
@@ -3048,6 +3049,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"terms":{"_tier":["data_hot","data_warm"],"boost":0.0}}
      */
     public void testPushDownMetadataTierInOrOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier == "data_hot" OR _tier == "data_warm"
@@ -3104,6 +3106,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     ],"boost":1.0}}
      */
     public void testPushDownMetadataTierInAndNotOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier != "data_hot" AND _tier != "data_warm"

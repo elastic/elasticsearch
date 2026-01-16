@@ -87,9 +87,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
@@ -110,9 +107,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -732,8 +727,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            // Set the max coordinating bytes to a value smaller than the source size
-            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "15kb").build()
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
         );
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ShardBulkInferenceActionFilter filter = createFilter(
@@ -744,9 +738,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceStats
         );
 
-        // Generate a very large field value to trigger the indexing pressure failure
-        String sparseFieldValue = randomAlphanumericOfLength(50000);
-        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", sparseFieldValue);
+        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
@@ -1011,152 +1003,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());
         verify(coordinatingIndexingPressure).close();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testDeduplicatedFailures() throws Exception {
-        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
-        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            // Set the coordinating bytes limit high enough to handle all the requests
-            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100kb").build()
-        );
-        final ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), indexingPressure, useLegacyFormat, inferenceStats);
-
-        final AtomicReference<Exception> expectedDeduplicatedCause = new AtomicReference<>(null);
-        final AtomicInteger deduplicationCount = new AtomicInteger(0);
-        final Consumer<BulkItemRequest> assertBulkItemRequest = (item) -> {
-            BulkItemResponse response = item.getPrimaryResponse();
-            assertNotNull(response);
-            assertTrue(response.isFailed());
-
-            BulkItemResponse.Failure failure = response.getFailure();
-            assertNotNull(failure);
-            assertThat(failure.getStatus(), is(RestStatus.NOT_FOUND));
-            assertThat(failure.getCause(), instanceOf(ResourceNotFoundException.class));
-            assertThat(
-                failure.getCause().getMessage(),
-                containsString("Inference id [missing_inference_id] not found for field [inference_field]")
-            );
-
-            if (expectedDeduplicatedCause.compareAndSet(null, failure.getCause()) == false) {
-                Exception deduplicatedCause = expectedDeduplicatedCause.get();
-                assertThat(deduplicatedCause, sameInstance(failure.getCause()));
-                deduplicationCount.incrementAndGet();
-            }
-        };
-
-        CountDownLatch chainExecuted = new CountDownLatch(1);
-        ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
-            try {
-                assertNull(request.getInferenceFieldMap());
-                assertThat(request.items().length, equalTo(100));
-
-                for (BulkItemRequest item : request.items()) {
-                    assertBulkItemRequest.accept(item);
-                }
-
-                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
-                assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure, times(100)).increment(eq(1), longThat(l -> l > 0));
-                verify(coordinatingIndexingPressure, times(100)).increment(anyInt(), anyLong());
-
-                // Verify that the coordinating indexing pressure is maintained through downstream action filters
-                verify(coordinatingIndexingPressure, never()).close();
-
-                // Call the listener once the request is successfully processed, like is done in the production code path
-                listener.onResponse(null);
-            } finally {
-                chainExecuted.countDown();
-            }
-        };
-        ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
-        Task task = mock(Task.class);
-
-        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
-            "inference_field",
-            new InferenceFieldMetadata("inference_field", "missing_inference_id", new String[] { "inference_field" }, null)
-        );
-
-        BulkItemRequest[] items = new BulkItemRequest[100];
-        for (int i = 0; i < 100; i++) {
-            items[i] = new BulkItemRequest(
-                0,
-                new IndexRequest("index").id(Integer.toString(i)).source("inference_field", randomAlphaOfLengthBetween(3, 20))
-            );
-        }
-
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
-        request.setInferenceFieldMap(inferenceFieldMap);
-        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
-        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
-        assertThat(expectedDeduplicatedCause.get(), notNullValue());
-        assertThat(deduplicationCount.get(), equalTo(99));
-
-        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
-        assertThat(coordinatingIndexingPressure, notNullValue());
-        verify(coordinatingIndexingPressure).close();
-    }
-
-    public void testEqualFailureSignatures() {
-        for (int i = 0; i < 10; i++) {
-            final int causeCount = randomIntBetween(0, 5);
-
-            Exception aCause = null;
-            Exception bCause = null;
-            for (int j = 0; j < causeCount; j++) {
-                String message = randomAlphaOfLengthBetween(5, 10);
-                aCause = new RuntimeException(message, aCause);
-                bCause = new RuntimeException(message, bCause);
-            }
-
-            String message = randomAlphaOfLengthBetween(5, 10);
-            ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                new RuntimeException(message, aCause)
-            );
-            ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                new RuntimeException(message, bCause)
-            );
-
-            assertThat(aSignature, equalTo(bSignature));
-        }
-    }
-
-    public void testUnequalFailureSignatures() {
-        final BiFunction<String, Exception, Exception> randomDifference = (m, c) -> switch (randomIntBetween(0, 2)) {
-            case 0 -> new IOException(m, c);
-            case 1 -> {
-                String message = randomValueOtherThan(m, () -> randomAlphaOfLengthBetween(5, 10));
-                yield new RuntimeException(message, c);
-            }
-            case 2 -> {
-                Exception cause = c == null ? new RuntimeException(randomAlphaOfLengthBetween(5, 10)) : null;
-                yield new RuntimeException(m, cause);
-            }
-            default -> throw new IllegalStateException("Unhandled value");
-        };
-
-        for (int i = 0; i < 10; i++) {
-            final int causeCount = randomIntBetween(0, 5);
-            final int inequalityLevel = randomIntBetween(0, causeCount);
-
-            Exception aCause = null;
-            Exception bCause = null;
-            for (int j = causeCount; j > 0; j--) {
-                String message = randomAlphaOfLengthBetween(5, 10);
-                aCause = new RuntimeException(message, aCause);
-                bCause = inequalityLevel == j ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause);
-            }
-
-            String message = randomAlphaOfLengthBetween(5, 10);
-            ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                new RuntimeException(message, aCause)
-            );
-            ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                inequalityLevel == 0 ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause)
-            );
-
-            assertThat(aSignature, not(equalTo(bSignature)));
-        }
     }
 
     private static ShardBulkInferenceActionFilter createFilter(

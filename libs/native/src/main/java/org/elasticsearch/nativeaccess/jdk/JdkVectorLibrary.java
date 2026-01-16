@@ -15,6 +15,7 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
@@ -35,12 +36,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle dot7u$mh;
     static final MethodHandle dot7uBulk$mh;
     static final MethodHandle dot7uBulkWithOffsets$mh;
+
     static final MethodHandle sqr7u$mh;
     static final MethodHandle sqr7uBulk$mh;
     static final MethodHandle sqr7uBulkWithOffsets$mh;
+
     static final MethodHandle dotf32$mh;
     static final MethodHandle dotf32Bulk$mh;
     static final MethodHandle dotf32BulkWithOffsets$mh;
+
     static final MethodHandle sqrf32$mh;
     static final MethodHandle sqrf32Bulk$mh;
     static final MethodHandle sqrf32BulkWithOffsets$mh;
@@ -102,15 +106,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 dot7u$mh = bindFunction("vec_dot7u", caps, intSingle);
                 dot7uBulk$mh = bindFunction("vec_dot7u_bulk", caps, bulk);
                 dot7uBulkWithOffsets$mh = bindFunction("vec_dot7u_bulk_offsets", caps, bulkOffsets);
+
                 sqr7u$mh = bindFunction("vec_sqr7u", caps, intSingle);
                 sqr7uBulk$mh = bindFunction("vec_sqr7u_bulk", caps, bulk);
                 sqr7uBulkWithOffsets$mh = bindFunction("vec_sqr7u_bulk_offsets", caps, bulkOffsets);
+
                 dotf32$mh = bindFunction("vec_dotf32", caps, floatSingle);
                 dotf32Bulk$mh = bindFunction("vec_dotf32_bulk", caps, bulk);
                 dotf32BulkWithOffsets$mh = bindFunction("vec_dotf32_bulk_offsets", caps, bulkOffsets);
+
                 sqrf32$mh = bindFunction("vec_sqrf32", caps, floatSingle);
                 sqrf32Bulk$mh = bindFunction("vec_sqrf32_bulk", caps, bulk);
                 sqrf32BulkWithOffsets$mh = bindFunction("vec_sqrf32_bulk_offsets", caps, bulkOffsets);
+
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -145,6 +153,76 @@ public final class JdkVectorLibrary implements VectorLibrary {
     }
 
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
+
+        private static long callSingleDistanceLong(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
+            try {
+                var aIsNative = a.isNative();
+                var bIsNative = b.isNative();
+                if (aIsNative && bIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (long) mh.invokeExact(a.reinterpret(arena, null), b.reinterpret(arena, null), length);
+                    }
+                } else if (aIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (long) mh.invokeExact(a.reinterpret(arena, null), b, length);
+                    }
+                } else if (bIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (long) mh.invokeExact(a, b.reinterpret(arena, null), length);
+                    }
+                }
+                return (long) mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static int callSingleDistanceInt(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
+            try {
+                var aIsNative = a.isNative();
+                var bIsNative = b.isNative();
+                if (aIsNative && bIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (int) mh.invokeExact(a.reinterpret(arena, null), b.reinterpret(arena, null), length);
+                    }
+                } else if (aIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (int) mh.invokeExact(a.reinterpret(arena, null), b, length);
+                    }
+                } else if (bIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (int) mh.invokeExact(a, b.reinterpret(arena, null), length);
+                    }
+                }
+                return (int) mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float callSingleDistanceFloat(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
+            try {
+                var aIsNative = a.isNative();
+                var bIsNative = b.isNative();
+                if (aIsNative && bIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (float) mh.invokeExact(a.reinterpret(arena, null), b.reinterpret(arena, null), length);
+                    }
+                } else if (aIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (float) mh.invokeExact(a.reinterpret(arena, null), b, length);
+                    }
+                } else if (bIsNative) {
+                    try (var arena = Arena.ofConfined()) {
+                        return (float) mh.invokeExact(a, b.reinterpret(arena, null), length);
+                    }
+                }
+                return (float) mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         /**
          * Computes the dot product of given unsigned int7 byte vectors.
          *
@@ -157,7 +235,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return dot7u(a, b, length);
+            return callSingleDistanceInt(dot7u$mh, a, b, length);
         }
 
         static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -191,7 +269,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return sqr7u(a, b, length);
+            return callSingleDistanceInt(sqr7u$mh, a, b, length);
         }
 
         static void squareDistance7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -223,7 +301,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
-            return dotf32(a, b, elementCount);
+            return callSingleDistanceFloat(dotf32$mh, a, b, elementCount);
         }
 
         static void dotProductF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -257,7 +335,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
-            return sqrf32(a, b, elementCount);
+            return callSingleDistanceFloat(sqrf32$mh, a, b, elementCount);
         }
 
         static void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
@@ -287,14 +365,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static int dot7u(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (int) dot7u$mh.invokeExact(a, b, length);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
         private static void dot7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
             try {
                 dot7uBulk$mh.invokeExact(a, b, length, count, result);
@@ -314,14 +384,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         ) {
             try {
                 dot7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static int sqr7u(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (int) sqr7u$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -351,14 +413,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float dotf32(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (float) dotf32$mh.invokeExact(a, b, length);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
         private static void dotf32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
             try {
                 dotf32Bulk$mh.invokeExact(a, b, length, count, result);
@@ -378,14 +432,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         ) {
             try {
                 dotf32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float sqrf32(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (float) sqrf32$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }

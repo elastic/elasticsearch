@@ -164,6 +164,7 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
+    @FunctionalInterface
     public interface SortedKeyedValues {
         BytesRef next() throws IOException;
     }

@@ -69,7 +69,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    public void testStatusApiConsistency() {
+    public void testStatusApiConsistency() throws Exception {
         createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -87,7 +87,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo").get().getSnapshots();
         assertThat(snapshotInfos.size(), equalTo(1));
-        SnapshotInfo snapshotInfo = snapshotInfos.getFirst();
+        SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
@@ -96,7 +96,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getSnapshots();
         assertThat(snapshotStatus.size(), equalTo(1));
-        final SnapshotStatus snStatus = snapshotStatus.getFirst();
+        final SnapshotStatus snStatus = snapshotStatus.get(0);
         assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
         assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
@@ -125,7 +125,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .setSnapshots("test-snap")
                 .get()
                 .getSnapshots()
-                .getFirst()
+                .get(0)
                 .getState()
         );
 
@@ -169,7 +169,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo snapshotInfo = createFullSnapshot("test-repo", "test-snap");
 
         logger.info("--> delete shard-level snap-${uuid}.dat file for one shard in this snapshot to simulate concurrent delete");
-        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(snapshotInfo.indices().getFirst()).getId();
+        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(snapshotInfo.indices().get(0)).getId();
         IOUtils.rm(
             repoPath.resolve("indices")
                 .resolve(indexRepoId)
@@ -201,7 +201,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
-        final SnapshotInfo found = snapshotInfos.getFirst();
+        final SnapshotInfo found = snapshotInfos.get(0);
         assertThat(found.snapshotId(), is(snapshotInfo.snapshotId()));
         assertThat(found.state(), is(SnapshotState.SUCCESS));
         assertThat(found.indexSnapshotDetails(), anEmptyMap());
@@ -315,7 +315,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
     public void testGetSnapshotsNoRepos() {
         ensureGreen();
-        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "_all")
+        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, new String[] { "_all" })
             .setSnapshots(randomFrom("_all", "*"))
             .get();
 
@@ -460,10 +460,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         List<SnapshotInfo> snapshotInfoList = response1.getSnapshots();
         assertEquals(1, snapshotInfoList.size());
-        SnapshotInfo snapshotInfo = snapshotInfoList.getFirst();
+        SnapshotInfo snapshotInfo = snapshotInfoList.get(0);
         assertEquals(SnapshotState.IN_PROGRESS, snapshotInfo.state());
 
-        SnapshotStatus snapshotStatus = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT).get().getSnapshots().getFirst();
+        SnapshotStatus snapshotStatus = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT).get().getSnapshots().get(0);
         assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getTotalShards()));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
@@ -503,7 +503,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots(snapshot)
             .get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
-        assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().getFirst().getState());
+        assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
     }
 
     public void testGetSnapshotsRequest() throws Exception {
@@ -558,7 +558,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots(randomFrom("_all", "_current", "snap-on-*", "*-on-empty-repo", "snap-on-empty-repo"))
             .get();
         assertEquals(1, getSnapshotsResponse.getSnapshots().size());
-        assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().getFirst().snapshotId().getName());
+        assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
         unblockNode(repositoryName, initialBlockedNode); // unblock node
         startDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
 
@@ -601,7 +601,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         if (randomBoolean()) {
             // use _current plus the individual names of the finished snapshots
             snapshotsToGet.add("_current");
-            snapshotsToGet.addAll(Arrays.asList(snapshotNames).subList(0, numSnapshots - 1));
+            for (int i = 0; i < numSnapshots - 1; i++) {
+                snapshotsToGet.add(snapshotNames[i]);
+            }
         } else {
             snapshotsToGet.add("_all");
         }
@@ -802,9 +804,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .get()
                 .getSnapshots();
             assertThat(snapshotStatus, hasSize(1));
-            assertEquals("test-snap", snapshotStatus.getFirst().getSnapshot().getSnapshotId().getName());
+            assertEquals("test-snap", snapshotStatus.get(0).getSnapshot().getSnapshotId().getName());
             // a timeout of a node-level request results in a successful response but without node-level details, so this checks no timeout:
-            assertThat(snapshotStatus.getFirst().getShards().getFirst().getStats().getTotalFileCount(), greaterThan(0));
+            assertThat(snapshotStatus.get(0).getShards().get(0).getStats().getTotalFileCount(), greaterThan(0));
             assertFalse(snapshotResponseFuture.isDone());
         } finally {
             unblockAllDataNodes("test-repo");
@@ -822,7 +824,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .setSnapshots(snapshotName)
                 .get()
                 .getSnapshots()
-                .getFirst();
+                .get(0);
         } catch (SnapshotMissingException e) {
             throw new AssertionError(e);
         }

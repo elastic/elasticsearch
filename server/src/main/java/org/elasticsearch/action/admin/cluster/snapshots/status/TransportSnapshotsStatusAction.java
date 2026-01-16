@@ -314,21 +314,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     // Visible for testing
     SnapshotIndexShardStage convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState shardState) {
-        switch (shardState) {
-            case QUEUED -> {
-                return SnapshotIndexShardStage.INIT;
-            }
-            case FAILED, ABORTED, MISSING -> {
-                return SnapshotIndexShardStage.FAILURE;
-            }
-            case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL -> {
-                return SnapshotIndexShardStage.STARTED;
-            }
-            case SUCCESS -> {
-                return SnapshotIndexShardStage.DONE;
-            }
-            default -> throw new AssertionError("Unrecognised shard state");
-        }
+        return switch (shardState) {
+            case QUEUED -> SnapshotIndexShardStage.INIT;
+            case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
+            case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL -> SnapshotIndexShardStage.STARTED;
+            case SUCCESS -> SnapshotIndexShardStage.DONE;
+        };
     }
 
     private void loadRepositoryData(

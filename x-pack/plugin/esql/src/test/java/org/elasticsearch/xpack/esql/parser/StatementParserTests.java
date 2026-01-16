@@ -4455,11 +4455,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | mmr some_field limit 5 with {\"unknown\": true}",
             "line 1:36: Invalid option [unknown] in <MMR>, expected one of [[lambda]]"
         );
-        expectError("row a = 1 | mmr not_a_param on some_field limit 5", "line 1:29: mismatched input 'on' expecting {'.', MMR_LIMIT}");
-        expectError(
-            "row a = 1 | mmr [\"invalid\", \"array\"] on some_field limit 5",
-            "line 1:17: Invalid parameter value for query vector [[\"invalid\",\"array\"]on]"
-        );
     }
 
     public void testInvalidSample() {

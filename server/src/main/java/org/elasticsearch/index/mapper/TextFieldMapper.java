@@ -22,7 +22,11 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
@@ -35,6 +39,7 @@ import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -1072,6 +1077,18 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                 };
             }
+            if (syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
+                return new ConditionalBlockLoaderWithIgnoreField(
+                    syntheticSourceDelegate.name(),
+                    syntheticSourceDelegate.blockLoader(blContext),
+                    nonDelegatingBlockLoader(blContext)
+                );
+            } else {
+                return nonDelegatingBlockLoader(blContext);
+            }
+        }
+
+        private BlockLoader nonDelegatingBlockLoader(BlockLoaderContext blContext) {
             /*
              * If this is a sub-text field try and return the parent's loader. Text
              * fields will always be slow to load and if the parent is exact then we
@@ -1108,6 +1125,75 @@ public final class TextFieldMapper extends FieldMapper {
 
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        /**
+         * A {@link BlockLoader.ConditionalBlockLoader} that checks whether the prefer field exists in the _ignore field.
+         * If the prefer field's term does not exist in the _ignore field, the prefer loader is used for all documents.
+         * If the term exists in the _ignore field, the loader checks each document: if the term appears in the _ignore field
+         * for a doc, the fallback loader is used for that document; otherwise use the prefer loader.
+         */
+        public static final class ConditionalBlockLoaderWithIgnoreField extends BlockLoader.ConditionalBlockLoader {
+            private LeafReaderContext lastContext;
+            private DocIdSetIterator postings;
+            private final String preferField;
+
+            public ConditionalBlockLoaderWithIgnoreField(String preferField, BlockLoader preferLoader, BlockLoader fallbackLoader) {
+                super(preferLoader, fallbackLoader);
+                this.preferField = preferField;
+            }
+
+            private DocIdSetIterator loadPostings(LeafReaderContext context) throws IOException {
+                if (context.reader().getFieldInfos().fieldInfo(preferField) == null) {
+                    // the prefer_field missing or hidden; use fallback loader for all docs
+                    return DocIdSetIterator.all(context.reader().maxDoc());
+                }
+                Terms terms = context.reader().terms(IgnoredFieldMapper.NAME);
+                // the _ignore field might be hidden by FLS, unwrap the leaf reader
+                if (terms == null) {
+                    SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
+                    if (segmentReader == null) {
+                        // can't unwrap the leaf reader so use the fallback for all docs
+                        return DocIdSetIterator.all(context.reader().maxDoc());
+                    }
+                    terms = segmentReader.terms(IgnoredFieldMapper.NAME);
+                }
+                if (terms == null) {
+                    // the _ignore field does not exist, use the prefer loader for all docs
+                    return null;
+                }
+                TermsEnum iterator = terms.iterator();
+                if (iterator.seekExact(new BytesRef(preferField))) {
+                    return iterator.postings(null, 0);
+                }
+                // the prefer field does not exist in the _ignore field, use the prefer loader for all docs
+                return null;
+            }
+
+            @Override
+            protected boolean canUsePreferLoaderForLeaf(LeafReaderContext context) throws IOException {
+                if (lastContext != context) {
+                    lastContext = context;
+                    postings = loadPostings(context);
+                    if (postings != null) {
+                        postings.nextDoc();
+                    }
+                }
+                return postings == null || postings.docID() == DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            protected boolean canUsePreferLoaderForDoc(int docId) throws IOException {
+                if (postings == null) {
+                    return true;
+                }
+                int current = postings.docID();
+                if (current < docId) {
+                    return postings.advance(docId) > docId;
+                } else {
+                    return current > docId;
+                }
+            }
         }
 
         FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {

@@ -16,7 +16,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 ;
 
 last_over_time_of_integer_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -52,7 +52,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_of_integer_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (network.eth0.currently_connected_clients))
 | SORT step, cluster | LIMIT 10;
@@ -88,7 +88,7 @@ bytes:double | cluster:keyword | time_bucket:datetime
 ;
 
 last_over_time_of_long_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m bytes=(avg by (cluster) (last_over_time(network.bytes_in[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -124,7 +124,7 @@ bytes:double | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_of_long_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))
 | SORT step, cluster | LIMIT 10;
@@ -159,7 +159,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 last_over_time_with_filtering_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (last_over_time(network.bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -194,7 +194,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_with_filtering_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
 | SORT step, cluster | LIMIT 10;
@@ -228,7 +228,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_with_inline_filtering_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (network.bytes_in{pod="one"}))
 | SORT step, cluster | LIMIT 10;
@@ -286,7 +286,7 @@ max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset
 ;
 
 eval_on_last_over_time_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m max_bytes=(avg by (cluster) (last_over_time(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (max_bytes - 100) / 1000.0
@@ -372,7 +372,7 @@ null        | two         | 2024-05-10T00:13:00.000Z
 ;
 
 last_over_time_null_values_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (last_over_time(events_received[1m])))
 | SORT events DESC, pod, step | LIMIT 10;
@@ -424,7 +424,7 @@ events:long | pod:keyword | time_bucket:datetime
 ;
 
 last_over_time_all_value_types_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m events=(sum by (pod) (last_over_time(events_received[10m])))
 | SORT events DESC, pod, step | LIMIT 10;
@@ -479,7 +479,7 @@ sum:double | pod:keyword | time_bucket:datetime
 ;
 
 last_over_time_counter_double_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 required_capability: first_last_over_time_counter_support
 
 PROMQL index=k8s step=10m sum=(sum by (pod) (last_over_time(network.total_cost[10m])))
@@ -518,7 +518,7 @@ max:long | pod:keyword | time_bucket:datetime
 ;
 
 last_over_time_counter_long_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 required_capability: first_last_over_time_counter_support
 
 PROMQL index=k8s step=10m max=(max by (pod) (last_over_time(network.total_bytes_in[10m])))

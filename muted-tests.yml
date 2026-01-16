@@ -342,33 +342,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testPushDownMetadataTierInAndNotOperator {default}
   issue: https://github.com/elastic/elasticsearch/issues/140752
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/140753
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeDuringSnapshotWithOtherRunningShardSnapshots
-  issue: https://github.com/elastic/elasticsearch/issues/140755
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testStartRemoveNodeButDoNotComplete
-  issue: https://github.com/elastic/elasticsearch/issues/140759
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testAbortSnapshotWhileRemovingNode
-  issue: https://github.com/elastic/elasticsearch/issues/140760
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testShutdownWhileSuccessInFlight
-  issue: https://github.com/elastic/elasticsearch/issues/140761
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testSnapshotShutdownProgressTracker
-  issue: https://github.com/elastic/elasticsearch/issues/140762
 - class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140763
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeAndFailoverMasterDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/140764
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRestartNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/140765
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testItemFailures {p0=true p1=true}
   issue: https://github.com/elastic/elasticsearch/issues/140766
@@ -411,6 +387,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140809
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
+  method: testFailsOnCopyAfterWrite
+  issue: https://github.com/elastic/elasticsearch/issues/140819
 
 # Examples:
 #

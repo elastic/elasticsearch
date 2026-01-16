@@ -221,7 +221,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 if (lastChunkBytes != null && hitCount > 0) {
                     // Get sequence start for last chunk from the result metadata
 
-                   /* if (logger.isDebugEnabled()) {
+                    /* if (logger.isDebugEnabled()) {
                         logger.debug(
                             "Received final chunk [{}] for shard [{}]",
                             request.shardFetchRequest.getShardSearchRequest().shardId()

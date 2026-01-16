@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -27,6 +28,11 @@ import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytes
  * {@link BytesRefsFromOrdsBlockLoader} for ordinals-based binary values
  */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    /**
+     * Circuit breaker space reserved for each reader. Measured in heap dumps
+     * around from 3.5kb to 65kb. This is an intentional overestimate.
+     */
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(5).getBytes(); // NOCOMMIT double check this one
 
     private final String fieldName;
 
@@ -42,7 +48,15 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        return createReader(breaker, ESTIMATED_SIZE, context.reader().getBinaryDocValues(fieldName));
+        AllReader result = null;
+        try {
+            result = createReader(breaker, ESTIMATED_SIZE, context.reader().getBinaryDocValues(fieldName));
+            return result;
+        } finally {
+            if (result == null) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
+        }
     }
 
     public static AllReader createReader(CircuitBreaker breaker, long estimatedSize, @Nullable BinaryDocValues docValues) {

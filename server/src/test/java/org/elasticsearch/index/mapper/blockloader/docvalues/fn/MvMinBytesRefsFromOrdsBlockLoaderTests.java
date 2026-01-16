@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
@@ -37,8 +38,8 @@ public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
 
     @Override
     protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
-        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-        var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field");
+        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofBytes(randomLongBetween(1, 1000)));
+        var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofBytes(randomLongBetween(1, 1000)));
         BlockLoader.Docs docs = TestBlock.docs(ctx);
 
         try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx);) {

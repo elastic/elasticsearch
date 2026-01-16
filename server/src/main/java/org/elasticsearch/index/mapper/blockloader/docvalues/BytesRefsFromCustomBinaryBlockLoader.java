@@ -40,13 +40,20 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-            return ConstantNull.READER;
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
+        boolean release = true;
+        try {
+            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues == null) {
+                return ConstantNull.READER;
+            }
+            release = false;
+            return new BytesRefsFromCustomBinary(breaker, docValues);
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+            }
         }
-        return new BytesRefsFromCustomBinary(breaker, docValues);
     }
 
     public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
@@ -119,7 +126,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
         }
     }
 }

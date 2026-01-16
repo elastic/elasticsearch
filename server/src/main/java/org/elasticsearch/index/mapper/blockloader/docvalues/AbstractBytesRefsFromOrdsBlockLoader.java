@@ -26,16 +26,12 @@ import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongs
  * Loads {@code keyword} style fields that are stored as a lookup table.
  */
 public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    /**
-     * Circuit breaker space reserved for each reader. Measured in heap dumps
-     * around from 3.5kb to 65kb. This is an intentional overestimate.
-     */
-    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(100).getBytes();
-
+    private final long byteSize;
     protected final String fieldName;
 
-    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
+    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
         this.fieldName = fieldName;
+        this.byteSize = size.getBytes();
     }
 
     @Override
@@ -45,21 +41,29 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
 
     @Override
     public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
-        if (docValues != null) {
-            SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+        breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+        boolean release = true;
+        try {
+            SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
+            if (docValues != null) {
+                release = false;
+                SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return singletonReader(breaker, singleton);
+                }
+                return sortedSetReader(breaker, docValues);
+            }
+            SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
             if (singleton != null) {
+                release = false;
                 return singletonReader(breaker, singleton);
             }
-            return sortedSetReader(breaker, docValues);
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
         }
-        SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(breaker, singleton);
-        }
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        return ConstantNull.READER;
     }
 
     protected abstract AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues);

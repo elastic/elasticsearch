@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
@@ -37,27 +38,34 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE, "load blocks");
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values == null) {
-            breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
-            return ConstantNull.READER;
-        }
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
+        long release = BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE;
+        try {
+            BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+            if (values == null) {
+                return ConstantNull.READER;
+            }
 
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
-            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(
-                breaker,
-                AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE,
-                values
-            );
-        }
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+            if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
+                release = 0;
+                return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(
+                    breaker,
+                    BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE,
+                    values
+                );
+            }
 
-        breaker.addWithoutBreaking(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
-        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-        return new BytesRefsFromBinarySeparateCount(breaker, values, counts);
+            breaker.addWithoutBreaking(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
+            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            release = 0;
+            return new BytesRefsFromBinarySeparateCount(breaker, values, counts);
+        } finally{
+            breaker.addWithoutBreaking(-release);
+        }
     }
 
     static class BytesRefsFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
@@ -95,7 +103,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         @Override
         public void close() {
             breaker.addWithoutBreaking(
-                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE)
+                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE)
             );
         }
     }

@@ -47,7 +47,7 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
         }
 
         var warnings = new MockWarnings();
-        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
+        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", randomLongBetween(1, 1000));
         var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
         BlockLoader.Docs docs = TestBlock.docs(ctx);
 

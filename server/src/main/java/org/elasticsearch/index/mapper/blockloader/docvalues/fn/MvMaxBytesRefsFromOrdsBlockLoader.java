@@ -13,6 +13,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
 
 import java.io.IOException;
@@ -23,8 +24,8 @@ import java.io.IOException;
 public class MvMaxBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
     private final String fieldName;
 
-    public MvMaxBytesRefsFromOrdsBlockLoader(String fieldName) {
-        super(fieldName);
+    public MvMaxBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue byteSize) {
+        super(fieldName, byteSize);
         this.fieldName = fieldName;
     }
 

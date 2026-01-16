@@ -38,20 +38,28 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-        if (docValues != null) {
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+        boolean release = true;
+        try {
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                release = false;
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return singletonReader(breaker, singleton);
+                }
+                return sortedReader(breaker, docValues);
+            }
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
+                release = false;
                 return singletonReader(breaker, singleton);
             }
-            return sortedReader(breaker, docValues);
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
         }
-        NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(breaker, singleton);
-        }
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        return ConstantNull.READER;
     }
 
     protected abstract AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues);

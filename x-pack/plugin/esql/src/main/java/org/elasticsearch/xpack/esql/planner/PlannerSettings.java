@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 /**
@@ -59,10 +60,39 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Circuit breaker space reserved for each ordinals {@link BlockLoader.Reader}.
+     * Measured in heap dumps from 3.5kb to 65kb. This is an intentional overestimate.
+     */
+    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_ORDINALS = Setting.byteSizeSetting(
+        "esql.block_loader",
+        ByteSizeValue.ofKb(100),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
+     * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
+     * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
+     * doc values. This 300kb is sort of a shrug because we don't know what the script will do,
+     * and we don't know how many doc values it'll load. And, we're not sure much memory the
+     * script itself will actually use.
+     */
+    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_SCRIPT = Setting.byteSizeSetting(
+        "esql.block_loader.size.",
+        ByteSizeValue.ofKb(300),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
     private volatile int luceneTopNLimit;
     private volatile ByteSizeValue intermediateLocalRelationMaxSize;
+    private volatile ByteSizeValue blockLoaderSizeOrdinals;
+    private volatile ByteSizeValue blockLoaderSizeScript;
 
     /**
      * Ctor for prod that listens for updates from the {@link ClusterService}.
@@ -73,6 +103,8 @@ public class PlannerSettings {
         clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
         clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
+        clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> this.blockLoaderSizeOrdinals = v);
+        clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_SCRIPT, v -> this.blockLoaderSizeScript = v);
     }
 
     /**
@@ -82,12 +114,16 @@ public class PlannerSettings {
         DataPartitioning defaultDataPartitioning,
         ByteSizeValue valuesLoadingJumboSize,
         int luceneTopNLimit,
-        ByteSizeValue intermediateLocalRelationMaxSize
+        ByteSizeValue intermediateLocalRelationMaxSize,
+        ByteSizeValue blockLoaderSizeOrdinals,
+        ByteSizeValue blockLoaderSizeScript
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
+        this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
+        this.blockLoaderSizeScript = blockLoaderSizeScript;
     }
 
     public DataPartitioning defaultDataPartitioning() {
@@ -118,5 +154,13 @@ public class PlannerSettings {
 
     public ByteSizeValue intermediateLocalRelationMaxSize() {
         return intermediateLocalRelationMaxSize;
+    }
+
+    public ByteSizeValue blockLoaderSizeOrdinals() {
+        return blockLoaderSizeOrdinals;
+    }
+
+    public ByteSizeValue blockLoaderSizeScript() {
+        return blockLoaderSizeScript;
     }
 }

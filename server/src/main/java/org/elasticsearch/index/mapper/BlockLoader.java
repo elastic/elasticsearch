@@ -17,6 +17,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -349,24 +350,24 @@ public interface BlockLoader {
         protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
 
         @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (canUsePreferLoaderForLeaf(context)) {
-                return preferLoader.columnAtATimeReader(context);
+                return preferLoader.columnAtATimeReader(breaker, context);
             } else {
-                return fallbackLoader.columnAtATimeReader(context);
+                return fallbackLoader.columnAtATimeReader(breaker, context);
             }
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
-                return fallbackLoader.rowStrideReader(context);
+                return fallbackLoader.rowStrideReader(breaker, context);
             }
-            RowStrideReader preferReader = preferLoader.rowStrideReader(context);
+            RowStrideReader preferReader = preferLoader.rowStrideReader(breaker, context);
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferReader;
             }
-            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(context);
+            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(breaker, context);
             return new RowStrideReader() {
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
@@ -380,6 +381,11 @@ public interface BlockLoader {
                 @Override
                 public boolean canReuse(int startingDocID) {
                     return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+                }
+
+                @Override
+                public void close() {
+                    Releasables.close(preferReader, fallbackReader);
                 }
             };
         }

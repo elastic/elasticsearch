@@ -57,17 +57,24 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-            return ConstantNull.READER;
+        boolean release = true;
+        try {
+            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues == null) {
+                return ConstantNull.READER;
+            }
+            release = false;
+            return switch (elementType) {
+                case FLOAT -> new FloatDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
+                case BFLOAT16 -> new BFloat16DenseVectorFromBinary(breaker, docValues, dims, indexVersion);
+                case BYTE -> new ByteDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
+                case BIT -> new BitDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
+            };
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
         }
-        return switch (elementType) {
-            case FLOAT -> new FloatDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-            case BFLOAT16 -> new BFloat16DenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-            case BYTE -> new ByteDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-            case BIT -> new BitDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-        };
     }
 
     // Abstract base for dense vector readers

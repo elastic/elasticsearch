@@ -45,16 +45,24 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
-        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-        if (docValues != null) {
-            return new BytesRefsFromLong(breaker, docValues, geoPointLong -> {
-                GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
-                byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
-                return new BytesRef(wkb);
-            });
+        boolean release = true;
+        try {
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                release = false;
+                return new BytesRefsFromLong(breaker, docValues, geoPointLong -> {
+                    GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
+                    byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
+                    return new BytesRef(wkb);
+                });
+            }
+
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
+            }
         }
-        breaker.addWithoutBreaking(-AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
-        return ConstantNull.READER;
     }
 
     private static final class BytesRefsFromLong extends BlockDocValuesReader {

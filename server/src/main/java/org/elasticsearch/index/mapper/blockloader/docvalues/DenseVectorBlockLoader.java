@@ -63,40 +63,50 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        switch (fieldType.getElementType()) {
-            case FLOAT, BFLOAT16 -> {
-                FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
-                if (floatVectorValues != null) {
-                    if (fieldType.isNormalized()) {
-                        NumericDocValues magnitudeDocValues = context.reader()
-                            .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
-                        return new FloatDenseVectorNormalizedValuesBlockReader<>(
-                            breaker,
-                            floatVectorValues,
-                            dimensions,
-                            processor,
-                            magnitudeDocValues
-                        );
+        boolean release = true;
+        try {
+            switch (fieldType.getElementType()) {
+                case FLOAT, BFLOAT16 -> {
+                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+                    if (floatVectorValues != null) {
+                        if (fieldType.isNormalized()) {
+                            NumericDocValues magnitudeDocValues = context.reader()
+                                .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                            release = false;
+                            return new FloatDenseVectorNormalizedValuesBlockReader<>(
+                                breaker,
+                                floatVectorValues,
+                                dimensions,
+                                processor,
+                                magnitudeDocValues
+                            );
+                        }
+                        release = false;
+                        return new FloatDenseVectorValuesBlockReader<>(breaker, floatVectorValues, dimensions, processor);
                     }
-                    return new FloatDenseVectorValuesBlockReader<>(breaker, floatVectorValues, dimensions, processor);
+                }
+                case BYTE -> {
+                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
+                    if (byteVectorValues != null) {
+                        release = false;
+                        return new ByteDenseVectorValuesBlockReader<>(breaker, byteVectorValues, dimensions, processor);
+                    }
+                }
+                case BIT -> {
+                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
+                    if (byteVectorValues != null) {
+                        release = false;
+                        return new BitDenseVectorValuesBlockReader<>(breaker, byteVectorValues, dimensions, processor);
+                    }
                 }
             }
-            case BYTE -> {
-                ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
-                if (byteVectorValues != null) {
-                    return new ByteDenseVectorValuesBlockReader<>(breaker, byteVectorValues, dimensions, processor);
-                }
-            }
-            case BIT -> {
-                ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
-                if (byteVectorValues != null) {
-                    return new BitDenseVectorValuesBlockReader<>(breaker, byteVectorValues, dimensions, processor);
-                }
+
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
             }
         }
-
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        return ConstantNull.READER;
     }
 
     /**

@@ -33,13 +33,20 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addWithoutBreaking(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
-        var docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
-            breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
-            return ConstantNull.READER;
+        breaker.addWithoutBreaking(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+        boolean release = true;
+        try {
+            var docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues == null) {
+                return ConstantNull.READER;
+            }
+            release = false;
+            return new DateRangeDocValuesReader(breaker, docValues);
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+            }
         }
-        return new DateRangeDocValuesReader(breaker, docValues);
     }
 
     private class DateRangeDocValuesReader extends BlockDocValuesReader {
@@ -105,7 +112,7 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
         }
     }
 }

@@ -23,15 +23,6 @@ import java.io.IOException;
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
 public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
-    /**
-     * Circuit breaker space reserved for each reader. This is a pretty poor estimate for the
-     * overhead of the script, but it'll do for now. We're estimating 100kb for loading ordinals
-     * from doc values and 2kb for loading numbers from doc values. This 300kb is sort of a
-     * shrug because we don't know what the script will do, and we don't know how many doc
-     * values it'll load. And, we're not sure much memory the script itself will actually use.
-     */
-    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(300).getBytes();
-
     public static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
         private final StringFieldScript.LeafFactory factory;
 

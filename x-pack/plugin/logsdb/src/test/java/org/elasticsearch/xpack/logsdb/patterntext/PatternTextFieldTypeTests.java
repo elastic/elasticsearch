@@ -31,8 +31,11 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.hamcrest.Matchers;
 
@@ -217,4 +220,53 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
             ((SourceIntervalsSource) rangeIntervals).getIntervalsSource()
         );
     }
+
+    public void testBlockLoaderWhenTemplatingIsEnabled() {
+        PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
+        BlockLoader blockLoader = ft.blockLoader(null);
+        assertThat(blockLoader, Matchers.instanceOf(PatternTextBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenTemplatingIsDisabledAndBinaryDocValuesAreUsed() {
+        PatternTextFieldType ft = new PatternTextFieldType(
+            "field",
+            new org.elasticsearch.index.mapper.TextSearchInfo(
+                hasPositions ? PatternTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
+                null,
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
+            ),
+            DelimiterAnalyzer.INSTANCE,
+            true,
+            Collections.emptyMap(),
+            syntheticSource,
+            false,
+            useBinaryDocValueArgs,
+            true
+        );
+        BlockLoader blockLoader = ft.blockLoader(null);
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenTemplatingIsDisabledAndStoredFieldsAreUsed() {
+        PatternTextFieldType ft = new PatternTextFieldType(
+            "field",
+            new org.elasticsearch.index.mapper.TextSearchInfo(
+                hasPositions ? PatternTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
+                null,
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
+            ),
+            DelimiterAnalyzer.INSTANCE,
+            true,
+            Collections.emptyMap(),
+            syntheticSource,
+            false,
+            useBinaryDocValueArgs,
+            false
+        );
+        BlockLoader blockLoader = ft.blockLoader(null);
+        assertThat(blockLoader, Matchers.instanceOf(BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader.class));
+    }
+
 }

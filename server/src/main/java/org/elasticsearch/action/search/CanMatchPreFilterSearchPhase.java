@@ -238,6 +238,7 @@ final class CanMatchPreFilterSearchPhase {
             }
         }
         // order matching shard by the natural order, so that search results will use that order
+        // this can possibly be pushed after filtering by data nodes, if needed
         matchedShardLevelRequests.sort(SearchShardIterator::compareTo);
         if (matchedShardLevelRequests.isEmpty()) {
             listener.onResponse(getIterator(shardsIts));

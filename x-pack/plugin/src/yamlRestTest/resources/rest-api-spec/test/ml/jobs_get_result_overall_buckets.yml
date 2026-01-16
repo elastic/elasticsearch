@@ -69,7 +69,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-60_1"
         body:
           {
@@ -85,7 +85,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-60_2"
         body:
           {
@@ -101,7 +101,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-60_3"
         body:
           {
@@ -116,7 +116,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-30_1"
         body:
           {
@@ -132,7 +132,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-30_2"
         body:
           {
@@ -148,7 +148,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-30_3"
         body:
           {
@@ -164,7 +164,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_1"
         body:
           {
@@ -180,7 +180,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_2"
         body:
           {
@@ -196,7 +196,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_3"
         body:
           {
@@ -212,7 +212,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_4"
         body:
           {
@@ -228,7 +228,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-anomalies-shared
+        index: .ml-anomalies-shared-000001
 
 ---
 "Test overall buckets given missing job":

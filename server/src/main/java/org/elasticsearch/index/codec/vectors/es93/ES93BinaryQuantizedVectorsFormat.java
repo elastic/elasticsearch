@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2024 Elasticsearch B.V.
+ * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 package org.elasticsearch.index.codec.vectors.es93;
 
@@ -25,11 +25,12 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 
@@ -86,38 +87,42 @@ import java.io.IOException;
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES93BinaryQuantizedVectorsFormat extends DirectIOCapableFlatVectorsFormat {
+public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat {
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
-
-    private final DirectIOCapableLucene99FlatVectorsFormat rawVectorFormat;
 
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    private final ES93GenericFlatVectorsFormat rawFormat;
+
     public ES93BinaryQuantizedVectorsFormat() {
+        this(DenseVectorFieldMapper.ElementType.FLOAT, false);
+    }
+
+    public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
         super(NAME);
-        rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
+        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override
-    protected FlatVectorsScorer flatVectorsScorer() {
+    public FlatVectorsScorer flatVectorsScorer() {
         return scorer;
     }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
+        return new ES818BinaryQuantizedVectorsWriter(scorer, rawFormat.fieldsWriter(state), state);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+        return new ES818BinaryQuantizedVectorsReader(state, rawFormat.fieldsReader(state), scorer);
     }
 
     @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
-        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state, useDirectIO), scorer);
+    public String toString() {
+        return getName() + "(name=" + getName() + ", rawVectorFormat=" + rawFormat + ", scorer=" + scorer + ")";
     }
 }

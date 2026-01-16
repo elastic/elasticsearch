@@ -11,7 +11,6 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -53,6 +52,34 @@ $if(BytesRef)$
 $else$
     $type$ get$Type$(int valueIndex);
 $endif$
+
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+$if(BytesRef)$
+     * @param scratch the scratch BytesRef to use for this operation
+$endif$
+     */
+    default boolean hasValue(int position, $type$ value$if(BytesRef)$, BytesRef scratch$endif$) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+$if(BytesRef)$
+            var ref = getBytesRef(index, scratch);
+            if (value.equals(ref)) {
+                return true;
+            }
+$else$
+            if (value == get$Type$(index)) {
+                return true;
+            }
+$endif$
+        }
+        return false;
+    }
 
     @Override
     $Type$Vector asVector();

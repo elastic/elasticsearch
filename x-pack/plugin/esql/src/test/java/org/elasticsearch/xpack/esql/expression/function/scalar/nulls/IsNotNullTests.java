@@ -37,6 +37,9 @@ public class IsNotNullTests extends AbstractScalarFunctionTestCase {
             if ((false == type.isCounter() && false == DataType.isRepresentable(type)) || type == DataType.TSID_DATA_TYPE) {
                 continue;
             }
+            if (type.supportedVersion().supportedLocally() == false) {
+                continue;
+            }
             if (type != DataType.NULL) {
                 suppliers.add(
                     new TestCaseSupplier(

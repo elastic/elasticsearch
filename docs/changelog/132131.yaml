@@ -1,7 +1,0 @@
-pr: 132131
-summary: Updating `TransportSimulateIndexTemplateAction.resolveTemplate()` to account
-  for data stream overrides
-area: Indices APIs
-type: bug
-issues:
- - 131425

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -52,10 +53,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Answers;
@@ -65,11 +68,13 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -103,10 +108,9 @@ public class TransportDownsampleActionTests extends ESTestCase {
     @Mock
     private MapperService mapperService;
 
-    private static final String TEMPLATE_MAPPING = """
+    private static final String MAPPING = """
         {
           "_doc": {
-            %s
             "properties": {
               "attributes.host": {
                 "type": "keyword",
@@ -119,23 +123,6 @@ public class TransportDownsampleActionTests extends ESTestCase {
             }
           }
         }""";
-
-    private static final String NO_METADATA_MAPPING = String.format(Locale.ROOT, TEMPLATE_MAPPING, "");
-    private static final String OTHER_METADATA_MAPPING = String.format(
-        Locale.ROOT,
-        TEMPLATE_MAPPING,
-        "\"_meta\":{\"downsample.forcemerge.enabled\":100},"
-    );
-    private static final String FORCE_MERGE_ENABLED_MAPPING = String.format(
-        Locale.ROOT,
-        TEMPLATE_MAPPING,
-        "\"_meta\":{\"downsample.forcemerge.enabled\":true},"
-    );
-    private static final String FORCE_MERGE_DISABLED_MAPPING = String.format(
-        Locale.ROOT,
-        TEMPLATE_MAPPING,
-        "\"_meta\":{\"downsample.forcemerge.enabled\":false},"
-    );
 
     private TransportDownsampleAction action;
 
@@ -175,11 +162,13 @@ public class TransportDownsampleActionTests extends ESTestCase {
         projectId = randomProjectIdOrDefault();
         task = new Task(1, "type", "action", "description", null, null);
 
+        // Initialise mocks for thread pool and cluster service
         var threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(clusterService.localNode()).thenReturn(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "node_name"));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
+        // Mock refresh & flush requests
         Answer<Void> mockBroadcastResponse = invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<BroadcastResponse>) invocation.getArgument(1, ActionListener.class);
@@ -187,17 +176,33 @@ public class TransportDownsampleActionTests extends ESTestCase {
             return null;
         };
         doAnswer(mockBroadcastResponse).when(indicesAdminClient).refresh(any(), any());
-        doAnswer(mockBroadcastResponse).when(indicesAdminClient).forceMerge(any(), any());
+        doAnswer(mockBroadcastResponse).when(indicesAdminClient).flush(any(), any());
+
         doAnswer(invocation -> {
             var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
-            updateTask.listener.onResponse(randomBoolean() ? AcknowledgedResponse.TRUE : AcknowledgedResponse.FALSE);
+            updateTask.listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
+        }).when(taskQueue).submitTask(startsWith("create-downsample-index"), any(), any());
+
+        // Mocks for mapping retrieval & merging
         when(indicesService.createIndexMapperServiceForValidation(any())).thenReturn(mapperService);
         MappedFieldType timestampFieldMock = mock(MappedFieldType.class);
         when(timestampFieldMock.meta()).thenReturn(Map.of());
         when(mapperService.fieldType(any())).thenReturn(timestampFieldMock);
         when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetMappingsResponse>) invocation.getArgument(1, ActionListener.class);
+            listener.onResponse(
+                new GetMappingsResponse(
+                    Map.of(sourceIndex, new MappingMetadata("_doc", XContentHelper.convertToMap(JsonXContent.jsonXContent, MAPPING, true)))
+                )
+            );
+            return null;
+        }).when(indicesAdminClient).getMappings(any(), any());
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(MAPPING));
+        when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
     }
 
     @After
@@ -206,25 +211,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         mocks.close();
     }
 
-    public void testDownsamplingWithForceMerge() throws IOException {
-        String mapping = switch (randomIntBetween(0, 2)) {
-            case 0 -> NO_METADATA_MAPPING;
-            case 1 -> OTHER_METADATA_MAPPING;
-            default -> FORCE_MERGE_ENABLED_MAPPING;
-        };
-        downsample(mapping);
-        verify(indicesAdminClient).forceMerge(any(), any());
-    }
-
-    public void testDownsamplingSkipsForceMerge() throws IOException {
-        downsample(FORCE_MERGE_DISABLED_MAPPING);
-        verify(indicesAdminClient, never()).forceMerge(any(), any());
-    }
-
-    private void downsample(String mapping) throws IOException {
-        mockGetMapping(mapping);
-        mockMergedMapping(mapping);
-
+    public void testDownsampling() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .build();
@@ -236,21 +223,16 @@ public class TransportDownsampleActionTests extends ESTestCase {
 
         when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenReturn(projectMetadata);
 
-        doAnswer(invocation -> {
-            var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
-            updateTask.listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(taskQueue).submitTask(startsWith("create-downsample-index"), any(), any());
         Answer<Void> mockPersistentTask = invocation -> {
             ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = invocation.getArgument(4);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = mock(PersistentTasksCustomMetadata.PersistentTask.class);
-            when(task.getId()).thenReturn(randomAlphaOfLength(10));
+            PersistentTasksCustomMetadata.PersistentTask<?> task1 = mock(PersistentTasksCustomMetadata.PersistentTask.class);
+            when(task1.getId()).thenReturn(randomAlphaOfLength(10));
             DownsampleShardPersistentTaskState runningTaskState = new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.COMPLETED,
                 null
             );
-            when(task.getState()).thenReturn(runningTaskState);
-            listener.onResponse(task);
+            when(task1.getState()).thenReturn(runningTaskState);
+            listener.onResponse(task1);
             return null;
         };
         doAnswer(mockPersistentTask).when(persistentTaskService).sendStartRequest(anyString(), anyString(), any(), any(), any());
@@ -260,6 +242,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesAdminClient).updateSettings(any(), any());
+        assertSuccessfulUpdateDownsampleStatus(clusterState);
 
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         action.masterOperation(
@@ -269,24 +252,16 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 sourceIndex,
                 targetIndex,
                 TimeValue.ONE_HOUR,
-                new DownsampleConfig(new DateHistogramInterval("5m"))
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
             ),
             clusterState,
             listener
         );
         safeGet(listener);
-        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verifyIndexFinalisation();
     }
 
-    public void testDownsamplingForceMergeWithShortCircuitAfterCreation() {
-        String mapping = switch (randomIntBetween(0, 3)) {
-            case 0 -> NO_METADATA_MAPPING;
-            case 1 -> OTHER_METADATA_MAPPING;
-            case 2 -> FORCE_MERGE_ENABLED_MAPPING;
-            default -> FORCE_MERGE_DISABLED_MAPPING;
-        };
-        mockGetMapping(mapping);
-
+    public void testDownsamplingWithShortCircuitAfterCreation() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .put(createTargetIndexMetadata(targetIndex, primaryShards, replicaShards))
@@ -298,6 +273,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             .build();
 
         when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenReturn(projectMetadata);
+        assertSuccessfulUpdateDownsampleStatus(clusterState);
 
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         action.masterOperation(
@@ -307,35 +283,16 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 sourceIndex,
                 targetIndex,
                 TimeValue.ONE_HOUR,
-                new DownsampleConfig(new DateHistogramInterval("5m"))
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
             ),
             clusterState,
             listener
         );
         safeGet(listener);
-        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
-        verify(indicesAdminClient).forceMerge(any(), any());
+        verifyIndexFinalisation();
     }
 
-    public void testDownsamplingForceMergeWithShortCircuitDuringCreation() throws IOException {
-        String mapping = switch (randomIntBetween(0, 2)) {
-            case 0 -> NO_METADATA_MAPPING;
-            case 1 -> OTHER_METADATA_MAPPING;
-            default -> FORCE_MERGE_ENABLED_MAPPING;
-        };
-        downsampleWithShortCircuitDuringCreation(mapping);
-        verify(indicesAdminClient).forceMerge(any(), any());
-    }
-
-    public void testDownsamplingSkipsForceMergeWithShortCircuitDuringCreation() throws IOException {
-        downsampleWithShortCircuitDuringCreation(FORCE_MERGE_DISABLED_MAPPING);
-        verify(indicesAdminClient, never()).forceMerge(any(), any());
-    }
-
-    public void downsampleWithShortCircuitDuringCreation(String mapping) throws IOException {
-        mockGetMapping(mapping);
-        mockMergedMapping(mapping);
-
+    public void testDownsamplingWithShortCircuitDuringCreation() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .build();
@@ -359,6 +316,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 )
                 .build()
         );
+        assertSuccessfulUpdateDownsampleStatus(clusterService.state());
 
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         action.masterOperation(
@@ -368,32 +326,161 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 sourceIndex,
                 targetIndex,
                 TimeValue.ONE_HOUR,
-                new DownsampleConfig(new DateHistogramInterval("5m"))
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
             ),
             clusterState,
             listener
         );
         safeGet(listener);
-        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verifyIndexFinalisation();
     }
 
-    private void mockGetMapping(String mapping) {
+    public void testDownsamplingWhenTargetIndexGetsDeleted() {
+        var projectMetadata = ProjectMetadata.builder(projectId)
+            .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
+            .build();
+
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(projectMetadata)
+            .blocks(ClusterBlocks.builder().addIndexBlock(projectId, sourceIndex, IndexMetadata.INDEX_WRITE_BLOCK))
+            .build();
+
+        when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenReturn(projectMetadata);
+
+        Answer<Void> mockPersistentTask = invocation -> {
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = invocation.getArgument(4);
+            PersistentTasksCustomMetadata.PersistentTask<?> task1 = mock(PersistentTasksCustomMetadata.PersistentTask.class);
+            when(task1.getId()).thenReturn(randomAlphaOfLength(10));
+            DownsampleShardPersistentTaskState runningTaskState = new DownsampleShardPersistentTaskState(
+                DownsampleShardIndexerStatus.COMPLETED,
+                null
+            );
+            when(task1.getState()).thenReturn(runningTaskState);
+            listener.onResponse(task1);
+            return null;
+        };
+        doAnswer(mockPersistentTask).when(persistentTaskService).sendStartRequest(anyString(), anyString(), any(), any(), any());
+        doAnswer(mockPersistentTask).when(persistentTaskService).waitForPersistentTaskCondition(any(), anyString(), any(), any(), any());
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetMappingsResponse>) invocation.getArgument(1, ActionListener.class);
-            listener.onResponse(
-                new GetMappingsResponse(
-                    Map.of(sourceIndex, new MappingMetadata("_doc", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true)))
-                )
+            var listener = invocation.getArgument(1, TransportDownsampleAction.UpdateDownsampleIndexSettingsActionListener.class);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(indicesAdminClient).updateSettings(any(), any());
+
+        doAnswer(invocation -> {
+            var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
+            ClusterStateTaskExecutorUtils.executeHandlingResults(
+                clusterState,
+                TransportDownsampleAction.STATE_UPDATE_TASK_EXECUTOR,
+                List.of(updateTask),
+                task1 -> {},
+                TransportDownsampleAction.DownsampleClusterStateUpdateTask::onFailure
             );
             return null;
-        }).when(indicesAdminClient).getMappings(any(), any());
+        }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
+        IllegalStateException error = safeAwaitFailure(
+            IllegalStateException.class,
+            AcknowledgedResponse.class,
+            listener -> action.masterOperation(
+                task,
+                new DownsampleAction.Request(
+                    ESTestCase.TEST_REQUEST_TIMEOUT,
+                    sourceIndex,
+                    targetIndex,
+                    TimeValue.ONE_HOUR,
+                    new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
+                ),
+                clusterState,
+                listener
+            )
+        );
+        assertThat(
+            error.getMessage(),
+            Matchers.startsWith("Failed to update downsample status because [" + targetIndex + "] does not exist")
+        );
+        verify(downsampleMetrics, never()).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.FAILED));
+        verify(indicesAdminClient).refresh(any(), any());
+        verify(indicesAdminClient, never()).flush(any(), any());
+        verify(indicesAdminClient, never()).forceMerge(any(), any());
     }
 
-    private void mockMergedMapping(String mapping) throws IOException {
-        DocumentMapper documentMapper = mock(DocumentMapper.class);
-        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(mapping));
-        when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+    @SuppressWarnings("unchecked")
+    public void testDownsamplingMapping() throws IOException {
+        Map<String, Object> sourceMapping = Map.of(
+            "runtime",
+            Map.of(
+                "day_of_week",
+                Map.of(
+                    "type",
+                    "keyword",
+                    "script",
+                    Map.of("source", "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))")
+                )
+            ),
+            "properties",
+            Map.of(
+                "@timestamp",
+                Map.of("type", "date", "format", "strict_date_optional_time||epoch_millis"),
+                "timestamp",
+                Map.of("type", "alias"),
+                "dimension",
+                Map.of("type", "keyword", "time_series_dimension", true),
+                "counter",
+                Map.of("type", "long", "time_series_metric", "counter"),
+                "gauge",
+                Map.of("type", "double", "time_series_metric", "gauge"),
+                "exp_histogram",
+                Map.of("type", "exponential_histogram", "time_series_metric", "histogram")
+            )
+        );
+        String downsampledMappingStr = TransportDownsampleAction.createDownsampleIndexMapping(
+            new DownsampleConfig(new DateHistogramInterval("1h"), null),
+            sourceMapping
+        );
+        Map<String, Object> downsampledMapping = XContentHelper.convertToMap(
+            new CompressedXContent(downsampledMappingStr).compressedReference(),
+            true,
+            XContentType.JSON
+        ).v2();
+        assertThat(downsampledMapping.containsKey("runtime"), equalTo(true));
+        Map<String, Object> downsampledRuntime = (Map<String, Object>) downsampledMapping.get("runtime");
+        assertThat(downsampledRuntime.containsKey("day_of_week"), equalTo(true));
+        assertThat(((Map<String, Object>) downsampledRuntime.get("day_of_week")).get("type"), equalTo("keyword"));
+        assertThat(downsampledMapping.containsKey("properties"), equalTo(true));
+        Map<String, Object> downsampledProperties = (Map<String, Object>) downsampledMapping.get("properties");
+        assertThat(downsampledProperties.containsKey("timestamp"), equalTo(true));
+        assertThat(((Map<String, Object>) downsampledProperties.get("timestamp")).get("type"), equalTo("alias"));
+        assertThat(downsampledProperties.containsKey("@timestamp"), equalTo(true));
+        Map<String, Object> timestamp = (Map<String, Object>) downsampledProperties.get("@timestamp");
+        assertThat(timestamp.get("type"), equalTo("date"));
+        assertThat(timestamp.get("format"), equalTo("strict_date_optional_time||epoch_millis"));
+        assertThat(timestamp.containsKey("meta"), equalTo(true));
+        assertThat(downsampledProperties.containsKey("dimension"), equalTo(true));
+        Map<String, Object> dimension = (Map<String, Object>) downsampledProperties.get("dimension");
+        assertThat(dimension.get("type"), equalTo("keyword"));
+        assertThat(dimension.get("time_series_dimension"), equalTo(true));
+        assertThat(downsampledProperties.containsKey("counter"), equalTo(true));
+        Map<String, Object> counter = (Map<String, Object>) downsampledProperties.get("counter");
+        assertThat(counter.get("type"), equalTo("long"));
+        assertThat(counter.get("time_series_metric"), equalTo("counter"));
+        assertThat(downsampledProperties.containsKey("gauge"), equalTo(true));
+        Map<String, Object> gauge = (Map<String, Object>) downsampledProperties.get("gauge");
+        assertThat(gauge.get("type"), equalTo("aggregate_metric_double"));
+        assertThat(gauge.get("default_metric"), equalTo("max"));
+        assertThat((List<String>) gauge.get("metrics"), containsInAnyOrder("max", "min", "sum", "value_count"));
+        assertThat(gauge.get("time_series_metric"), equalTo("gauge"));
+        assertThat(downsampledProperties.containsKey("exp_histogram"), equalTo(true));
+        Map<String, Object> expHistogram = (Map<String, Object>) downsampledProperties.get("exp_histogram");
+        assertThat(expHistogram.get("type"), equalTo("exponential_histogram"));
+        assertThat(expHistogram.get("time_series_metric"), equalTo("histogram"));
+    }
+
+    private void verifyIndexFinalisation() {
+        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verify(indicesAdminClient).refresh(any(), any());
+        verify(indicesAdminClient).flush(any(), any());
+        verify(indicesAdminClient, never()).forceMerge(any(), any());
     }
 
     private IndexMetadata.Builder createSourceIndexMetadata(String sourceIndex, int primaryShards, int replicaShards) {
@@ -531,5 +618,22 @@ public class TransportDownsampleActionTests extends ESTestCase {
         supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
         assertThat(supported.defaultMetric(), is("max"));
         assertThat(supported.supportedMetrics(), is(List.of(metricType.supportedAggs())));
+    }
+
+    private void assertSuccessfulUpdateDownsampleStatus(ClusterState clusterState) {
+        var projectMetadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+            .put(createSourceIndexMetadata(targetIndex, primaryShards, replicaShards))
+            .build();
+
+        var updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build();
+        doAnswer(invocation -> {
+            var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
+            ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                updatedClusterState,
+                TransportDownsampleAction.STATE_UPDATE_TASK_EXECUTOR,
+                List.of(updateTask)
+            );
+            return null;
+        }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
     }
 }

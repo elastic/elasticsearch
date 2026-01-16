@@ -92,7 +92,7 @@ public class BinaryComparisonQueryList extends QueryList {
                 new Literal(binaryComparison.right().source(), value, binaryComparison.right().dataType())
             );
         try {
-            if (TranslationAware.Translatable.YES.equals(comparison.translatable(lucenePushdownPredicates))) {
+            if (TranslationAware.Translatable.YES == comparison.translatable(lucenePushdownPredicates)) {
                 return comparison.asQuery(lucenePushdownPredicates, TranslatorHandler.TRANSLATOR_HANDLER)
                     .toQueryBuilder()
                     .toQuery(searchExecutionContext);

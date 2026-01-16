@@ -11,14 +11,15 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -73,7 +74,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(
-            ResetFeatureStateAction.INSTANCE,
+            TransportResetFeatureStateAction.TYPE,
             new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(
@@ -118,7 +119,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         try {
             EvilSystemIndexTestPlugin.setBeEvil(true);
             ResetFeatureStateResponse resetFeatureStateResponse = client().execute(
-                ResetFeatureStateAction.INSTANCE,
+                TransportResetFeatureStateAction.TYPE,
                 new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)
             ).get();
 
@@ -220,6 +221,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             ClusterService clusterService,
             ProjectResolver projectResolver,
             Client client,
+            TimeValue masterNodeTimeout,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
         ) {
             if (isEvil()) {

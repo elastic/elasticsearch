@@ -19,6 +19,12 @@ import java.util.Optional;
 
 final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
+    /*
+     * This class is never actually used, it only exists here to be referenced at compile time.
+     * The actual implementation is loaded from main21 or main22, depending on JVM version,
+     * by the multi-release jar set up by the MrjarPlugin during build time.
+     */
+
     static final VectorScorerFactoryImpl INSTANCE = null;
 
     @Override

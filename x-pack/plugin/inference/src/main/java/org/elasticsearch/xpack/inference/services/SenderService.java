@@ -18,8 +18,10 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
@@ -39,6 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
@@ -96,6 +101,11 @@ public abstract class SenderService implements InferenceService {
             case RERANK -> {
                 ValidationException validationException = new ValidationException();
                 service.validateRerankParameters(returnDocuments, topN, validationException);
+
+                if (query == null) {
+                    validationException.addValidationError("Rerank task type requires a non-null query field");
+                }
+
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
@@ -129,6 +139,42 @@ public abstract class SenderService implements InferenceService {
     }
 
     @Override
+    public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+            if (supportsMultipleItemsPerContent()) {
+                doEmbeddingInfer(model, request, timeout, embeddingInferListener);
+            } else {
+                var index = indexContainingMultipleInferenceStrings(request.inputs());
+                if (index == null) {
+                    doEmbeddingInfer(model, request, timeout, embeddingInferListener);
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Strings.format(
+                                "Field [%1$s] must contain a single item for [%2$s] service. "
+                                    + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
+                                InferenceStringGroup.CONTENT_FIELD,
+                                name(),
+                                EmbeddingRequest.INPUT_FIELD,
+                                index
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                }
+            }
+        }).addListener(listener);
+    }
+
+    /**
+     * Override as necessary for services which support generating a single embedding vector from multiple inputs
+     * @return true if the service supports sending embedding requests where multiple inputs are used to generate a single embedding vector
+     */
+    protected boolean supportsMultipleItemsPerContent() {
+        return false;
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
@@ -144,9 +190,18 @@ public abstract class SenderService implements InferenceService {
             if (validationException.validationErrors().isEmpty() == false) {
                 throw validationException;
             }
-
-            // a non-null query is not supported and is dropped by all providers
-            doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+            if (supportsChunkedInfer()) {
+                if (input.isEmpty()) {
+                    chunkedInferListener.onResponse(List.of());
+                } else {
+                    // a non-null query is not supported and is dropped by all providers
+                    doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+                }
+            } else {
+                chunkedInferListener.onFailure(
+                    new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name()))
+                );
+            }
         }).addListener(listener);
     }
 
@@ -169,6 +224,15 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     );
 
+    protected void doEmbeddingInfer(
+        Model model,
+        EmbeddingRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedEmbeddingOperation(model.getConfigurations().getService());
+    }
+
     protected abstract void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -177,6 +241,10 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
+
+    protected boolean supportsChunkedInfer() {
+        return true;
+    }
 
     public void start(Model model, ActionListener<Boolean> listener) {
         SubscribableListener.newForked(this::init)

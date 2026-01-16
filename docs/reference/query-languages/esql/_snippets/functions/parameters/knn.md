@@ -9,5 +9,5 @@
 :   Vector value to find top nearest neighbours for.
 
 `options`
-:   (Optional) kNN additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [knn query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-knn-query) for more information.
+:   (Optional) kNN additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.
 

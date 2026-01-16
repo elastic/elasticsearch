@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Set;
+
 /**
  * Defines a MappedFieldType that exposes dynamic child field types
  *
@@ -31,4 +33,12 @@ public interface DynamicFieldType {
      * Returns a dynamic MappedFieldType for the given path
      */
     MappedFieldType getChildFieldType(String path);
+
+    /**
+     * Returns the names of all child fields that this dynamic field type
+     * can generate, or null if it cannot be determined.
+     */
+    default Set<String> getChildFieldNames(String pattern) {
+        return null;
+    }
 }

@@ -39,14 +39,10 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public static final String FORK_FIELD = "_fork";
     public static final int MAX_BRANCHES = 8;
-    public static final int MIN_BRANCHES = 2;
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (children.size() < MIN_BRANCHES) {
-            throw new IllegalArgumentException("FORK requires more than " + MIN_BRANCHES + " branches, got: " + children.size());
-        }
         if (children.size() > MAX_BRANCHES) {
             throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
         }
@@ -100,6 +96,10 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
+        return new Fork(source(), subPlans, output);
+    }
+
+    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new Fork(source(), subPlans, output);
     }
 
@@ -162,7 +162,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     @Override
     public int hashCode() {
-        return Objects.hash(Fork.class, children());
+        return Objects.hash(Fork.class, output, children());
     }
 
     @Override
@@ -175,7 +175,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork other = (Fork) o;
 
-        return Objects.equals(children(), other.children());
+        return Objects.equals(output, other.output) && Objects.equals(children(), other.children());
     }
 
     @Override
@@ -184,7 +184,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        if (plan instanceof Fork == false) {
+        if (plan instanceof Fork == false || plan instanceof UnionAll) {
             return;
         }
         Fork fork = (Fork) plan;
@@ -194,7 +194,14 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 return;
             }
 
-            failures.add(Failure.fail(otherFork, "Only a single FORK command is supported, but found multiple"));
+            failures.add(
+                Failure.fail(
+                    otherFork,
+                    otherFork instanceof UnionAll
+                        ? "FORK after subquery is not supported"
+                        : "Only a single FORK command is supported, but found multiple"
+                )
+            );
         });
 
         Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));

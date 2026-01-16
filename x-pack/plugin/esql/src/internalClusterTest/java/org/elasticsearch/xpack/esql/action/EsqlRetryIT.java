@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -20,11 +23,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlRetryIT extends AbstractEsqlIntegTestCase {
 
@@ -51,6 +57,37 @@ public class EsqlRetryIT extends AbstractEsqlIntegTestCase {
             }
             try (var resp = run("FROM log-* | STATS COUNT(timestamp) | LIMIT 1")) {
                 assertThat(EsqlTestUtils.getValuesList(resp).get(0).get(0), equalTo(7L));
+            }
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+    }
+
+    public void testQueryWhileDeletingIndices() {
+        populateIndices();
+        CountDownLatch waitForDeletion = new CountDownLatch(1);
+        try {
+            final AtomicBoolean deleted = new AtomicBoolean();
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                        if (deleted.compareAndSet(false, true)) {
+                            deleteIndexCompletely("log-index-2");
+                            waitForDeletion.countDown();
+                        } else {
+                            assertTrue(waitForDeletion.await(10, TimeUnit.SECONDS));
+                        }
+                        handler.messageReceived(request, channel, task);
+                    });
+            }
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM log-* | STATS COUNT(timestamp) | LIMIT 1");
+            request.allowPartialResults(true);
+            try (var resp = run(request)) {
+                assertTrue(resp.isPartial());
+                assertThat(EsqlTestUtils.getValuesList(resp).getFirst().getFirst(), equalTo(4L));
             }
         } finally {
             for (String node : internalCluster().getNodeNames()) {
@@ -87,5 +124,37 @@ public class EsqlRetryIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Deletes the given index and ensures it is completely removed from the cluster state and from all nodes
+     */
+    private void deleteIndexCompletely(String indexName) throws Exception {
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+        String[] nodeNames = internalCluster().getNodeNames();
+        assertBusy(() -> {
+            for (String nodeName : nodeNames) {
+                ClusterState clusterState = internalCluster().getInstance(ClusterService.class, nodeName).state();
+                for (IndexMetadata imd : clusterState.metadata().indicesAllProjects()) {
+                    assertThat(
+                        "Index [" + indexName + "] still exists in the cluster state on [" + nodeName + "]",
+                        imd.getIndex().getName(),
+                        not(equalTo(indexName))
+                    );
+                }
+            }
+            for (String nodeName : nodeNames) {
+                final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+                for (IndexService indexService : indicesService) {
+                    for (IndexShard indexShard : indexService) {
+                        assertThat(
+                            "Index [" + indexName + "] still exists on node [" + nodeName + "]",
+                            indexShard.shardId().getIndexName(),
+                            not(equalTo(indexName))
+                        );
+                    }
+                }
+            }
+        });
     }
 }

@@ -52,7 +52,23 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "default": "ip,hp,rp,r,m,n,cpu,l",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "id",
+          "repository",
+          "status",
+          "start_epoch",
+          "start_time",
+          "end_epoch",
+          "end_time",
+          "duration",
+          "indices",
+          "successful_shards",
+          "failed_shards",
+          "total_shards",
+          "reason"
+        ]
       },
       "help": {
         "type": "boolean",

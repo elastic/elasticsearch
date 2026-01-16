@@ -32,6 +32,7 @@
       },
       "detailed": {
         "type": "boolean",
+        "default": false,
         "description": "Return detailed task information (default: false)"
       },
       "parent_task_id": {
@@ -40,6 +41,7 @@
       },
       "wait_for_completion": {
         "type": "boolean",
+        "default": false,
         "description": "Wait for the matching tasks to complete (default: false)"
       },
       "group_by": {
@@ -54,6 +56,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     }

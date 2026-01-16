@@ -1,6 +1,0 @@
-pr: 134582
-summary: Fixed match only text block loader not working when a keyword multi field
-  is present
-area: Mapping
-type: bug
-issues: []

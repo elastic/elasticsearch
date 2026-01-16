@@ -174,7 +174,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     // \_EsRelation[test_lookup][LOOKUP][emp_no{f}#37, languages{f}#40, salary{f}#42]
     public void testShadowingAfterPushdown2() {
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME emp_no AS x, salary AS salary2
             | EVAL y = x, gender = last_name
             | RENAME y AS languages, gender AS ln
@@ -247,7 +247,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME languages as lang2
             | EVAL y = emp_no
             | RENAME y AS lang
@@ -295,7 +295,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME languages as lang2
             | EVAL y = emp_no
             | RENAME y AS lang
@@ -347,7 +347,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME languages AS lang
             | LOOKUP JOIN test_lookup ON lang == languages
             | KEEP languages, emp_no, salary
@@ -393,7 +393,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | EVAL lang = languages + 0
             | DROP languages
             | LOOKUP JOIN test_lookup ON lang == languages

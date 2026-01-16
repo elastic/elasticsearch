@@ -1,0 +1,40 @@
+set
+required_capability: global_timezone_parameter
+
+set time_zone="+02:00"\;
+from employees 
+| sort emp_no 
+| keep emp_no, hire_date
+| eval hour = date_extract("hour_of_day", hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date           | hour:long
+10001          | 1986-06-26T00:00:00.000Z | 2
+;
+
+set with foldable
+required_capability: global_timezone_parameter
+
+set time_zone="+02:00"\;
+ROW date = "1986-06-26T00:00:00.000Z"::date
+| eval hour = date_extract("hour_of_day", date)
+;
+
+date:date                | hour:long
+1986-06-26T00:00:00.000Z | 2
+;
+
+last set prevails
+required_capability: global_timezone_parameter
+
+set time_zone="+02:00"\;
+set time_zone="+05:00"\;
+from employees 
+| sort emp_no 
+| keep emp_no, hire_date
+| eval hour = date_extract("hour_of_day", hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date           | hour:long
+10001          | 1986-06-26T00:00:00.000Z | 5
+;

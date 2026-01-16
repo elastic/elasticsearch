@@ -126,7 +126,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                 ).boost(instance.boost);
             }
             case 1 -> {
-                float[] newVector = randomValueOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
+                float[] newVector = randomArrayOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
                 yield new KnnSearchBuilder(
                     instance.field,
                     newVector,

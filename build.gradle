@@ -77,7 +77,7 @@ tasks.named('zipAggregation').configure {
   destinationDirectory.set(layout.buildDirectory.dir("distributions"));
 
   dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
-  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
+  from(zipTree("build-tools/build/nmcp/zip/publicationElastic.zip"))
 }
 
 /**
@@ -95,7 +95,7 @@ tasks.named('zipAggregation').configure {
 ext.testArtifact = { p, String name = "test" ->
   def projectDependency = p.dependencies.create(p)
   projectDependency.capabilities {
-    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
+    requireCapabilities("${p.group}:${projectDependency.name}-${name}-artifacts")
   };
 }
 

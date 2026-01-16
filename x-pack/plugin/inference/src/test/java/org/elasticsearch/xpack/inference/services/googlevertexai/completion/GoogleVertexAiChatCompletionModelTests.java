@@ -177,25 +177,47 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
     public void testModelCreationForAnthropicBothUrls() throws URISyntaxException {
         var uri = new URI("http://example.com");
         var streamingUri = new URI("http://example-streaming.com");
-        testModelCreationForAnthropic(uri, streamingUri, uri, streamingUri);
+        testModelCreation(uri, streamingUri, uri, streamingUri, GoogleModelGardenProvider.ANTHROPIC);
     }
 
     public void testModelCreationForAnthropicOnlyNonStreamingUrl() throws URISyntaxException {
         var uri = new URI("http://example.com");
-        testModelCreationForAnthropic(uri, null, uri, uri);
+        testModelCreation(uri, null, uri, uri, GoogleModelGardenProvider.ANTHROPIC);
     }
 
     public void testModelCreationForAnthropicOnlyStreamingUrl() throws URISyntaxException {
         var streamingUri = new URI("http://example-streaming.com");
-        testModelCreationForAnthropic(null, streamingUri, streamingUri, streamingUri);
+        testModelCreation(null, streamingUri, streamingUri, streamingUri, GoogleModelGardenProvider.ANTHROPIC);
     }
 
-    private static void testModelCreationForAnthropic(URI uri, URI streamingUri, URI expectedNonStreamingUri, URI expectedStreamingUri) {
-        var model = createAnthropicChatCompletionModel(
+    public void testModelCreationForMetaBothUrls() throws URISyntaxException {
+        var uri = new URI("http://example.com");
+        var streamingUri = new URI("http://example-streaming.com");
+        testModelCreation(uri, streamingUri, uri, streamingUri, GoogleModelGardenProvider.META);
+    }
+
+    public void testModelCreationForMetaOnlyNonStreamingUrl() throws URISyntaxException {
+        var uri = new URI("http://example.com");
+        testModelCreation(uri, null, uri, uri, GoogleModelGardenProvider.META);
+    }
+
+    public void testModelCreationForMetaOnlyStreamingUrl() throws URISyntaxException {
+        var streamingUri = new URI("http://example-streaming.com");
+        testModelCreation(null, streamingUri, streamingUri, streamingUri, GoogleModelGardenProvider.META);
+    }
+
+    private static void testModelCreation(
+        URI uri,
+        URI streamingUri,
+        URI expectedNonStreamingUri,
+        URI expectedStreamingUri,
+        GoogleModelGardenProvider provider
+    ) {
+        var model = createGoogleModelGardenChatCompletionModel(
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
-            GoogleModelGardenProvider.ANTHROPIC,
+            provider,
             uri,
             streamingUri,
             123
@@ -220,7 +242,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
         assertThat(overriddenModel.getServiceSettings().uri(), is(uri));
         assertThat(overriddenModel.getServiceSettings().streamingUri(), is(streamingUri));
-        assertThat(overriddenModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+        assertThat(overriddenModel.getServiceSettings().provider(), is(provider));
         assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
         assertThat(overriddenModel.getTaskSettings().maxTokens(), is(123));
@@ -249,7 +271,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         );
     }
 
-    public static GoogleVertexAiChatCompletionModel createAnthropicChatCompletionModel(
+    public static GoogleVertexAiChatCompletionModel createGoogleModelGardenChatCompletionModel(
         String apiKey,
         RateLimitSettings rateLimitSettings,
         ThinkingConfig thinkingConfig,

@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)"
+    "TS k8s\n| STATS events = SUM(IDELTA(events_received)) by pod, time_bucket = TBUCKET(10minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -65,16 +65,16 @@ public final class ScalbConstantLongEvaluator implements EvalOperator.Expression
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (dBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (dBlock.getValueCount(p) != 1) {
-          if (dBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (dBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
         try {

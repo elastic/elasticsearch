@@ -12,7 +12,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -668,9 +668,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         long estimatedSize
     ) implements Writeable {
 
+        private static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE = TransportVersion.fromName(
+            "batched_query_execution_delayable_writeable"
+        );
+
         static MergeResult readFrom(StreamInput in) throws IOException {
             return new MergeResult(List.of(), Lucene.readTopDocsIncludingShardIndex(in), in.readOptionalWriteable(i -> {
-                if (i.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE)) {
+                if (i.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)) {
                     return DelayableWriteable.delayed(InternalAggregations::readFrom, i);
                 } else {
                     return DelayableWriteable.referencing(InternalAggregations.readFrom(i));
@@ -684,9 +688,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             out.writeOptionalWriteable(
                 reducedAggs == null
                     ? null
-                    : (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE)
-                        ? reducedAggs
-                        : reducedAggs.expand())
+                    : (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE) ? reducedAggs : reducedAggs.expand())
             );
             out.writeVLong(estimatedSize);
         }

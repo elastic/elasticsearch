@@ -22,12 +22,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testHitCountFromWeightNoTracking() throws IOException {
         CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(new HitsThresholdChecker(0));
-        Result result = searcher.search(new MatchAllDocsQuery(), collectorManager);
+        Result result = searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager);
         assertEquals(0, result.totalHits);
         assertTrue(result.terminatedAfter);
     }
@@ -99,7 +99,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     public void testHitCountFromWeightDoesNotEarlyTerminate() throws IOException {
         {
             CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(new HitsThresholdChecker(numDocs));
-            Result result = searcher.search(new MatchAllDocsQuery(), collectorManager);
+            Result result = searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager);
             assertEquals(numDocs, result.totalHits);
             assertFalse(result.terminatedAfter);
         }
@@ -108,7 +108,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
             CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(
                 new HitsThresholdChecker(threshold)
             );
-            Result result = searcher.search(new MatchAllDocsQuery(), collectorManager);
+            Result result = searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager);
             assertEquals(numDocs, result.totalHits);
             assertFalse(result.terminatedAfter);
         }
@@ -117,7 +117,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
             CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(
                 new HitsThresholdChecker(threshold)
             );
-            Result result = searcher.search(new MatchAllDocsQuery(), collectorManager);
+            Result result = searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager);
             assertEquals(numDocs, result.totalHits);
             assertFalse(result.terminatedAfter);
         }

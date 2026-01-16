@@ -43,6 +43,7 @@ import java.util.function.Function;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BFLOAT16;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BIT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
@@ -91,6 +92,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 3199),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
             )
         );
@@ -104,12 +106,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
                     randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomBoolean(),
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
                 ),
                 new DenseVectorFieldMapper.Int4HnswIndexOptions(
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
                     randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomBoolean(),
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
                 ),
                 new DenseVectorFieldMapper.FlatIndexOptions(),
@@ -124,6 +128,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 new DenseVectorFieldMapper.BBQHnswIndexOptions(
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
+                    randomBoolean(),
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
                 ),
                 new DenseVectorFieldMapper.BBQFlatIndexOptions(
@@ -136,7 +141,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 randomFloatBetween(0.0f, 100.0f, true),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomBoolean(),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                IndexVersion.current()
             )
         );
 
@@ -155,15 +162,22 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomBoolean(),
                 rescoreVector
             ),
             new DenseVectorFieldMapper.Int4HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomBoolean(),
                 rescoreVector
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomBoolean(),
+                rescoreVector
+            )
         );
     }
 
@@ -202,11 +216,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertFalse(bft.hasDocValues());
     }
 
-    public void testIsIndexed() {
+    public void testIndexType() {
         DenseVectorFieldType fft = createFloatFieldType();
-        assertEquals(indexed, fft.isIndexed());
+        assertEquals(indexed, fft.indexType().hasVectors());
         DenseVectorFieldType bft = createByteFieldType();
-        assertTrue(bft.isIndexed());
+        assertTrue(bft.indexType().hasVectors());
     }
 
     public void testIsSearchable() {
@@ -236,8 +250,51 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValueFormat() {
         DenseVectorFieldType fft = createFloatFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, fft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("bogus", null));
+
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("bogus", null));
+
+        DenseVectorFieldType bitFt = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BIT,
+            BBQ_MIN_DIMS,
+            indexed,
+            VectorSimilarity.COSINE,
+            indexed ? randomIndexOptionsAll() : null,
+            Collections.emptyMap(),
+            false
+        );
+        assertEquals(DocValueFormat.DENSE_VECTOR, bitFt.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bitFt.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bitFt.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("bogus", null));
+
+        DenseVectorFieldType bfloat16Ft = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BFLOAT16,
+            BBQ_MIN_DIMS,
+            indexed,
+            VectorSimilarity.COSINE,
+            indexed ? randomIndexOptionsAll() : null,
+            Collections.emptyMap(),
+            false
+        );
+        assertEquals(DocValueFormat.DENSE_VECTOR, bfloat16Ft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bfloat16Ft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bfloat16Ft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("bogus", null));
     }
 
     public void testFetchSourceValue() throws IOException {
@@ -772,6 +829,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
             Tuple.tuple(FLOAT, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
+            Tuple.tuple(BFLOAT16, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
             Tuple.tuple(BYTE, q -> ((ESKnnByteVectorQuery) q).getStrategy()),
             Tuple.tuple(BIT, q -> ((ESKnnByteVectorQuery) q).getStrategy())
         );

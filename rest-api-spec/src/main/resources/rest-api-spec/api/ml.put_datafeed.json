@@ -37,18 +37,25 @@
     "params": {
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Ignore unavailable indexes (default: false)"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Ignore if the source indices expressions resolves to no concrete indices (default: true)"
       },
       "ignore_throttled": {
+        "deprecated": {
+          "version": "7.16.0",
+          "description": "This parameter is deprecated because frozen indices have been deprecated."
+        },
         "type": "boolean",
+        "default": true,
         "description": "Ignore indices that are marked as throttled (default: true)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -56,6 +63,7 @@
           "none",
           "all"
         ],
+        "default": "open",
         "description": "Whether source index expressions should get expanded to open or closed indices (default: open)"
       }
     }

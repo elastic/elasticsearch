@@ -1,0 +1,6 @@
+pr: 135434
+summary: Support extra field (`outputField`) in TOP function. Values of `outputField` will be returned instead of values of `field`
+area: ES|QL
+type: enhancement
+issues:
+ - 128630

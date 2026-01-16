@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
@@ -103,13 +104,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
+    private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
-
-    private Long rangeTimestampFrom;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -284,6 +284,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             null,
             null,
             null,
+            false,
             false
         );
         this.shardId = shardId;
@@ -292,6 +293,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
         this.searcher = searcher;
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
@@ -302,7 +304,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
     }
 
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)
@@ -557,6 +559,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return nestedScope;
     }
 
+    public AutoPrefilteringScope autoPrefilteringScope() {
+        return autoPrefilteringScope;
+    }
+
     public IndexVersion indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
     }
@@ -744,23 +750,5 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean rewriteToNamedQuery() {
         return rewriteToNamedQueries;
-    }
-
-    /**
-     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
-     */
-    public Long getRangeTimestampFrom() {
-        return rangeTimestampFrom;
-    }
-
-    /**
-     * Records the lower bound of a time range filter against the @timestamp field included in the query. For telemetry purposes.
-     */
-    public void setRangeTimestampFrom(Long rangeTimestampFrom) {
-        if (this.rangeTimestampFrom == null) {
-            this.rangeTimestampFrom = rangeTimestampFrom;
-        } else {
-            this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
-        }
     }
 }

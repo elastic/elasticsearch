@@ -3,22 +3,22 @@
 **Example**
 
 ```esql
- from colors
- | eval similarity = v_dot_product(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| eval similarity = v_dot_product(rgb_vector, [0, 255, 255])
+| sort similarity desc, color asc
 ```
 
 | color:text | similarity:double |
 | --- | --- |
-| azure | 65025.5 |
-| cyan | 65025.5 |
-| white | 65025.5 |
-| mint cream | 64388.0 |
-| snow | 63750.5 |
-| honeydew | 63113.0 |
-| ivory | 63113.0 |
-| sea shell | 61583.0 |
-| lavender | 61200.5 |
-| old lace | 60563.0 |
+| azure | 130050.0 |
+| cyan | 130050.0 |
+| white | 130050.0 |
+| mint cream | 128775.0 |
+| snow | 127500.0 |
+| honeydew | 126225.0 |
+| ivory | 126225.0 |
+| sea shell | 123165.0 |
+| lavender | 122400.0 |
+| old lace | 121125.0 |
 
 

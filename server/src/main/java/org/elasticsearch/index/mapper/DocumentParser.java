@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,19 +84,22 @@ public final class DocumentParser {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
-        final XContentType xContentType = source.getXContentType();
 
-        XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
-            XContentParser parser = meteringParserDecorator.decorate(
+            // the context needs to be closed after parsing to make sure the actual parser is properly closed;
+            // closing won't impact other state of the context
+            RootDocumentParserContext ctx = new RootDocumentParserContext(
+                mappingLookup,
+                mappingParserContext,
+                source,
                 XContentHelper.createParser(
                     parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
                     source.source(),
-                    xContentType
+                    source.getXContentType()
                 )
             )
         ) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+            context = ctx;
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
@@ -121,7 +123,7 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             dynamicUpdate,
-            meteringParserDecorator.meteredDocumentSize()
+            source.getMeteringParserDecorator().meteredDocumentSize()
         ) {
             @Override
             public String documentDescription() {
@@ -129,6 +131,15 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    private static void skipChildren(DocumentParserContext context) throws IOException {
+        boolean withinLeafObject = context.path().isWithinLeafObject();
+        // treat everything as leaf while skipping children, this allows parser decorators
+        // to implement custom skip logic for children with DotExpandingXContentParser
+        context.path().setWithinLeafObject(true);
+        context.parser().skipChildren();
+        context.path().setWithinLeafObject(withinLeafObject);
     }
 
     private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
@@ -151,7 +162,7 @@ public final class DocumentParser {
                         )
                     );
                 } else {
-                    context.parser().skipChildren();
+                    skipChildren(context);
                 }
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
@@ -301,7 +312,7 @@ public final class DocumentParser {
                     )
                 );
             } else {
-                parser.skipChildren();
+                skipChildren(context);
             }
             return;
         }
@@ -562,7 +573,7 @@ public final class DocumentParser {
                 );
             } else {
                 // not dynamic, read everything up to end object
-                context.parser().skipChildren();
+                skipChildren(context);
             }
         } else {
             Mapper dynamicObjectMapper;
@@ -601,7 +612,7 @@ public final class DocumentParser {
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
                 if (context.addDynamicMapper(dynamicObjectMapper) == false) {
                     failIfMatchesRoutingPath(context, currentFieldName);
-                    context.parser().skipChildren();
+                    skipChildren(context);
                     return;
                 }
             }
@@ -655,7 +666,7 @@ public final class DocumentParser {
                     )
                 );
             } else {
-                context.parser().skipChildren();
+                skipChildren(context);
             }
             return;
         }
@@ -676,14 +687,34 @@ public final class DocumentParser {
                         throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
                     }
                 }
-                context.addIgnoredField(currentFieldName);
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
                 return;
             }
+
+            if (context.indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()
+                && currentFieldName.length() > context.indexSettings().getMappingFieldNameLengthLimit()) {
+                if (context.canAddIgnoredField()) {
+                    try {
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(
+                                context,
+                                context.path().pathAsText(currentFieldName),
+                                context.encodeFlattenedToken()
+                            )
+                        );
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
+                    }
+                }
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
+                return;
+            }
+
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
             if (parsesArrayValue(objectMapperFromTemplate)) {
                 if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
-                    context.parser().skipChildren();
+                    skipChildren(context);
                     return;
                 }
                 context.path().add(currentFieldName);
@@ -952,7 +983,7 @@ public final class DocumentParser {
     private static FieldMapper noopFieldMapper(String path) {
         return new FieldMapper(
             NOOP_FIELD_MAPPER_NAME,
-            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, false, false, false, Collections.emptyMap()) {
+            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, IndexType.NONE, false, Collections.emptyMap()) {
                 @Override
                 public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
@@ -1065,7 +1096,7 @@ public final class DocumentParser {
      * Internal version of {@link DocumentParserContext} that is aware of implementation details like nested documents
      * and how they are stored in the lucene index.
      */
-    private static class RootDocumentParserContext extends DocumentParserContext {
+    private static class RootDocumentParserContext extends DocumentParserContext implements AutoCloseable {
         private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
@@ -1100,15 +1131,22 @@ public final class DocumentParser {
             this.tsid = tsid;
             assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES
                 : "tsid should only be set for time series indices";
-            if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
+            XContentParserDecorator parserDecorator = source.getMeteringParserDecorator();
+            Mapping mapping = mappingLookup.getMapping();
+            if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
+                this.parser = parserDecorator.decorate(DotExpandingXContentParser.expandDots(parser, this.path), mapping);
             } else {
-                this.parser = parser;
+                this.parser = parserDecorator.decorate(parser, mapping);
             }
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
+        }
+
+        @Override
+        public void close() throws IOException {
+            parser.close();
         }
 
         @Override

@@ -17,7 +17,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -25,16 +24,19 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -63,8 +65,9 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;
     private final boolean hasPositions;
-
     private final boolean disableTemplating;
+    private final boolean useBinaryDocValuesArgs;
+    private final boolean useBinaryDocValuesRawText;
 
     PatternTextFieldType(
         String name,
@@ -73,19 +76,23 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean disableTemplating,
         Map<String, String> meta,
         boolean isSyntheticSource,
-        boolean isWithinMultiField
+        boolean isWithinMultiField,
+        boolean useBinaryDocValueArgs,
+        boolean useBinaryDocValuesRawText
     ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the pattern_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
-        super(name, true, false, false, tsi, meta, isSyntheticSource, isWithinMultiField);
+        super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, isWithinMultiField);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource, isWithinMultiField);
         this.hasPositions = tsi.hasPositions();
         this.disableTemplating = disableTemplating;
+        this.useBinaryDocValuesArgs = useBinaryDocValueArgs;
+        this.useBinaryDocValuesRawText = useBinaryDocValuesRawText;
     }
 
     // For testing only
-    PatternTextFieldType(String name, boolean hasPositions, boolean syntheticSource) {
+    PatternTextFieldType(String name, boolean hasPositions, boolean syntheticSource, boolean useBinaryDocValueArgs) {
         this(
             name,
             new TextSearchInfo(
@@ -98,7 +105,9 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             false,
             Collections.emptyMap(),
             syntheticSource,
-            false
+            false,
+            useBinaryDocValueArgs,
+            true
         );
     }
 
@@ -146,7 +155,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         SearchExecutionContext searchExecutionContext
     ) {
         if (disableTemplating) {
-            return storedFieldFetcher(storedNamed());
+            return useBinaryDocValuesRawText ? binaryDocValuesFetcher(storedNamed()) : storedFieldFetcher(storedNamed());
         }
 
         return context -> {
@@ -162,6 +171,18 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         };
     }
 
+    private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFetcher(String name) {
+        return context -> {
+            var docValues = context.reader().getBinaryDocValues(name);
+            return docId -> {
+                if (docValues != null && docValues.advanceExact(docId)) {
+                    return List.of(docValues.binaryValue());
+                }
+                return List.of();
+            };
+        };
+    }
+
     private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String name) {
         var loader = StoredFieldLoader.create(false, Set.of(name));
         return context -> {
@@ -169,7 +190,8 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             return docId -> {
                 leafLoader.advanceTo(docId);
                 var storedFields = leafLoader.storedFields();
-                return storedFields.get(name);
+                var values = storedFields.get(name);
+                return values != null ? values : List.of();
             };
         };
     }
@@ -252,7 +274,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
         return toIntervalsSource(
             Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()),
-            new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
+            Queries.ALL_DOCS_INSTANCE, // wildcard queries can be expensive, what should the approximation be?
             context
         );
     }
@@ -261,7 +283,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
         return toIntervalsSource(
             Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()),
-            new MatchAllDocsQuery(), // regexp queries can be expensive, what should the approximation be?
+            Queries.ALL_DOCS_INSTANCE, // regexp queries can be expensive, what should the approximation be?
             context
         );
     }
@@ -276,7 +298,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     ) {
         return toIntervalsSource(
             Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-            new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?
+            Queries.ALL_DOCS_INSTANCE, // range queries can be expensive, what should the approximation be?
             context
         );
     }
@@ -305,7 +327,13 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
         if (disableTemplating) {
-            return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
+            if (useBinaryDocValuesRawText) {
+                // for newer indices, raw pattern text values are stored in binary doc values
+                return new BytesRefsFromBinaryBlockLoader(storedNamed());
+            } else {
+                // for older indices (bwc), raw pattern text values are stored in stored fields
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
+            }
         }
 
         return new PatternTextBlockLoader((leafReader -> PatternTextCompositeValues.from(leafReader, this)));
@@ -345,6 +373,10 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
     boolean disableTemplating() {
         return disableTemplating;
+    }
+
+    boolean useBinaryDocValuesArgs() {
+        return useBinaryDocValuesArgs;
     }
 
 }

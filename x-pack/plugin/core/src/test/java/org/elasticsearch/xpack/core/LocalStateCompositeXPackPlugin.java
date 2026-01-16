@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
@@ -81,6 +82,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
@@ -140,7 +142,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         SearchPlugin,
         InternalSearchPlugin,
         ShutdownAwarePlugin,
-        RestServerActionPlugin {
+        RestServerActionPlugin,
+        InternalVectorFormatProviderPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -724,6 +727,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateStatus> finalListener
     ) {
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
@@ -741,7 +745,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 }
             })
         );
-        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, allListeners));
+        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, allListeners));
     }
 
     @Override

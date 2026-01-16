@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -15,13 +17,14 @@ public class NodeDecisionWireSerializationTests extends AbstractWireSerializingT
 
     @Override
     protected NodeDecision mutateInstance(NodeDecision instance) throws IOException {
-        if (randomBoolean()) {
-            return new NodeDecision(NodeDecisionTestUtils.randomDiscoveryNode(), instance.decision());
-        } else if (randomBoolean()) {
-            return new NodeDecision(instance.node(), randomValueOtherThan(instance.decision(), NodeDecisionTestUtils::randomDecision));
-        } else {
-            return randomValueOtherThan(instance, this::createTestInstance);
+        DiscoveryNode node = instance.node();
+        Decision decision = instance.decision();
+        switch (between(0, 1)) {
+            case 0 -> node = randomValueOtherThan(node, () -> NodeDecisionTestUtils.randomDiscoveryNode());
+            case 1 -> decision = randomValueOtherThan(decision, () -> NodeDecisionTestUtils.randomDecision());
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
+        return new NodeDecision(node, decision);
     }
 
     @Override

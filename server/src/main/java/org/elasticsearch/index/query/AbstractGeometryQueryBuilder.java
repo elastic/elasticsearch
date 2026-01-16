@@ -22,6 +22,7 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Geometry;
@@ -279,9 +280,17 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
      * the field is unmapped.
      */
-    public AbstractGeometryQueryBuilder<QB> ignoreUnmapped(boolean ignoreUnmapped) {
+    @SuppressWarnings("unchecked")
+    public QB ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
-        return this;
+        return (QB) this;
+    }
+
+    /**
+     * @return whether the query builder should ignore unmapped fields
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
     }
 
     /** builds the appropriate lucene shape query */
@@ -308,7 +317,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         final MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find type for field [" + fieldName + "]");
             }
@@ -362,7 +371,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                             }
                         }
                     }
-                    throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
+                    throw new IllegalArgumentException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
                 }
             } catch (Exception e) {
                 l.onFailure(e);
@@ -438,7 +447,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (supplier != null) {
-            return supplier.get() == null ? this : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation);
+            return supplier.get() == null
+                ? this
+                : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation).ignoreUnmapped(ignoreUnmapped);
         } else if (this.shape == null) {
             SetOnce<Geometry> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
@@ -449,7 +460,8 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                     listener.onResponse(null);
                 }));
             });
-            return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation);
+            return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation)
+                .ignoreUnmapped(ignoreUnmapped);
         }
         return this;
     }

@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
 import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
 import static org.hamcrest.Matchers.containsString;
@@ -174,16 +175,16 @@ public class RestRequestTests extends ESTestCase {
     public void testContentOrSourceParam() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).contentOrSourceParam());
         assertEquals("request body or source parameter is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2());
-        assertEquals(
-            new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).contentOrSourceParam().v2()
+        assertThat(contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2(), equalBytes(new BytesArray("stuff")));
+        assertThat(
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).contentOrSourceParam().v2(),
+            equalBytes(new BytesArray("stuff"))
         );
-        assertEquals(
-            new BytesArray("{\"foo\": \"stuff\"}"),
+        assertThat(
             contentRestRequest("", Map.of("source", "{\"foo\": \"stuff\"}", "source_content_type", "application/json"))
                 .contentOrSourceParam()
-                .v2()
+                .v2(),
+            equalBytes(new BytesArray("{\"foo\": \"stuff\"}"))
         );
         e = expectThrows(ValidationException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
         assertThat(e.getMessage(), containsString("source and source_content_type parameters are required"));
@@ -290,10 +291,10 @@ public class RestRequestTests extends ESTestCase {
     public void testRequiredContent() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).requiredContent());
         assertEquals("request body is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredContent());
-        assertEquals(
-            new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent()
+        assertThat(contentRestRequest("stuff", emptyMap()).requiredContent(), equalBytes(new BytesArray("stuff")));
+        assertThat(
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent(),
+            equalBytes(new BytesArray("stuff"))
         );
         e = expectThrows(
             ElasticsearchParseException.class,

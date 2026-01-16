@@ -63,4 +63,9 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         request().returnLocalAll(returnLocalAll);
         return this;
     }
+
+    public FieldCapabilitiesRequestBuilder setIncludeResolvedTo(boolean resolvedTo) {
+        request().includeResolvedTo(resolvedTo);
+        return this;
+    }
 }

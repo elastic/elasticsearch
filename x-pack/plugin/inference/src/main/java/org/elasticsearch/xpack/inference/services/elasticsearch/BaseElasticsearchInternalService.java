@@ -47,7 +47,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -126,7 +126,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             });
             subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);
             subscribableListener.addListener(ActionListener.wrap(started -> {
-                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), modelAndResponseAttributes(model, null));
+                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), serviceAndResponseAttributes(model, null));
                 finalListener.onResponse(started);
             }, e -> {
                 if (e instanceof ElasticsearchTimeoutException) {
@@ -139,10 +139,11 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                             model.getInferenceEntityId()
                         )
                     );
-                    inferenceStats.deploymentDuration().record(timer.elapsedMillis(), modelAndResponseAttributes(model, timeoutException));
+                    inferenceStats.deploymentDuration()
+                        .record(timer.elapsedMillis(), serviceAndResponseAttributes(model, timeoutException));
                     finalListener.onFailure(timeoutException);
                 } else {
-                    inferenceStats.deploymentDuration().record(timer.elapsedMillis(), modelAndResponseAttributes(model, unwrapCause(e)));
+                    inferenceStats.deploymentDuration().record(timer.elapsedMillis(), serviceAndResponseAttributes(model, unwrapCause(e)));
                     finalListener.onFailure(e);
                 }
             }));

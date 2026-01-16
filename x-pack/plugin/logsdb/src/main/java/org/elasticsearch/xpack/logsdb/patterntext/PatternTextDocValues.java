@@ -18,21 +18,42 @@ import java.util.List;
 
 public final class PatternTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
-    private final SortedSetDocValues argsDocValues;
+    private final BinaryDocValues argsDocValues;
     private final SortedSetDocValues argsInfoDocValues;
 
-    PatternTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
+    PatternTextDocValues(SortedSetDocValues templateDocValues, BinaryDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
         this.argsInfoDocValues = argsInfoDocValues;
     }
 
-    static PatternTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
-        throws IOException {
+    static PatternTextDocValues from(
+        LeafReader leafReader,
+        String templateFieldName,
+        String argsFieldName,
+        String argsInfoFieldName,
+        boolean useBinaryDocValueArgs
+    ) throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
-        SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
+        BinaryDocValues argsDocValues = getArgsDocValues(leafReader, argsFieldName, useBinaryDocValueArgs);
         SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
         return new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
+    }
+
+    /**
+     * Args columns was originally a SortedSetDocValues column and was replaced with BinaryDocValues.
+     * To maintain backwards compatibility, if a BinaryDocValues column does not exist, use the old SortedSetDocValues.
+     * Since pattern_text fields are not multivalued we can wrap the SortedSetDocValues in a BinaryDocValues interface.
+     */
+    private static BinaryDocValues getArgsDocValues(LeafReader leafReader, String argsFieldName, boolean useBinaryDocValueArgs)
+        throws IOException {
+        if (useBinaryDocValueArgs) {
+            return DocValues.getBinary(leafReader, argsFieldName);
+        } else {
+            var sortedSetDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
+            assert sortedSetDocValues != null;
+            return new BinaryDelegatingSingletonSortedSetDocValues(sortedSetDocValues);
+        }
     }
 
     private String getNextStringValue() throws IOException {
@@ -42,8 +63,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
         List<Arg.Info> argsInfo = Arg.decodeInfo(argsInfoDocValues.lookupOrd(argsInfoDocValues.nextOrd()).utf8ToString());
         if (argsInfo.isEmpty() == false) {
-            assert argsDocValues.docValueCount() == 1;
-            var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
+            var mergedArgs = argsDocValues.binaryValue();
             var args = Arg.decodeRemainingArgs(mergedArgs.utf8ToString());
             assert args.length == argsInfo.size();
             return PatternTextValueProcessor.merge(template, args, argsInfo);

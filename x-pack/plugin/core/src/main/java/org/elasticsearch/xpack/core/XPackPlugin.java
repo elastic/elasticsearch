@@ -38,7 +38,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
-import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.License;
@@ -365,7 +364,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
         actions.add(new ActionHandler(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
         actions.add(new ActionHandler(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
-        actions.add(new ActionHandler(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
+        actions.add(new ActionHandler(TransportGetBasicStatusAction.TYPE, TransportGetBasicStatusAction.class));
         actions.add(new ActionHandler(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
         actions.add(new ActionHandler(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
         actions.add(new ActionHandler(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));

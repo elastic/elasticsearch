@@ -17,22 +17,16 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,6 +44,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -58,7 +54,6 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -72,10 +67,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -85,16 +77,14 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -116,9 +106,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.StatusChecks.multiName;
+import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.StatusChecks.singleName;
+import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.blContext;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -151,8 +143,8 @@ import static org.hamcrest.Matchers.sameInstance;
  *         'union types' capabilities of the <code>ValuesSourceReaderOperator</code> class.
  *     </li>
  * </ul>
- * Since this test does not have access to the type conversion code in the ESQL module, we have mocks for that behaviour
- * in the inner classes <code>TestTypeConvertingBlockLoader</code> and <code>TestBlockConverter</code>.
+ * Since this test does not have access to the type conversion code in the ESQL module, we have mocks for that behaviour.
+ * in the inner classes.
  */
 @SuppressWarnings("resource")
 public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
@@ -162,17 +154,17 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         addIndex(
             Map.of(
                 "ip",
-                new TestFieldType<>("ip", IP, d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
+                new TestFieldType<>("ip", "ip", d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
                 "duration",
-                new TestFieldType<>("duration", DataType.LONG, d -> (long) d, Checks::unionDurationsAsStrings)
+                new TestFieldType<>("duration", "long", d -> (long) d, Checks::unionDurationsAsStrings)
             )
         );
         addIndex(
             Map.of(
                 "ip",
-                new TestFieldType<>("ip", DataType.KEYWORD, d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
+                new TestFieldType<>("ip", "keyword", d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
                 "duration",
-                new TestFieldType<>("duration", DataType.KEYWORD, d -> Integer.toString(d), Checks::unionDurationsAsStrings)
+                new TestFieldType<>("duration", "keyword", d -> Integer.toString(d), Checks::unionDurationsAsStrings)
             )
         );
     }
@@ -184,7 +176,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private record TestIndexMappingConfig(String indexName, int shardIdx, Map<String, TestFieldType<?>> fieldTypes) {}
 
-    private record TestFieldType<T>(String name, DataType dataType, Function<Integer, T> valueGenerator, CheckResults checkResults) {}
+    private record TestFieldType<T>(String name, String typeName, Function<Integer, T> valueGenerator, CheckResults checkResults) {}
 
     private final Map<String, Directory> directories = new HashMap<>();
     private final Map<String, MapperService> mapperServices = new HashMap<>();
@@ -208,7 +200,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     private List<ValuesSourceReaderOperator.ShardContext> initShardContexts() {
         return INDICES.keySet()
             .stream()
-            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), () -> SourceLoader.FROM_STORED_SOURCE, 0.2))
+            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2))
             .toList();
     }
 
@@ -233,14 +225,14 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MappedFieldType ft,
         ElementType elementType
     ) {
-        return factory(shardContexts, ft.name(), elementType, ft.blockLoader(blContext()));
+        return factory(shardContexts, ft.name(), elementType, ValuesSourceReaderOperator.load(ft.blockLoader(blContext())));
     }
 
     private static Operator.OperatorFactory factory(
         List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         String name,
         ElementType elementType,
-        BlockLoader loader
+        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter
     ) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
@@ -248,9 +240,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 if (shardIdx < 0 || shardIdx >= INDICES.size()) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
-                return loader;
+                return loaderAndConverter;
             })),
-            shardContexts,
+            new IndexedByShardIdFromList<>(shardContexts),
             0
         );
     }
@@ -274,8 +266,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
-            shardContexts,
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            new IndexedByShardIdFromList<>(shardContexts),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             DataPartitioning.SHARD,
             DataPartitioning.AutoStrategy.DEFAULT,
             1,// randomIntBetween(1, 10),
@@ -306,7 +298,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (Map.Entry<String, TestFieldType<?>> entry : indexMappingConfig.fieldTypes.entrySet()) {
                 String fieldName = entry.getKey();
                 TestFieldType<?> fieldType = entry.getValue();
-                simpleField(b, fieldName, fieldType.dataType.typeName());
+                simpleField(b, fieldName, fieldType.typeName);
             }
         })));
     }
@@ -502,7 +494,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
                 List.of(testCase.info, fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
-                shardContexts,
+                new IndexedByShardIdFromList<>(shardContexts),
                 0
             ).get(driverContext)
         );
@@ -551,55 +543,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, ftX));
     }
 
-    private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, DataType toType) {
+    private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, String toType) {
         return new ValuesSourceReaderOperator.FieldInfo(
             fieldName,
             elementType,
             false,
             shardIdx -> getBlockLoaderFor(shardIdx, fieldName, toType)
         );
-    }
-
-    private static MappedFieldType.BlockLoaderContext blContext() {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return "test_index";
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                var imd = IndexMetadata.builder("test_index")
-                    .settings(ValueSourceReaderTypeConversionTests.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
-                    .build();
-                return new IndexSettings(imd, Settings.EMPTY);
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return Set.of(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return null;
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-            }
-        };
     }
 
     private void loadSimpleAndAssert(
@@ -618,7 +568,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     fieldInfo(mapperService("index1").fieldType("key"), ElementType.INT),
                     fieldInfo(mapperService("index1").fieldType("indexKey"), ElementType.BYTES_REF)
                 ),
-                shardContexts,
+                new IndexedByShardIdFromList<>(shardContexts),
                 0
             ).get(driverContext)
         );
@@ -628,9 +578,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             cases.removeAll(b);
             tests.addAll(b);
             operators.add(
-                new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1), b.stream().map(i -> i.info).toList(), shardContexts, 0).get(
-                    driverContext
-                )
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    b.stream().map(i -> i.info).toList(),
+                    new IndexedByShardIdFromList<>(shardContexts),
+                    0
+                ).get(driverContext)
             );
         }
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -734,7 +687,14 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         List<Operator> operators = cases.stream()
-            .map(i -> new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1), List.of(i.info), shardContexts, 0).get(driverContext))
+            .map(
+                i -> new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(i.info),
+                    new IndexedByShardIdFromList<>(shardContexts),
+                    0
+                ).get(driverContext)
+            )
             .toList();
         if (allInOnePage) {
             input = List.of(CannedSourceOperator.mergePages(input));
@@ -884,7 +844,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> BlockLoader.constantBytes(new BytesRef("foo"))
+                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 ),
                 checks::constantBytes,
                 StatusChecks::constantBytes
@@ -892,7 +852,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         );
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, false, shardIdx -> BlockLoader.CONSTANT_NULLS),
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "null",
+                    ElementType.NULL,
+                    false,
+                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                ),
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -903,7 +868,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         for (TestFieldType<?> fieldType : indexMappingConfig.fieldTypes.values()) {
             r.add(
                 new FieldCase(
-                    fieldInfo(fieldType.name, ElementType.BYTES_REF, DataType.KEYWORD),
+                    fieldInfo(fieldType.name, ElementType.BYTES_REF, "keyword"),
                     fieldType.checkResults,
                     StatusChecks::unionFromDocValues
                 )
@@ -951,7 +916,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             TestFieldType<?> fieldType = mappingConfig.fieldTypes.get("ip");
             String expected = fieldType.valueGenerator.apply(key).toString();
             // Conversion should already be done in FieldInfo!
-            // BytesRef found = (fieldType.dataType.typeName().equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
+            // BytesRef found = (fieldType.typeName.equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
             assertThat(bytesRef.utf8ToString(), equalTo(expected));
         }
 
@@ -1184,13 +1149,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 assertMap(
                     "Expected segment count in " + readers + "\n",
                     readers,
-                    matchesMap().entry(name + ":row_stride:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(segmentCount))
+                    matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount))
                 );
             } else {
                 assertMap(
                     "Expected segment count in " + readers + "\n",
                     readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(pageCount))
+                    matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount))
                 );
             }
         }
@@ -1204,20 +1169,17 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                Integer singletons = (Integer) readers.remove(name + ":row_stride:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":row_stride:" + singleName(type));
                 if (singletons != null) {
                     segmentCount -= singletons;
                 }
-                assertMap(readers, matchesMap().entry(name + ":row_stride:BlockDocValuesReader." + type, segmentCount));
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + multiName(type), segmentCount));
             } else {
-                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
                 if (singletons != null) {
                     pageCount -= singletons;
                 }
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader." + type, lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
             }
         }
 
@@ -1316,8 +1278,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         LuceneSourceOperatorTests.MockShardContext shardContext = new LuceneSourceOperatorTests.MockShardContext(reader(indexKey), 0);
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(shardContext),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -1325,7 +1287,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false // no scoring
         );
-        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2);
+        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(
+            reader(indexKey),
+            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+            0.2
+        );
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -1386,15 +1352,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ft.setDocValuesType(DocValuesType.NONE);
         ft.setStored(true);
         ft.freeze();
-        return new KeywordFieldMapper.KeywordFieldType(
-            name,
-            ft,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
-            true // TODO randomize - load from stored keyword fields if stored even in synthetic source
-        );
+        return new KeywordFieldMapper.KeywordFieldType(name, ft, false);
     }
 
     @AwaitsFix(bugUrl = "Get working for multiple indices")
@@ -1414,16 +1372,16 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                                 "null1",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> BlockLoader.CONSTANT_NULLS
+                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             ),
                             new ValuesSourceReaderOperator.FieldInfo(
                                 "null2",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> BlockLoader.CONSTANT_NULLS
+                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             )
                         ),
-                        shardContexts,
+                        new IndexedByShardIdFromList<>(shardContexts),
                         0
                     ).get(driverContext)
                 ),
@@ -1455,7 +1413,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
+            new IndexedByShardIdFromSingleton<>(
+                new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+            ),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1484,12 +1444,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (int s = 0; s < shardCount; s++) {
                 contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
                 readerShardContexts.add(
-                    new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                    new ValuesSourceReaderOperator.ShardContext(readers[s], (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
                 );
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
-                contexts,
-                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                new IndexedByShardIdFromList<>(contexts),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 randomIntBetween(1, 10),
@@ -1503,9 +1463,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 ByteSizeValue.ofGb(1),
                 List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
                     seenShards.add(shardIdx);
-                    return ft.blockLoader(blContext());
+                    return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
-                readerShardContexts,
+                new IndexedByShardIdFromList<>(readerShardContexts),
                 0
             );
             DriverContext driverContext = driverContext();
@@ -1619,27 +1579,33 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
      * This method will produce the same converter for all shards, which makes it useful for general type converting tests,
      * but not specifically union-types tests which require different converters for each shard.
      */
-    private static BlockLoader getBlockLoaderFor(int shardIdx, MappedFieldType ft, MappedFieldType ftX) {
+    private static ValuesSourceReaderOperator.LoaderAndConverter getBlockLoaderFor(int shardIdx, MappedFieldType ft, MappedFieldType ftX) {
         if (shardIdx < 0 || shardIdx >= INDICES.size()) {
             fail("unexpected shardIdx [" + shardIdx + "]");
         }
         BlockLoader blockLoader = ft.blockLoader(blContext());
         if (ftX != null && ftX.typeName().equals(ft.typeName()) == false) {
-            blockLoader = new TestTypeConvertingBlockLoader(blockLoader, ft.typeName(), ftX.typeName());
+            return ValuesSourceReaderOperator.loadAndConvert(
+                blockLoader,
+                TestDataTypeConverters.converterFactory(ft.typeName(), ftX.typeName())
+            );
         } else {
             TestIndexMappingConfig mappingConfig = INDICES.get("index" + (shardIdx + 1));
             TestFieldType<?> testFieldType = mappingConfig.fieldTypes.get(ft.name());
             if (testFieldType != null) {
-                blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.dataType.typeName(), "keyword");
+                return ValuesSourceReaderOperator.loadAndConvert(
+                    blockLoader,
+                    TestDataTypeConverters.converterFactory(testFieldType.typeName, "keyword")
+                );
             }
         }
-        return blockLoader;
+        return ValuesSourceReaderOperator.load(blockLoader);
     }
 
     /**
      * This method is used to generate shard-specific field information, so we can have different types and BlockLoaders for each shard.
      */
-    private BlockLoader getBlockLoaderFor(int shardIdx, String fieldName, DataType toType) {
+    private ValuesSourceReaderOperator.LoaderAndConverter getBlockLoaderFor(int shardIdx, String fieldName, String toType) {
         if (shardIdx < 0 || shardIdx >= INDICES.size()) {
             fail("unexpected shardIdx [" + shardIdx + "]");
         }
@@ -1652,112 +1618,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MapperService mapper = mapperService(indexKey);
         MappedFieldType ft = mapper.fieldType(fieldName);
         BlockLoader blockLoader = ft.blockLoader(blContext());
-        blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.dataType.typeName(), toType.typeName());
-        return blockLoader;
-    }
-
-    /**
-     * The implementation of union-types relies on the <code>BlockLoader.convert(Block)</code> to convert the block to the correct type
-     * at the point it is read from source, so that the rest of the query only deals with a single type for that field.
-     * This is implemented in the 'esql' module, and so we have a mock for this behaviour here, which is a simplified subset of the
-     * features in the real implementation.
-     */
-    static class TestTypeConvertingBlockLoader implements BlockLoader {
-        protected final BlockLoader delegate;
-        private final EvalOperator.ExpressionEvaluator convertEvaluator;
-
-        protected TestTypeConvertingBlockLoader(BlockLoader delegate, String fromTypeName, String toTypeName) {
-            this.delegate = delegate;
-            DriverContext driverContext = new DriverContext(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                new org.elasticsearch.compute.data.BlockFactory(
-                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                    BigArrays.NON_RECYCLING_INSTANCE
-                )
-            );
-            TestBlockConverter blockConverter = TestDataTypeConverters.blockConverter(driverContext, fromTypeName, toTypeName);
-            this.convertEvaluator = new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public org.elasticsearch.compute.data.Block eval(Page page) {
-                    org.elasticsearch.compute.data.Block block = page.getBlock(0);
-                    return blockConverter.convert(block);
-                }
-
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
-
-                @Override
-                public void close() {}
-            };
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            // Return the delegates builder, which can build the original mapped type, before conversion
-            return delegate.builder(factory, expectedCount);
-        }
-
-        @Override
-        public Block convert(Block block) {
-            Page page = new Page((org.elasticsearch.compute.data.Block) block);
-            return convertEvaluator.eval(page);
-        }
-
-        @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            ColumnAtATimeReader reader = delegate.columnAtATimeReader(context);
-            if (reader == null) {
-                return null;
-            }
-            return new ColumnAtATimeReader() {
-                @Override
-                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                    Block block = reader.read(factory, docs, offset, nullsFiltered);
-                    Page page = new Page((org.elasticsearch.compute.data.Block) block);
-                    return convertEvaluator.eval(page);
-                }
-
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return reader.canReuse(startingDocID);
-                }
-
-                @Override
-                public String toString() {
-                    return reader.toString();
-                }
-            };
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            // We do no type conversion here, since that will be done in the ValueSourceReaderOperator for row-stride cases
-            // Using the BlockLoader.convert(Block) function defined above
-            return delegate.rowStrideReader(context);
-        }
-
-        @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return delegate.rowStrideStoredFieldSpec();
-        }
-
-        @Override
-        public boolean supportsOrdinals() {
-            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
-            return false;
-        }
-
-        @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) {
-            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
-        }
-
-        @Override
-        public final String toString() {
-            return "TypeConvertingBlockLoader[delegate=" + delegate + "]";
-        }
+        return ValuesSourceReaderOperator.loadAndConvert(
+            blockLoader,
+            TestDataTypeConverters.converterFactory(testFieldType.typeName, toType)
+        );
     }
 
     @FunctionalInterface
@@ -1768,11 +1632,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     /**
      * Blocks that should be converted from some type to a string (keyword) can use this converter.
      */
-    private abstract static class BlockToStringConverter implements TestBlockConverter {
+    private abstract static class BlockToStringConverter implements ValuesSourceReaderOperator.ConverterEvaluator {
         private final DriverContext driverContext;
 
         BlockToStringConverter(DriverContext driverContext) {
             this.driverContext = driverContext;
+            driverContext.breaker().addEstimateBytesAndMaybeBreak(1, "test");
         }
 
         @Override
@@ -1806,17 +1671,23 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
         }
 
+        @Override
+        public void close() {
+            driverContext.breaker().addWithoutBreaking(-1);
+        }
+
         abstract BytesRef evalValue(Block container, int index);
     }
 
     /**
      * Blocks that should be converted from a string (keyword) to some other type can use this converter.
      */
-    private abstract static class TestBlockFromStringConverter<T> implements TestBlockConverter {
+    private abstract static class TestBlockFromStringConverter<T> implements ValuesSourceReaderOperator.ConverterEvaluator {
         protected final DriverContext driverContext;
 
         TestBlockFromStringConverter(DriverContext driverContext) {
             this.driverContext = driverContext;
+            driverContext.breaker().addEstimateBytesAndMaybeBreak(1, "test");
         }
 
         @Override
@@ -1850,6 +1721,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             } finally {
                 b.close();
             }
+        }
+
+        @Override
+        public void close() {
+            driverContext.breaker().addWithoutBreaking(-1);
         }
 
         abstract Block.Builder blockBuilder(int expectedCount);
@@ -2040,14 +1916,22 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     /**
-     * Utility class for creating type-specific converters based on their typeNamne values.
+     * Utility class for creating type-specific converters based on their typeName values.
      * We do not support all possibly combinations, but only those that are needed for the tests.
      * In particular, either the 'from' or 'to' types must be KEYWORD.
      */
     private static class TestDataTypeConverters {
-        public static TestBlockConverter blockConverter(DriverContext driverContext, String fromTypeName, String toTypeName) {
+        public static ValuesSourceReaderOperator.ConverterFactory converterFactory(String fromTypeName, String toTypeName) {
+            return context -> TestDataTypeConverters.converter(context, fromTypeName, toTypeName);
+        }
+
+        private static ValuesSourceReaderOperator.ConverterEvaluator converter(
+            DriverContext driverContext,
+            String fromTypeName,
+            String toTypeName
+        ) {
             if (toTypeName == null || fromTypeName.equals(toTypeName)) {
-                return b -> b;
+                return null;
             }
             if (isString(fromTypeName)) {
                 return switch (toTypeName) {

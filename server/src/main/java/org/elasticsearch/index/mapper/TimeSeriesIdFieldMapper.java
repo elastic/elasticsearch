@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -60,8 +61,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
-        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
-            && context.getIndexSettings().useDocValuesSkipper();
+        boolean useDocValuesSkipper = context.getIndexSettings().useDocValuesSkipper();
         return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
     }
 
@@ -94,12 +94,17 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
-            super(NAME, false, false, true, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -145,7 +150,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name());
         }
     }
 
@@ -158,7 +163,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        assert fieldType().isIndexed() == false;
+        assert fieldType().indexType().hasOnlyDocValues();
 
         final BytesRef timeSeriesId;
         final RoutingPathFields routingPathFields;

@@ -1,5 +1,0 @@
-pr: 131395
-summary: Enable failure store for newly created OTel data streams
-area: Data streams
-type: enhancement
-issues: []

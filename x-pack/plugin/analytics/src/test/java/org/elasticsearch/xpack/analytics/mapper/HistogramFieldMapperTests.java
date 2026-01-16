@@ -6,17 +6,27 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.AssumptionViolatedException;
@@ -29,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -57,6 +68,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((HistogramFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((HistogramFieldMapper) m).coerce()));
     }
 
     @Override
@@ -114,6 +126,53 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()))
         );
         assertThat(e.getCause().getMessage(), containsString("expected field called [counts]"));
+    }
+
+    public void testCoerce() throws IOException {
+        ExponentialHistogram input = ExponentialHistogramTestUtils.randomHistogram();
+
+        XContentBuilder inputJson = XContentFactory.jsonBuilder();
+        inputJson.startObject().field("field");
+        ExponentialHistogramXContent.serialize(inputJson, input);
+        inputJson.endObject();
+        BytesReference inputDocBytes = BytesReference.bytes(inputJson);
+
+        XContentParser docParser = XContentType.JSON.xContent()
+            .createParser(XContentParserConfiguration.EMPTY, inputDocBytes.streamInput());
+        docParser.nextToken(); // start object
+        docParser.nextToken(); // field name
+        docParser.nextToken(); // start object
+        docParser.nextToken(); // point at first sub-field
+        HistogramParser.ParsedHistogram expectedCoerced = ParsedHistogramConverter.exponentialToTDigest(
+            ExponentialHistogramParser.parse("field", docParser)
+        );
+
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(docValueToParsedHistogram(fields.getFirst()), equalTo(expectedCoerced));
+
+        DocumentMapper coerceDisabledMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("coerce", false)));
+        ThrowingRunnable runnable = () -> coerceDisabledMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
+        assertThat(e.getCause().getMessage(), containsString("unknown parameter [scale]"));
+    }
+
+    private static HistogramParser.ParsedHistogram docValueToParsedHistogram(IndexableField indexableField) {
+        HistogramFieldMapper.InternalHistogramValue histogramValue = new HistogramFieldMapper.InternalHistogramValue();
+        histogramValue.reset(indexableField.binaryValue());
+        List<Long> counts = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+        try {
+            while (histogramValue.next()) {
+                counts.add(histogramValue.count());
+                values.add(histogramValue.value());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return new HistogramParser.ParsedHistogram(values, counts);
     }
 
     @Override
@@ -405,6 +464,41 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        HistogramFieldMapper.HistogramFieldType ft = (HistogramFieldMapper.HistogramFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("histogram", HistogramFieldMapper.HistogramFieldType::getMetricType);
+
+        {
+            String unsupportedMetricTypes = randomFrom("counter", "gauge", "position");
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", unsupportedMetricTypes);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "Unknown value [" + unsupportedMetricTypes + "] for field [time_series_metric] - accepted values are [histogram]"
+                )
+            );
+        }
+        {
+            // Test invalid metric type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [histogram]")
+            );
+        }
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new HistogramFieldSyntheticSourceSupport(ignoreMalformed);
@@ -453,5 +547,15 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

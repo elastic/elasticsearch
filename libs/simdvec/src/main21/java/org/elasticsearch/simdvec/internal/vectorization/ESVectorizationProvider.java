@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -39,6 +40,14 @@ public abstract class ESVectorizationProvider {
 
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException;
+
+    public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength
+    ) throws IOException;
 
     /** Create a new {@link ES91Int4VectorsScorer} for the given {@link IndexInput}. */
     public abstract ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException;

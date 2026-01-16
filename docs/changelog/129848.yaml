@@ -1,5 +1,0 @@
-pr: 129848
-summary: "[ML] Add Azure AI Rerank support to the Inference Plugin"
-area: Machine Learning
-type: enhancement
-issues: []

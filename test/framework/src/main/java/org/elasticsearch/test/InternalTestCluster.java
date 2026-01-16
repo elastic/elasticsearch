@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
@@ -277,6 +278,8 @@ public final class InternalTestCluster extends TestCluster {
     private final boolean forbidPrivateIndexSettings;
 
     private final int numDataPaths;
+
+    private String internalClientOrigin = null;
 
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
@@ -754,6 +757,11 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public InternalTestCluster internalClientOrigin(String origin) {
+        this.internalClientOrigin = origin;
+        return this;
+    }
+
     private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings) {
         final Settings settings = getSettings(nodeId, seed, extraSettings);
 
@@ -872,6 +880,20 @@ public final class InternalTestCluster extends TestCluster {
         }
         ensureOpen();
         return c.client();
+    }
+
+    @Override
+    protected Client internalClient() {
+        return internalClient(null);
+    }
+
+    private Client internalClient(@Nullable String nodeName) {
+        Client client = nodeName != null ? client(nodeName) : client();
+        return makeInternal(client);
+    }
+
+    private Client makeInternal(Client client) {
+        return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
     }
 
     /**
@@ -1282,7 +1304,7 @@ public final class InternalTestCluster extends TestCluster {
         try {
             assertBusy(() -> {
                 try {
-                    final boolean timeout = client().admin()
+                    final boolean timeout = internalClient().admin()
                         .cluster()
                         .prepareHealth(TEST_REQUEST_TIMEOUT)
                         .setWaitForEvents(Priority.LANGUID)
@@ -1552,7 +1574,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            ClusterState state = internalClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
                     IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
@@ -1999,7 +2021,7 @@ public final class InternalTestCluster extends TestCluster {
 
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
-                    client().execute(
+                    internalClient().execute(
                         TransportAddVotingConfigExclusionsAction.TYPE,
                         new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
@@ -2016,7 +2038,7 @@ public final class InternalTestCluster extends TestCluster {
         if (autoManageVotingExclusions && excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
-                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
+                Client client = makeInternal(getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client());
                 client.execute(
                     TransportClearVotingConfigExclusionsAction.TYPE,
                     new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT)
@@ -2080,7 +2102,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         try {
             ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = client(viaNode).admin()
+            final ClusterState state = internalClient(viaNode).admin()
                 .cluster()
                 .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
@@ -2112,6 +2134,13 @@ public final class InternalTestCluster extends TestCluster {
      */
     public String getRandomNodeName() {
         return getNodeNameThat(Predicates.always());
+    }
+
+    /**
+     * @return the name of a random data node in a cluster
+     */
+    public String getRandomDataNodeName() {
+        return getNodeNameThat(DiscoveryNode::canContainData);
     }
 
     /**

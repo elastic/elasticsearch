@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -150,6 +151,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         return checkActions.entrySet()
             .stream()
             .filter(kv -> kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+    }
+
+    public static Set<String> getAlwaysDeniedCheckActions() {
+        return checkActions.entrySet()
+            .stream()
+            .filter(kv -> kv.getValue().expectedAccess().equals(ALWAYS_DENIED))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
     }

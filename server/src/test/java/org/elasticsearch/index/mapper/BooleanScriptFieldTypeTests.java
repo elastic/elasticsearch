@@ -13,12 +13,10 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -30,12 +28,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DocReader;
@@ -91,7 +91,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
                 BooleanScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(new MatchAllDocsQuery(), new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -99,7 +99,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedNumericDocValues dv = ifd.load(context).getLongValues();
+                        SortedNumericLongValues dv = ifd.load(context).getLongValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -129,7 +129,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 3, new Sort(sf));
                 StoredFields storedFields = reader.storedFields();
                 assertThat(
                     storedFields.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
@@ -153,7 +153,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 {
                     SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                     assertThat(
-                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                        searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
                             @Override
                             public boolean needs_score() {
                                 return false;
@@ -181,7 +181,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 {
                     SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                     assertThat(
-                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                        searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
                             @Override
                             public boolean needs_score() {
                                 return false;
@@ -370,7 +370,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testDualingQueries() throws IOException {
-        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
+        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE, defaultIndexSettings()).build(
             MapperBuilderContext.root(false, false)
         );
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {

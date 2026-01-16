@@ -1,6 +1,0 @@
-pr: 134955
-summary: Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint
-area: Transform
-type: bug
-issues:
- - 134925

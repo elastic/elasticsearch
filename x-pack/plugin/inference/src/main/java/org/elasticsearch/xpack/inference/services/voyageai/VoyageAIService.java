@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -30,8 +29,8 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -108,6 +107,8 @@ public class VoyageAIService extends SenderService implements RerankingInference
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
+
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public VoyageAIService(
         HttpRequestSender.Factory factory,
@@ -364,7 +365,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override

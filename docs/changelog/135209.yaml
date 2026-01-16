@@ -1,6 +1,0 @@
-pr: 135209
-summary: Fix expiration time in ES|QL async
-area: ES|QL
-type: bug
-issues:
- - 135169

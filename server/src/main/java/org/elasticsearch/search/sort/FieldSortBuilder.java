@@ -355,10 +355,10 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
-            field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+            field = numericFieldData.sortField(false, resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
-            field = fieldData.sortField(context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
+            field = fieldData.sortField(false, context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
                 isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
             }
@@ -371,6 +371,11 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             formatter = DocValueFormat.withNanosecondResolution(formatter);
         }
         return new SortFieldAndFormat(field, formatter);
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     public boolean canRewriteToMatchNone() {
@@ -395,7 +400,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.isIndexed() == false) {
+        if (fieldType.indexType().supportsSortShortcuts() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -551,7 +556,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.getFieldType(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.isIndexed() == false)) {
+        if (reader == null || (fieldType == null || fieldType.indexType().supportsSortShortcuts() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {

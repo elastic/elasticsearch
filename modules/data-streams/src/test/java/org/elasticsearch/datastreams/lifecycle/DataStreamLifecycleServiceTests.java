@@ -1228,9 +1228,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
             DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
-                )
+                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
                 .dataRetention(TimeValue.MAX_VALUE)
                 .build(),
             now
@@ -1377,9 +1375,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
             DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
-                )
+                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
                 .dataRetention(TimeValue.MAX_VALUE)
                 .build(),
             now
@@ -1662,9 +1658,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
             DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
-                )
+                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
                 .dataRetention(TimeValue.timeValueMillis(1))
                 .build(),
             now

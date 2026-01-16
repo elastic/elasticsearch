@@ -49,10 +49,11 @@
       },
       "typed_keys": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       },
       "max_concurrent_searches": {
-        "type": "number",
+        "type": "long",
         "description": "Controls the maximum number of concurrent searches the multi search api will execute"
       },
       "rest_total_hits_as_int": {
@@ -63,7 +64,7 @@
       "ccs_minimize_roundtrips": {
         "type": "boolean",
         "description": "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
-        "default": "true"
+        "default": true
       },
       "project_routing": {
         "type": "string",

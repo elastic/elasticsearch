@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -28,6 +30,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -36,7 +39,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
@@ -50,6 +52,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -57,12 +60,14 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -138,7 +143,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             projectId,
                             GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
                             provider,
-                            GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                            ServiceFields.URL,
                             url,
                             GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
                             streamingUrl
@@ -474,7 +479,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -527,7 +532,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         projectId,
                         GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
                         provider,
-                        GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                        ServiceFields.URL,
                         url,
                         GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
                         streamingUrl
@@ -582,7 +587,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -632,7 +637,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -708,7 +713,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -760,7 +765,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         "location",
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         "project",
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -807,7 +812,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                     "location",
                     GoogleVertexAiServiceFields.PROJECT_ID,
                     "project",
-                    GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
                     true
                 )
             );
@@ -862,7 +867,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         "location",
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         "project",
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -905,7 +910,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -943,7 +948,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -1066,6 +1071,26 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
                 XContentType.JSON
             );
+        }
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
         }
     }
 

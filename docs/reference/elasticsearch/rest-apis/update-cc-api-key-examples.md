@@ -38,7 +38,6 @@ A successful call returns a JSON structure that provides API key information. Fo
   "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 ```
-
 % TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 % TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 % TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
@@ -50,7 +49,6 @@ To retrieve key information about the API key, including the exact role descript
 ```console
 GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx
 ```
-
 % TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 % TEST[continued]
 
@@ -109,7 +107,6 @@ A successful call returns a JSON structure that contains the information of the 
   ]
 }
 ```
-
 % NOTCONSOLE
 
 1. Role descriptor corresponding to the specified `access` scope at creation time.
@@ -135,7 +132,6 @@ PUT /_security/cross_cluster/api_key/VuaCfGcBCdbkQm-e5aOx
   }
 }
 ```
-
 % TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.api_keys.0.id}/]
 % TEST[continued]
 
@@ -202,7 +198,6 @@ The API key's permissions after the update can be inspected again with the [Get 
   ]
 }
 ```
-
 % NOTCONSOLE
 
 1. Role descriptor is updated to be the `access` scope specified at update time.

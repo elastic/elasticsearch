@@ -108,11 +108,12 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
 
   private void addRawBlock(DoubleBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         CountDistinctDoubleAggregator.combine(state, vValue);
@@ -125,11 +126,12 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         CountDistinctDoubleAggregator.combine(state, vValue);
@@ -147,8 +149,8 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctDoubleAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctDoubleAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

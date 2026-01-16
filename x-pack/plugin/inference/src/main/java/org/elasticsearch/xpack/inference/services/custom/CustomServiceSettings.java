@@ -23,12 +23,13 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -53,7 +54,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMa
 public class CustomServiceSettings extends FilteredXContentObject implements ServiceSettings, CustomRateLimitServiceSettings {
 
     public static final String NAME = "custom_service_settings";
-    public static final String URL = "url";
     public static final String BATCH_SIZE = "batch_size";
     public static final String HEADERS = "headers";
     public static final String REQUEST = "request";
@@ -80,7 +80,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
 
-        String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String url = extractRequiredString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         var queryParams = QueryParameters.fromMap(map, validationException);
 
@@ -339,6 +339,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return textEmbeddingSettings.maxInputTokens;
     }
 
+    TextEmbeddingSettings getTextEmbeddingSettings() {
+        return textEmbeddingSettings;
+    }
+
     public String getUrl() {
         return url;
     }
@@ -394,7 +398,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         textEmbeddingSettings.toXContent(builder, params);
-        builder.field(URL, url);
+        builder.field(ServiceFields.URL, url);
 
         if (headers.isEmpty() == false) {
             builder.field(HEADERS, headers);
@@ -501,7 +505,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         }
 
         return switch (taskType) {
-            case TEXT_EMBEDDING -> TextEmbeddingResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
+            case TEXT_EMBEDDING -> DenseEmbeddingResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
             case SPARSE_EMBEDDING -> SparseEmbeddingResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
             case RERANK -> RerankResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
             case COMPLETION -> CompletionResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);

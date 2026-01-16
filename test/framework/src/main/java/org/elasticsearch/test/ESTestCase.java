@@ -946,7 +946,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     /**
-     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     * An unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
      */
     public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
         if (min.compareTo(BigInteger.ZERO) < 0) {
@@ -1137,6 +1137,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Returns a pseudo-random double from a Gaussian distribution with mean 0.0 and standard deviation 1.0
+     */
+    public static double randomGaussianDouble() {
+        return random().nextGaussian();
+    }
+
+    /**
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *
@@ -1292,10 +1299,54 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates a valid random identifier such as node id or index name
+     * @return a valid random identifier, appropriate for use as a node name, index name, repository name or similar.
+     * @see #randomIdentifier(String) randomIdentifier(String) which allows to add a prefix.
+     * @see #randomIndexName() randomIndexName() which encodes a convention for random index names.
+     * @see #randomRepoName() randomRepoName() which encodes a convention for random repository names.
+     * @see #randomSnapshotName() randomSnapshotName() which encodes a convention for random snapshot names.
      */
     public static String randomIdentifier() {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * @return a valid random identifier with the given prefix. Makes debugging tests easier if you use {@code randomIdentifier("type1-")}
+     * for indices and {@code randomIdentifier("type2-")} and so on, keeping the identifier types visually distinct, rather than having
+     * to work out what kind of identifier you're looking at in each log message.
+     *
+     * @see #randomIndexName() randomIndexName() which encodes a convention for random index names.
+     * @see #randomRepoName() randomRepoName() which encodes a convention for random repository names.
+     * @see #randomSnapshotName() randomSnapshotName() which encodes a convention for random snapshot names.
+     */
+    public static String randomIdentifier(String prefix) {
+        return prefix + randomIdentifier();
+    }
+
+    /**
+     * @return a valid random index name of the form {@code index-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomIndexName() {
+        return randomIdentifier("index-");
+    }
+
+    /**
+     * @return a valid random repository name of the form {@code repo-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomRepoName() {
+        return randomIdentifier("repo-");
+    }
+
+    /**
+     * @return a valid random snapshot name of the form {@code snap-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomSnapshotName() {
+        return randomIdentifier("snap-");
     }
 
     /**
@@ -1501,7 +1552,72 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        assert input == null || input.getClass().isArray() == false
+            : "randomValueOtherThan() does not work as expected with arrays, use randomArrayOtherThan() instead";
         return randomValueOtherThanMany(v -> Objects.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for object arrays
+     */
+    public static <T> T[] randomArrayOtherThan(T[] input, Supplier<T[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for boolean arrays
+     */
+    public static boolean[] randomArrayOtherThan(boolean[] input, Supplier<boolean[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for byte arrays
+     */
+    public static byte[] randomArrayOtherThan(byte[] input, Supplier<byte[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for char arrays
+     */
+    public static char[] randomArrayOtherThan(char[] input, Supplier<char[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for short arrays
+     */
+    public static short[] randomArrayOtherThan(short[] input, Supplier<short[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for int arrays
+     */
+    public static int[] randomArrayOtherThan(int[] input, Supplier<int[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for long arrays
+     */
+    public static long[] randomArrayOtherThan(long[] input, Supplier<long[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for float arrays
+     */
+    public static float[] randomArrayOtherThan(float[] input, Supplier<float[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for double arrays
+     */
+    public static double[] randomArrayOtherThan(double[] input, Supplier<double[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
     }
 
     /**
@@ -1686,6 +1802,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
@@ -1747,6 +1872,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> List<T> shuffledList(T... values) {
+        return shuffledList(Arrays.asList(values));
     }
 
     public static <T> List<T> shuffledList(List<T> list) {
@@ -1928,7 +2059,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
      * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
-     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself).
      */
     public static <T extends Writeable> T copyWriteable(
         T original,
@@ -2111,6 +2242,61 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.getFileName(), actual.getFileName());
         assertEquals(expected.getLineNumber(), actual.getLineNumber());
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     *
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal
+     */
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent);
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     *
+     * @param message       the identifying message for the AssertionError
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal
+     */
+    public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent) {
+        String header = message == null || message.isEmpty() ? "" : message + ": ";
+
+        if (expected == null) {
+            fail(header + "expected array was null");
+        }
+        if (actual == null) {
+            fail(header + "actual array was null");
+        }
+        if (expected.length != actual.length) {
+            fail(header + "array lengths differed, expected.length=" + expected.length + " actual.length=" + actual.length);
+        }
+
+        for (int i = 0; i < expected.length; i++) {
+            var expectedValue = expected[i];
+            var actualDelta = Math.abs(expectedValue - actual[i]) - (expectedValue * deltaPercent);
+            if (actualDelta > 0) {
+                fail(
+                    Strings.format(
+                        "%sarrays first differed at element [%d]; <%f> and <%f> differed by <%f> (more than %f%%)",
+                        header,
+                        i,
+                        expectedValue,
+                        actual[i],
+                        actualDelta,
+                        (deltaPercent * 100)
+                    )
+                );
+            }
+        }
     }
 
     protected static long spinForAtLeastOneMillisecond() {
@@ -2682,6 +2868,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Join the given {@link Thread} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the thread is indeed completed before the timeout.
+     */
+    public static void safeJoin(Thread t) {
+        try {
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
+            assertFalse("safeJoin: Thread is still running after the timeout", t.isAlive());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeJoin: interrupted waiting for Thread to die");
+        }
+    }
+
+    /**
      * Wait for all tasks currently running or enqueued on the given executor to complete.
      */
     public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
@@ -2792,7 +2992,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. One of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
@@ -2836,6 +3036,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (e != null) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Run the given tasks in parallel. One of the tasks will be run on the calling thread, and each of the others will run on its own
+     * fresh thread.
+     */
+    public static void runInParallel(Runnable... tasks) {
+        runInParallel(tasks.length, i -> tasks[i].run());
     }
 
     public static void ensureAllContextsReleased(SearchService searchService) {

@@ -13,7 +13,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1576,10 +1575,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         if (randomBoolean()) {
-            settings.put(
-                SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
-            );
+            settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()));
         }
         request.settings(settings.build());
         IllegalArgumentException error = expectThrows(
@@ -1703,7 +1699,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
 
-            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            var expectRefreshBlock = 0 < nbReplicas;
             assertThat(updatedClusterState.blocks().indices(projectId), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
             assertThat(
                 updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
@@ -1734,13 +1730,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(randomIntBetween(1, 3))
-                .build(),
-            minTransportVersion
+                .build()
         );
-        assertThat(
-            blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
-            is(isStateless && useRefreshBlock && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
-        );
+        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
     }
 
     public void testSetPrivateSettingsFails() throws Exception {

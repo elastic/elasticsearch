@@ -48,6 +48,7 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
                 RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
                 RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
                 RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+                RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
                 RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
                 RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
@@ -56,11 +57,6 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
                 RemoteClusterSettings.ProxyConnectionStrategySettings.SERVER_NAME
             );
             clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::settingsChangedCallback);
-            clusterSettings.addAffixUpdateConsumer(
-                RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-                this::skipUnavailableChangedCallback,
-                (alias, value) -> {}
-            );
         }
     }
 
@@ -69,19 +65,18 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
     public Collection<LinkedProjectConfig> getInitialLinkedProjectConfigs() {
         return RemoteClusterSettings.getRemoteClusters(settings)
             .stream()
+            .filter(alias -> RemoteClusterSettings.isConnectionEnabled(alias, settings))
             .map(alias -> RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, settings))
             .toList();
     }
 
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
     private void settingsChangedCallback(String clusterAlias, Settings newSettings) {
         final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
-        handleUpdate(config);
-    }
-
-    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-    private void skipUnavailableChangedCallback(String clusterAlias, Boolean skipUnavailable) {
-        handleSkipUnavailableChanged(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, skipUnavailable);
+        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings)) {
+            handleUpdate(RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings));
+        } else {
+            handleRemoved(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias);
+        }
     }
 }

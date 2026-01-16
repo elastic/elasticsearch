@@ -66,7 +66,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
 
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}
@@ -93,6 +93,88 @@ The parameters `query_vector` and `query_vector_builder` cannot be used together
 
 
 ## Example [knn-retriever-example]
+
+<!--
+```console
+PUT /restaurants
+{
+  "mappings": {
+    "properties": {
+      "region": { "type": "keyword" },
+      "year": { "type": "keyword" },
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+POST /restaurants/_bulk?refresh
+{"index":{}}
+{"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
+{"index":{}}
+{"region": "France", "year": "2019", "vector": [10, 22, 78]}
+{"index":{}}
+{"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
+{"index":{}}
+{"region": "France", "year": "2020", "vector": [10, 22, 80]}
+
+PUT /movies
+
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+```
+% TESTSETUP
+
+```console
+DELETE /restaurants
+DELETE /movies
+DELETE /books
+```
+% TEARDOWN
+-->
 
 ```console
 GET /restaurants/_search

@@ -163,7 +163,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         private static SamplingService initializeSamplingService() {
             SamplingService samplingService = mock(SamplingService.class);
-            when(samplingService.atLeastOneSampleConfigured()).thenReturn(true);
+            when(samplingService.atLeastOneSampleConfigured(any())).thenReturn(true);
             return samplingService;
         }
 

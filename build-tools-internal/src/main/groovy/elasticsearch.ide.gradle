@@ -21,6 +21,17 @@ import java.nio.file.StandardCopyOption
 allprojects {
   apply plugin: 'idea'
 
+  // We got reports of invalid idea classpaths when major classpath changes (e.g. lucene update)
+  // has been merged and developers switching back and forth. This should enforce idea
+  // to not try to be smart.
+  // This enforces A "complete rewrite" causing all existing content to be discarded,
+  // thereby losing any changes made directly in the IDE but that should be fine for us.
+  idea.module.iml {
+    beforeMerged { module ->
+      module.dependencies.clear()
+    }
+  }
+
   tasks.named('idea').configure {
     doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see CONTRIBUTING.md.") }
   }

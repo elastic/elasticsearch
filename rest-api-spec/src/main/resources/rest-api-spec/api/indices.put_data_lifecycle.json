@@ -32,7 +32,7 @@
     },
     "params": {
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -45,6 +45,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit timestamp for the document"
       },
       "master_timeout": {
@@ -54,7 +55,8 @@
       }
     },
     "body": {
-      "description": "The data stream lifecycle configuration that consist of the data retention"
+      "description": "The data stream lifecycle configuration that consist of the data retention",
+      "required": true
     }
   }
 }

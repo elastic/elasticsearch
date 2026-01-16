@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -23,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.Block;
@@ -42,7 +42,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -192,37 +192,34 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher);
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {
                 operators.add(new ShuffleDocsOperator(blockFactory));
             }
             operators.add(
                 new ValuesSourceReaderOperator(
-                    blockFactory,
+                    driverContext,
                     ByteSizeValue.ofGb(1).getBytes(),
                     List.of(
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
                             ElementType.BYTES_REF,
                             false,
-                            unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
+                            unused -> ValuesSourceReaderOperator.load(new BytesRefsFromOrdsBlockLoader(FIELD))
                         )
                     ),
-                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                         throw new UnsupportedOperationException();
                     }, 0.2)),
                     0
                 )
             );
-            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {
-                new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher) };
-            operators.add(createOperator(driverContext, shards));
+            var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
+            operators.add(createOperator(driverContext, shardConfig));
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), usesScoring()).get(driverContext),
+                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, Queries.ALL_DOCS_INSTANCE, usesScoring()).get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add)
             );
@@ -276,7 +273,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
     private static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, boolean scoring) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
@@ -298,7 +295,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
     /**
      * Create the operator to test
      */
-    protected abstract Operator createOperator(DriverContext driverContext, LuceneQueryEvaluator.ShardConfig[] shards);
+    protected abstract Operator createOperator(DriverContext blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards);
 
     /**
      * Should the test use scoring?

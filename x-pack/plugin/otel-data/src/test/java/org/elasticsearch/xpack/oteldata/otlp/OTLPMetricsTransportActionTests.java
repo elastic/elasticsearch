@@ -22,21 +22,28 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction.MetricsResponse;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -48,6 +55,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
 
     private OTLPMetricsTransportAction action;
     private Client client;
+    private ClusterSettings clusterSettings;
 
     @Override
     public void setUp() throws Exception {
@@ -55,7 +63,18 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
 
-        action = new OTLPMetricsTransportAction(mock(TransportService.class), mock(ActionFilters.class), mock(ThreadPool.class), client);
+        ClusterService clusterService = mock(ClusterService.class);
+        // setup clusterService.getClusterSettings() to return an empty ClusterSettings
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        action = new OTLPMetricsTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            clusterService
+        );
     }
 
     public void testSuccess() throws Exception {
@@ -76,12 +95,13 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
 
     public void test429() throws Exception {
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
-            failureResponse(RestStatus.TOO_MANY_REQUESTS, "too many requests"),
+            failureResponse("metrics-generic.otel-default", RestStatus.TOO_MANY_REQUESTS, "too many requests"),
             successResponse() };
         MetricsResponse response = executeRequest(createMetricsRequest(createMetric()), new BulkResponse(bulkItemResponses, 0));
 
         assertThat(response.getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsPartialSuccess.parseFrom(response.getResponse().array());
+        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array())
+            .getPartialSuccess();
         assertThat(
             metricsServiceResponse.getRejectedDataPoints(),
             equalTo(Arrays.stream(bulkItemResponses).filter(BulkItemResponse::isFailed).count())
@@ -92,18 +112,45 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
     public void testPartialSuccess() throws Exception {
         MetricsResponse response = executeRequest(
             createMetricsRequest(createMetric()),
-            new BulkResponse(new BulkItemResponse[] { failureResponse(RestStatus.BAD_REQUEST, "bad request") }, 0)
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    failureResponse("metrics-generic.otel-default", RestStatus.BAD_REQUEST, "bad request 1"),
+                    failureResponse("metrics-generic.otel-default", RestStatus.BAD_REQUEST, "bad request 2"),
+                    failureResponse("metrics-hostmetricsreceiver.otel-default", RestStatus.BAD_REQUEST, "bad request 3"),
+                    failureResponse("metrics-generic.otel-default", RestStatus.INTERNAL_SERVER_ERROR, "internal server error") },
+                0
+            )
         );
 
         assertThat(response.getStatus(), equalTo(RestStatus.OK));
-        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsPartialSuccess.parseFrom(response.getResponse().array());
+        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array())
+            .getPartialSuccess();
         assertThat(metricsServiceResponse.getRejectedDataPoints(), equalTo(1L));
-        assertThat(metricsServiceResponse.getErrorMessage(), containsString("bad request"));
+        // the error message contains only one message per unique index and error status
+        assertThat(metricsServiceResponse.getErrorMessage(), containsString("bad request 1"));
+        assertThat(metricsServiceResponse.getErrorMessage(), not(containsString("bad request  2")));
+        assertThat(metricsServiceResponse.getErrorMessage(), containsString("bad request 3"));
+        assertThat(metricsServiceResponse.getErrorMessage(), containsString("internal server error"));
     }
 
     public void testBulkError() throws Exception {
         assertExceptionStatus(new IllegalArgumentException("bazinga"), RestStatus.BAD_REQUEST);
         assertExceptionStatus(new IllegalStateException("bazinga"), RestStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    public void testMappingHintsSettingsUpdate() throws Exception {
+        assertThat(action.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
+        assertThat(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.isDynamic(), equalTo(true));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.getKey(), "exponential_histogram").build()
+        );
+        assertThat(action.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.getKey(), "histogram").build()
+        );
+        assertThat(action.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
     }
 
     private void assertExceptionStatus(Exception exception, RestStatus restStatus) throws InvalidProtocolBufferException {
@@ -113,7 +160,8 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         MetricsResponse response = executeRequest(createMetricsRequest(createMetric()), exception);
 
         assertThat(response.getStatus(), equalTo(restStatus));
-        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsPartialSuccess.parseFrom(response.getResponse().array());
+        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array())
+            .getPartialSuccess();
         assertThat(metricsServiceResponse.getRejectedDataPoints(), equalTo(1L));
         assertThat(metricsServiceResponse.getErrorMessage(), equalTo(exception.getMessage()));
     }
@@ -172,11 +220,11 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         return BulkItemResponse.success(-1, DocWriteRequest.OpType.CREATE, mock(DocWriteResponse.class));
     }
 
-    private static BulkItemResponse failureResponse(RestStatus restStatus, String failureMessage) {
+    private static BulkItemResponse failureResponse(String index, RestStatus restStatus, String failureMessage) {
         return BulkItemResponse.failure(
             -1,
             DocWriteRequest.OpType.CREATE,
-            new BulkItemResponse.Failure("index", "id", new RuntimeException(failureMessage), restStatus)
+            new BulkItemResponse.Failure(index, "id", new RuntimeException(failureMessage), restStatus)
         );
     }
 

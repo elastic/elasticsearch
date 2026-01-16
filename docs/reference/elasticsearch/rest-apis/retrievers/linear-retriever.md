@@ -115,7 +115,7 @@ GET my_index/_search
               "num_candidates": 100
             }
           },
-          "weight": 5 # KNN query weighted 5x
+          "weight": 5 <1> 
         },
         {
           "retriever": {
@@ -127,7 +127,7 @@ GET my_index/_search
               }
             }
           },
-          "weight": 1.5 # BM25 query weighted 1.5x
+          "weight": 1.5 <2> 
         }
       ],
       "normalizer": "minmax"
@@ -135,6 +135,9 @@ GET my_index/_search
   }
 }
 ```
+
+1. KNN query weighted 5x
+2. BM25 query weighted 1.5x
 
 In this example, the `minmax` normalizer is applied to both the kNN retriever and the standard retriever. The top-level normalizer serves as a default that can be overridden by individual sub-retrievers. When using the multi-field query format, the top-level normalizer is applied to all generated inner retrievers.
 

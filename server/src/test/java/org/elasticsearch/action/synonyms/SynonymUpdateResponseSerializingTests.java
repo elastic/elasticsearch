@@ -10,7 +10,6 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponseTests;
 import org.elasticsearch.common.Strings;
@@ -30,8 +29,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.synonyms.SynonymUpdateResponse.EMPTY_RELOAD_ANALYZER_RESPONSE;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED;
-import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.DELETED;
-import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -58,6 +55,8 @@ public class SynonymUpdateResponseSerializingTests extends AbstractBWCSerializat
         );
     }
 
+    private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
     @Override
     protected Writeable.Reader<SynonymUpdateResponse> instanceReader() {
         return SynonymUpdateResponse::new;
@@ -68,7 +67,16 @@ public class SynonymUpdateResponseSerializingTests extends AbstractBWCSerializat
         return createTestInstance(randomBoolean());
     }
 
-    private SynonymUpdateResponse createTestInstance(boolean includeReloadInfo) {
+    private static SynonymUpdateResponse createTestInstance(boolean includeReloadInfo) {
+        return new SynonymUpdateResponse(
+            new SynonymsReloadResult(
+                randomFrom(SynonymsManagementAPIService.UpdateSynonymsResultStatus.values()),
+                randomReloadAnalyzersResponse(includeReloadInfo)
+            )
+        );
+    }
+
+    private static ReloadAnalyzersResponse randomReloadAnalyzersResponse(boolean includeReloadInfo) {
         ReloadAnalyzersResponse reloadAnalyzersResponse = null;
         if (includeReloadInfo) {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedIndicesDetails = ReloadAnalyzersResponseTests
@@ -81,18 +89,30 @@ public class SynonymUpdateResponseSerializingTests extends AbstractBWCSerializat
                 reloadedIndicesDetails
             );
         }
-        return new SynonymUpdateResponse(new SynonymsReloadResult(randomFrom(CREATED, UPDATED, DELETED), reloadAnalyzersResponse));
+        return reloadAnalyzersResponse;
     }
 
     @Override
     protected SynonymUpdateResponse mutateInstance(SynonymUpdateResponse instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        SynonymsManagementAPIService.UpdateSynonymsResultStatus updateStatus = instance.updateStatus();
+        ReloadAnalyzersResponse reloadAnalyzersResponse = instance.reloadAnalyzersResponse();
+        switch (between(0, 1)) {
+            case 0 -> updateStatus = randomValueOtherThan(
+                updateStatus,
+                () -> randomFrom(SynonymsManagementAPIService.UpdateSynonymsResultStatus.values())
+            );
+            case 1 -> reloadAnalyzersResponse = randomValueOtherThan(
+                reloadAnalyzersResponse,
+                () -> randomReloadAnalyzersResponse(randomBoolean())
+            );
+        }
+        return new SynonymUpdateResponse(new SynonymsReloadResult(updateStatus, reloadAnalyzersResponse));
     }
 
     @Override
     protected SynonymUpdateResponse mutateInstanceForVersion(SynonymUpdateResponse instance, TransportVersion version) {
 
-        if (version.before(TransportVersions.SYNONYMS_REFRESH_PARAM) && instance.reloadAnalyzersResponse() == null) {
+        if (version.supports(SYNONYMS_REFRESH_PARAM) == false && instance.reloadAnalyzersResponse() == null) {
             // Nulls will be written as empty reload analyzer responses for older versions
             return new SynonymUpdateResponse(new SynonymsReloadResult(instance.updateStatus(), EMPTY_RELOAD_ANALYZER_RESPONSE));
         }

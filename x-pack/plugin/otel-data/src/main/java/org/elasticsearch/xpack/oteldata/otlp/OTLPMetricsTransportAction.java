@@ -11,8 +11,6 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 
-import com.google.protobuf.MessageLite;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -31,11 +29,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -44,12 +44,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -68,17 +72,27 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
     public static final ActionType<MetricsResponse> TYPE = new ActionType<>(NAME);
 
     private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);
+    public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
     private final Client client;
+
+    // visible for testing
+    volatile MappingHints defaultMappingHints;
 
     @Inject
     public OTLPMetricsTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        ClusterService clusterService
     ) {
         super(NAME, transportService, actionFilters, MetricsRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
+            defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
+        });
     }
 
     @Override
@@ -93,7 +107,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
                 return;
             }
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor);
+            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
             context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 // all data points were ignored
@@ -129,14 +143,22 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
-            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dynamicTemplates, dataPointGroup);
+            var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
+                xContentBuilder,
+                dataPointGroup,
+                dynamicTemplates,
+                dynamicTemplateParams
+            );
             bulkRequestBuilder.add(
                 new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
                     .tsid(tsid)
+                    .setIncludeSourceOnError(false)
                     .setDynamicTemplates(dynamicTemplates)
+                    .setDynamicTemplateParams(dynamicTemplateParams)
             );
         }
     }
@@ -158,7 +180,10 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         // (i.e. when the server accepts only parts of the data and rejects the rest),
         // the server MUST respond with HTTP 200 OK.
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
-        MessageLite response = responseWithRejectedDataPoints(context.getIgnoredDataPoints(), context.getIgnoredDataPointsMessage());
+        ExportMetricsServiceResponse response = responseWithRejectedDataPoints(
+            context.getIgnoredDataPoints(),
+            context.getIgnoredDataPointsMessage(IGNORED_DATA_POINTS_MESSAGE_LIMIT)
+        );
         listener.onResponse(new MetricsResponse(RestStatus.BAD_REQUEST, response));
     }
 
@@ -167,6 +192,8 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext context,
         ActionListener<MetricsResponse> listener
     ) {
+        // index -> status -> failure group
+        Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         // If the request is only partially accepted
         // (i.e. when the server accepts only parts of the data and rejects the rest),
         // the server MUST respond with HTTP 200 OK.
@@ -174,21 +201,53 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         RestStatus status = RestStatus.OK;
         int failures = 0;
         for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
-            failures += bulkItemResponse.isFailed() ? 1 : 0;
-            if (bulkItemResponse.isFailed() && bulkItemResponse.getFailure().getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                // If the server receives more requests than the client is allowed or the server is overloaded,
-                // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                // and MAY include “Retry-After” header with a recommended time interval in seconds to wait before retrying.
-                // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
-                status = RestStatus.TOO_MANY_REQUESTS;
+            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+            if (failure != null) {
+                // we're counting each document as one data point here
+                // which is an approximation since one document can represent multiple data points
+                failures++;
+                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                    // If the server receives more requests than the client is allowed or the server is overloaded,
+                    // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
+                    // and MAY include “Retry-After” header with a recommended time interval in seconds to wait before retrying.
+                    // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
+                    status = RestStatus.TOO_MANY_REQUESTS;
+                }
+                FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
+                failureGroup.failureCount().incrementAndGet();
             }
         }
-        MessageLite response = responseWithRejectedDataPoints(
+        if (bulkItemResponses.getItems().length == failures) {
+            // all data points failed, so we report total data points as failures
+            failures = context.totalDataPoints();
+        }
+        StringBuilder failureMessageBuilder = new StringBuilder();
+        for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
+            String indexName = indexEntry.getKey();
+            for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
+                RestStatus restStatus = statusEntry.getKey();
+                FailureGroup failureGroup = statusEntry.getValue();
+                failureMessageBuilder.append("Index [")
+                    .append(indexName)
+                    .append("] returned status [")
+                    .append(restStatus)
+                    .append("] for ")
+                    .append(failureGroup.failureCount())
+                    .append(" documents. Sample error message: ");
+                failureMessageBuilder.append(failureGroup.failureMessageSample());
+                failureMessageBuilder.append("\n");
+            }
+        }
+        failureMessageBuilder.append(context.getIgnoredDataPointsMessage(10));
+        ExportMetricsServiceResponse response = responseWithRejectedDataPoints(
             failures + context.getIgnoredDataPoints(),
-            bulkItemResponses.buildFailureMessage() + context.getIgnoredDataPointsMessage()
+            failureMessageBuilder.toString()
         );
         listener.onResponse(new MetricsResponse(status, response));
     }
+
+    record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
 
     private static void handleFailure(ActionListener<MetricsResponse> listener, Exception e, DataPointGroupingContext context) {
         // https://opentelemetry.io/docs/specs/otlp/#failures-1
@@ -199,12 +258,12 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         );
     }
 
-    private static ExportMetricsPartialSuccess responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
-        return ExportMetricsServiceResponse.newBuilder()
-            .getPartialSuccessBuilder()
+    private static ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+        ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
             .setRejectedDataPoints(rejectedDataPoints)
             .setErrorMessage(message)
             .build();
+        return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
     }
 
     public static class MetricsRequest extends ActionRequest implements CompositeIndicesRequest {
@@ -229,7 +288,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         private final BytesReference response;
         private final RestStatus status;
 
-        public MetricsResponse(RestStatus status, MessageLite response) {
+        public MetricsResponse(RestStatus status, ExportMetricsServiceResponse response) {
             this(status, new BytesArray(response.toByteArray()));
         }
 

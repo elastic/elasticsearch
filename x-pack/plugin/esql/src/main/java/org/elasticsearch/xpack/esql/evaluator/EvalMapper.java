@@ -17,6 +17,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -46,7 +48,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
-        return toEvaluator(foldCtx, exp, layout, List.of());
+        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -62,7 +64,7 @@ public final class EvalMapper {
         FoldContext foldCtx,
         Expression exp,
         Layout layout,
-        List<ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
@@ -77,7 +79,7 @@ public final class EvalMapper {
                 }
 
                 @Override
-                public List<ShardContext> shardContexts() {
+                public IndexedByShardId<? extends ShardContext> shardContexts() {
                     return shardContexts;
                 }
             });
@@ -92,7 +94,12 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, BinaryLogic bc, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            BinaryLogic bc,
+            Layout layout,
+            IndexedByShardId<? extends ShardContext> shardContexts
+        ) {
             var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
             var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
             /**
@@ -174,13 +181,28 @@ public final class EvalMapper {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
             }
-            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+            return new ExpressionEvaluator.Factory() {
+                @Override
+                public ExpressionEvaluator get(DriverContext driverContext) {
+                    return new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+                }
+
+                @Override
+                public String toString() {
+                    return "BooleanLogicExpressionEvaluator[" + "bl=" + bc + ", leftEval=" + leftEval + ", rightEval=" + rightEval + ']';
+                }
+            };
         }
     }
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Attribute attr,
+            Layout layout,
+            IndexedByShardId<? extends ShardContext> shardContexts
+        ) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Attribute.class);
 
@@ -222,7 +244,12 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Literal lit,
+            Layout layout,
+            IndexedByShardId<? extends ShardContext> shardContexts
+        ) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LiteralsEvaluator.class);
 

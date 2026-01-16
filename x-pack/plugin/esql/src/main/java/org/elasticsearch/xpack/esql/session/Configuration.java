@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,12 +20,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -36,13 +31,14 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
-    public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
 
+    private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
+
     private final String clusterName;
     private final String username;
-    private final ZonedDateTime now;
+    private final Instant now;
     private final ZoneId zoneId;
 
     private final QueryPragmas pragmas;
@@ -61,9 +57,11 @@ public class Configuration implements Writeable {
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
+    private final String projectRouting;
 
     public Configuration(
         ZoneId zi,
+        Instant now,
         Locale locale,
         String username,
         String clusterName,
@@ -76,10 +74,11 @@ public class Configuration implements Writeable {
         long queryStartTimeNanos,
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
-        int resultTruncationDefaultSizeTimeseries
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting
     ) {
         this.zoneId = zi.normalized();
-        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
+        this.now = now;
         this.username = username;
         this.clusterName = clusterName;
         this.locale = locale;
@@ -94,11 +93,12 @@ public class Configuration implements Writeable {
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
+        this.projectRouting = projectRouting;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
         this.zoneId = in.readZoneId();
-        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt()).atZone(zoneId);
+        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt());
         this.username = in.readOptionalString();
         this.clusterName = in.readOptionalString();
         locale = Locale.forLanguageTag(in.readString());
@@ -109,8 +109,7 @@ public class Configuration implements Writeable {
         this.profile = in.readBoolean();
         this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
         this.queryStartTimeNanos = in.readLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             this.allowPartialResults = in.readBoolean();
         } else {
             this.allowPartialResults = false;
@@ -122,14 +121,16 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
+
+        // not needed on the data nodes for now
+        this.projectRouting = null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZoneId(zoneId);
-        var instant = now.toInstant();
-        out.writeVLong(instant.getEpochSecond());
-        out.writeVInt(instant.getNano());
+        out.writeVLong(now.getEpochSecond());
+        out.writeVInt(now.getNano());
         out.writeOptionalString(username);    // TODO this one is always null
         out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
         out.writeString(locale.toLanguageTag());
@@ -140,8 +141,7 @@ public class Configuration implements Writeable {
         out.writeBoolean(profile);
         out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
         out.writeLong(queryStartTimeNanos);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             out.writeBoolean(allowPartialResults);
         }
         if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
@@ -154,7 +154,7 @@ public class Configuration implements Writeable {
         return zoneId;
     }
 
-    public ZonedDateTime now() {
+    public Instant now() {
         return now;
     }
 
@@ -197,13 +197,13 @@ public class Configuration implements Writeable {
      * It ensures consistency by using the same value on all nodes involved in the search request.
      */
     public long absoluteStartedTimeInMillis() {
-        return now.toInstant().toEpochMilli();
+        return now.toEpochMilli();
     }
 
     /**
      * @return Start time of the ESQL query in nanos
      */
-    public long getQueryStartTimeNanos() {
+    public long queryStartTimeNanos() {
         return queryStartTimeNanos;
     }
 
@@ -224,6 +224,7 @@ public class Configuration implements Writeable {
     public Configuration withoutTables() {
         return new Configuration(
             zoneId,
+            now,
             locale,
             username,
             clusterName,
@@ -236,7 +237,8 @@ public class Configuration implements Writeable {
             queryStartTimeNanos,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting
         );
     }
 
@@ -253,6 +255,10 @@ public class Configuration implements Writeable {
      */
     public boolean allowPartialResults() {
         return allowPartialResults;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -334,6 +340,8 @@ public class Configuration implements Writeable {
             + ",timeseries="
             + resultTruncationDefaultSize(true)
             + "]"
+            + ", zoneId="
+            + zoneId
             + ", locale="
             + locale
             + ", query='"

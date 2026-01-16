@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -74,6 +76,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final String seedNodesKey = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey();
     private Settings clientSettings;
     private ConnectionProfile profile;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -83,7 +86,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         hasClusterCredentials = randomBoolean();
-        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff");
+        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff").put(seedNodesKey, "localhost:8080");
         if (hasClusterCredentials) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
@@ -93,7 +96,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             builder.setSecureSettings(secureSettings);
         }
         clientSettings = builder.build();
-        profile = RemoteConnectionStrategy.buildConnectionProfile(toConfig(clusterAlias, clientSettings), hasClusterCredentials);
+        profile = RemoteConnectionStrategy.buildConnectionProfile(
+            toConfig(clusterAlias, clientSettings),
+            hasClusterCredentials ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
+        );
     }
 
     @Override
@@ -384,7 +390,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -462,7 +471,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService incompatibleSeedTransport = startTransport(
                 "seed_node",
@@ -583,6 +595,21 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testConnectFailsIfNoConnectionsOpened() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        final boolean incompatibleDiscoverableNode = randomBoolean();
+        final VersionInformation discoverableNodeVersion;
+        final TransportVersion discoverableNodeTransportVersion;
+        if (incompatibleDiscoverableNode) {
+            discoverableNodeVersion = new VersionInformation(
+                Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            );
+            discoverableNodeTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
+        } else {
+            discoverableNodeVersion = VersionInformation.CURRENT;
+            discoverableNodeTransportVersion = TransportVersion.current();
+        }
+
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -593,14 +620,16 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             MockTransportService closedTransport = startTransport(
                 "discoverable_node",
                 knownNodes,
-                VersionInformation.CURRENT,
-                TransportVersion.current()
+                discoverableNodeVersion,
+                discoverableNodeTransportVersion
             )
         ) {
             DiscoveryNode seedNode = getLocalNode(seedTransport);
             DiscoveryNode discoverableNode = getLocalNode(closedTransport);
             knownNodes.add(discoverableNode);
-            closedTransport.close();
+            if (incompatibleDiscoverableNode == false) {
+                closedTransport.close();
+            }
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
@@ -631,11 +660,21 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         remoteConnectionManager
                     )
                 ) {
-                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
-                    strategy.connect(connectFuture);
-                    final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
-                    assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
-                    assertTrue(strategy.assertNoRunningConnections());
+                    MockLog.assertThatLogger(() -> {
+                        PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
+                        strategy.connect(connectFuture);
+                        final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
+                        assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
+                        assertTrue(strategy.assertNoRunningConnections());
+                    },
+                        SniffConnectionStrategy.class,
+                        new MockLog.SeenEventExpectation(
+                            "warning",
+                            SniffConnectionStrategy.class.getCanonicalName(),
+                            Level.WARN,
+                            "[" + clusterAlias + "] failed to open managed connection to node [{discoverable_node}*"
+                        )
+                    );
                 }
             }
         }
@@ -1220,9 +1259,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate,
         List<String> seedNodes
     ) {
-        return new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
-            .nodePredicate(nodePredicate)
-            .seedNodes(seedNodes)
-            .build();
+        final var builder = new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
+            .nodePredicate(nodePredicate);
+        if (seedNodes != null && seedNodes.isEmpty() == false) {
+            builder.seedNodes(seedNodes);
+        }
+        return builder.build();
     }
 }

@@ -32,13 +32,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
 import java.util.BitSet;
@@ -75,14 +76,15 @@ public enum FeatureMetric {
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
-    SAMPLE(Sample.class::isInstance);
+    SAMPLE(Sample.class::isInstance),
+    SUBQUERY(Subquery.class::isInstance),
+    PROMQL(PromqlCommand.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry
      */
     private static final List<Class<? extends LogicalPlan>> excluded = List.of(
         UnresolvedRelation.class,
-        EsqlProject.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,

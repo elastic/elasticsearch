@@ -95,13 +95,13 @@ This ensures that:
 * The tokens that are kept are frequent enough and have significant scoring.
 * Very infrequent tokens that may not have as high of a score are removed.
 
-## Accessing `dense_vector` fields in search responses
+## Accessing `sparse_vector` fields in search responses
 ```{applies_to}
 stack: ga 9.2
 serverless: ga
 ```
 
-By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
+By default, `sparse_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
 This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.
 
 To retrieve vector values explicitly, you can use:
@@ -114,6 +114,7 @@ POST my-index-2/_search
   "fields": ["my_vector"]
 }
 ```
+% TEST[skip:no index setup]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -125,6 +126,11 @@ POST my-index-2/_search
   }
 }
 ```
+% TEST[skip:no index setup]
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 
@@ -261,10 +267,11 @@ POST /my-index/_update/1
   }
 }
 ```
+% TEST[continued]
 
 Observe that tokens are merged, not replaced:
 
-```json
+```js
 {
   "my_vector": {
     "token_a": 0.5,
@@ -273,6 +280,7 @@ Observe that tokens are merged, not replaced:
   }
 }
 ```
+% NOTCONSOLE
 
 ### Replacing the entire `sparse_vector` field
 
@@ -292,6 +300,7 @@ POST /my-index/_update/1
   }
 }
 ```
+% TEST[continued]
 
 :::{note}
 This same merging behavior also applies to [`rank_features` fields](/reference/elasticsearch/mapping-reference/rank-features.md), because they are also object-like structures.

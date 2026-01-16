@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -35,9 +36,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,7 +60,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
     }
 
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "streaming_completion_test_service";
+        public static final String NAME = "streaming_completion_test_service";
         private static final String ALIAS = "streaming_completion_test_service_alias";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
@@ -138,9 +139,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                             )
                         );
                     } else {
-                        // Return text embedding results when creating a sparse_embedding inference endpoint to allow creation validation to
-                        // pass. This is required to test that streaming fails for a sparse_embedding endpoint.
-                        listener.onResponse(makeTextEmbeddingResults(input));
+                        // Return dense embedding results when creating a sparse_embedding inference endpoint to allow creation validation
+                        // to pass. This is required to test that streaming fails for a sparse_embedding endpoint.
+                        listener.onResponse(makeDenseEmbeddingResults(input));
                     }
                 }
                 default -> listener.onFailure(
@@ -170,6 +171,21 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             }
         }
 
+        @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
         private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {
             var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
@@ -189,16 +205,16 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
-            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+        private DenseEmbeddingFloatResults makeDenseEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
                 var values = new float[5];
                 for (int j = 0; j < 5; j++) {
                     values[j] = random.nextFloat();
                 }
-                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
+                embeddings.add(new DenseEmbeddingFloatResults.Embedding(values));
             }
-            return new TextEmbeddingFloatResults(embeddings);
+            return new DenseEmbeddingFloatResults(embeddings);
         }
 
         private InferenceServiceResults.Result completionChunk(String delta) {
@@ -343,12 +359,15 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
-            var modelId = map.remove("model").toString();
+            String modelId = (String) map.remove("model_id");
 
             if (modelId == null) {
-                ValidationException validationException = new ValidationException();
-                validationException.addValidationError("missing model id");
-                throw validationException;
+                modelId = (String) map.remove("model");
+                if (modelId == null) {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationError("missing model id");
+                    throw validationException;
+                }
             }
 
             return new TestServiceSettings(modelId);

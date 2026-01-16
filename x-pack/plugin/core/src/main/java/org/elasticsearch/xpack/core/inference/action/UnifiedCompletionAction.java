@@ -131,7 +131,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(inferenceEntityId, request.inferenceEntityId)
+            return super.equals(o)
+                && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType
                 && Objects.equals(unifiedCompletionRequest, request.unifiedCompletionRequest)
                 && Objects.equals(timeout, request.timeout);
@@ -139,7 +140,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
+            return Objects.hash(super.hashCode(), inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
         }
     }
 

@@ -231,7 +231,7 @@ public class SpatialRelatesQuery extends Query {
         ) {
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -249,7 +249,7 @@ public class SpatialRelatesQuery extends Query {
             }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AppendProcessorTests extends ESTestCase {
@@ -84,7 +85,7 @@ public class AppendProcessorTests extends ESTestCase {
             values.add(value);
             appendProcessor = createAppendProcessor(field, value, null, true, false);
         } else {
-            int valuesSize = randomIntBetween(0, 10);
+            int valuesSize = randomIntBetween(1, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
@@ -108,7 +109,7 @@ public class AppendProcessorTests extends ESTestCase {
             values.add(value);
             appendProcessor = createAppendProcessor(field, value, null, true, false);
         } else {
-            int valuesSize = randomIntBetween(0, 10);
+            int valuesSize = randomIntBetween(1, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
@@ -295,9 +296,13 @@ public class AppendProcessorTests extends ESTestCase {
             appendProcessor = createAppendProcessor(field, allValues, null, true, true);
         }
         appendProcessor.execute(ingestDocument);
-        List<?> list = ingestDocument.getFieldValue(field, List.class);
+        List<?> list = ingestDocument.getFieldValue(field, List.class, true);
         assertThat(list, not(sameInstance(values)));
-        assertThat(list, equalTo(values));
+        if (values.isEmpty()) {
+            assertThat(list, nullValue());
+        } else {
+            assertThat(list, equalTo(values));
+        }
     }
 
     public void testCopyFromOtherFieldSimple() throws Exception {

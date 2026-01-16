@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -112,8 +113,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -209,7 +210,9 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -646,7 +649,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateIndexService metadataCreateIndexService,
+        IndexSettingProviders indexSettingProviders
     ) {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
             clusterService.getClusterSettings()
@@ -662,7 +666,7 @@ class NodeConstruction {
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings, indexSettingProviders)
         );
         return dataStreamGlobalRetentionSettings;
     }
@@ -708,7 +712,8 @@ class NodeConstruction {
         modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
 
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
-        TaskManager taskManager = new TaskManager(
+        TaskManager taskManager = serviceProvider.newTaskManager(
+            pluginsService,
             settings,
             threadPool,
             Stream.concat(
@@ -719,19 +724,14 @@ class NodeConstruction {
             nodeEnvironment.nodeId()
         );
 
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, telemetryProvider.getMeterRegistry());
         clusterService.addStateApplier(scriptService);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = new SamplingService(
-            scriptService,
-            clusterService,
-            projectResolver,
-            threadPool.relativeTimeInMillisSupplier()
-        );
+        SamplingService samplingService = SamplingService.create(scriptService, clusterService, settings);
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 
@@ -824,8 +824,13 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
-                rerouteService
+                rerouteService,
+                telemetryProvider.getMeterRegistry()
             )::onNewInfo
+        );
+
+        clusterInfoService.addListener(
+            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo
         );
 
         IndicesModule indicesModule = new IndicesModule(
@@ -867,64 +872,20 @@ class NodeConstruction {
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
         SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-            public SlowLogFields create() {
+            public SlowLogFields create(SlowLogContext context) {
                 final List<SlowLogFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
-                    fields.add(provider.create());
+                    fields.add(provider.create(context));
                 }
-                return new SlowLogFields() {
+                return new SlowLogFields(context) {
                     @Override
-                    public Map<String, String> indexFields() {
+                    public Map<String, String> logFields() {
                         return fields.stream()
-                            .flatMap(f -> f.indexFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.searchFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> queryFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.queryFields().entrySet().stream())
+                            .flatMap(f -> f.logFields().entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     }
                 };
             }
-
-            public SlowLogFields create(IndexSettings indexSettings) {
-                final List<SlowLogFields> fields = new ArrayList<>();
-                for (var provider : slowLogFieldProviders) {
-                    fields.add(provider.create(indexSettings));
-                }
-                return new SlowLogFields() {
-                    @Override
-                    public Map<String, String> indexFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.indexFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.searchFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> queryFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.queryFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-                };
-            }
-
         };
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -990,7 +951,8 @@ class NodeConstruction {
             threadPool,
             clusterService,
             indicesService,
-            metadataCreateIndexService
+            metadataCreateIndexService,
+            indexSettingProviders
         );
 
         final MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(
@@ -1007,8 +969,15 @@ class NodeConstruction {
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
-            LinkedProjectConfigService.class,
-            () -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver)
+            LinkedProjectConfigService.Provider.class,
+            () -> Optional::empty
+        )
+            .create()
+            .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
+
+        final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
+            ProjectRoutingResolver.class,
+            () -> ProjectRoutingResolver.NOOP
         );
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
@@ -1035,7 +1004,8 @@ class NodeConstruction {
             projectResolver,
             slowLogFieldProvider,
             indexingLimits,
-            linkedProjectConfigService
+            linkedProjectConfigService,
+            projectRoutingResolver
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1096,7 +1066,7 @@ class NodeConstruction {
             clusterService,
             rerouteService,
             buildReservedClusterStateHandlers(reservedStateHandlerProviders, settingsModule),
-            buildReservedProjectStateHandlers(reservedStateHandlerProviders, settingsModule, metadataIndexTemplateService),
+            buildReservedProjectStateHandlers(reservedStateHandlerProviders, metadataIndexTemplateService),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
             projectResolver
@@ -1154,7 +1124,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            telemetryProvider.getTracer(),
+            telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             projectResolver
@@ -1185,6 +1155,10 @@ class NodeConstruction {
             transportService,
             indicesService
         );
+        final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
+            new CachingSnapshotAndShardByStateMetricsService(clusterService);
+        snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState);
+        snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState);
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
@@ -1267,7 +1241,7 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
-        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
+        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 
@@ -1360,6 +1334,7 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1392,13 +1367,19 @@ class NodeConstruction {
         }
     }
 
-    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
+    private ClusterService createClusterService(
+        SettingsModule settingsModule,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
+    ) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getProjectScopedSettings(),
             threadPool,
-            taskManager
+            taskManager,
+            meterRegistry
         );
         resourcesToClose.add(clusterService);
 
@@ -1697,12 +1678,11 @@ class NodeConstruction {
 
     private List<ReservedProjectStateHandler<?>> buildReservedProjectStateHandlers(
         List<? extends ReservedStateHandlerProvider> handlers,
-        SettingsModule settingsModule,
         MetadataIndexTemplateService templateService
     ) {
         List<ReservedProjectStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
-        reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
+        reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService));
 
         // add all reserved state handlers from plugins
         handlers.forEach(h -> reservedStateHandlers.addAll(h.projectHandlers()));
@@ -1743,7 +1723,8 @@ class NodeConstruction {
             fsHealthService,
             circuitBreakerService,
             compatibilityVersions,
-            featureService
+            featureService,
+            clusterService
         );
 
         modules.add(module, b -> {

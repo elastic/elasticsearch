@@ -25,7 +25,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "From, size, query, sort and search_after",
       "required": false

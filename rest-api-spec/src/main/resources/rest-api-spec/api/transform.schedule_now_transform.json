@@ -24,7 +24,6 @@
           "parts": {
             "transform_id": {
               "type": "string",
-              "required": true,
               "description": "The id of the transform."
             }
           }
@@ -34,6 +33,7 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Controls the time to wait for the scheduling to take place"
       }
     }

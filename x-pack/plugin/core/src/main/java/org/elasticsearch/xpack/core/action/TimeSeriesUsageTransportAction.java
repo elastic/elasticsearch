@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -25,10 +26,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.datastreams.TimeSeriesFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.HashMap;
 import java.util.LongSummaryStatistics;
@@ -85,9 +90,9 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 continue;
             }
             tsDataStreamCount++;
-            Integer dlmRounds = ds.getDataLifecycle() == null || ds.getDataLifecycle().downsampling() == null
+            Integer dlmRounds = ds.getDataLifecycle() == null || ds.getDataLifecycle().downsamplingRounds() == null
                 ? null
-                : ds.getDataLifecycle().downsampling().size();
+                : ds.getDataLifecycle().downsamplingRounds().size();
 
             for (Index backingIndex : ds.getIndices()) {
                 IndexMetadata indexMetadata = projectMetadata.index(backingIndex);
@@ -98,21 +103,25 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 if (ds.isIndexManagedByDataStreamLifecycle(indexMetadata.getIndex(), ignored -> indexMetadata) && dlmRounds != null) {
                     dlmStats.trackIndex(ds, indexMetadata);
                     dlmStats.trackRounds(dlmRounds, ds, indexMetadata);
+                    dlmStats.trackSamplingMethod(ds.getDataLifecycle().downsamplingMethod(), ds, indexMetadata);
                 } else if (ilmAvailable && projectMetadata.isIndexManagedByILM(indexMetadata)) {
                     LifecyclePolicyMetadata policyMetadata = ilmMetadata.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
                     if (policyMetadata == null) {
                         continue;
                     }
                     int rounds = 0;
+                    DownsampleConfig.SamplingMethod samplingMethod = null;
                     for (Phase phase : policyMetadata.getPolicy().getPhases().values()) {
                         if (phase.getActions().containsKey(DownsampleAction.NAME)) {
                             rounds++;
+                            samplingMethod = ((DownsampleAction) phase.getActions().get(DownsampleAction.NAME)).samplingMethod();
                         }
                     }
                     if (rounds > 0) {
                         ilmStats.trackPolicy(policyMetadata.getPolicy());
                         ilmStats.trackIndex(ds, indexMetadata);
                         ilmStats.trackRounds(rounds, ds, indexMetadata);
+                        ilmStats.trackSamplingMethod(samplingMethod, ds, indexMetadata);
                     }
                 }
                 String interval = indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey());
@@ -128,7 +137,7 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 tsDataStreamCount,
                 tsIndexCount,
                 ilmStats.getDownsamplingStats(),
-                ilmStats.getIlmPolicyStats(),
+                ilmStats.calculateIlmPolicyStats(),
                 dlmStats.getDownsamplingStats(),
                 indicesByInterval
             )
@@ -139,6 +148,9 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
     private static class DownsamplingStatsTracker {
         private long downsampledDataStreams = 0;
         private long downsampledIndices = 0;
+        private long aggregateSamplingMethod = 0;
+        private long lastValueSamplingMethod = 0;
+        private long undefinedSamplingMethod = 0;
         private final LongSummaryStatistics rounds = new LongSummaryStatistics();
 
         void trackIndex(DataStream ds, IndexMetadata indexMetadata) {
@@ -156,17 +168,38 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
             }
         }
 
+        void trackSamplingMethod(DownsampleConfig.SamplingMethod samplingMethod, DataStream ds, IndexMetadata indexMetadata) {
+            // We want to track the sampling method per data stream,
+            // so we use the write index to determine the active lifecycle configuration
+            if (Objects.equals(indexMetadata.getIndex(), ds.getWriteIndex())) {
+                if (samplingMethod == null) {
+                    undefinedSamplingMethod++;
+                    return;
+                }
+                switch (samplingMethod) {
+                    case DownsampleConfig.SamplingMethod.AGGREGATE -> aggregateSamplingMethod++;
+                    case DownsampleConfig.SamplingMethod.LAST_VALUE -> lastValueSamplingMethod++;
+                }
+            }
+        }
+
         TimeSeriesFeatureSetUsage.DownsamplingFeatureStats getDownsamplingStats() {
             return new TimeSeriesFeatureSetUsage.DownsamplingFeatureStats(
                 downsampledDataStreams,
                 downsampledIndices,
                 rounds.getMin(),
                 rounds.getAverage(),
-                rounds.getMax()
+                rounds.getMax(),
+                aggregateSamplingMethod,
+                lastValueSamplingMethod,
+                undefinedSamplingMethod
             );
         }
     }
 
+    /**
+     * Tracks the ILM policies currently in use by time series data streams.
+     */
     static class IlmDownsamplingStatsTracker extends DownsamplingStatsTracker {
         private final Map<String, Map<String, Phase>> policies = new HashMap<>();
 
@@ -174,20 +207,69 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
             policies.putIfAbsent(ilmPolicy.getName(), ilmPolicy.getPhases());
         }
 
-        Map<String, Long> getIlmPolicyStats() {
+        /**
+         * Calculates ILM-policy-specific statistics that help us get a better understanding on the phases that use downsampling and on
+         * how the force merge step in the downsample action is used. More specifically, for downsampling we are tracking:
+         * - if users explicitly enabled or disabled force-merge after downsampling.
+         * - if the force merge could be skipped with minimal impact, when the force merge flag is undefined.
+         * @return a IlmPolicyStats record that contains these counters.
+         */
+        TimeSeriesFeatureSetUsage.IlmPolicyStats calculateIlmPolicyStats() {
             if (policies.isEmpty()) {
-                return Map.of();
+                return TimeSeriesFeatureSetUsage.IlmPolicyStats.EMPTY;
             }
+            long forceMergeExplicitlyEnabledCounter = 0;
+            long forceMergeExplicitlyDisabledCounter = 0;
+            long forceMergeDefaultCounter = 0;
+            long downsampledForceMergeNeededCounter = 0; // Meaning it's followed by a searchable snapshot with force-merge index false
             Map<String, Long> downsamplingPhases = new HashMap<>();
             for (String ilmPolicy : policies.keySet()) {
-                for (Phase phase : policies.get(ilmPolicy).values()) {
-                    if (phase.getActions().containsKey(DownsampleAction.NAME)) {
-                        Long current = downsamplingPhases.computeIfAbsent(phase.getName(), ignored -> 0L);
-                        downsamplingPhases.put(phase.getName(), current + 1);
+                Map<String, Phase> phases = policies.get(ilmPolicy);
+                boolean downsampledForceMergeNeeded = false;
+                for (String phase : TimeseriesLifecycleType.ORDERED_VALID_PHASES) {
+                    if (phases.containsKey(phase) == false) {
+                        continue;
+                    }
+                    Map<String, LifecycleAction> actions = phases.get(phase).getActions();
+                    if (actions.containsKey(DownsampleAction.NAME)) {
+                        // count the phase used
+                        Long current = downsamplingPhases.computeIfAbsent(phase, ignored -> 0L);
+                        downsamplingPhases.put(phase, current + 1);
+                        // Count force merge
+                        DownsampleAction downsampleAction = (DownsampleAction) actions.get(DownsampleAction.NAME);
+                        if (downsampleAction.forceMergeIndex() == null) {
+                            forceMergeDefaultCounter++;
+                            downsampledForceMergeNeeded = true; // this default force merge could be needed depending on the following steps
+                        } else if (downsampleAction.forceMergeIndex()) {
+                            forceMergeExplicitlyEnabledCounter++;
+                        } else {
+                            forceMergeExplicitlyDisabledCounter++;
+                        }
+                    }
+
+                    // If there is an explicit force merge action, we could consider the downsampling force merge redundant.
+                    if (actions.containsKey(ForceMergeAction.NAME)) {
+                        downsampledForceMergeNeeded = false;
+                    }
+                    if (downsampledForceMergeNeeded && actions.containsKey(SearchableSnapshotAction.NAME)) {
+                        SearchableSnapshotAction searchableSnapshotAction = (SearchableSnapshotAction) actions.get(
+                            SearchableSnapshotAction.NAME
+                        );
+                        if (searchableSnapshotAction.isForceMergeIndex() == false) {
+                            // If there was a searchable snapshot with force index false, then the downsample force merge has impact
+                            downsampledForceMergeNeededCounter++;
+                        }
+                        downsampledForceMergeNeeded = false;
                     }
                 }
             }
-            return downsamplingPhases;
+            return new TimeSeriesFeatureSetUsage.IlmPolicyStats(
+                downsamplingPhases,
+                forceMergeExplicitlyEnabledCounter,
+                forceMergeExplicitlyDisabledCounter,
+                forceMergeDefaultCounter,
+                downsampledForceMergeNeededCounter
+            );
         }
     }
 }

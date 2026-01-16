@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -47,24 +48,27 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
@@ -93,9 +97,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         TIME_DURATION,
         DOC_DATA_TYPE,
         TSID_DATA_TYPE,
-        PARTIAL_AGG,
         AGGREGATE_METRIC_DOUBLE,
-        DENSE_VECTOR };
+        EXPONENTIAL_HISTOGRAM,
+        TDIGEST,
+        HISTOGRAM,
+        DENSE_VECTOR,
+        DATE_RANGE };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
@@ -179,7 +186,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput(left().output(), right().output());
+            lazyOutput = Expressions.asAttributes(computeOutputExpressions(left().output(), right().output()));
         }
         return lazyOutput;
     }
@@ -210,30 +217,34 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return rightOutputFields;
     }
 
-    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
-        return computeOutput(left, right, config);
+    public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
+        return computeOutputExpressions(left, right, config);
     }
 
     /**
      * Combine the two lists of attributes into one.
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
      */
-    public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
+    public static List<NamedExpression> computeOutputExpressions(
+        List<? extends NamedExpression> leftOutput,
+        List<? extends NamedExpression> rightOutput,
+        JoinConfig config
+    ) {
         JoinType joinType = config.type();
-        List<Attribute> output;
+        List<NamedExpression> output;
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
             if (config.joinOnConditions() == null) {
                 // right side becomes nullable and overrides left except for join keys, which we preserve from the left
                 AttributeSet rightKeys = AttributeSet.of(config.rightFields());
-                List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
-                    .filter(attr -> rightKeys.contains(attr) == false)
+                List<? extends NamedExpression> rightOutputWithoutMatchFields = rightOutput.stream()
+                    .filter(ne -> rightKeys.contains(ne.toAttribute()) == false)
                     .toList();
-                output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+                output = mergeOutputExpressions(rightOutputWithoutMatchFields, leftOutput);
             } else {
                 // We don't allow any attributes in the joinOnConditions that don't have unique names
                 // so right always overwrites left in case of name clashes
-                output = mergeOutputAttributes(rightOutput, leftOutput);
+                output = mergeOutputExpressions(rightOutput, leftOutput);
             }
 
         } else {

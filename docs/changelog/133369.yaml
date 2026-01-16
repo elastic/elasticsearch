@@ -1,5 +1,0 @@
-pr: 133369
-summary: Enable `date` `date_nanos` implicit casting
-area: ES|QL
-type: enhancement
-issues: []

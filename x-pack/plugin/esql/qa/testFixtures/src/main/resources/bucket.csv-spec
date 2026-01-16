@@ -988,3 +988,22 @@ COUNT(*):long | bucket:datetime
 1             | 1986-07-09T00:00:00.000Z
 1             | 1986-09-17T00:00:00.000Z
 ;
+
+bucketWithTimezone
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+FROM employees
+| WHERE hire_date >= "1980-01-01T00:00:00Z"
+| STATS by hire_date, bucketHours = BUCKET(hire_date, 3 hours), bucketDay = BUCKET(hire_date, 1 day)
+| SORT hire_date
+| LIMIT 5
+;
+
+hire_date:date           | bucketHours:date         | bucketDay:date
+1985-02-18T00:00:00.000Z | 1985-02-17T22:00:00.000Z | 1985-02-17T19:00:00.000Z
+1985-02-24T00:00:00.000Z | 1985-02-23T22:00:00.000Z | 1985-02-23T19:00:00.000Z
+1985-05-13T00:00:00.000Z | 1985-05-12T22:00:00.000Z | 1985-05-12T19:00:00.000Z
+1985-07-09T00:00:00.000Z | 1985-07-08T22:00:00.000Z | 1985-07-08T19:00:00.000Z
+1985-09-17T00:00:00.000Z | 1985-09-16T22:00:00.000Z | 1985-09-16T19:00:00.000Z
+;

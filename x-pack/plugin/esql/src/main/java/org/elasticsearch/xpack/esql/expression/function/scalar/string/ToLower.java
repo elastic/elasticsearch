@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +24,9 @@ import java.io.IOException;
 
 public class ToLower extends ChangeCase {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLower", ToLower::new);
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -42,7 +45,7 @@ public class ToLower extends ChangeCase {
 
     private ToLower(StreamInput in) throws IOException {
         this(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
                 ? Source.readFrom((PlanStreamInput) in)
                 : Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -52,7 +55,7 @@ public class ToLower extends ChangeCase {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
             source().writeTo(out);
         }
         out.writeNamedWriteable(field());

@@ -63,37 +63,16 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         List<TestCaseSupplier> suppliers,
-        boolean entirelyNullPreservesType,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                withNoRowsExpectingNull(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers))),
-                positionalErrorMessageSupplier
-            )
+            errorsForCasesWithoutExamples(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)), positionalErrorMessageSupplier)
         );
     }
 
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
-     */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
-        // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
-        List<TestCaseSupplier> suppliers,
-        boolean entirelyNullPreservesType
-    ) {
-        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
-    }
-
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(List<TestCaseSupplier> suppliers) {
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
@@ -117,6 +96,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                     var newData = testCase.getData().stream().map(td -> td.isMultiRow() ? td.withData(List.of()) : td).toList();
 
                     return new TestCaseSupplier.TestCase(
+                        testCase.getSource(),
+                        testCase.getConfiguration(),
                         newData,
                         testCase.evaluatorToString(),
                         testCase.expectedType(),
@@ -560,7 +541,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case IP -> "Ip";
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
             case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
+            case DATE_RANGE -> "LongRange";
+            case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
+            case TDIGEST -> "TDigest";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

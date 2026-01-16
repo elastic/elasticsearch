@@ -44,6 +44,14 @@ public class InputTypeTests extends ESTestCase {
             );
     }
 
+    public static InputType randomRequestType() {
+        return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.CLUSTERING, InputType.CLASSIFICATION);
+    }
+
+    public static InputType randomRequestTypeWithNull() {
+        return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.CLUSTERING, InputType.CLASSIFICATION, null);
+    }
+
     public static InputType randomSearchAndIngestWithNull() {
         return randomBoolean()
             ? null
@@ -62,6 +70,10 @@ public class InputTypeTests extends ESTestCase {
 
     public static InputType randomWithInternalAndUnspecified() {
         return randomFrom(InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST, InputType.UNSPECIFIED);
+    }
+
+    public static InputType randomIngest() {
+        return randomFrom(InputType.INGEST, InputType.INTERNAL_INGEST);
     }
 
     public void testFromRestString_ValidInputType() {
@@ -210,5 +222,9 @@ public class InputTypeTests extends ESTestCase {
                     + "is not null and not empty, received: [1], type: [Integer].;"
             )
         );
+    }
+
+    public void testIsIngest() {
+        assertTrue(InputType.isIngest(randomFrom(InputType.INGEST, InputType.INTERNAL_INGEST)));
     }
 }

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
+import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -33,15 +35,22 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final EvalOperator.ExpressionEvaluator formatter;
 
+  private final ZoneId zoneId;
+
+  private final Locale locale;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, Locale locale,
+      DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.formatter = formatter;
+    this.zoneId = zoneId;
+    this.locale = locale;
     this.driverContext = driverContext;
   }
 
@@ -75,32 +84,32 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       BytesRef valScratch = new BytesRef();
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (formatterBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (formatterBlock.getValueCount(p) != 1) {
-          if (formatterBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (formatterBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
         BytesRef formatter = formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch);
         try {
-          result.appendLong(DateParse.process(val, formatter));
+          result.appendLong(DateParse.process(val, formatter, this.zoneId, this.locale));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -119,7 +128,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         BytesRef val = valVector.getBytesRef(p, valScratch);
         BytesRef formatter = formatterVector.getBytesRef(p, formatterScratch);
         try {
-          result.appendLong(DateParse.process(val, formatter));
+          result.appendLong(DateParse.process(val, formatter, this.zoneId, this.locale));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -131,7 +140,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + ", locale=" + locale + "]";
   }
 
   @Override
@@ -158,21 +167,27 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
     private final EvalOperator.ExpressionEvaluator.Factory formatter;
 
+    private final ZoneId zoneId;
+
+    private final Locale locale;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
-        EvalOperator.ExpressionEvaluator.Factory formatter) {
+        EvalOperator.ExpressionEvaluator.Factory formatter, ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.formatter = formatter;
+      this.zoneId = zoneId;
+      this.locale = locale;
     }
 
     @Override
     public DateParseEvaluator get(DriverContext context) {
-      return new DateParseEvaluator(source, val.get(context), formatter.get(context), context);
+      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, locale, context);
     }
 
     @Override
     public String toString() {
-      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + ", locale=" + locale + "]";
     }
   }
 }

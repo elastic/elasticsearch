@@ -36,6 +36,7 @@
     "params": {
       "include_remotes": {
         "type": "boolean",
+        "default": false,
         "description": "Include remote cluster data into the response (default: false)"
       },
       "timeout": {

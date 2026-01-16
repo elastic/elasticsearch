@@ -25,8 +25,8 @@ import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.StandardIOBehaviorHint;
@@ -66,8 +66,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         sharedArenaMaxPermits = value; // default to 1
     }
 
-    private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
-
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
             case "native" -> NativeFSLockFactory.INSTANCE;
@@ -75,6 +73,17 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             default -> throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
         }; // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
+
+    public static final Setting<Integer> ASYNC_PREFETCH_LIMIT = Setting.intSetting(
+        "index.store.fs.directio_async_prefetch_limit",
+        64,
+        // 0 disables async prefetching
+        0,
+        // creates 256 * 8k buffers, which is 2MB
+        256,
+        Property.IndexScope,
+        Property.NodeScope
+    );
 
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
@@ -85,6 +94,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        final int asyncPrefetchLimit = indexSettings.getValue(ASYNC_PREFETCH_LIMIT);
         final String storeType = indexSettings.getSettings()
             .get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
@@ -100,7 +110,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
                     mMapDirectory = adjustSharedArenaGrouping(mMapDirectory);
-                    return new HybridDirectory(lockFactory, setMMapFunctions(mMapDirectory, preLoadExtensions));
+                    return new HybridDirectory(lockFactory, setMMapFunctions(mMapDirectory, preLoadExtensions), asyncPrefetchLimit);
                 } else {
                     return primaryDirectory;
                 }
@@ -142,10 +152,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return MMapDirectory.NO_FILES;
     }
 
-    private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
+    public static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
+            }
+            if (name.endsWith(".cfs")) {
+                return Optional.of(ReadAdvice.NORMAL);
+            }
+            // Bloom filter files are accessed randomly during point lookups,
+            // so sequential pre-fetching would not be beneficial
+            if (name.endsWith(".sfbf")) {
+                return Optional.of(ReadAdvice.RANDOM);
             }
             return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
         };
@@ -159,23 +177,23 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory {
+    @SuppressForbidden(reason = "requires Files.getFileStore for blockSize")
+    private static int getBlockSize(Path path) throws IOException {
+        return Math.toIntExact(Files.getFileStore(path).getBlockSize());
+    }
+
+    public static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
 
-        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
+        public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, int asyncPrefetchLimit) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
 
             DirectIODirectory directIO;
             try {
                 // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
-                directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
-                    @Override
-                    protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
-                        return true;
-                    }
-                };
+                directIO = new AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, asyncPrefetchLimit);
             } catch (Exception e) {
                 // directio not supported
                 Log.warn("Could not initialize DirectIO access", e);
@@ -277,20 +295,48 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * mmap-ing that should still be ok even is memory is scarce.
          * The fdt file is large and tends to cause more page faults when memory is scarce.
          *
-         * For disi and address-data files, in es819 tsdb doc values codec, docids and offsets are first written to a tmp file and
-         * read and written into new segment.
+         * For disi, address-data, block-addresses, and block-doc-ranges files, in es819 tsdb doc values codec,
+         * docids and offsets are first written to a tmp file and read and written into new segment.
          *
          * @param name      The name of the file in Lucene index
          * @param extension The extension of the in Lucene index
          * @return whether to avoid using delegate if the file is a tmp fdt file.
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
-            return extension == LuceneFilesExtensions.TMP
-                && (name.contains("fdt") || name.contains("disi") || name.contains("address-data"));
+            return extension == LuceneFilesExtensions.TMP && NO_MMAP_FILE_SUFFIXES.stream().anyMatch(name::contains);
         }
+
+        static final Set<String> NO_MMAP_FILE_SUFFIXES = Set.of("fdt", "disi", "address-data", "block-addresses", "block-doc-ranges");
 
         MMapDirectory getDelegate() {
             return delegate;
+        }
+    }
+
+    public static final class AlwaysDirectIODirectory extends DirectIODirectory {
+        private final int blockSize;
+        private final int asyncPrefetchLimit;
+
+        public AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit)
+            throws IOException {
+            super(delegate, mergeBufferSize, minBytesDirect);
+            blockSize = getBlockSize(delegate.getDirectory());
+            this.asyncPrefetchLimit = asyncPrefetchLimit;
+        }
+
+        @Override
+        protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+            return true;
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            ensureOpen();
+            if (asyncPrefetchLimit > 0) {
+                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, asyncPrefetchLimit);
+            } else {
+                return super.openInput(name, context);
+            }
         }
     }
 }

@@ -30,7 +30,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -54,6 +53,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -306,7 +306,7 @@ public class LuceneTests extends ESTestCase {
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index
             IndexSearcher searcher = newSearcher(reader);
-            assertFalse(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertFalse(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
         }
 
         Document doc = new Document();
@@ -317,7 +317,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = w.getReader()) {
             IndexSearcher searcher = newSearcher(reader);
-            assertTrue(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertTrue(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
             assertFalse(Lucene.exists(searcher, new TermQuery(new Term("baz", "bar"))));
             assertTrue(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
         }
@@ -465,7 +465,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapAllDocsLive() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            );
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         Set<String> liveDocs = new HashSet<>();
@@ -493,7 +495,7 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
@@ -506,7 +508,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            )
             // disable merges on refresh as we will verify the deleted documents
             .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
@@ -540,7 +544,7 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));

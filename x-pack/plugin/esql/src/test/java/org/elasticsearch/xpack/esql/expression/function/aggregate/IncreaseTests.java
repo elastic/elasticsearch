@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -50,12 +49,12 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Increase(source, args.get(0), args.get(1));
+        return new Increase(source, args.get(0), AggregateFunction.NO_WINDOW, args.get(1));
     }
 
     @Override
@@ -126,18 +125,18 @@ public class IncreaseTests extends AbstractAggregationTestCase {
             if (nonNullDataRows.size() < 2) {
                 matcher = Matchers.nullValue();
             } else {
-                double increase = 0.0;
+                double resets = 0.0;
+                double last = ((Number) nonNullDataRows.get(0)).doubleValue();
+                double current = last;
                 for (int i = 1; i < nonNullDataRows.size(); i++) {
-                    double previous = ((Number) nonNullDataRows.get(i - 1)).doubleValue();
-                    double current = ((Number) nonNullDataRows.get(i)).doubleValue();
-                    if (current >= previous) {
-                        increase += current - previous;
-                    } else {
-                        // Counter reset
-                        increase += current;
+                    double prev = ((Number) nonNullDataRows.get(i)).doubleValue();
+                    if (prev > current) {
+                        resets += prev;
                     }
+                    current = prev;
                 }
-                matcher = closeTo(increase, 0.1 * increase);
+                double increase = resets + (last - current);
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
             }
 
             return new TestCaseSupplier.TestCase(

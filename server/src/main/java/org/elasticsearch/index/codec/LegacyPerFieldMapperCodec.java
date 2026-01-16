@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Legacy version of {@link PerFieldMapperCodec}. This codec is preserved to give an escape hatch in case we encounter issues with new
@@ -26,9 +27,14 @@ public final class LegacyPerFieldMapperCodec extends Lucene103Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
-    public LegacyPerFieldMapperCodec(Lucene103Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
+    public LegacyPerFieldMapperCodec(
+        Lucene103Codec.Mode compressionMode,
+        MapperService mapperService,
+        BigArrays bigArrays,
+        ThreadPool threadPool
+    ) {
         super(compressionMode);
-        this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays);
+        this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
         // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.
         assert Codec.forName(Lucene.LATEST_CODEC).getClass() == getClass().getSuperclass()

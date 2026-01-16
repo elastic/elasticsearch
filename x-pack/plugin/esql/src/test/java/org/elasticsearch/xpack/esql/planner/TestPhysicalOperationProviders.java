@@ -23,9 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
@@ -43,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -69,7 +68,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
@@ -134,10 +132,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
+            ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize())
         );
     }
 
@@ -155,7 +154,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             var page = pageIndex.page;
             BlockFactory blockFactory = driverContext.blockFactory();
             DocVector docVector = new DocVector(
-                ShardRefCounted.ALWAYS_REFERENCED,
+                ConstantShardContextIndexedByShardId.INSTANCE,
                 // The shard ID is used to encode the index ID.
                 blockFactory.newConstantIntVector(index, page.getPositionCount()),
                 blockFactory.newConstantIntVector(0, page.getPositionCount()),
@@ -197,19 +196,21 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     private class TestFieldExtractOperator implements Operator {
+        private final DriverContext context;
         private final Attribute attribute;
         private Page lastPage;
         boolean finished;
         private final FieldExtractPreference extractPreference;
 
-        TestFieldExtractOperator(Attribute attr, FieldExtractPreference extractPreference) {
+        TestFieldExtractOperator(DriverContext context, Attribute attr, FieldExtractPreference extractPreference) {
+            this.context = context;
             this.attribute = attr;
             this.extractPreference = extractPreference;
         }
 
         @Override
         public void addInput(Page page) {
-            lastPage = page.appendBlock(getBlock(page.getBlock(0), attribute, extractPreference));
+            lastPage = page.appendBlock(getBlock(context, page.getBlock(0), attribute, extractPreference));
         }
 
         @Override
@@ -241,17 +242,17 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     private class TestFieldExtractOperatorFactory implements Operator.OperatorFactory {
-        private final Operator op;
         private final Attribute attribute;
+        private final FieldExtractPreference extractPreference;
 
-        TestFieldExtractOperatorFactory(Attribute attr, FieldExtractPreference extractPreference) {
-            this.op = new TestFieldExtractOperator(attr, extractPreference);
-            this.attribute = attr;
+        private TestFieldExtractOperatorFactory(Attribute attribute, FieldExtractPreference extractPreference) {
+            this.attribute = attribute;
+            this.extractPreference = extractPreference;
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return op;
+            return new TestFieldExtractOperator(driverContext, attribute, extractPreference);
         }
 
         @Override
@@ -260,18 +261,18 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    private Block getBlock(DocBlock docBlock, Attribute attribute, FieldExtractPreference extractPreference) {
+    private Block getBlock(DriverContext context, DocBlock docBlock, Attribute attribute, FieldExtractPreference extractPreference) {
         if (attribute instanceof UnsupportedAttribute) {
             return getNullsBlock(docBlock);
         }
-        BiFunction<DocBlock, TestBlockCopier, Block> blockExtraction = getBlockExtraction(attribute);
+        BiFunction<DocBlock, TestBlockCopier, Block> blockExtraction = getBlockExtraction(context, attribute);
         return extractBlockForColumn(docBlock, attribute.dataType(), extractPreference, blockExtraction);
     }
 
-    private BiFunction<DocBlock, TestBlockCopier, Block> getBlockExtraction(Attribute attribute) {
+    private BiFunction<DocBlock, TestBlockCopier, Block> getBlockExtraction(DriverContext context, Attribute attribute) {
         if (attribute instanceof FieldAttribute fa) {
             if (fa.field() instanceof MultiTypeEsField m) {
-                return (doc, copier) -> getBlockForMultiType(doc, m, copier);
+                return (doc, copier) -> getBlockForMultiType(context, doc, m, copier);
 
             }
             if (fa.field() instanceof PotentiallyUnmappedKeywordEsField k) {
@@ -291,14 +292,23 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         };
     }
 
-    private Block getBlockForMultiType(DocBlock indexDoc, MultiTypeEsField multiTypeEsField, TestBlockCopier blockCopier) {
+    private Block getBlockForMultiType(
+        DriverContext context,
+        DocBlock indexDoc,
+        MultiTypeEsField multiTypeEsField,
+        TestBlockCopier blockCopier
+    ) {
         var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(getIndexPage(indexDoc).index);
         if (conversion == null) {
             return getNullsBlock(indexDoc);
         }
         return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName().string(), blockCopier)) {
             case BlockResultMissing unused -> getNullsBlock(indexDoc);
-            case BlockResultSuccess success -> TypeConverter.fromScalarFunction(conversion).convert(success.block);
+            case BlockResultSuccess success -> {
+                try (var converter = new TypeConverter(conversion).build(context)) {
+                    yield converter.convert(success.block);
+                }
+            }
         };
     }
 
@@ -319,15 +329,19 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private BlockResult extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
-        if (MetadataAttribute.INDEX.equals(columnName)) {
-            return new BlockResultSuccess(
+        return switch (columnName) {
+            case MetadataAttribute.INDEX -> new BlockResultSuccess(
                 docBlock.blockFactory()
                     .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount())
             );
-        }
-        return indexPage.columnIndex(columnName)
-            .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
-            .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
+            case DataTierFieldMapper.NAME -> new BlockResultSuccess(
+                docBlock.blockFactory()
+                    .newConstantBytesRefBlockWith(new BytesRef("data_content"), blockCopier.docIndices.getPositionCount())
+            );
+            default -> indexPage.columnIndex(columnName)
+                .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
+                .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
+        };
     }
 
     private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {
@@ -351,26 +365,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             try (DocVector indexDocVector = vector.filter(currentList.stream().mapToInt(Integer::intValue).toArray())) {
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
-        }
-    }
-
-    private class TestHashAggregationOperator extends HashAggregationOperator {
-
-        private final Attribute attribute;
-
-        TestHashAggregationOperator(
-            List<GroupingAggregator.Factory> aggregators,
-            Supplier<BlockHash> blockHash,
-            Attribute attribute,
-            DriverContext driverContext
-        ) {
-            super(aggregators, blockHash, driverContext);
-            this.attribute = attribute;
-        }
-
-        @Override
-        protected Page wrapPage(Page page) {
-            return page.appendBlock(getBlock(page.getBlock(0), attribute, FieldExtractPreference.NONE));
         }
     }
 

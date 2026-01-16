@@ -49,12 +49,12 @@ public class IrateTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Irate(source, args.get(0), args.get(1));
+        return new Irate(source, args.get(0), args.get(1), AggregateFunction.NO_WINDOW);
     }
 
     @Override
@@ -122,30 +122,22 @@ public class IrateTests extends AbstractAggregationTestCase {
             );
 
             List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
-            Object maxValue = null;
-            Object minValue = null;
-
-            for (int i = dataRows.size() - 1; i >= 0; i--) {
-                if (dataRows.get(i) != null) {
-                    if (maxValue == null) {
-                        maxValue = dataRows.get(i);
-                    } else if (((Comparable) dataRows.get(i)).compareTo(maxValue) > 0) {
-                        maxValue = dataRows.get(i);
-                    }
-                    if (minValue == null) {
-                        minValue = dataRows.get(i);
-                    } else if (((Comparable) dataRows.get(i)).compareTo(minValue) < 0) {
-                        minValue = dataRows.get(i);
-                    }
-                }
-            }
-
-            final Matcher<?> matcher;
+            Matcher<?> matcher;
             if (nonNullDataRows.size() < 2) {
                 matcher = Matchers.nullValue();
             } else {
-                var maxDiff = ((Number) maxValue).doubleValue() - ((Number) minValue).doubleValue();
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(-maxDiff), Matchers.lessThanOrEqualTo(maxDiff));
+                var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
+                var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
+                var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
+                var largestTimestamp = timestamps.get(0);
+                var secondLargestTimestamp = timestamps.get(1);
+                var smallestTimestamp = timestamps.getLast();
+                matcher = Matchers.allOf(
+                    Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
+                    Matchers.lessThanOrEqualTo(
+                        increase / (largestTimestamp - secondLargestTimestamp) * (largestTimestamp - smallestTimestamp) * 1000
+                    )
+                );
             }
 
             return new TestCaseSupplier.TestCase(

@@ -10,21 +10,30 @@ package org.elasticsearch.xpack.exponentialhistogram;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.ExponentialHistogramAggregatorsRegistrar;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Plugin adding support for exponential histogram field types.
  */
-public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPlugin {
+public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPlugin, SearchPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        if (ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
-            mappers.put(ExponentialHistogramFieldMapper.CONTENT_TYPE, ExponentialHistogramFieldMapper.PARSER);
-        }
-        return Collections.unmodifiableMap(mappers);
+        return Map.of(ExponentialHistogramFieldMapper.CONTENT_TYPE, ExponentialHistogramFieldMapper.PARSER);
+    }
+
+    @Override
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        return List.of(
+            ExponentialHistogramAggregatorsRegistrar::registerValueCountAggregator,
+            ExponentialHistogramAggregatorsRegistrar::registerSumAggregator,
+            ExponentialHistogramAggregatorsRegistrar::registerAvgAggregator,
+            ExponentialHistogramAggregatorsRegistrar::registerHistogramAggregator
+        );
     }
 }

@@ -28,7 +28,6 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
     private final CrossClusterAccessTransportInterceptor transportInterceptor;
 
     private final CrossClusterApiKeySigningConfigReloader crossClusterApiKeySignerReloader;
-    private final CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager;
 
     private CrossClusterAccessSecurityExtension(Components components) {
         this.crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
@@ -36,13 +35,16 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.resourceWatcherService(),
             components.clusterService().getClusterSettings()
         );
-        this.crossClusterApiKeySignatureManager = new CrossClusterApiKeySignatureManager(components.environment());
+        final CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager = new CrossClusterApiKeySignatureManager(
+            components.environment()
+        );
         crossClusterApiKeySignerReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);
 
         this.authenticationService = new CrossClusterAccessAuthenticationService(
             components.clusterService(),
             components.apiKeyService(),
-            components.authenticationService()
+            components.authenticationService(),
+            crossClusterApiKeySignatureManager.verifier()
         );
         this.transportInterceptor = new CrossClusterAccessTransportInterceptor(
             components.settings(),
@@ -51,7 +53,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.authorizationService(),
             components.securityContext(),
             this.authenticationService,
-            this.crossClusterApiKeySignatureManager,
+            crossClusterApiKeySignatureManager,
             components.licenseState()
         );
     }

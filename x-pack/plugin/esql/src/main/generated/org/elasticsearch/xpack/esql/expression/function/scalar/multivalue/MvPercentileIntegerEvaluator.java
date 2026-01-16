@@ -72,16 +72,16 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
         if (!valuesBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (percentileBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (percentileBlock.getValueCount(p) != 1) {
-          if (percentileBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (percentileBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();

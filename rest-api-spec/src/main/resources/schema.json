@@ -60,6 +60,9 @@
                     "properties": {
                       "stability": {
                         "const": "stable"
+                      },
+                      "visibility": {
+                        "const": "public"
                       }
                     }
                   },
@@ -161,7 +164,8 @@
                 }
             },
             "required": [
-                "description"
+                "description",
+                "required"
             ],
             "title": "API request Body",
             "description": "The request body for the API. Does not detail the structure, only whether the API accepts a body and its format"
@@ -255,7 +259,7 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "pattern": "^[a-zA-Z_]+$"
+                        "pattern": "^[_a-zA-Z][_a-zA-Z0-9.]*$"
                     },
                     "title": "Valid options when type is an enum"
                 },
@@ -264,10 +268,7 @@
                     "title": "Default value"
                 },
                 "deprecated": {
-                    "oneOf": [
-                      { "$ref": "#/definitions/Deprecated" },
-                      { "type": "boolean" }
-                    ]
+                    "$ref": "#/definitions/Deprecated"
                 },
                 "description": {
                     "type": "string",

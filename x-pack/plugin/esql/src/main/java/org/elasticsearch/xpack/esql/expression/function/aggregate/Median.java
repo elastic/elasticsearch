@@ -59,24 +59,25 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long" },
+            type = { "double", "integer", "long", "exponential_histogram" },
             description = "Expression that outputs values to calculate the median of."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Median(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Median(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     @Override
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
+            "exponential_histogram",
             "numeric except unsigned_long or counter types"
         );
     }
@@ -97,17 +98,17 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Median> info() {
-        return NodeInfo.create(this, Median::new, field(), filter());
+        return NodeInfo.create(this, Median::new, field(), filter(), window());
     }
 
     @Override
     public Median replaceChildren(List<Expression> newChildren) {
-        return new Median(source(), newChildren.get(0), newChildren.get(1));
+        return new Median(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Median(source(), field(), filter);
+        return new Median(source(), field(), filter, window());
     }
 
     @Override
@@ -115,8 +116,8 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         var s = source();
         var field = field();
 
-        return field.foldable()
+        return field.foldable() && field.dataType() != DataType.EXPONENTIAL_HISTOGRAM
             ? new MvMedian(s, new ToDouble(s, field))
-            : new Percentile(source(), field(), filter(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
+            : new Percentile(source(), field(), filter(), window(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
     }
 }

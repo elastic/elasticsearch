@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -264,9 +263,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         private DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
-            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? LocaleUtils.parse(in.readString())
-                : DateFieldMapper.DEFAULT_LOCALE;
+            Locale locale = LocaleUtils.parse(in.readString());
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone).withLocale(locale);
@@ -291,9 +288,7 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeString(formatter.locale().toString());
-            }
+            out.writeString(formatter.locale().toString());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
             out.writeBoolean(formatSortValues);

@@ -30,6 +30,10 @@ import java.util.OptionalLong;
  * <br>
  * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
+ * <br>
+ * This implementation is thread-safe for all operations provided via {@link ReleasableExponentialHistogram} and its superclasses,
+ * as long as it is not mutated concurrently using any of the methods declared in addition in this class
+ * (e.g. {@link #tryAddBucket(long, long, boolean)}).
  */
 final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogram implements ReleasableExponentialHistogram {
 
@@ -41,7 +45,8 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     // When we use term "index", we mean the exponential histogram bucket index.
     // They store all buckets for the negative range first, with the bucket indices in ascending order,
     // followed by all buckets for the positive range, also with their indices in ascending order.
-    // This means we store the buckets ordered by their boundaries in ascending order (from -INF to +INF).
+    // This means we store all the negative buckets first, ordered by their boundaries in descending order (from 0 to -INF),
+    // followed by all the positive buckets, ordered by their boundaries in ascending order (from 0 to +INF).
     private final long[] bucketIndices;
     private final long[] bucketCounts;
 
@@ -78,6 +83,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         reset();
     }
 
+    int getCapacity() {
+        return bucketIndices.length;
+    }
+
     /**
      * Resets this histogram to the same state as a newly constructed one with the same capacity.
      */
@@ -95,10 +104,9 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
      * @param scale the scale to set for this histogram
      */
     void resetBuckets(int scale) {
-        assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]";
+        setScale(scale);
         negativeBuckets.reset();
         positiveBuckets.reset();
-        bucketScale = scale;
     }
 
     @Override
@@ -180,6 +188,11 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         return bucketScale;
     }
 
+    void setScale(int scale) {
+        assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]";
+        bucketScale = scale;
+    }
+
     @Override
     public ExponentialHistogram.Buckets negativeBuckets() {
         return negativeBuckets;
@@ -188,6 +201,25 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     @Override
     public ExponentialHistogram.Buckets positiveBuckets() {
         return positiveBuckets;
+    }
+
+    /**
+     * @return the index of the last bucket added successfully via {@link #tryAddBucket(long, long, boolean)},
+     * or {@link Long#MIN_VALUE} if no buckets have been added yet.
+     */
+    long getLastAddedBucketIndex() {
+        if (positiveBuckets.numBuckets + negativeBuckets.numBuckets > 0) {
+            return bucketIndices[negativeBuckets.numBuckets + positiveBuckets.numBuckets - 1];
+        } else {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * @return true, if the last bucket added successfully via {@link #tryAddBucket(long, long, boolean)} was a positive one.
+     */
+    boolean wasLastAddedBucketPositive() {
+        return positiveBuckets.numBuckets > 0;
     }
 
     @Override
@@ -215,8 +247,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         private final boolean isPositive;
         private int numBuckets;
-        private int cachedValueSumForNumBuckets;
-        private long cachedValueSum;
+
+        private record CachedCountsSum(int numBuckets, long countsSum) {}
+
+        private CachedCountsSum cachedCountsSum;
 
         /**
          * @param isPositive true, if this object should represent the positive bucket range, false for the negative range
@@ -235,8 +269,7 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         final void reset() {
             numBuckets = 0;
-            cachedValueSumForNumBuckets = 0;
-            cachedValueSum = 0;
+            cachedCountsSum = null;
         }
 
         boolean tryAddBucket(long index, long count) {
@@ -269,12 +302,31 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         @Override
         public long valueCount() {
-            int startSlot = startSlot();
-            while (cachedValueSumForNumBuckets < numBuckets) {
-                cachedValueSum += bucketCounts[startSlot + cachedValueSumForNumBuckets];
-                cachedValueSumForNumBuckets++;
+            // copy a reference to the field to avoid problems with concurrent updates
+            CachedCountsSum cachedVal = cachedCountsSum;
+            if (cachedVal != null && cachedVal.numBuckets == numBuckets) {
+                return cachedVal.countsSum;
             }
-            return cachedValueSum;
+
+            long countsSum = 0;
+            int position = 0;
+            if (cachedVal != null) {
+                countsSum = cachedVal.countsSum;
+                position = cachedVal.numBuckets;
+            }
+
+            int startSlot = startSlot();
+            while (position < numBuckets) {
+                countsSum += bucketCounts[startSlot + position];
+                position++;
+            }
+            this.cachedCountsSum = new CachedCountsSum(position, countsSum);
+            return countsSum;
+        }
+
+        @Override
+        public int bucketCount() {
+            return numBuckets;
         }
     }
 

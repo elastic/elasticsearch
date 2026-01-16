@@ -36,7 +36,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
             true,
             List.of(new TestCaseSupplier("Substring basic test", List.of(DataType.KEYWORD, DataType.INTEGER, DataType.INTEGER), () -> {
                 int start = between(1, 8);

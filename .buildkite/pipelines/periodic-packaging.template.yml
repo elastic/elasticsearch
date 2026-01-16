@@ -8,6 +8,7 @@ steps:
           setup:
             image:
               - debian-12
+              - debian-13
               - opensuse-leap-15
               - oraclelinux-8
               - oraclelinux-9
@@ -18,6 +19,7 @@ steps:
               - rocky-9
               - rhel-8
               - rhel-9
+              - rhel-10
               - almalinux-8
               - almalinux-9
         agents:

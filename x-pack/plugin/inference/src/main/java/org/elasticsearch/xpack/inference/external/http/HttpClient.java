@@ -28,7 +28,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPONSE_THREAD_POOL_NAME;
@@ -39,14 +38,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPON
 public class HttpClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
-    enum Status {
-        CREATED,
-        STARTED,
-        STOPPED
-    }
-
     private final CloseableHttpAsyncClient client;
-    private final AtomicReference<Status> status = new AtomicReference<>(Status.CREATED);
     private final ThreadPool threadPool;
     private final HttpSettings settings;
     private final ThrottlerManager throttlerManager;
@@ -127,15 +119,10 @@ public class HttpClient implements Closeable {
     }
 
     public void start() {
-        if (status.compareAndSet(Status.CREATED, Status.STARTED)) {
-            client.start();
-        }
+        client.start();
     }
 
     public void send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
-        // The caller must call start() first before attempting to send a request
-        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
-
         SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
@@ -145,7 +132,7 @@ public class HttpClient implements Closeable {
             @Override
             public void failed(Exception ex) {
                 throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
-                failUsingResponseThread(ex, listener);
+                failUsingResponseThread(getException(ex), listener);
             }
 
             @Override
@@ -179,10 +166,22 @@ public class HttpClient implements Closeable {
         threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
     }
 
-    public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
-        // The caller must call start() first before attempting to send a request
-        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
+    private static Exception getException(Exception e) {
+        if (e instanceof CancellationException cancellationException) {
+            return createNotRunningException(cancellationException);
+        }
 
+        return e;
+    }
+
+    private static IllegalStateException createNotRunningException(Exception exception) {
+        // If the http client isn't running, it is either not started yet, in which case we have a bug somewhere because
+        // it should always be started as part of the inference plugin startup, or it is stopped meaning the node is shutting down.
+        // If we're shutting down, the user should retry the request, and hopefully it'll hit a node that isn't shutting down.
+        return new IllegalStateException("Http client is not running, please retry the request", exception);
+    }
+
+    public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
         var streamingProcessor = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         SocketAccess.doPrivileged(() -> client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
@@ -193,7 +192,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(ex));
+                threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(getException(ex)));
             }
 
             @Override
@@ -212,7 +211,6 @@ public class HttpClient implements Closeable {
 
     @Override
     public void close() throws IOException {
-        status.set(Status.STOPPED);
         client.close();
     }
 }

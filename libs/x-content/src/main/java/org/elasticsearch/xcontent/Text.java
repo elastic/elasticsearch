@@ -9,7 +9,6 @@
 package org.elasticsearch.xcontent;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -68,9 +67,8 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public UTF8Bytes bytes() {
         if (bytes == null) {
-            var byteBuff = StandardCharsets.UTF_8.encode(string);
-            assert byteBuff.hasArray();
-            bytes = new UTF8Bytes(byteBuff.array(), byteBuff.arrayOffset() + byteBuff.position(), byteBuff.remaining());
+            byte[] byteArray = string.getBytes(StandardCharsets.UTF_8);
+            bytes = new UTF8Bytes(byteArray, 0, byteArray.length);
         }
         return bytes;
     }
@@ -85,8 +83,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public String string() {
         if (string == null) {
-            var byteBuff = ByteBuffer.wrap(bytes.bytes(), bytes.offset(), bytes.length());
-            string = StandardCharsets.UTF_8.decode(byteBuff).toString();
+            string = new String(bytes.bytes(), bytes.offset(), bytes.length(), StandardCharsets.UTF_8);
             assert (stringLength < 0) || (string.length() == stringLength);
         }
         return string;

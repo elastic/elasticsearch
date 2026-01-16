@@ -34,26 +34,32 @@
     "params": {
       "exclude_interim": {
         "type": "boolean",
+        "default": false,
         "description": "Exclude interim results"
       },
       "from": {
         "type": "int",
+        "default": 0,
         "description": "skips a number of influencers"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "specifies a max number of influencers to get"
       },
       "start": {
-        "type": "string",
+        "type": "date",
+        "default": "-1",
         "description": "start timestamp for the requested influencers"
       },
       "end": {
-        "type": "string",
+        "type": "date",
+        "default": "-1",
         "description": "end timestamp for the requested influencers"
       },
       "influencer_score": {
         "type": "double",
+        "default": 0,
         "description": "influencer score threshold for the requested influencers"
       },
       "sort": {
@@ -62,11 +68,13 @@
       },
       "desc": {
         "type": "boolean",
+        "default": false,
         "description": "whether the results should be sorted in decending order"
       }
     },
     "body": {
-      "description": "Influencer selection criteria"
+      "description": "Influencer selection criteria",
+      "required": false
     }
   }
 }

@@ -1,5 +1,0 @@
-pr: 135401
-summary: "Adds an OTLP metrics endpoint (`_otlp/v1/metrics`) as tech preview"
-area: TSDB
-type: enhancement
-issues: []

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +24,7 @@ import java.util.List;
  */
 final class ComputeResponse extends TransportResponse {
 
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
         "esql_documents_found_and_values_loaded"
     );
@@ -76,8 +76,7 @@ final class ComputeResponse extends TransportResponse {
         this.successfulShards = in.readVInt();
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         } else {
             this.failures = List.of();
@@ -97,8 +96,7 @@ final class ComputeResponse extends TransportResponse {
         out.writeVInt(successfulShards);
         out.writeVInt(skippedShards);
         out.writeVInt(failedShards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }

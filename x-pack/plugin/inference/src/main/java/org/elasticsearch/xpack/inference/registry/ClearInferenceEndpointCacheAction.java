@@ -90,7 +90,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
         );
         this.projectResolver = projectResolver;
         this.inferenceEndpointRegistry = inferenceEndpointRegistry;
-        this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.IMMEDIATE, new CacheMetadataUpdateTaskExecutor());
+        this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.NORMAL, new CacheMetadataUpdateTaskExecutor());
         clusterService.addListener(
             event -> event.state()
                 .metadata()
@@ -134,7 +134,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
 
     public static class Request extends AcknowledgedRequest<ClearInferenceEndpointCacheAction.Request> {
         protected Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            super(INFINITE_MASTER_NODE_TIMEOUT, TimeValue.ZERO);
         }
 
         protected Request(StreamInput in) throws IOException {

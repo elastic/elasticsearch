@@ -19,7 +19,7 @@ public class DateTruncSerializationTests extends AbstractExpressionSerialization
         Source source = randomSource();
         Expression interval = randomChild();
         Expression field = randomChild();
-        return new DateTrunc(source, interval, field);
+        return new DateTrunc(source, interval, field, configuration());
     }
 
     @Override
@@ -32,6 +32,6 @@ public class DateTruncSerializationTests extends AbstractExpressionSerialization
         } else {
             field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
         }
-        return new DateTrunc(source, interval, field);
+        return new DateTrunc(source, interval, field, configuration());
     }
 }

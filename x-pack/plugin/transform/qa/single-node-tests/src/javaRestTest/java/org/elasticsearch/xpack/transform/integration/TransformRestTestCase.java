@@ -251,6 +251,11 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
         // Set frequency high for testing
+        createContinuousPivotReviewsTransform(transformId, transformIndex, authHeader, "1s");
+    }
+
+    protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader, String frequency)
+        throws IOException {
         String config = Strings.format("""
             {
               "dest": {
@@ -265,7 +270,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
                   "delay": "15m"
                 }
               },
-              "frequency": "1s",
+              "frequency": "%s",
               "pivot": {
                 "group_by": {
                   "reviewer": {
@@ -282,7 +287,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
                   }
                 }
               }
-            }""", transformIndex, REVIEWS_INDEX_NAME);
+            }""", transformIndex, REVIEWS_INDEX_NAME, frequency);
 
         createReviewsTransform(transformId, authHeader, null, config);
     }
@@ -642,9 +647,6 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     public void waitForTransform() throws Exception {
         ensureNoInitializingShards();
         logAudits();
-        if (preserveClusterUponCompletion() == false) {
-            adminClient().performRequest(new Request("POST", "/_features/_reset"));
-        }
     }
 
     @AfterClass

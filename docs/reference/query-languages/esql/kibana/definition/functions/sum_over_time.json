@@ -10,7 +10,13 @@
           "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
         }
       ],
       "variadic" : false,
@@ -22,7 +28,31 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
         }
       ],
       "variadic" : false,
@@ -34,7 +64,13 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
         }
       ],
       "variadic" : false,
@@ -46,15 +82,39 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
         }
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| STATS sum_cost=SUM(SUM_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

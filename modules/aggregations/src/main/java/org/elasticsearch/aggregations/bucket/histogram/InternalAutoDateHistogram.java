@@ -9,7 +9,6 @@
 package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +36,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -206,16 +204,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
         this.targetBuckets = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            bucketInnerInterval = in.readVLong();
-        } else {
-            bucketInnerInterval = 1; // Calculated on merge.
-        }
-        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
-            // list is mutable by #readCollectionAsList contract
-            buckets.sort(Comparator.comparingLong(b -> b.key));
-        }
+        bucketInnerInterval = in.readVLong();
     }
 
     @Override
@@ -224,9 +213,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         out.writeNamedWriteable(format);
         out.writeCollection(buckets);
         out.writeVInt(targetBuckets);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            out.writeVLong(bucketInnerInterval);
-        }
+        out.writeVLong(bucketInnerInterval);
     }
 
     long getBucketInnerInterval() {

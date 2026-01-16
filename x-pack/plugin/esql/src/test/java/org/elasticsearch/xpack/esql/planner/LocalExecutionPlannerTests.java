@@ -19,7 +19,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -31,7 +36,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,6 +46,8 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -51,10 +57,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -62,6 +69,7 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -125,17 +133,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
+            TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
-                index().indexNameWithModes(),
                 List.of(),
                 null,
                 null,
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -156,17 +165,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
+            TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
-                index().indexNameWithModes(),
                 List.of(),
                 limit,
                 List.of(sort),
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -187,17 +197,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
+            TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
-                index().indexNameWithModes(),
                 List.of(),
                 limit,
                 List.of(sort),
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -211,17 +222,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
+            TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
-                index().indexNameWithModes(),
                 List.of(),
                 null,
                 null,
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -232,7 +244,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
         // In case of stored source we expect bytes based block source loader (this loads source from _source)
-        assertThat(blockLoader, instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
+        assertThat(blockLoader.loader(), instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
     }
 
     public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
@@ -241,15 +253,54 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
         var blockLoader = constructBlockLoader();
         // In case of synthetic source we expect bytes based block source loader (this loads source from _ignored_source)
-        assertThat(blockLoader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+        assertThat(blockLoader.loader(), instanceOf(FallbackSyntheticSourceBlockLoader.class));
     }
 
-    private BlockLoader constructBlockLoader() throws IOException {
+    public void testTimeSeries() throws IOException {
+        int estimatedRowSize = estimatedRowSizeIsHuge ? randomIntBetween(20000, Integer.MAX_VALUE) : randomIntBetween(1, 50);
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
-            index().name(),
+            EsIndexGenerator.esIndex("test").name(),
             IndexMode.STANDARD,
-            index().indexNameWithModes(),
+            List.of(),
+            new Literal(Source.EMPTY, 10, DataType.INTEGER),
+            List.of(),
+            estimatedRowSize,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        TimeSeriesAggregateExec aggExec = new TimeSeriesAggregateExec(
+            Source.EMPTY,
+            queryExec,
+            List.of(),
+            List.of(new Alias(Source.EMPTY, "count(*)", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")))),
+            AggregatorMode.SINGLE,
+            List.of(),
+            10,
+            null
+        );
+        PlannerSettings plannerSettings = new PlannerSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000, ByteSizeValue.ofMb(1));
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            plannerSettings,
+            aggExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        var factory = (LuceneSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
+        if (estimatedRowSizeIsHuge) {
+            assertThat(factory.maxPageSize(), equalTo(128));
+        } else {
+            assertThat(factory.maxPageSize(), equalTo(2048));
+        }
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
             List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)),
             null,
             null,
@@ -264,10 +315,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ),
             MappedFieldType.FieldExtractPreference.NONE
         );
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), fieldExtractExec);
+        var plan = planner().plan("test", FoldContext.small(), TEST_PLANNER_SETTINGS, fieldExtractExec, EmptyIndexedByShardId.instance());
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.blockLoader().apply(0);
+        return fieldInfo.loaderAndConverter().apply(0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {
@@ -300,32 +351,38 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            esPhysicalOperationProviders(shardContexts),
-            shardContexts
+            esPhysicalOperationProviders(shardContexts)
         );
     }
 
     private Configuration config() {
         return new Configuration(
             randomZone(),
+            randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE)),
             randomLocale(random()),
             "test_user",
             "test_cluster",
             pragmas,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
             StringUtils.EMPTY,
             false,
             Map.of(),
             System.nanoTime(),
             randomBoolean(),
-            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
-            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null)
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
+            null
         );
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, TEST_PLANNER_SETTINGS);
+        return new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromList<>(shardContexts),
+            null,
+            TEST_PLANNER_SETTINGS
+        );
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {
@@ -371,9 +428,5 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             throw new RuntimeException(e);
         }
         return reader;
-    }
-
-    private EsIndex index() {
-        return new EsIndex("test", Map.of());
     }
 }

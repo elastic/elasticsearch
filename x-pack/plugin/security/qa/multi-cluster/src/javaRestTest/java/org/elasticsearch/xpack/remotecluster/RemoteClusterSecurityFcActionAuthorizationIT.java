@@ -619,7 +619,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                             action,
                             SystemUser.crossClusterAccessSubjectInfo(TransportVersion.current(), nodeName)
                         )
-                    ).writeToContext(threadContext);
+                    ).writeToContext(threadContext, null);
                     connection.sendRequest(requestId, action, request, options);
                 }
             });

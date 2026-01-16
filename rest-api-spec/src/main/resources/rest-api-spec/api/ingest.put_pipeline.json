@@ -42,6 +42,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     },

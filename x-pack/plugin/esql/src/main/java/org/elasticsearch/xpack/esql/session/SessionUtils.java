@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongFunction;
 
@@ -50,16 +48,5 @@ public class SessionUtils {
             throw new IllegalArgumentException(exceptionMessage.apply(currentSize));
         }
         return currentSize;
-    }
-
-    public static List<Object> fromPage(List<Attribute> schema, Page page) {
-        if (page.getPositionCount() != 1) {
-            throw new IllegalArgumentException("expected single row");
-        }
-        List<Object> values = new ArrayList<>(schema.size());
-        for (int i = 0; i < schema.size(); i++) {
-            values.add(BlockUtils.toJavaObject(page.getBlock(i), 0));
-        }
-        return values;
     }
 }

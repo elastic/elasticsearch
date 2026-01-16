@@ -77,7 +77,7 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
             verify(client).execute(
                 same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(true)),
+                eq(new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true)),
                 any(ActionListener.class)
             );
 
@@ -89,7 +89,7 @@ public class MachineLearningTests extends ESTestCase {
 
             verify(client).execute(
                 same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(false)),
+                eq(new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false)),
                 any(ActionListener.class)
             );
         } finally {
@@ -272,7 +272,6 @@ public class MachineLearningTests extends ESTestCase {
 
         public static final String[] ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS = {};
 
-        private final boolean useIlm;
         private final boolean includeNodeInfo;
         private final boolean isAnomalyDetectionEnabled;
         private final boolean isDataFrameAnalyticsEnabled;
@@ -285,16 +284,10 @@ public class MachineLearningTests extends ESTestCase {
             boolean isDataFrameAnalyticsEnabled,
             boolean isNlpEnabled
         ) {
-            this.useIlm = useIlm;
             this.includeNodeInfo = includeNodeInfo;
             this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
             this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
             this.isNlpEnabled = isNlpEnabled;
-        }
-
-        @Override
-        public boolean useIlm() {
-            return useIlm;
         }
 
         @Override

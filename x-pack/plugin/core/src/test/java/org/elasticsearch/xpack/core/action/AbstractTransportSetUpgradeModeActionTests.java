@@ -174,19 +174,29 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
         }
 
         public void runWithoutWaiting(boolean upgrade) throws Exception {
-            masterOperation(mock(), new SetUpgradeModeActionRequest(upgrade), ClusterState.EMPTY_STATE, ActionListener.noop());
+            masterOperation(
+                mock(),
+                new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, upgrade),
+                ClusterState.EMPTY_STATE,
+                ActionListener.noop()
+            );
         }
 
         public Tuple<AcknowledgedResponse, Exception> run(boolean upgrade) throws Exception {
             AtomicReference<Tuple<AcknowledgedResponse, Exception>> response = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
-            masterOperation(mock(), new SetUpgradeModeActionRequest(upgrade), ClusterState.EMPTY_STATE, ActionListener.wrap(r -> {
-                response.set(Tuple.tuple(r, null));
-                latch.countDown();
-            }, e -> {
-                response.set(Tuple.tuple(null, e));
-                latch.countDown();
-            }));
+            masterOperation(
+                mock(),
+                new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, upgrade),
+                ClusterState.EMPTY_STATE,
+                ActionListener.wrap(r -> {
+                    response.set(Tuple.tuple(r, null));
+                    latch.countDown();
+                }, e -> {
+                    response.set(Tuple.tuple(null, e));
+                    latch.countDown();
+                })
+            );
             assertTrue("Failed to run TestTransportSetUpgradeModeAction in 10s", latch.await(10, TimeUnit.SECONDS));
             return response.get();
         }

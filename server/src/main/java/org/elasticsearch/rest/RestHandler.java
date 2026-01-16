@@ -15,7 +15,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.xcontent.XContent;
 
 import java.util.Collections;
 import java.util.List;
@@ -41,15 +40,6 @@ public interface RestHandler {
     }
 
     default boolean supportsContentStream() {
-        return false;
-    }
-
-    /**
-     * Indicates if the RestHandler supports bulk content. A bulk request contains multiple objects
-     * delineated by {@link XContent#bulkSeparator()}. If a handler returns true this will affect
-     * the types of content that can be sent to this endpoint.
-     */
-    default boolean supportsBulkContent() {
         return false;
     }
 

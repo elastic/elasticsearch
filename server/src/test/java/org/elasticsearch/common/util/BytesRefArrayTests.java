@@ -164,6 +164,17 @@ public class BytesRefArrayTests extends ESTestCase {
         testReadWritten(IntStream.range(0, listSize).mapToObj(i -> values).flatMap(List::stream).toList(), 10);
     }
 
+    public void testDeepCopy() {
+        try (
+            BytesRefArray bytes1 = randomArray(between(1, 50_000), between(10, 50_000), mockBigArrays());
+            BytesRefArray bytes2 = BytesRefArray.deepCopy(bytes1);
+            BytesRefArray bytes3 = BytesRefArray.deepCopy(bytes2)
+        ) {
+            assertEquality(bytes1, bytes2);
+            assertEquality(bytes1, bytes3);
+        }
+    }
+
     private void testReadWritten(List<BytesRef> values, int initialCapacity) {
         try (BytesRefArray array = new BytesRefArray(initialCapacity, mockBigArrays())) {
             for (BytesRef v : values) {
@@ -191,7 +202,7 @@ public class BytesRefArrayTests extends ESTestCase {
         for (int i = 0; i < original.size(); ++i) {
             original.get(i, scratch);
             copy.get(i, scratch2);
-            assertEquals(scratch, scratch2);
+            assertEquals(Integer.toString(i), scratch, scratch2);
         }
     }
 }

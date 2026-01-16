@@ -32,6 +32,7 @@
       },
       "dry_run": {
         "type": "boolean",
+        "default": false,
         "description": "If set to true it will simulate the migration, providing a way to retrieve the ILM policies and indices that need to be migrated. The default is false"
       }
     },

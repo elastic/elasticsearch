@@ -20,6 +20,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -113,7 +114,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         private final Float nullValue;
 
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact, Float nullValue) {
-            super(name, true, false, false, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.positiveScoreImpact = positiveScoreImpact;
             this.nullValue = nullValue;
         }
@@ -147,11 +148,12 @@ public class RankFeatureFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(context);
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(SearchExecutionContext context) {
+            Set<String> sourcePaths = context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet();
+            return new SourceValueFetcher(sourcePaths, nullValue, context.getIndexSettings().getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return objectToFloat(value);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.lookup;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -21,8 +22,8 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -39,6 +40,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private final BlockFactory blockFactory;
     private final LookupEnrichQueryGenerator queryList;
     private int queryPosition = -1;
+    private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
     private final IndexReader indexReader;
     private final IndexSearcher searcher;
@@ -52,16 +54,27 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         BlockFactory blockFactory,
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
-        ShardContext shardContext,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        int shardId,
         Warnings warnings
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
-        this.shardContext = shardContext;
+        this.shardContexts = shardContexts;
+        this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
-        this.searcher = shardContext.searcher();
-        this.indexReader = searcher.getIndexReader();
+        try {
+            if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
+                // This optimization is currently disabled for ParallelCompositeReader
+                this.indexReader = new CachedDirectoryReader(directoryReader);
+            } else {
+                this.indexReader = shardContext.searcher().getIndexReader();
+            }
+            this.searcher = new IndexSearcher(this.indexReader);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.warnings = warnings;
     }
 
@@ -148,7 +161,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(ShardRefCounted.fromShardContext(shardContext), shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, null).asBlock(),
                 positionsVector.asBlock()
             );
         } finally {

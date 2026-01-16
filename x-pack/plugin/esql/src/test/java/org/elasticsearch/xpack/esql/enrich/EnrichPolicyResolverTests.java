@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -58,6 +59,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfoCluster;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -435,9 +438,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
 
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
-            EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
+            EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(true);
             for (String cluster : clusters) {
-                esqlExecutionInfo.swapCluster(cluster, (k, v) -> new EsqlExecutionInfo.Cluster(cluster, "*"));
+                esqlExecutionInfo.swapCluster(cluster, (k, v) -> createEsqlExecutionInfoCluster(cluster, "*"));
             }
             if (randomBoolean()) {
                 unresolvedPolicies = new ArrayList<>(unresolvedPolicies);
@@ -453,7 +456,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                 }
             }
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
-            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, future);
+            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, TransportVersion.current(), future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 
@@ -505,11 +508,12 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     fieldCaps.put(e.getKey(), f);
                 }
                 var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);
-                response = new FieldCapabilitiesResponse(List.of(indexResponse), List.of());
+                response = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indexResponse)).build();
             } else {
-                response = new FieldCapabilitiesResponse(List.of(), List.of());
+                response = FieldCapabilitiesResponse.empty();
             }
-            threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION).execute(ActionRunnable.supply(listener, () -> (Response) response));
+            threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+                .execute(ActionRunnable.supply(listener, () -> (Response) new EsqlResolveFieldsResponse(response)));
         }
     }
 }

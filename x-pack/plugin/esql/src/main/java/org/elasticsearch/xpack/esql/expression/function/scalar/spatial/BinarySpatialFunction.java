@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
@@ -16,6 +16,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * Spatial functions that take two arguments that must both be spatial types can inherit from this class.
@@ -45,7 +47,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
  */
 public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceResolution {
 
-    private final SpatialTypeResolver spatialTypeResolver;
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
+
+    protected final SpatialTypeResolver spatialTypeResolver;
     private SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
@@ -69,7 +75,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         throws IOException {
         // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         this(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
                 ? Source.readFrom((PlanStreamInput) in)
                 : Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -83,13 +89,25 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
             source().writeTo(out);
         }
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
         // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         // The CRS type is re-resolved from the combination of left and right fields, and also not necessary to serialize
+    }
+
+    protected abstract Object fold(Geometry leftGeom, Geometry rightGeom);
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        var leftGeom = makeGeometryFromLiteral(ctx, left());
+        var rightGeom = makeGeometryFromLiteral(ctx, right());
+        if (leftGeom == null || rightGeom == null) {
+            return null;
+        }
+        return fold(leftGeom, rightGeom);
     }
 
     /**
@@ -120,10 +138,10 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         return spatialTypeResolver.resolveType();
     }
 
-    static class SpatialTypeResolver {
+    protected static class SpatialTypeResolver {
         private final SpatialEvaluatorFactory.SpatialSourceResolution supplier;
         private final boolean pointsOnly;
-        private final boolean supportsGrid;
+        protected final boolean supportsGrid;
 
         SpatialTypeResolver(SpatialEvaluatorFactory.SpatialSourceResolution supplier, boolean pointsOnly, boolean supportsGrid) {
             this.supplier = supplier;

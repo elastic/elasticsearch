@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettin
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 
-public class ChangePolicyForIndexIT extends ESRestTestCase {
+public class ChangePolicyForIndexIT extends IlmESRestTestCase {
 
     /**
      * This test aims to prove that an index will finish the current phase on an
@@ -94,7 +94,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     AllocateAction.NAME,
-                    new AllocateAction(1, null, Map.of("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"), null, null)
+                    new AllocateAction(1, null, Map.of("_name", "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3"), null, null)
                 )
             )
         );
@@ -117,7 +117,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "javaRestTest-0")
+            .put("index.routing.allocation.include._name", "test-cluster-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
@@ -161,10 +161,10 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         // Check the index goes to the warm phase and completes
         assertBusy(() -> assertStep(indexName, PhaseCompleteStep.finalStep("warm").getKey()), 30, TimeUnit.SECONDS);
 
-        // Check index is allocated on javaRestTest-1 and javaRestTest-2 as per policy_2
+        // Check index is allocated on test-cluster-1 and test-cluster-2 as per policy_2
         Map<String, Object> indexSettings = getIndexSettingsAsMap(indexName);
         String includesAllocation = (String) indexSettings.get("index.routing.allocation.include._name");
-        assertEquals("javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3", includesAllocation);
+        assertEquals("test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3", includesAllocation);
     }
 
     public void testILMHonoursTheCachedPhaseAfterPolicyUpdate() throws Exception {

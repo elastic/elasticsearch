@@ -101,12 +101,12 @@ public class TransportClusterStateActionTests extends ESTestCase {
 
         final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         final ProjectMetadata.Builder project = projectBuilder(projectId, indexNames);
-        final ClusterState state = buildClusterState(project);
+        final ClusterState state = buildClusterState(false, project);
 
         final ClusterStateResponse response = executeAction(projectResolver, request, state);
 
         assertThat(response.getClusterName(), equalTo(state.getClusterName()));
-        assertSingleProjectResponse(request, response, projectId, expectedIndices);
+        assertSingleProjectResponse(request, response, projectId, expectedIndices, false);
     }
 
     public void testGetClusterStateForOneProjectOfMany() throws Exception {
@@ -128,7 +128,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ClusterStateResponse response = executeAction(projectResolver, request, state);
 
         assertThat(response.getClusterName(), equalTo(state.getClusterName()));
-        assertSingleProjectResponse(request, response, projectId, expectedIndices);
+        assertSingleProjectResponse(request, response, projectId, expectedIndices, true);
     }
 
     public void testGetClusterStateForManyProjects() throws Exception {
@@ -186,7 +186,8 @@ public class TransportClusterStateActionTests extends ESTestCase {
         ClusterStateRequest request,
         ClusterStateResponse response,
         ProjectId projectId,
-        String[] expectedIndices
+        String[] expectedIndices,
+        boolean multiprojectEnabled
     ) {
         final Metadata metadata = response.getState().metadata();
         assertThat(metadata.projects().keySet(), contains(projectId));
@@ -200,13 +201,21 @@ public class TransportClusterStateActionTests extends ESTestCase {
                 assertNotNull(fileSettings);
                 assertThat(fileSettings.version(), equalTo(43L));
                 Map<String, ReservedStateHandlerMetadata> handlers = fileSettings.handlers();
-                assertThat(handlers, aMapWithSize(2));
+                if (multiprojectEnabled) {
+                    assertThat(handlers, aMapWithSize(2));
+                } else {
+                    assertThat(handlers, aMapWithSize(1));
+                }
                 ReservedStateHandlerMetadata clusterSettingsHandler = handlers.get("cluster_settings");
                 assertNotNull(clusterSettingsHandler);
                 assertThat(clusterSettingsHandler.keys(), containsInAnyOrder("setting_1", "setting_2"));
                 ReservedStateHandlerMetadata projectSettingsHandler = handlers.get("project_settings");
-                assertNotNull(projectSettingsHandler);
-                assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1"));
+                if (multiprojectEnabled) {
+                    assertNotNull(projectSettingsHandler);
+                    assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1"));
+                } else {
+                    assertNull(projectSettingsHandler);
+                }
             }
         } else {
             assertThat(metadata.getProject(projectId).indices(), anEmptyMap());
@@ -220,7 +229,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         } else {
             assertThat(routingTables.get(projectId).indicesRouting(), anEmptyMap());
         }
-        if (request.customs()) {
+        if (request.customs() && multiprojectEnabled) {
             ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(response.getState());
             assertThat(projectStateRegistry.size(), equalTo(1));
             Settings projectSettings = projectStateRegistry.getProjectSettings(projectId);
@@ -271,6 +280,11 @@ public class TransportClusterStateActionTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterState(ProjectMetadata.Builder... projects) {
+        return buildClusterState(true, projects);
+    }
+
+    private static ClusterState buildClusterState(boolean multiprojectEnabled, ProjectMetadata.Builder... projects) {
+        assert multiprojectEnabled || projects.length == 1;
         final Metadata.Builder metadataBuilder = Metadata.builder();
         metadataBuilder.put(
             ReservedStateMetadata.builder("file_settings")
@@ -283,14 +297,16 @@ public class TransportClusterStateActionTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)));
         ProjectStateRegistry.Builder psBuilder = ProjectStateRegistry.builder();
-        for (ProjectMetadata.Builder project : projects) {
-            psBuilder.putReservedStateMetadata(
-                project.getId(),
-                ReservedStateMetadata.builder("file_settings")
-                    .version(43L)
-                    .putHandler(new ReservedStateHandlerMetadata("project_settings", Set.of("setting_1")))
-                    .build()
-            ).putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+        if (multiprojectEnabled) {
+            for (ProjectMetadata.Builder project : projects) {
+                psBuilder.putReservedStateMetadata(
+                    project.getId(),
+                    ReservedStateMetadata.builder("file_settings")
+                        .version(43L)
+                        .putHandler(new ReservedStateHandlerMetadata("project_settings", Set.of("setting_1")))
+                        .build()
+                ).putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+            }
         }
         return csBuilder.metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))

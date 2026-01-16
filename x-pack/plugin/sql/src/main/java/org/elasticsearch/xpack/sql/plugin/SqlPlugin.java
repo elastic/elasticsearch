@@ -123,7 +123,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
         return Arrays.asList(
             new RestSqlQueryAction(settings),
-            new RestSqlTranslateAction(),
+            new RestSqlTranslateAction(settings),
             new RestSqlClearCursorAction(),
             new RestSqlStatsAction(),
             new RestSqlAsyncGetResultsAction(),

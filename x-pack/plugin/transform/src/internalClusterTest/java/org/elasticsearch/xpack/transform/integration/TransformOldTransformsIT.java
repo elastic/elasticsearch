@@ -68,7 +68,6 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         createSourceIndex(transformIndex);
         String transformId = "transform-throws-for-old-config";
         TransformConfigVersion transformVersion = TransformConfigVersionUtils.randomVersionBetween(
-            random(),
             TransformConfigVersion.V_7_2_0,
             TransformConfigVersionUtils.getPreviousVersion(TransformDeprecations.MIN_TRANSFORM_VERSION)
         );

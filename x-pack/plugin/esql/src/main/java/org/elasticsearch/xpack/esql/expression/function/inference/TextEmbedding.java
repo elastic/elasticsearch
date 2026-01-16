@@ -40,23 +40,37 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Generates dense vector embeddings for text using a specified inference endpoint.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
-        preview = true,
+        description = "Generates dense vector embeddings from text input using a specified "
+            + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
+            + "Use this function to generate query vectors for KNN searches against your vectorized data "
+            + "or others dense vector based operations.",
+        appliesTo = {
+            @FunctionAppliesTo(version = "9.4.0", lifeCycle = FunctionAppliesToLifecycle.GA),
+            @FunctionAppliesTo(version = "9.3.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(
                 description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
                 file = "text-embedding",
-                tag = "embedding-eval"
+                tag = "text-embedding-knn-inline"
             ) }
     )
     public TextEmbedding(
         Source source,
-        @Param(name = "text", type = { "keyword" }, description = "Text to generate embeddings from") Expression inputText,
+        @Param(
+            name = "text",
+            type = { "keyword" },
+            description = "Text string to generate embeddings from. Must be a non-null literal string value."
+        ) Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
-            description = "Identifier of the inference endpoint"
+            description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
+                + "The inference endpoint must have the `text_embedding` task type and should use the same model "
+                + "that was used to embed your indexed data.",
+            hint = @Param.Hint(
+                entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
+                constraints = { @Param.Hint.Constraint(name = "task_type", value = "text_embedding") }
+            )
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));
@@ -90,7 +104,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @Override
     public DataType dataType() {
-        return DataType.DENSE_VECTOR;
+        return inputText.dataType() == DataType.NULL ? DataType.NULL : DataType.DENSE_VECTOR;
     }
 
     @Override

@@ -128,14 +128,13 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         var manager = getCrossClusterApiKeySignatureManagerInstance();
 
         String testClusterAlias = "test_cluster";
-        var signer = manager.signerForClusterAlias(testClusterAlias);
         try {
             // Write passphrase for ec key to keystore
             writeSecureSettingsToKeyStoreAndReload(
                 Map.of(SIGNING_KEY_SECURE_PASSPHRASE.getConcreteSettingForNamespace(testClusterAlias).getKey(), "marshall".toCharArray())
             );
 
-            assertNull(signer.sign("a_header"));
+            assertNull(manager.signerForClusterAlias(testClusterAlias));
             Path tempDir = createTempDir();
             Path signingCert = tempDir.resolve("signing.crt");
             Files.copy(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt"), signingCert);
@@ -155,6 +154,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             );
 
             // Make sure a signature can be created
+            var signer = manager.signerForClusterAlias(testClusterAlias);
             var signatureBefore = signer.sign("test", "test");
             assertNotNull(signatureBefore);
 
@@ -183,9 +183,8 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         var manager = getCrossClusterApiKeySignatureManagerInstance();
 
         String testClusterAlias = "test_cluster";
-        var signer = manager.signerForClusterAlias(testClusterAlias);
         try {
-            assertNull(signer.sign("a_header"));
+            assertNull(manager.signerForClusterAlias(testClusterAlias));
             Path tempDir = createTempDir();
             Path emptyFile = createTempFile();
             Path signingCert = tempDir.resolve("signing.crt");
@@ -202,8 +201,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
 
             {
                 // Make sure no signature can be created
-                var signature = signer.sign("test", "test");
-                assertNull(signature);
+                assertNull(manager.signerForClusterAlias(testClusterAlias));
             }
             // Overwrite the empty file with the actual signing cert
             Files.copy(
@@ -214,6 +212,8 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             // Make sure config recovers and can generate a signature
             {
                 assertBusy(() -> {
+                    var signer = manager.signerForClusterAlias(testClusterAlias);
+                    assertNotNull(signer);
                     var signature = signer.sign("test", "test");
                     assertNotNull(signature);
                 });
@@ -234,9 +234,8 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
     public void testRemoveFileWithConfig() throws Exception {
         try {
             var manager = getCrossClusterApiKeySignatureManagerInstance();
-            var signer = manager.signerForClusterAlias("test_cluster");
 
-            assertNull(signer.sign("a_header"));
+            assertNull(manager.signerForClusterAlias("test_cluster"));
             Path tempDir = createTempDir();
             Path signingCert = tempDir.resolve("signing.crt");
             Files.copy(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt"), signingCert);
@@ -251,6 +250,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             );
 
             // Make sure a signature can be created
+            var signer = manager.signerForClusterAlias("test_cluster");
             var signatureBefore = signer.sign("test", "test");
             assertNotNull(signatureBefore);
 
@@ -294,21 +294,20 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
 
         try {
             for (var clusterAlias : clusterAliases) {
-                var signer = manager.signerForClusterAlias(clusterAlias);
-                var verfier = manager.verifier();
-                // Try to create a signature for a remote cluster that doesn't exist
-                assertNull(signer.sign(testHeaders));
+                var verifier = manager.verifier();
+                // Try to create a signer for a remote cluster that doesn't exist
+                assertNull(manager.signerForClusterAlias(clusterAlias));
                 clusterCreator.accept(clusterAlias);
                 // Make sure a signature can be created
+                var signer = manager.signerForClusterAlias(clusterAlias);
                 var signature = signer.sign(testHeaders);
                 assertNotNull(signature);
-                assertTrue(verfier.verify(signature, testHeaders));
+                assertTrue(verifier.verify(signature, testHeaders));
             }
             for (var clusterAlias : clusterAliases) {
                 clusterRemover.accept(clusterAlias);
-                var signer = manager.signerForClusterAlias(clusterAlias);
-                // Make sure no signature was created
-                assertBusy(() -> assertNull(signer.sign(testHeaders)));
+                // Make sure no signer can be created
+                assertBusy(() -> assertNull(manager.signerForClusterAlias(clusterAlias)));
             }
         } finally {
             var builder = Settings.builder();

@@ -12,12 +12,11 @@ package org.elasticsearch.benchmark.exponentialhistogram;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
-import org.elasticsearch.xpack.exponentialhistogram.CompressedExponentialHistogram;
-import org.elasticsearch.xpack.exponentialhistogram.IndexWithCount;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,7 +31,6 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -109,28 +107,24 @@ public class ExponentialHistogramMergeBench {
     }
 
     private ExponentialHistogram asCompressedHistogram(ExponentialHistogram histogram) {
-        List<IndexWithCount> negativeBuckets = new ArrayList<>();
-        List<IndexWithCount> positiveBuckets = new ArrayList<>();
-
-        BucketIterator it = histogram.negativeBuckets().iterator();
-        while (it.hasNext()) {
-            negativeBuckets.add(new IndexWithCount(it.peekIndex(), it.peekCount()));
-            it.advance();
-        }
-        it = histogram.positiveBuckets().iterator();
-        while (it.hasNext()) {
-            positiveBuckets.add(new IndexWithCount(it.peekIndex(), it.peekCount()));
-            it.advance();
-        }
-
-        long totalCount = histogram.zeroBucket().count() + histogram.negativeBuckets().valueCount() + histogram.positiveBuckets()
-            .valueCount();
         BytesStreamOutput histoBytes = new BytesStreamOutput();
         try {
-            CompressedExponentialHistogram.writeHistogramBytes(histoBytes, histogram.scale(), negativeBuckets, positiveBuckets);
+            CompressedExponentialHistogram.writeHistogramBytes(
+                histoBytes,
+                histogram.scale(),
+                histogram.negativeBuckets().iterator(),
+                histogram.positiveBuckets().iterator()
+            );
             CompressedExponentialHistogram result = new CompressedExponentialHistogram();
             BytesRef data = histoBytes.bytes().toBytesRef();
-            result.reset(histogram.zeroBucket().zeroThreshold(), totalCount, histogram.sum(), histogram.min(), histogram.max(), data);
+            result.reset(
+                histogram.zeroBucket().zeroThreshold(),
+                histogram.valueCount(),
+                histogram.sum(),
+                histogram.min(),
+                histogram.max(),
+                data
+            );
             return result;
         } catch (IOException e) {
             throw new RuntimeException(e);

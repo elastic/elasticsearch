@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
@@ -148,21 +148,21 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), randomFrom(TTestType.values()), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, randomFrom(TTestType.values()), iw -> {
             iw.addDocument(asList(new NumericDocValuesField("wrong_a", 102), new NumericDocValuesField("wrong_b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("wrong_a", 99), new NumericDocValuesField("wrong_b", 93)));
         }, tTest -> assertEquals(Double.NaN, tTest.getValue(), 0));
     }
 
     public void testNotEnoughRecords() throws IOException {
-        testCase(new MatchAllDocsQuery(), randomFrom(TTestType.values()), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, randomFrom(TTestType.values()), iw -> {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
         }, tTest -> assertEquals(Double.NaN, tTest.getValue(), 0));
     }
 
     public void testSameValues() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        testCase(new MatchAllDocsQuery(), tTestType, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, tTestType, iw -> {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 99)));
             iw.addDocument(asList(new NumericDocValuesField("a", 111), new NumericDocValuesField("b", 111)));
@@ -172,7 +172,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), TTestType.PAIRED, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, TTestType.PAIRED, iw -> {
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 102), new SortedNumericDocValuesField("b", 89)));
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 111), new SortedNumericDocValuesField("b", 72)));
@@ -185,7 +185,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     public void testMultiplePairedValues() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new MatchAllDocsQuery(), TTestType.PAIRED, iw -> {
+            () -> testCase(Queries.ALL_DOCS_INSTANCE, TTestType.PAIRED, iw -> {
                 iw.addDocument(
                     asList(
                         new SortedNumericDocValuesField("a", 102),
@@ -218,7 +218,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testMultipleUnpairedValues() throws IOException {
         TTestType tTestType = randomFrom(TTestType.HETEROSCEDASTIC, TTestType.HOMOSCEDASTIC);
-        testCase(new MatchAllDocsQuery(), tTestType, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, tTestType, iw -> {
             iw.addDocument(
                 asList(
                     new SortedNumericDocValuesField("a", 102),
@@ -232,7 +232,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testUnpairedValuesWithFilters() throws IOException {
         TTestType tTestType = randomFrom(TTestType.HETEROSCEDASTIC, TTestType.HOMOSCEDASTIC);
-        testCase(new MatchAllDocsQuery(), tTestType, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, tTestType, iw -> {
             iw.addDocument(
                 asList(
                     new SortedNumericDocValuesField("a", 102),
@@ -246,7 +246,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testMissingValues() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        testCase(new MatchAllDocsQuery(), tTestType, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, tTestType, iw -> {
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 102), new SortedNumericDocValuesField("b", 89)));
             iw.addDocument(asList(new SortedNumericDocValuesField("a1", 99), new SortedNumericDocValuesField("b", 93)));
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 111), new SortedNumericDocValuesField("b1", 72)));

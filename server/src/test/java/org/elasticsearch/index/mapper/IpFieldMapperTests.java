@@ -96,6 +96,30 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testIPv6WithMaxHextets() throws Exception {
+        // IPv6 addresses starting with "::" followed by exactly 7 hextets.
+        // These are valid addresses that should be indexed correctly.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        final String[] ipAddresses = {
+            "::1:2:3:4:5:6:7",
+            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            "::1:0:0:0:0:0:1",
+            "::0:0:0:0:0:0:1",
+            "::1:1:1:1:1:1:1" };
+
+        for (final String ipAddress : ipAddresses) {
+            final ParsedDocument doc = mapper.parse(source(b -> b.field("field", ipAddress)));
+
+            final List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.size());
+            final IndexableField pointField = fields.get(0);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), pointField.binaryValue());
+            final IndexableField dvField = fields.get(1);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), dvField.binaryValue());
+        }
+    }
+
     public void testNotIndexed() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -224,6 +248,8 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         assertDimension(true, IpFieldMapper.IpFieldType::isDimension);
         assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -232,30 +258,14 @@ public class IpFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -437,5 +447,14 @@ public class IpFieldMapperTests extends MapperTestCase {
     @Override
     protected String randomSyntheticSourceKeep() {
         return "all";
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO - shortcuts are disabled here, can we enable them?
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
     }
 }

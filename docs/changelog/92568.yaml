@@ -1,6 +1,0 @@
-pr: 92568
-summary: Support nested fields for term vectors API when using artificial documents
-area: Search
-type: enhancement
-issues:
-  - 91902

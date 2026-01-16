@@ -132,13 +132,12 @@ public class QueryToFilterAdapter {
         extraQuery = searcher().rewrite(new ConstantScoreQuery(extraQuery));
         Query unwrappedExtraQuery = unwrap(extraQuery);
         Query unwrappedQuery = unwrap(query);
-        if (unwrappedQuery instanceof PointRangeQuery q1 && unwrappedExtraQuery instanceof PointRangeQuery q2) {
-            Query merged = MergedPointRangeQuery.merge(q1, q2);
-            if (merged != null) {
-                // Should we rewrap here?
-                return new QueryToFilterAdapter(searcher(), key(), merged);
-            }
+
+        Query merged = maybeMergeRangeQueries(unwrappedQuery, unwrappedExtraQuery);
+        if (merged != null) {
+            return new QueryToFilterAdapter(searcher(), key(), merged);
         }
+
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.FILTER);
         builder.add(extraQuery, BooleanClause.Occur.FILTER);
@@ -153,6 +152,13 @@ public class QueryToFilterAdapter {
                 return inefficientUnion;
             }
         };
+    }
+
+    private static Query maybeMergeRangeQueries(Query query, Query extraQuery) {
+        if (query instanceof PointRangeQuery q1 && extraQuery instanceof PointRangeQuery q2) {
+            return MergedPointRangeQuery.merge(q1, q2);
+        }
+        return null;
     }
 
     private static Query unwrap(Query query) {

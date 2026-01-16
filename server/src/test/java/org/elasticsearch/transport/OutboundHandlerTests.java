@@ -52,6 +52,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -131,7 +132,7 @@ public class OutboundHandlerTests extends ESTestCase {
             assertSame(e, exception.get());
         }
 
-        assertEquals(bytesArray, reference);
+        assertThat(reference, equalBytes(bytesArray));
     }
 
     public void testSendRequest() throws IOException {

@@ -40,6 +40,7 @@ Which returns a list of statuses like this:
   "headers" : { }
 }
 ```
+% NOTCONSOLE
 
 1. The user submitted query.
 2. Time the query has been running.

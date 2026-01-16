@@ -68,6 +68,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     protected abstract SortFieldAndFormat build(SearchExecutionContext context) throws IOException;
 
     /**
+     * The name or type of the sort
+     */
+    public abstract String name();
+
+    /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
     public abstract BucketedSort buildBucketedSort(

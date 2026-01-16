@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.apache.commons.io.input.ReaderInputStream;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -33,6 +37,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.Charset;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -239,7 +245,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     public void testDateHistogramAggregation() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(20, 70);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);
@@ -405,7 +411,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
     protected final Map<String, Object> performBulkRequest(String json, boolean isBaseline) throws IOException {
         var request = new Request("POST", "/" + (isBaseline ? getBaselineDataStreamName() : getContenderDataStreamName()) + "/_bulk");
-        request.setJsonEntity(json);
+        request.setEntity(getHttpEntity(json));
         request.addParameter("refresh", "true");
         var response = client.performRequest(request);
         assertOK(response);
@@ -416,5 +422,18 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             equalTo(false)
         );
         return responseBody;
+    }
+
+    /**
+     * When our JSON string is extremely large, calling request.setJsonEntity() may result in an OutOfMemory exception. This happens because
+     * the entire JSON string is converted into a single contiguous bytes array. This is especially problematic when the JSON string
+     * contains non-ascii characters as they require additional space to be encoded.
+     *
+     * The code below overcomes that by streaming the bytes on demand as opposed to all at once.
+     */
+    private HttpEntity getHttpEntity(String json) {
+        if (json == null) return null;
+        Charset charset = ContentType.APPLICATION_JSON.getCharset();
+        return new InputStreamEntity(new ReaderInputStream(new StringReader(json), charset), -1, ContentType.APPLICATION_JSON);
     }
 }

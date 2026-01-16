@@ -34,10 +34,12 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30m",
         "description": "How long should the API wait for the job to be opened and the old snapshot to be loaded."
       },
       "wait_for_completion": {
         "type": "boolean",
+        "default": false,
         "description": "Should the request wait until the task is complete before responding to the caller. Default is false."
       }
     }

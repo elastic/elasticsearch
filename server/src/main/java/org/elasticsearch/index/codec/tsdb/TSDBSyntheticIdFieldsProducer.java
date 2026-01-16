@@ -262,12 +262,14 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             }
             skipper.advance(firstDocID);
             skipper.advance(timestamp, Long.MAX_VALUE);
-            if (skipper.minDocID(0) == DocIdSetIterator.NO_MORE_DOCS) {
-                // we exhausted the doc values skipper
-                return SeekStatus.END;
-            }
 
-            int nextDocID = Math.max(firstDocID, skipper.minDocID(0));
+            int nextDocID;
+            if (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                nextDocID = Math.max(firstDocID, skipper.minDocID(0));
+            } else {
+                // we exhausted the doc values skipper, scan all docs from first doc matching _tsid
+                nextDocID = firstDocID;
+            }
             int nextDocTsIdOrd = tsIdOrd;
             long nextDocTimestamp;
 

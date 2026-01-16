@@ -309,9 +309,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/140624
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
@@ -327,9 +324,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields
   issue: https://github.com/elastic/elasticsearch/issues/140664
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testRecoveredOperations
-  issue: https://github.com/elastic/elasticsearch/issues/140665
 - class: org.elasticsearch.xpack.esql.parser.SetParserTests
   method: testSetUnmappedFieldsWrongValue
   issue: https://github.com/elastic/elasticsearch/issues/140673

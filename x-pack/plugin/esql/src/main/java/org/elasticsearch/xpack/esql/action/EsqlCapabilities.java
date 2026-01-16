@@ -553,6 +553,13 @@ public class EsqlCapabilities {
         UNION_TYPES_NUMERIC_WIDENING,
 
         /**
+         * Fix for resolving union type casts past projections (KEEP) and MV_EXPAND operations.
+         * Ensures that casting a union type field works correctly when the field has been projected
+         * and expanded through MV_EXPAND. See #137923
+         */
+        UNION_TYPES_RESOLVE_PAST_PROJECTIONS,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -1793,7 +1800,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V13(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1895,6 +1902,11 @@ public class EsqlCapabilities {
          * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
          */
         TS_STATS_BINARY_OPS,
+
+        /**
+         * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
+         */
+        CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
         /**
          * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*

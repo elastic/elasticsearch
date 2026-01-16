@@ -148,7 +148,7 @@ public class MetadataCreateIndexService {
         15000,
         11250,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.ProjectScope
     );
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
@@ -182,7 +182,7 @@ public class MetadataCreateIndexService {
     private final Priority clusterStateUpdateTaskPriority;
 
     private volatile TimeValue maxMasterNodeTimeout;
-    private static volatile int maxIndicesPerProject;
+    private volatile int maxIndicesPerProject;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -220,11 +220,16 @@ public class MetadataCreateIndexService {
             maxMasterNodeTimeout = CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
         }
 
-        clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT, v -> maxIndicesPerProject = v);
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT, v -> maxIndicesPerProject = v);
+        } else {
+            maxIndicesPerProject = SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
     }
 
-    public static void validateIndexLimit(ProjectMetadata projectMetadata) {
-        if (projectMetadata.getConcreteAllIndices().length >= maxIndicesPerProject) {
+    public void validateIndexLimit(ProjectMetadata projectMetadata) {
+        var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
+        if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["
                     + projectMetadata.getConcreteAllIndices().length

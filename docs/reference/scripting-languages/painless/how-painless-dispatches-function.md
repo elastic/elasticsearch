@@ -26,6 +26,23 @@ Before diving into the dispatch process, here a brief definition of the main con
 :width: 250px
 :::
 
+<!--
+:::{diagram} mermaid
+flowchart TD
+    A[s.foo#40;a, b#41;] --> B[Receiver: type of 's']
+    B --> C[Name: method 'foo']
+    C --> D[Arity: 2 parameters]
+    D --> E[Execute method]
+    
+    style A fill:#0A52B3,color:#fff
+    style B fill:#F5F7FA,stroke:#101C3F,color:#101C3F
+    style C fill:#F5F7FA,stroke:#101C3F,color:#101C3F
+    style D fill:#F5F7FA,stroke:#101C3F,color:#101C3F
+    style E fill:#02BCB7,color:#fff
+:::
+-->
+
+
 ## Why method dispatch matters
 
 This fundamental difference affects how you work with Java APIs in your scripts. When translating Java code to Painless, methods you expect from the standard library might have different names or behave differently. Understanding method dispatch helps you avoid common errors and write more efficient scripts, particularly when working with `def` types that benefit from this optimized resolution mechanism.

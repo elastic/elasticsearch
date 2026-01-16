@@ -903,7 +903,7 @@ The Health API (`GET /_health_report`) provides a structured health report for t
 
 ## Health node and data flow
 
-When a cluster starts, a health node is selected via a persistent task. The health node maintains a cache of per-node health information. Each node periodically publishes its local health info to the health node cache. That cached health info is then used as input to health indicators when evaluating the overall cluster health.
+A health node is selected by the master node via a persistent task. The health node maintains a cache of per-node health information. Each node periodically publishes its local health info to the health node cache. That cached health info is then used as input to health indicators when evaluating the overall cluster health. If the health node fails or leaves the cluster, the master node selects a new health node.
 
 ```
 Publish: LocalHealthMonitor (local node) -> UpdateHealthInfoCacheAction -> HealthInfoCache (health node)

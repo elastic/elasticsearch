@@ -226,28 +226,11 @@ public class TDigestParser {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser, parsingExceptionProvider);
         centroids = new ArrayList<>();
         token = parser.nextToken();
-        double previousVal = -Double.MAX_VALUE;
         while (token != XContentParser.Token.END_ARRAY) {
             // should be a number
             ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser, parsingExceptionProvider);
             double val = parser.doubleValue();
-            if (val < previousVal) {
-                // centroids must be in increasing order
-                throw documentParsingExceptionProvider.apply(
-                    parser.getTokenLocation(),
-                    "error parsing field ["
-                        + mappedFieldName
-                        + "], ["
-                        + CENTROIDS_FIELD
-                        + "] centroids must be in increasing order, got ["
-                        + val
-                        + "] but previous value was ["
-                        + previousVal
-                        + "]"
-                );
-            }
             centroids.add(val);
-            previousVal = val;
             token = parser.nextToken();
         }
         return centroids;

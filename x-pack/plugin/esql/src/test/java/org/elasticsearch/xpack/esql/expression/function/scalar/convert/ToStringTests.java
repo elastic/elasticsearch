@@ -236,7 +236,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         long dateAsLong = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
         long dateAsNanos = DateUtils.toNanoSeconds(dateAsLong);
 
-        return List.of(
+        var suppliers = List.of(
             new TestCaseSupplier(
                 "millis: " + date + ", " + zoneIdString + ", " + expectedString,
                 List.of(DataType.DATETIME),
@@ -259,25 +259,32 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
-            ),
-
-            new TestCaseSupplier(
-                "date_range: " + date + ", " + zoneIdString + ", " + expectedString,
-                List.of(DataType.DATE_RANGE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(
-                            new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong),
-                            DataType.DATE_RANGE,
-                            "date"
-                        )
-                    ),
-                    "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], " + "formatter=format[strict_date_optional_time] locale[]]",
-                    DataType.KEYWORD,
-                    matchesBytesRef(expectedString + ".." + expectedString)
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             )
         );
+
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    "date_range: " + date + ", " + zoneIdString + ", " + expectedString,
+                    List.of(DataType.DATE_RANGE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(
+                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong),
+                                DataType.DATE_RANGE,
+                                "date"
+                            )
+                        ),
+                        "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], "
+                            + "formatter=format[strict_date_optional_time] locale[]]",
+                        DataType.KEYWORD,
+                        matchesBytesRef(expectedString + ".." + expectedString)
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+                )
+            );
+        }
+
+        return suppliers;
     }
 
     @Override

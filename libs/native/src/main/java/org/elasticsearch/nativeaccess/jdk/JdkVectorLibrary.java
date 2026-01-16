@@ -155,69 +155,30 @@ public final class JdkVectorLibrary implements VectorLibrary {
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
 
         private static long callSingleDistanceLong(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
-            try {
-                var aIsNative = a.isNative();
-                var bIsNative = b.isNative();
-                if (aIsNative && bIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (long) mh.invokeExact(a.reinterpret(arena, null), b.reinterpret(arena, null), length);
-                    }
-                } else if (aIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (long) mh.invokeExact(a.reinterpret(arena, null), b, length);
-                    }
-                } else if (bIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (long) mh.invokeExact(a, b.reinterpret(arena, null), length);
-                    }
-                }
-                return (long) mh.invokeExact(a, b, length);
+            try (var arena = Arena.ofConfined()) {
+                var aSegment = a.isNative() ? a.reinterpret(arena, null) : a;
+                var bSegment = b.isNative() ? b.reinterpret(arena, null) : b;
+                return (long) mh.invokeExact(aSegment, bSegment, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
         }
 
         private static int callSingleDistanceInt(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
-            try {
-                var aIsNative = a.isNative();
-                var bIsNative = b.isNative();
-                if (aIsNative && bIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (int) mh.invokeExact(a.reinterpret(arena, null), b.reinterpret(arena, null), length);
-                    }
-                } else if (aIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (int) mh.invokeExact(a.reinterpret(arena, null), b, length);
-                    }
-                } else if (bIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (int) mh.invokeExact(a, b.reinterpret(arena, null), length);
-                    }
-                }
-                return (int) mh.invokeExact(a, b, length);
+            try (var arena = Arena.ofConfined()) {
+                var aSegment = a.isNative() ? a.reinterpret(arena, null) : a;
+                var bSegment = b.isNative() ? b.reinterpret(arena, null) : b;
+                return (int) mh.invokeExact(aSegment, bSegment, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
         }
 
         private static float callSingleDistanceFloat(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
-            try {
-                var aIsNative = a.isNative();
-                var bIsNative = b.isNative();
-                if (aIsNative && bIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (float) mh.invokeExact(a.reinterpret(arena, null), b.reinterpret(arena, null), length);
-                    }
-                } else if (aIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (float) mh.invokeExact(a.reinterpret(arena, null), b, length);
-                    }
-                } else if (bIsNative) {
-                    try (var arena = Arena.ofConfined()) {
-                        return (float) mh.invokeExact(a, b.reinterpret(arena, null), length);
-                    }
-                }
-                return (float) mh.invokeExact(a, b, length);
+            try (var arena = Arena.ofConfined()) {
+                var aSegment = a.isNative() ? a.reinterpret(arena, null) : a;
+                var bSegment = b.isNative() ? b.reinterpret(arena, null) : b;
+                return (float) mh.invokeExact(aSegment, bSegment, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }

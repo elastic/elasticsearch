@@ -287,8 +287,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                         );
                         // _ts_routing_hash from the synthetic id
                         int routingHashSyntheticId = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(id);
-                        assert Objects.equals(routingHashDV, routingHashSyntheticId)
-                            : routingHashDV + "!=" + routingHashSyntheticId;
+                        assert Objects.equals(routingHashDV, routingHashSyntheticId) : routingHashDV + "!=" + routingHashSyntheticId;
                     }
                     // Document is found
                     docID = nextDocID;

@@ -49,37 +49,36 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
     private int[] vint3Bytes;
     private int[] vint4Bytes;
     private int[] vint5Bytes;
+    private int[] vintNegBytes;
     private RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new SinglePageStream());
 
-    private int randomVInt(int bytes) {
-        return switch (bytes) {
+    private int randomVInt(int vIntByteSize, boolean isNeg) {
+        return (isNeg ? -1 : 1) * switch (vIntByteSize) {
             case 1 -> random.nextInt(0, 1 << 7);
             case 2 -> random.nextInt(1 << 7, 1 << 14);
             case 3 -> random.nextInt(1 << 14, 1 << 21);
             case 4 -> random.nextInt(1 << 21, 1 << 28);
-            case 5 -> {
-                final var isNeg = random.nextBoolean() ? -1 : 1;
-                yield random.nextInt(1 << 28, 1 << 30) * isNeg;
-            }
+            case 5 -> random.nextInt(1 << 28, 1 << 30);
             default -> throw new IllegalArgumentException("number of bytes must be between 1 and 5");
         };
     }
 
-    private int[] randomArray(int vIntByteSize) {
+    private int[] randomArray(int vIntByteSize, boolean isNeg) {
         final var out = new int[RANDOM_NUMS_PER_ITERATION];
         for (var i = 0; i < RANDOM_NUMS_PER_ITERATION; i++) {
-            out[i] = randomVInt(vIntByteSize);
+            out[i] = randomVInt(vIntByteSize, isNeg);
         }
         return out;
     }
 
     @Setup(Level.Iteration)
     public void resetNums() {
-        vint1Byte = randomArray(1);
-        vint2Bytes = randomArray(2);
-        vint3Bytes = randomArray(3);
-        vint4Bytes = randomArray(4);
-        vint5Bytes = randomArray(5);
+        vint1Byte = randomArray(1, false);
+        vint2Bytes = randomArray(2, false);
+        vint3Bytes = randomArray(3, false);
+        vint4Bytes = randomArray(4, false);
+        vint5Bytes = randomArray(5, false);
+        vintNegBytes = randomArray(random.nextInt(1,6),true);
     }
 
     private void writeLoop(int[] nums) throws IOException {
@@ -119,6 +118,12 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
     @OperationsPerInvocation(WRITES_PER_ITERATION)
     public void writeVInt5() throws IOException {
         writeLoop(vint5Bytes);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeVIntNeg() throws IOException {
+        writeLoop(vintNegBytes);
     }
 
     // recycle same page, we never read previous pages

@@ -3,6 +3,10 @@ setup:
       cluster_features: "gte_v8.14.0"
       reason: 'base64 encoding for query vectors added in 8.14'
 
+  - skip:
+      version: "all < 9.4.0"
+      reason: "query_vector_base64 is only supported in 9.4.0+"
+
   - do:
       indices.create:
         index: knn_query_base64_index

@@ -1996,13 +1996,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
 
                 if (searchRequestAttributes == null) {
-                    // All of the shards in the request are for the same search, so the attributes will be the same for all shards.
+                    // Do an initial extraction of the search request attributes which should mostly be the same across shards
                     searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
                         shardSearchRequest,
                         canMatchContext.getTimeRangeFilterFromMillis(),
                         shardSearchRequest.nowInMillis()
                     );
-                }
+                } else if (canMatchContext.getTimeRangeFilterFromMillis() != null
+                    && searchRequestAttributes.containsKey("time_range_filter_from") == false) {
+                        // Add in the time_range_filter_from attribute if it was missing before due to skipped empty shards
+                        SearchRequestAttributesExtractor.addTimeRangeAttribute(
+                            canMatchContext.getTimeRangeFilterFromMillis(),
+                            shardSearchRequest.nowInMillis(),
+                            searchRequestAttributes
+                        );
+                    }
 
                 indexShard.getSearchOperationListener()
                     .onCanMatchPhase(searchRequestAttributes, System.nanoTime() - shardCanMatchStartTimeInNanos);

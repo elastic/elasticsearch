@@ -155,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_9_0_0);
+        final Version version = VersionUtils.randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.V_9_0_0);
         final BuildVersion buildVersion = BuildVersion.fromVersionId(version.id());
 
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, buildVersion, IndexVersion.current()).upgradeToCurrentVersion();

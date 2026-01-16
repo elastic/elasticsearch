@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -84,10 +86,16 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private ObjectArray<Buffer> buffers;
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private final LocalCircuitBreaker.SingletonService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
     private final double dateFactor;
+
+    // tracking min/max group ids to allow flushing the raw buffer when the slice index changed
+    private int minRawInputGroupId = Integer.MAX_VALUE;
+    private int maxRawInputGroupId = Integer.MIN_VALUE;
+    private int lastSliceIndex = -1;
 
     public RateIntGroupingAggregatorFunction(
         List<Integer> channels,
@@ -97,16 +105,25 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.bigArrays = driverContext.bigArrays();
         this.isRateOverTime = isRateOverTime;
-        ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
+        LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
+            driverContext.bigArrays().breakerService(),
+            ByteSizeValue.ofKb(8).getBytes(),
+            ByteSizeValue.ofKb(512).getBytes()
+        );
+        this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        ObjectArray<Buffer> buffers = null;
         try {
-            this.reducedStates = driverContext.bigArrays().newObjectArray(256);
+            buffers = bigArrays.newObjectArray(256);
+            this.reducedStates = bigArrays.newObjectArray(256);
+
             this.buffers = buffers;
+            this.localCircuitBreakerService = localCircuitBreakerService;
             buffers = null;
+            localCircuitBreakerService = null;
         } finally {
-            Releasables.close(buffers);
+            Releasables.close(buffers, localCircuitBreakerService);
         }
     }
 
@@ -151,7 +168,11 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
-
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
+        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -391,7 +412,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 buffer.close();
             }
         }
-        Releasables.close(reducedStates, buffers);
+        Releasables.close(reducedStates, buffers, localCircuitBreakerService);
     }
 
     private Buffer getBuffer(int groupId, int newElements, long firstTimestamp) {
@@ -400,10 +421,34 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         if (buffer == null) {
             buffer = new Buffer(bigArrays, newElements);
             buffers.set(groupId, buffer);
+            minRawInputGroupId = Math.min(minRawInputGroupId, groupId);
+            maxRawInputGroupId = Math.max(maxRawInputGroupId, groupId);
         } else {
             buffer.ensureCapacity(bigArrays, newElements, firstTimestamp);
         }
         return buffer;
+    }
+
+    void flushRawBuffers() {
+        if (minRawInputGroupId > maxRawInputGroupId) {
+            return;
+        }
+        reducedStates = bigArrays.grow(reducedStates, maxRawInputGroupId + 1);
+        for (int groupId = minRawInputGroupId; groupId <= maxRawInputGroupId; groupId++) {
+            Buffer buffer = buffers.getAndSet(groupId, null);
+            if (buffer != null) {
+                try (buffer) {
+                    ReducedState state = reducedStates.get(groupId);
+                    if (state == null) {
+                        state = new ReducedState();
+                        reducedStates.set(groupId, state);
+                    }
+                    buffer.flush(state);
+                }
+            }
+        }
+        minRawInputGroupId = Integer.MAX_VALUE;
+        maxRawInputGroupId = Integer.MIN_VALUE;
     }
 
     /**
@@ -575,7 +620,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         int positionCount = selected.getPositionCount();
         try (
             var rates = blockFactory.newDoubleBlockBuilder(positionCount);
-            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, driverContext.bigArrays())
+            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, bigArrays)
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);

@@ -75,8 +75,8 @@ import static org.mockito.Mockito.when;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
-    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
-    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(LOGGING_CLUSTER_SETTINGS);
+    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster, LOGGING_CLUSTER_SETTINGS);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);

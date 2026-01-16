@@ -43,16 +43,6 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testPromqlStepAndRangeMisaligned() {
-        assertThat(
-            error("""
-                PROMQL index=test step=1m (
-                  avg(rate(network.bytes_in[5m]))
-                )""", tsdb),
-            equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
-        );
-    }
-
     public void testPromqlIllegalNameLabelMatcher() {
         assertThat(
             error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
@@ -68,21 +58,6 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
             equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:1m]]")
-        );
-    }
-
-    public void testTopLevelArithmeticOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m 1+foo", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo+bar", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsdb),
-            containsString("top-level binary operators are not supported at this time")
         );
     }
 
@@ -122,9 +97,16 @@ public class PromqlVerifierTests extends ESTestCase {
         List.of("and", "or", "unless").forEach(op -> {
             assertThat(
                 error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
-                containsString("top-level binary operators are not supported at this time")
+                containsString("VectorBinarySet queries are not supported at this time")
             );
         });
+    }
+
+    public void testPromqlInstantQuery() {
+        assertThat(
+            error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
+            equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+        );
     }
 
     @Override

@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -625,11 +626,15 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateTimeToLong(String dateTime) {
-        return DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
+        return dateTimeToLong(dateTime, DEFAULT_DATE_TIME_FORMATTER);
     }
 
     public static long dateTimeToLong(String dateTime, DateFormatter formatter) {
-        return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+        try {
+            return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
     }
 
     public static long dateNanosToLong(String dateNano) {
@@ -637,8 +642,12 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
-        Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
-        return DateUtils.toLong(parsed);
+        try {
+            Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+            return DateUtils.toLong(parsed);
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
     }
 
     public static String dateWithTypeToString(long dateTime, DataType type) {

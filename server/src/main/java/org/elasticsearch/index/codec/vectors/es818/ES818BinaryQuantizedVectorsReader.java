@@ -87,7 +87,6 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             state.segmentSuffix,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.META_EXTENSION
         );
-        boolean success = false;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
             Throwable priorE = null;
             try {
@@ -114,11 +113,9 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 // graph.
                 state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -292,7 +289,6 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         IndexInput in = state.directory.openInput(fileName, context);
-        boolean success = false;
         try {
             int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
@@ -309,12 +305,10 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 );
             }
             CodecUtil.retrieveChecksum(in);
-            success = true;
             return in;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(in);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(in);
+            throw t;
         }
     }
 

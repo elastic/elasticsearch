@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -28,12 +29,13 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Wraps an {@link IndexReader} with a {@link QueryCancellation}
@@ -137,7 +139,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(queryCancellation, vectorValues) : vectorValues;
+            return wrapIfNeeded(vectorValues, queryCancellation);
         }
 
         @Override
@@ -155,7 +157,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
+            return wrapIfNeeded(vectorValues, queryCancellation);
         }
 
         @Override
@@ -454,33 +456,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableByteVectorValues extends ByteVectorValues {
-        private final QueryCancellation queryCancellation;
-        private final ByteVectorValues in;
+    private static class ExitableByteVectorValues extends FilterByteVectorValues {
+        protected final QueryCancellation queryCancellation;
 
-        private ExitableByteVectorValues(QueryCancellation queryCancellation, ByteVectorValues in) {
+        private ExitableByteVectorValues(ByteVectorValues in, QueryCancellation queryCancellation) {
+            super(in);
             this.queryCancellation = queryCancellation;
-            this.in = in;
-        }
-
-        @Override
-        public int dimension() {
-            return in.dimension();
-        }
-
-        @Override
-        public int size() {
-            return in.size();
-        }
-
-        @Override
-        public byte[] vectorValue(int ord) throws IOException {
-            return in.vectorValue(ord);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return in.ordToDoc(ord);
         }
 
         @Override
@@ -512,12 +493,120 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public ByteVectorValues copy() throws IOException {
-            return in.copy();
+            return new ExitableByteVectorValues(in.copy(), queryCancellation);
+        }
+    }
+
+    static class ExitableSliceableByteVectorValues extends ExitableByteVectorValues implements HasIndexSlice {
+
+        private final HasIndexSlice delegate;
+
+        protected ExitableSliceableByteVectorValues(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
+            super(vectorValues, queryCancellation);
+            delegate = (HasIndexSlice) in;
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return delegate.getSlice();
+        }
+
+        @Override
+        public ByteVectorValues copy() throws IOException {
+            return new ExitableSliceableByteVectorValues(in.copy(), queryCancellation);
+        }
+    }
+
+    private static ByteVectorValues wrapIfNeeded(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
+        if (queryCancellation.isEnabled()) {
+            if (vectorValues instanceof HasIndexSlice) {
+                return new ExitableSliceableByteVectorValues(vectorValues, queryCancellation);
+            } else {
+                return new ExitableByteVectorValues(vectorValues, queryCancellation);
+            }
+        } else {
+            return vectorValues;
+        }
+    }
+
+    private static FloatVectorValues wrapIfNeeded(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+        if (queryCancellation.isEnabled()) {
+            if (vectorValues instanceof BulkScorableFloatVectorValues bsfvv) {
+                return new ExitableBulkScorableFloatVectorValues(vectorValues, bsfvv, queryCancellation);
+            } else if (vectorValues instanceof HasIndexSlice) {
+                return new ExitableSliceableFloatVectorValues(vectorValues, queryCancellation);
+            } else {
+                return new ExitableFloatVectorValues(vectorValues, queryCancellation);
+            }
+        } else {
+            return vectorValues;
+        }
+    }
+
+    // TODO This is temporary until we can move to Apache Lucene's bulk scoring interface
+    private static class ExitableBulkScorableFloatVectorValues extends FilterFloatVectorValues implements BulkScorableFloatVectorValues {
+        private final QueryCancellation queryCancellation;
+        private final BulkScorableFloatVectorValues bsfvv;
+
+        ExitableBulkScorableFloatVectorValues(
+            FloatVectorValues vectorValues,
+            BulkScorableFloatVectorValues bsfvv,
+            QueryCancellation queryCancellation
+        ) {
+            super(vectorValues);
+            this.queryCancellation = queryCancellation;
+            this.queryCancellation.checkCancelled();
+            this.bsfvv = bsfvv;
+        }
+
+        @Override
+        public VectorScorer scorer(float[] target) throws IOException {
+            VectorScorer scorer = in.scorer(target);
+            if (scorer == null) {
+                return null;
+            }
+            DocIdSetIterator scorerIterator = scorer.iterator();
+            return new VectorScorer() {
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
+
+                @Override
+                public float score() throws IOException {
+                    return scorer.score();
+                }
+
+                @Override
+                public DocIdSetIterator iterator() {
+                    return iterator;
+                }
+            };
+        }
+
+        @Override
+        public DocIndexIterator iterator() {
+            return createExitableIterator(in.iterator(), queryCancellation);
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            assert in instanceof BulkScorableFloatVectorValues;
+            FloatVectorValues copy = this.in.copy();
+            BulkScorableFloatVectorValues bulkScorableCopy = (BulkScorableFloatVectorValues) copy;
+            return new ExitableBulkScorableFloatVectorValues(copy, bulkScorableCopy, queryCancellation);
+        }
+
+        @Override
+        public BulkVectorScorer bulkScorer(float[] target) throws IOException {
+            return bsfvv.bulkScorer(target);
+        }
+
+        @Override
+        public BulkVectorScorer bulkRescorer(float[] target) throws IOException {
+            return bsfvv.bulkRescorer(target);
         }
     }
 
     private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
-        private final QueryCancellation queryCancellation;
+        protected final QueryCancellation queryCancellation;
 
         ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
             super(vectorValues);
@@ -564,7 +653,27 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues copy() throws IOException {
-            return in.copy();
+            return new ExitableFloatVectorValues(in.copy(), queryCancellation);
+        }
+    }
+
+    static class ExitableSliceableFloatVectorValues extends ExitableFloatVectorValues implements HasIndexSlice {
+
+        private final HasIndexSlice delegate;
+
+        protected ExitableSliceableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+            super(vectorValues, queryCancellation);
+            delegate = (HasIndexSlice) in;
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return delegate.getSlice();
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return new ExitableSliceableFloatVectorValues(in.copy(), queryCancellation);
         }
     }
 
@@ -662,44 +771,5 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 this.queryCancellation.checkCancelled();
             }
         }
-    }
-
-    /** Delegates all methods to a wrapped {@link FloatVectorValues}. */
-    private abstract static class FilterFloatVectorValues extends FloatVectorValues {
-
-        /** Wrapped values */
-        protected final FloatVectorValues in;
-
-        /** Sole constructor */
-        protected FilterFloatVectorValues(FloatVectorValues in) {
-            Objects.requireNonNull(in);
-            this.in = in;
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return in.iterator();
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return in.vectorValue(ord);
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            return in.copy();
-        }
-
-        @Override
-        public int dimension() {
-            return in.dimension();
-        }
-
-        @Override
-        public int size() {
-            return in.size();
-        }
-
     }
 }

@@ -57,6 +57,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -69,6 +70,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -289,9 +291,10 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
+        private final boolean usesBinaryDocValues;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.current(), null, indexAnalyzers, false, false);
+            this(name, IndexVersion.current(), null, indexAnalyzers, false, false, false);
         }
 
         public Builder(
@@ -300,11 +303,13 @@ public final class TextFieldMapper extends FieldMapper {
             IndexMode indexMode,
             IndexAnalyzers indexAnalyzers,
             boolean isSyntheticSourceEnabled,
-            boolean isWithinMultiField
+            boolean isWithinMultiField,
+            boolean usesBinaryDocValues
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
 
             this.indexMode = indexMode;
+            this.usesBinaryDocValues = usesBinaryDocValues;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
@@ -336,6 +341,32 @@ public final class TextFieldMapper extends FieldMapper {
                     return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
                 }
             });
+        }
+
+        public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
+            this(
+                name,
+                indexSettings.getIndexVersionCreated(),
+                indexSettings.getMode(),
+                indexAnalyzers,
+                SourceFieldMapper.isSynthetic(indexSettings),
+                isWithinMultiField,
+                usesBinaryDocValues(indexSettings)
+            );
+        }
+
+        private Builder(String name, MappingParserContext context) {
+            this(name, context.getIndexSettings(), context.getIndexAnalyzers(), context.isWithinMultiField());
+        }
+
+        private static boolean usesBinaryDocValues(final IndexSettings indexSettings) {
+            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+            if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
+                return indexSettings.useTimeSeriesDocValuesFormat();
+            }
+            // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in
+            // binary doc values
+            return indexVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
         }
 
         public Builder index(boolean index) {
@@ -416,7 +447,8 @@ public final class TextFieldMapper extends FieldMapper {
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
                     indexPhrases.getValue(),
-                    indexCreatedVersion
+                    indexCreatedVersion,
+                    usesBinaryDocValues
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -507,16 +539,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(
-            n,
-            c.indexVersionCreated(),
-            c.getIndexSettings().getMode(),
-            c.getIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
-            c.isWithinMultiField()
-        )
-    );
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
@@ -697,6 +720,8 @@ public final class TextFieldMapper extends FieldMapper {
         private final boolean indexPhrases;
         private final boolean eagerGlobalOrdinals;
         private final IndexVersion indexCreatedVersion;
+        private final boolean usesBinaryDocValues;
+
         /**
          * In some configurations text fields use a sub-keyword field to provide
          * their values for synthetic source. This is that field. Or empty if we're
@@ -715,15 +740,17 @@ public final class TextFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean eagerGlobalOrdinals,
             boolean indexPhrases,
-            IndexVersion indexCreatedVersion
+            IndexVersion indexCreatedVersion,
+            boolean usesBinaryDocValues
         ) {
             super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
-            fielddata = false;
+            this.fielddata = false;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
             this.indexCreatedVersion = indexCreatedVersion;
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
         public TextFieldType(
@@ -749,7 +776,8 @@ public final class TextFieldMapper extends FieldMapper {
                 meta,
                 eagerGlobalOrdinals,
                 indexPhrases,
-                IndexVersion.current()
+                IndexVersion.current(),
+                false
             );
         }
 
@@ -763,11 +791,12 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 false
             );
-            fielddata = false;
-            syntheticSourceDelegate = null;
-            eagerGlobalOrdinals = false;
-            indexPhrases = false;
-            indexCreatedVersion = IndexVersion.current();
+            this.fielddata = false;
+            this.syntheticSourceDelegate = null;
+            this.eagerGlobalOrdinals = false;
+            this.indexPhrases = false;
+            this.indexCreatedVersion = IndexVersion.current();
+            this.usesBinaryDocValues = false;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -781,8 +810,7 @@ public final class TextFieldMapper extends FieldMapper {
                 null,
                 Collections.emptyMap(),
                 false,
-                false,
-                IndexVersion.current()
+                false
             );
         }
 
@@ -802,8 +830,7 @@ public final class TextFieldMapper extends FieldMapper {
                 syntheticSourceDelegate,
                 Collections.emptyMap(),
                 false,
-                false,
-                IndexVersion.current()
+                false
             );
         }
 
@@ -1115,18 +1142,31 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // 1. check if we can load from a synthetic source delegate
+            // Check if we can load from a synthetic source delegate
             if (canUseSyntheticSourceDelegateForLoading()) {
-                return new BlockLoader.Delegating(syntheticSourceDelegate.get().blockLoader(blContext)) {
+                return new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
-                    protected String delegatingTo() {
+                    public String delegatingTo() {
                         return syntheticSourceDelegate.get().name();
                     }
                 };
             }
+            BlockLoader fallbackLoader = nonDelegateBlockLoader(blContext);
+            if (syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()) {
+                DelegatingBlockLoader preferLoader = new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
+                    @Override
+                    public String delegatingTo() {
+                        return syntheticSourceDelegate.get().name();
+                    }
+                };
+                return new ConditionalBlockLoaderWithIgnoreField(syntheticSourceDelegate.get().name(), preferLoader, fallbackLoader);
+            }
+            return fallbackLoader;
+        }
 
-            // 2. check if we can load from a parent field
+        private BlockLoader nonDelegateBlockLoader(BlockLoaderContext blContext) {
             /*
+             * Check if we can load from a parent field
              * If this is a sub-text field try and return the parent's loader. Text
              * fields will always be slow to load and if the parent is exact then we
              * should use that instead.
@@ -1137,9 +1177,9 @@ public final class TextFieldMapper extends FieldMapper {
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
-                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                        return new DelegatingBlockLoader(kwd.blockLoader(blContext)) {
                             @Override
-                            protected String delegatingTo() {
+                            public String delegatingTo() {
                                 return kwd.name();
                             }
                         };
@@ -1147,27 +1187,27 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
 
-            // 3. bwc - check if we need to load from ignored source (aka fallback synthetic source)
+            // Bwc - check if we need to load from ignored source (aka fallback synthetic source)
             if (wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource()) {
                 if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null && isStored() == false) {
                     return fallbackSyntheticSourceBlockLoader(blContext);
                 }
             }
 
-            // 4. check if we can load from a stored field
+            // Check if we can load from a stored field
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // 5. check if we can load from a fallback field
+            // Check if we can load from a fallback field
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
-                if (storeFallbackFieldsInBinaryDocValues(indexCreatedVersion)) {
+                if (usesBinaryDocValues) {
                     return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                 }
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
             }
 
-            // 6. load directly from _source (synthetic or not)
+            // Load directly from _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
@@ -1321,7 +1361,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, false, null, meta, false, false, IndexVersion.current());
+            super(name, indexed, stored, tsi, false, false, null, meta, false, false, IndexVersion.current(), false);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1437,6 +1477,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
+    private final boolean usesBinaryDocValues;
 
     private TextFieldMapper(
         String simpleName,
@@ -1474,6 +1515,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
+        this.usesBinaryDocValues = builder.usesBinaryDocValues;
     }
 
     @Override
@@ -1503,7 +1545,8 @@ public final class TextFieldMapper extends FieldMapper {
             indexMode,
             indexAnalyzers,
             fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
+            fieldType().isWithinMultiField(),
+            usesBinaryDocValues
         ).init(this);
     }
 
@@ -1540,11 +1583,11 @@ public final class TextFieldMapper extends FieldMapper {
             final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
             final BytesRef bytesRef = new BytesRef(value);
 
-            if (storeFallbackFieldsInBinaryDocValues()) {
+            if (usesBinaryDocValues) {
                 // store the value in a binary doc values field, create one if it doesn't exist
                 MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
                 if (field == null) {
-                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, new ArrayList<>());
+                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
                     context.doc().addWithKey(fallbackFieldName, field);
                 }
                 field.add(bytesRef);
@@ -1553,14 +1596,6 @@ public final class TextFieldMapper extends FieldMapper {
                 context.doc().add(new StoredField(fallbackFieldName, value));
             }
         }
-    }
-
-    private boolean storeFallbackFieldsInBinaryDocValues() {
-        return storeFallbackFieldsInBinaryDocValues(indexCreatedVersion);
-    }
-
-    private static boolean storeFallbackFieldsInBinaryDocValues(final IndexVersion indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
     }
 
     /**
@@ -1771,7 +1806,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-        if (storeFallbackFieldsInBinaryDocValues()) {
+        if (usesBinaryDocValues) {
             layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields

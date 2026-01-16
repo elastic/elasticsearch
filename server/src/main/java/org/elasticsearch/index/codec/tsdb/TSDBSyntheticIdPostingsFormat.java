@@ -35,8 +35,8 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
     public static final String TS_ID = TimeSeriesIdFieldMapper.NAME;
     public static final String TS_ROUTING_HASH = TimeSeriesRoutingHashFieldMapper.NAME;
 
-    static final String FORMAT_NAME = "TSDBSyntheticId";
-    static final String SUFFIX = "0";
+    public static final String FORMAT_NAME = "TSDBSyntheticId";
+    public static final String SUFFIX = "0";
 
     public TSDBSyntheticIdPostingsFormat() {
         super(FORMAT_NAME);

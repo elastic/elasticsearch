@@ -37,7 +37,6 @@ import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +53,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
 
-    private final IndexInput ivfCentroids, ivfClusters;
+    protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
@@ -88,14 +87,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
             ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
-            initAdditionalInputs(state, versionMeta);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
     }
-
-    protected abstract void initAdditionalInputs(SegmentReadState state, int versionMeta) throws IOException;
 
     public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
@@ -188,6 +184,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
+        long preconditionerLength = input.readLong();
+        long preconditionerOffset = -1;
+        if (preconditionerLength > 0) {
+            preconditionerOffset = input.readLong();
+        }
         return doReadField(
             input,
             rawVectorFormat,
@@ -200,7 +201,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             postingListOffset,
             postingListLength,
             globalCentroid,
-            globalCentroidDp
+            globalCentroidDp,
+            preconditionerOffset,
+            preconditionerLength
         );
     }
 
@@ -216,7 +219,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        long preconditionerOffset,
+        long preconditionerLength
     ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
@@ -242,10 +247,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
-        doAdditionalIntegrityChecks();
     }
-
-    protected abstract void doAdditionalIntegrityChecks() throws IOException;
 
     private FlatVectorsReader getReaderForField(String field) {
         FieldInfo info = fieldInfos.fieldInfo(field);
@@ -385,11 +387,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     public void close() throws IOException {
         List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
-        closeables.addAll(getAdditionalCloseables());
         IOUtils.close(closeables);
     }
-
-    protected abstract Collection<Closeable> getAdditionalCloseables();
 
     protected static class FieldEntry implements GenericFlatVectorReaders.Field {
         protected final String rawVectorFormatName;
@@ -403,6 +402,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final long postingListLength;
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
+        protected final long preconditionerOffset;
+        protected final long preconditionerLength;
 
         protected FieldEntry(
             String rawVectorFormatName,
@@ -415,7 +416,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long postingListOffset,
             long postingListLength,
             float[] globalCentroid,
-            float globalCentroidDp
+            float globalCentroidDp,
+            long preconditionerOffset,
+            long preconditionerLength
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
             this.useDirectIOReads = useDirectIOReads;
@@ -428,6 +431,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.postingListLength = postingListLength;
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
+            this.preconditionerOffset = preconditionerOffset;
+            this.preconditionerLength = preconditionerLength;
         }
 
         @Override

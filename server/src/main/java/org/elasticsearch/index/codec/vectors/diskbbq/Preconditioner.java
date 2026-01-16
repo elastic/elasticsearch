@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -36,38 +36,33 @@ public class Preconditioner {
         this.blocks = blocks;
     }
 
-    public float[] applyTransform(float[] vector) {
+    public void applyTransform(float[] vector, float[] out) {
         assert vector != null;
-
-        float[] out = new float[vector.length];
 
         if (blocks.length == 1) {
             matrixVectorMultiply(blocks[0], vector, out);
-            return out;
-        }
-
-        int blockIdx = 0;
-        float[] x = new float[blockDim];
-        float[] blockOut = new float[blockDim];
-        for (int j = 0; j < blocks.length; j++) {
-            float[][] block = blocks[j];
-            int blockDim = blocks[j].length;
-            // blockDim is only ever smaller for the tail
-            if (blockDim != this.blockDim) {
-                x = new float[blockDim];
-                blockOut = new float[blockDim];
+        } else {
+            int blockIdx = 0;
+            float[] x = new float[blockDim];
+            float[] blockOut = new float[blockDim];
+            for (int j = 0; j < blocks.length; j++) {
+                float[][] block = blocks[j];
+                int blockDim = blocks[j].length;
+                // blockDim is only ever smaller for the tail
+                if (blockDim != this.blockDim) {
+                    x = new float[blockDim];
+                    blockOut = new float[blockDim];
+                }
+                for (int k = 0; k < permutationMatrix[j].length; k++) {
+                    int idx = permutationMatrix[j][k];
+                    x[k] = vector[idx];
+                }
+                // TODO: can be optimized to do all blocks in one pass?
+                matrixVectorMultiply(block, x, blockOut);
+                System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
+                blockIdx += blockDim;
             }
-            for (int k = 0; k < permutationMatrix[j].length; k++) {
-                int idx = permutationMatrix[j][k];
-                x[k] = vector[idx];
-            }
-            // TODO: can be optimized to do all blocks in one pass?
-            matrixVectorMultiply(block, x, blockOut);
-            System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
-            blockIdx += blockDim;
         }
-
-        return out;
     }
 
     // TODO: write Panama version of this
@@ -161,7 +156,7 @@ public class Preconditioner {
         return permutationMatrix;
     }
 
-    public byte[] toByteArray() throws IOException {
+    public void write(IndexOutput out) throws IOException {
         int rem = this.blockDim;
         float[][][] blocks = this.blocks;
         int[][] permutationMatrix = this.permutationMatrix;
@@ -170,23 +165,14 @@ public class Preconditioner {
             rem = blocks[blocks.length - 1].length;
         }
 
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(
-            (blocks.length - 1) * blockDim * blockDim * Float.BYTES + rem * rem * Float.BYTES
-        ).order(ByteOrder.LITTLE_ENDIAN);
-
-        int permutationMatrixSize = 0;
-        for (int i = 0; i < permutationMatrix.length; i++) {
-            permutationMatrixSize += permutationMatrix[i].length;
-        }
-
-        byte[] bytes = new byte[4 * 4 + blockBuffer.array().length + 4 * permutationMatrix.length + 4 * permutationMatrixSize];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-
         out.writeInt(blocks.length);
         out.writeInt(blockDim);
         out.writeInt(rem);
         out.writeInt(permutationMatrix.length);
 
+        final ByteBuffer blockBuffer = ByteBuffer.allocate(
+            (blocks.length - 1) * blockDim * blockDim * Float.BYTES + rem * rem * Float.BYTES
+        ).order(ByteOrder.LITTLE_ENDIAN);
         FloatBuffer floatBuffer = blockBuffer.asFloatBuffer();
         for (int i = 0; i < blocks.length; i++) {
             for (int j = 0; j < blocks[i].length; j++) {
@@ -201,8 +187,6 @@ public class Preconditioner {
             permBuffer.asIntBuffer().put(permutationMatrix[i]);
             out.writeBytes(permBuffer.array(), permBuffer.array().length);
         }
-
-        return bytes;
     }
 
     public static Preconditioner createPreconditioner(int vectorDimension, int blockDimension) {

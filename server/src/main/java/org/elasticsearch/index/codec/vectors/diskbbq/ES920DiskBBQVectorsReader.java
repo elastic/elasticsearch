@@ -26,10 +26,7 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -46,11 +43,6 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
     ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
         super(state, getFormatReader);
-    }
-
-    @Override
-    protected void initAdditionalInputs(SegmentReadState state, int versionMeta) throws IOException {
-        // no-op
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
@@ -131,7 +123,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        long preconditionerOffset,
+        long preconditionerLength
     ) {
         // nothing more to read
         return new FieldEntry(
@@ -145,19 +139,10 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             postingListOffset,
             postingListLength,
             globalCentroid,
-            globalCentroidDp
+            globalCentroidDp,
+            preconditionerOffset,
+            preconditionerLength
         );
-    }
-
-    @Override
-    protected void doAdditionalIntegrityChecks() throws IOException {
-        // no-op
-    }
-
-    @Override
-    protected Collection<Closeable> getAdditionalCloseables() {
-        // no-op
-        return List.of();
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(

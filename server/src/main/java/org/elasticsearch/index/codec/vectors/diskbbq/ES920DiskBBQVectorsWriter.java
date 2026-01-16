@@ -389,6 +389,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    protected void inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // no-op
+    }
+
+    @Override
     protected void createPreconditioner(int dimension) {
         // no-op
     }
@@ -400,9 +405,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected List<float[]> preconditionVectors(List<float[]> vectors) {
+    protected void preconditionVectors(List<float[]> vectors) {
         // no-op
-        return vectors;
+    }
+
+    @Override
+    protected void writePreconditioner(IndexOutput out) throws IOException {
+        // no-op
     }
 
     @Override

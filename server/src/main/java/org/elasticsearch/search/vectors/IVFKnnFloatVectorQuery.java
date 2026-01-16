@@ -92,7 +92,11 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             if (knnVectorsReader instanceof VectorPreconditioner) {
                 Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner();
                 if (preconditioner != null) {
-                    query = preconditioner.applyTransform(query);
+                    final float[] out = new float[query.length];
+                    preconditioner.applyTransform(query, out);
+                    // have to keep the copy to avoid issues with reused arrays by the caller of IVFKnnFloatVectorQuery which expects
+                    // a non-preconditioned query vector to still exist
+                    query = out;
                     isQueryPreconditioned = true;
                 }
             }

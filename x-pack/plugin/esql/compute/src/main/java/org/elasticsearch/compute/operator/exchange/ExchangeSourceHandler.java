@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.Page;
@@ -257,32 +257,26 @@ public final class ExchangeSourceHandler {
         final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(
             ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> remoteSinks.remove(sinkId)))
         );
-        final Releasable emptySink = addEmptySink();
-        fetchExecutor.execute(new AbstractRunnable() {
-            @Override
-            public void onAfter() {
-                emptySink.close();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (failFast) {
-                    aborted = true;
-                }
-                buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
-                remoteSink.close(ActionListener.running(() -> sinkListener.onFailure(e)));
-            }
-
-            @Override
-            protected void doRun() {
-                try (EsqlRefCountingListener refs = new EsqlRefCountingListener(sinkListener)) {
-                    for (int i = 0; i < instances; i++) {
-                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, refs.acquire());
+        try (var refs = new EsqlRefCountingListener(ActionListener.releaseBefore(addEmptySink(), sinkListener))) {
+            for (int i = 0; i < instances; i++) {
+                fetchExecutor.execute(new ActionRunnable<>(refs.acquire()) {
+                    @Override
+                    protected void doRun() {
+                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, this.listener);
                         fetcher.fetchPage();
                     }
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (failFast) {
+                            aborted = true;
+                        }
+                        buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
+                        remoteSink.close(this.listener);
+                    }
+                });
             }
-        });
+        }
     }
 
     /**

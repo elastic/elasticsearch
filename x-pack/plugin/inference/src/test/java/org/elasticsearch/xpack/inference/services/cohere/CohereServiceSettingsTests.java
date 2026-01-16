@@ -170,7 +170,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
                     CohereServiceSettings.API_VERSION,
                     CohereServiceSettings.CohereApiVersion.V1.toString()
@@ -238,7 +238,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
                     maxInputTokens,
                     CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     "old_model",
-                    CohereServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model
                 )
             ),

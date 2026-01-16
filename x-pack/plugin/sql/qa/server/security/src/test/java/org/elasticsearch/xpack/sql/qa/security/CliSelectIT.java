@@ -7,10 +7,21 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.sql.qa.cli.SelectTestCase;
+import org.junit.ClassRule;
 
 public class CliSelectIT extends SelectTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();

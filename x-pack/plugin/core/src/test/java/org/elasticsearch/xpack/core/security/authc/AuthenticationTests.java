@@ -903,10 +903,9 @@ public class AuthenticationTests extends ESTestCase {
             )
             .build();
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
             random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
+            authentication.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForCrossClusterAccessAuthentication(
@@ -946,16 +945,11 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            // Don't include CURRENT, so we always have at least one newer version available below
-            TransportVersionUtils.getPreviousVersion()
-        );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionSupporting(random(), olderVersion);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
+            // Use CURRENT to force newer version in case randomVersionSupporting above picks olderVersion
             .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
             .build();
 

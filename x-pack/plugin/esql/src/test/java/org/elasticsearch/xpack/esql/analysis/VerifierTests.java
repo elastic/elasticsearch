@@ -293,6 +293,24 @@ public class VerifierTests extends ESTestCase {
             error("from test* | rename multi_typed as x", analyzer)
         );
 
+        // Verify that UnsupportedAttribute can pass through KEEP (Project) unchanged without error.
+        // This is valid because the field is just being projected, not used in operations.
+        query("from test* | keep unsupported", analyzer);
+        query("from test* | keep multi_typed", analyzer);
+
+        // Verify that renaming UnsupportedAttribute fails even after passing through KEEP.
+        // This validates the fix for EsqlProject consolidation: the rename check runs unconditionally,
+        // not gated by Project.expressionsResolved() which treats UnsupportedAttribute as resolved.
+        assertEquals(
+            "1:40: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | keep unsupported | rename unsupported as x", analyzer)
+        );
+        assertEquals(
+            "1:40: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | keep multi_typed | rename multi_typed as x", analyzer)
+        );
+
         assertEquals(
             "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
             error("from test* | sort unsupported asc", analyzer)
@@ -729,6 +747,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testDropAfterRenaming() {
         assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
+    }
+
+    public void testDropUnknownPattern() {
+        assertEquals("1:18: No matches found for pattern [foobar*]", error("from test | drop foobar*"));
     }
 
     public void testNonStringFieldsInDissect() {
@@ -1175,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1411,10 +1433,6 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
         }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
-            checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
-        }
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
@@ -1541,9 +1559,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
-        }
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
@@ -1593,9 +1608,6 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
     }
 
@@ -1656,9 +1668,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
     }
 
@@ -1725,9 +1734,6 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
         }
     }
 
@@ -1892,6 +1898,30 @@ public class VerifierTests extends ESTestCase {
             "1:22: third argument of [case(name == \"a\", network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
             error("FROM test | eval x = case(name == \"a\", network.bytes_in, 0)", tsdb)
         );
+    }
+
+    public void testConditionalFunctionsWithSupportedNonNumericTypes() {
+        for (String functionName : List.of("greatest", "least")) {
+            // Keyword
+            query("from test | eval x = " + functionName + "(\"a\", \"b\")");
+            query("from test | eval x = " + functionName + "(first_name, last_name)");
+            query("from test | eval x = " + functionName + "(first_name, \"b\")");
+
+            // Text
+            // Note: In ESQL text fields are not optimized for sorting/aggregation but Greatest/Least should work if they implement
+            // BytesRefEvaluator
+            query("from test | eval x = " + functionName + "(title, \"b\")", fullTextAnalyzer);
+
+            // IP
+            query("from test | eval x = " + functionName + "(to_ip(\"127.0.0.1\"), to_ip(\"127.0.0.2\"))");
+
+            // Version
+            query("from test | eval x = " + functionName + "(to_version(\"1.0.0\"), to_version(\"1.1.0\"))");
+
+            // Date
+            query("from test | eval x = " + functionName + "(\"2023-01-01\" :: datetime, \"2023-01-02\" :: datetime)");
+            query("from test | eval x = " + functionName + "(\"2023-01-01\" :: date_nanos, \"2023-01-02\" :: date_nanos)");
+        }
     }
 
     public void testToDatePeriodTimeDurationInInvalidPosition() {
@@ -2552,9 +2582,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Meditation\", title)");
         }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
-        }
     }
 
     private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
@@ -2576,10 +2603,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
             checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
-            checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
     }
 
@@ -2925,17 +2948,17 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
-                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
-                    + "use the FROM command instead of the TS command"
+                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for host] must be "
+                    + "[numeric except unsigned_long], found value [host] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
         assertThat(
             error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
-                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
-                    + "use the FROM command instead of the TS command"
+                "1:21: argument of [implicit time-series aggregation function (LastOverTime) for name] must be "
+                    + "[numeric except unsigned_long], found value [name] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
     }
@@ -3052,10 +3075,10 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBeforeInlineStats_WithTS() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
         assertThat(
-            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            error("TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod"),
             containsString(
-                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
+                "1:67: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(m) BY pod] after [LIMIT 5] [@1:57]"
             )
         );
     }
@@ -3241,27 +3264,6 @@ public class VerifierTests extends ESTestCase {
             | KEEP emp_no
             """);
         assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
-    }
-
-    // InlineStats after subquery is not supported
-    public void testSubqueryInFromWithInlineStatsInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | INLINE STATS cnt = count(*)
-            | SORT emp_no
-            """);
-        assertThat(
-            errorMessage,
-            containsString(
-                "1:6: INLINE STATS after subquery is not supported, "
-                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-            )
-        );
-        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
     }
 
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet

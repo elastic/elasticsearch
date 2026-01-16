@@ -15,8 +15,6 @@ public interface MachineLearningExtension {
 
     default void configure(Settings settings) {}
 
-    boolean useIlm();
-
     boolean includeNodeInfo();
 
     boolean isAnomalyDetectionEnabled();

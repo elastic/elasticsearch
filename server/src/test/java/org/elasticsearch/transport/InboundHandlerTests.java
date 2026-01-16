@@ -238,11 +238,7 @@ public class InboundHandlerTests extends ESTestCase {
             PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
             channel.addCloseListener(closeListener);
 
-            final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersionUtils.getFirstVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible())
-            );
+            final TransportVersion remoteVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
                 between(0, 100),

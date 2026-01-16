@@ -254,7 +254,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         QueryBuilder expected = new KnnVectorQueryBuilder(
             field,
             vector,
-            numCands,
+            k,
             numCands,
             visitPercentage,
             rescoreVectorBuilder,

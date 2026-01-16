@@ -47,14 +47,31 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     public static final JdkVectorSimilarityFunctions INSTANCE;
 
+    /**
+     * Native functions in the native simdvec library can have multiple implementations, one for each "capability level".
+     * A capability level of "0" means that there is no native function for that platform.
+     * Functions for the base ("1") level are exposed with a simple function name (e.g. "vec_dot7u")
+     * Functions for the more advanced levels (2, 3, ...) are exported with a name "decorated" by adding the capability level as
+     * a suffix: if the capability level is N, the suffix will be "_N" (e.g. "vec_dot7u_2").
+     * Capability levels maps to the availability of advanced vector instructions sets for a platform. For example, for x64 we currently
+     * define 2 capability levels, 1 (base, processor supports AVX2) and 2 (processor supports AVX-512 with VNNI and VPOPCNT).
+     * <p>
+     * This function binds the function with the highest capability level exported by the native library by performing fallback lookups:
+     * starting from the supported capability level N, it looks up function_N, function_{N-1}... function.
+     *
+     * @param functionName          the base function name, as exported by the native library
+     * @param capability            the capability level supported by this platform, as returned by `int vec_caps()`
+     * @param functionDescriptor    the function descriptor for the function(s) starting with `functionName`
+     * @return a {@link MethodHandle} to the native function
+     */
     private static MethodHandle bindFunction(String functionName, int capability, FunctionDescriptor functionDescriptor) {
         for (int caps = capability; caps > 0; --caps) {
             var suffix = caps > 1 ? "_" + caps : "";
             var fullFunctionName = functionName + suffix;
-            logger.info("Lookup for {}", fullFunctionName);
+            logger.trace("Lookup for {}", fullFunctionName);
             var function = functionAddressOrNull(functionName + suffix);
             if (function != null) {
-                logger.info("Binding {}", fullFunctionName);
+                logger.debug("Binding {}", fullFunctionName);
                 return downcallHandle(function, functionDescriptor, LinkerHelperUtil.critical());
             }
         }

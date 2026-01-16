@@ -344,6 +344,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "tdigest",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "text",
           "optional" : false,
           "description" : "Expression to evaluate."

@@ -24,6 +24,7 @@
 | keyword | | keyword |
 | long | long | long |
 | long | | long |
+| tdigest | tdigest | tdigest |
 | text | text | keyword |
 | text | | keyword |
 | version | version | version |

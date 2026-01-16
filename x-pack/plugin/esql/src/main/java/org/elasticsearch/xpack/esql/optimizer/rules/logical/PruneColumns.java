@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
 
 /**
@@ -149,25 +147,25 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             p = pruneRightSideAndProject(ij);
             recheck.set(true);
         } else if (right != ij.right()) {
-//            if (right.anyMatch(plan -> plan instanceof Aggregate) == false) {// there is no aggregation on the right side anymore
-//                if (right instanceof StubRelation) {// right is just a StubRelation, meaning nothing is needed from the right side
-//                    p = pruneRightSideAndProject(ij);
-//                } else {
-//                    // if the right has no aggregation anymore, but it still has some other plans (evals, projects),
-//                    // we keep those and integrate them into the main plan. The InlineJoin is also replaced entirely.
-//                    p = InlineJoin.replaceStub(ij.left(), right);
-//                    p = new Project(ij.source(), p, mergeOutputExpressions(p.output(), ij.left().output()));
-//                }
-//            } else {
-//                // if the right side has been updated, replace it
-//                p = ij.replaceRight(right);
-//            }
-//            recheck.set(true);
+            // if (right.anyMatch(plan -> plan instanceof Aggregate) == false) {// there is no aggregation on the right side anymore
+            // if (right instanceof StubRelation) {// right is just a StubRelation, meaning nothing is needed from the right side
+            // p = pruneRightSideAndProject(ij);
+            // } else {
+            // // if the right has no aggregation anymore, but it still has some other plans (evals, projects),
+            // // we keep those and integrate them into the main plan. The InlineJoin is also replaced entirely.
+            // p = InlineJoin.replaceStub(ij.left(), right);
+            // p = new Project(ij.source(), p, mergeOutputExpressions(p.output(), ij.left().output()));
+            // }
+            // } else {
+            // // if the right side has been updated, replace it
+            // p = ij.replaceRight(right);
+            // }
+            // recheck.set(true);
         }
 
-//        if (recheck.get() == false) {
-//            used.addAll(p.references());
-//        }
+        // if (recheck.get() == false) {
+        // used.addAll(p.references());
+        // }
 
         return p;
     }

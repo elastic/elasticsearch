@@ -243,41 +243,41 @@ add_blockers:
     - ":Delivery/Build"
     - ":Delivery/Tooling"
 
-# render_blockers:
-#   cloud-serverless:
-#     areas:
-#       - Allocation
-#       - Audit
-#       - Authentication
-#       - Autoscaling
-#       - CCR
-#       - CCS
-#       - "Cluster Coordination"
-#       - Codec
-#       - "Discovery-Plugins"
-#       - Engine
-#       - FIPS
-#       - Health
-#       - "ILM+SLM"
-#       - "IdentityProvider"
-#       - "Infra/CLI"
-#       - "Circuit Breakers"
-#       - "Infra/Core"
-#       - "Infra/Entitlements"
-#       - "Infra/Logging"
-#       - "Infra/Metrics"
-#       - "Infra/Node Lifecycle"
-#       - "Infra/Plugins"
-#       - "Infra/Transport API"
-#       - License
-#       - Monitoring
-#       - Packaging
-#       - Searchable Snapshots
-#       - "Snapshot/Restore"
-#       - Stats
-#       - Watcher
-#     types:
-#       - docs
-#   elasticsearch:
-#     types:
-#       - docs
+render_blockers:
+  cloud-serverless:
+    areas:
+      - Allocation
+      - Audit
+      - Authentication
+      - Autoscaling
+      - CCR
+      - CCS
+      - "Cluster Coordination"
+      - Codec
+      - "Discovery-Plugins"
+      - Engine
+      - FIPS
+      - Health
+      - "ILM+SLM"
+      - "IdentityProvider"
+      - "Infra/CLI"
+      - "Circuit Breakers"
+      - "Infra/Core"
+      - "Infra/Entitlements"
+      - "Infra/Logging"
+      - "Infra/Metrics"
+      - "Infra/Node Lifecycle"
+      - "Infra/Plugins"
+      - "Infra/Transport API"
+      - License
+      - Monitoring
+      - Packaging
+      - Searchable Snapshots
+      - "Snapshot/Restore"
+      - Stats
+      - Watcher
+    types:
+      - docs
+  elasticsearch:
+    types:
+      - docs

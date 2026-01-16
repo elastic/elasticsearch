@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
+import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
 
@@ -620,15 +621,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             // TODO ASSYMETRIC READ
             // READ IN THE CENTROID ORDINAL INTEGER
             indexInput.readFloats(centroid, 0, centroid.length);
-            // TODO ASYMMETRIC REMOVE
+            // TODO ASYMMETRIC THIS IS SQR
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
-            // TODO HACK asymmetric scoring
-            centroidDp = 0f;
             vectors = indexInput.readVInt();
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
-            centroidDistance = score - 1;
+            centroidDistance = quantizer.getSimilarityFunction() == EUCLIDEAN ?
+                ((1/score) - 1) - centroidDp :
+                score - 1;
             return vectors;
         }
 
@@ -661,7 +662,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                         queryCorrections.quantizedComponentSum(),
                         centroidDistance,
                         fieldInfo.getVectorSimilarityFunction(),
-                        centroidDp,
+                        0,
                         correctionsLower[j],
                         correctionsUpper[j],
                         correctionsSum[j],

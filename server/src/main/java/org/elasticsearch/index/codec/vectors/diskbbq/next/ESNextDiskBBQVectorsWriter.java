@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IOContext;
@@ -149,9 +150,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             // write raw centroid for quantizing the query vectors
             // TODO ASYMMETRIC REMOVE WE SHOULDN"T NEED THIS
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
-            // write centroid dot product for quantizing the query vectors
-            // TODO ASYMMETRIC REMOVE
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            // write centroid distance between parent centroid for query corrections
+            // TODO ASYMMETRIC EUCLIDEAN
+            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidSupplier.getParentCentroid(c))));
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
@@ -195,6 +196,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int[] overspillAssignments
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
+        var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
         String quantizedVectorsTempName = null;
         try (
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
@@ -204,7 +206,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             )
         ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
-            OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+            OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(vectorSimilarityFunction);
             int[] quantized = new int[quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension())];
             byte[] binary = new byte[quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())];
             float[] scratch = new float[fieldInfo.getVectorDimension()];
@@ -224,11 +226,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 // TODO HACK FOR ASYMMETRIC QUANTIZATION DOT PRODUCT ONLY
                 // MUST BE CENTERED ON OWN CENTROID
                 if (parentCentroid != null) {
-                    float dotWithParent = VectorUtil.dotProduct(scratch, parentCentroid);
+                    float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN ?
+                        VectorUtil.squareDistance(vector, parentCentroid) :
+                        VectorUtil.dotProduct(scratch, parentCentroid);
                     result = new OptimizedScalarQuantizer.QuantizationResult(
                         result.lowerInterval(),
                         result.upperInterval(),
-                        dotWithParent,
+                        additionalCorrection,
                         result.quantizedComponentSum()
                     );
                 }
@@ -243,11 +247,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     // TODO HACK FOR ASYMMETRIC QUANTIZATION DOT PRODUCT ONLY
                     // MUST BE CENTERED
                     if (overspillParentCentroid != null) {
-                        float dotWithParent = VectorUtil.dotProduct(scratch, overspillParentCentroid);
+                        float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN ?
+                            VectorUtil.squareDistance(vector, overspillParentCentroid) :
+                            VectorUtil.dotProduct(scratch, overspillParentCentroid);
                         result = new OptimizedScalarQuantizer.QuantizationResult(
                             result.lowerInterval(),
                             result.upperInterval(),
-                            dotWithParent,
+                            additionalCorrection,
                             result.quantizedComponentSum()
                         );
                     }
@@ -327,9 +333,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 buffer.asFloatBuffer().put(centroid);
                 // TODO ASYMMETRIC REMOVE
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
-                // write centroid dot product for quantizing the query vectors
-                // TODO ASYMMETRIC REMOVE
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                // write centroid dist from parent centroid for query corrections
+                // TODO ASYMMETRIC EUCLIDEAN
+                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidSupplier.getParentCentroid(c))));
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
@@ -801,13 +807,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             float[] vector = vectorValues.vectorValue(ord);
             corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, encoding.bits(), currentCentroid);
             // TODO HACK, assumes asymmetric centroid quantization, adjust corrections
-            // THIS IS ONLY FOR DOT PRODUCT
             if (currentParentCentroid != null) {
-                float centeredParentDot = VectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
+                float additionalCorrection = quantizer.getSimilarityFunction() == VectorSimilarityFunction.EUCLIDEAN ?
+                    VectorUtil.squareDistance(vector, currentParentCentroid) :
+                    VectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
                 corrections = new OptimizedScalarQuantizer.QuantizationResult(
                     corrections.lowerInterval(),
                     corrections.upperInterval(),
-                    centeredParentDot,
+                    additionalCorrection,
                     corrections.quantizedComponentSum()
                 );
             }

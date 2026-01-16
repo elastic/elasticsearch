@@ -55,6 +55,10 @@ public class OptimizedScalarQuantizer {
         this(similarityFunction, DEFAULT_LAMBDA, DEFAULT_ITERS);
     }
 
+    public VectorSimilarityFunction getSimilarityFunction() {
+        return similarityFunction;
+    }
+
     public record QuantizationResult(float lowerInterval, float upperInterval, float additionalCorrection, int quantizedComponentSum) {}
 
     public QuantizationResult[] multiScalarQuantize(

@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.VectorFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
@@ -52,6 +54,8 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
+import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.VALUE_TRANSFORMATION;
+import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.VECTOR;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.WITHIN_SERIES_AGGREGATION;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
@@ -245,7 +249,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             // optimize negation in case of literals
             if (ctx.operator.getType() == MINUS) {
                 Number negatedValue = Arithmetics.negate((Number) value);
-                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
+                return new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
             }
         }
         // forbid range selectors
@@ -428,7 +432,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlFunctionRegistry.INSTANCE.checkFunction(source, name);
         var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
 
-        // TODO: the list of params could contain literals so need to handle that
         var paramsCtx = ctx.functionParams();
         List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
 
@@ -442,7 +445,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         // child plan is always the first parameter
-        LogicalPlan child = (LogicalPlan) params.get(0);
+        LogicalPlan child = switch (params.getFirst()) {
+            case LogicalPlan plan -> plan;
+            case Literal literal -> new LiteralSelector(source, literal);
+            case Node n -> throw new IllegalStateException("Unexpected value: " + n);
+        };
 
         // PromQL expects early validation of the tree so let's do it here
         PromqlDataType expectedInputType = metadata.functionType().inputType();
@@ -489,7 +496,10 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
             } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
                 plan = new WithinSeriesAggregate(source, child, name, List.of());
-                // instant selector function - definitely no grouping
+            } else if (metadata.functionType() == VALUE_TRANSFORMATION) {
+                plan = new ValueTransformationFunction(source, child, name, List.of());
+            } else if (metadata.functionType() == VECTOR) {
+                plan = new VectorFunction(source, child, name, List.of());
             } else {
                 throw new ParsingException(source, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name);
             }

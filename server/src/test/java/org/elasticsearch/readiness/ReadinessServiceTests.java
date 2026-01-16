@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -313,7 +312,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         when(clusterService.state()).thenReturn(readyState);
         readinessService.start();
         assertTrue(readinessService.ready());
-        
+
         readinessService.stop();
         readinessService.close();
     }

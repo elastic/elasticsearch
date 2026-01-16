@@ -25,7 +25,6 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -106,12 +105,10 @@ public class MockReadinessService extends ReadinessService {
     }
 
     public static void tcpReadinessProbeTrue(ReadinessService readinessService) throws Exception {
-        assertBusy(() ->
-            assertTrue("Readiness socket should be open", socketIsOpen(readinessService)));
+        assertBusy(() -> assertTrue("Readiness socket should be open", socketIsOpen(readinessService)));
     }
 
     public static void tcpReadinessProbeFalse(ReadinessService readinessService) throws Exception {
-        assertBusy(() ->
-            assertFalse("Readiness socket should be close", socketIsOpen(readinessService)));
+        assertBusy(() -> assertFalse("Readiness socket should be close", socketIsOpen(readinessService)));
     }
 }

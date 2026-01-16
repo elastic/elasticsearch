@@ -765,7 +765,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
-        var convertFunction = converterToFactory.apply(source, expr);
+        var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
         context.telemetry().function(convertFunction.getClass());
         return convertFunction;
     }

@@ -25,7 +25,13 @@ import static org.elasticsearch.core.Strings.format;
 public final class Utils {
 
     public static String getUrl(MockWebServer webServer) {
-        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        String hostName = webServer.getHostName();
+        if (hostName.contains(":")) {
+            // ipv6 format
+            hostName = "[" + hostName + "]";
+        }
+
+        return format("http://%s:%s", hostName, webServer.getPort());
     }
 
     public static Map<String, Object> entityAsMap(String body) throws IOException {

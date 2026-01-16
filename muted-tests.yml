@@ -348,3 +348,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test140CgroupOsStatsAreAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/131372

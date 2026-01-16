@@ -378,6 +378,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         float[] globalCentroid
     ) {
+        CentroidSupplier supplier = new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
         return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
     }
 
@@ -440,10 +441,10 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        centroidOutput.writeVInt(centroidGroups.centroids.length);
-        centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
+        centroidOutput.writeVInt(centroidGroups.centroids().length);
+        centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            CentroidSupplier.fromArray(centroidGroups.centroids, fieldInfo.getVectorDimension()),
+            CentroidSupplier.fromArray(centroidGroups.centroids(), fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -500,8 +501,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidOutput.writeLong(centroidOffsetAndLength.lengths().get(i));
         }
     }
-
-    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     private CentroidGroups buildCentroidGroups(FieldInfo fieldInfo, CentroidSupplier centroidSupplier, boolean isMerge) throws IOException {
         final FloatVectorValues floatVectorValues = centroidSupplier.asFloatVectorValues();
@@ -588,7 +587,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             logger.debug("final centroid count: {}", centroids.length);
         }
         int[] assignments = kMeansResult.assignments();
-        int[] soarAssignments = kMeansResult.soarAssignments();
+        int[] soarAssignments = kMeansResult.secondaryAssignments();
         return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
     }
 
@@ -607,13 +606,20 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         private final int numCentroids;
         private final int dimension;
         private final float[] scratch;
+        private final float[] globalCentroid;
         private int currOrd = -1;
 
-        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
+        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, float[] globalCentroid, FieldInfo info) {
             this.centroidsInput = centroidsInput;
             this.numCentroids = numCentroids;
             this.dimension = info.getVectorDimension();
             this.scratch = new float[dimension];
+            this.globalCentroid = globalCentroid;
+        }
+
+        @Override
+        public float[] getParentCentroid(int centroidOrdinal) throws IOException {
+            return globalCentroid;
         }
 
         @Override

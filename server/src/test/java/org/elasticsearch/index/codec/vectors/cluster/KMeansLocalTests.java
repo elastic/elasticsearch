@@ -76,7 +76,7 @@ public class KMeansLocalTests extends ESTestCase {
         kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+        assertNotNull(kMeansIntermediate.secondaryAssignments());
     }
 
     public void testKMeansNeighborsAllZero() throws IOException {
@@ -117,7 +117,7 @@ public class KMeansLocalTests extends ESTestCase {
         kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+        assertNotNull(kMeansIntermediate.secondaryAssignments());
         for (float[] centroid : centroids) {
             for (float v : centroid) {
                 if (v > 0.0000001f) {

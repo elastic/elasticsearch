@@ -627,9 +627,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
-            centroidDistance = quantizer.getSimilarityFunction() == EUCLIDEAN ?
-                ((1/score) - 1) - centroidDp :
-                score - 1;
+            centroidDistance = quantizer.getSimilarityFunction() == EUCLIDEAN ? ((1 / score) - 1) - centroidDp : score - 1;
             return vectors;
         }
 

@@ -269,7 +269,7 @@ abstract class KMeansLocal {
         int[] assignments = kmeansIntermediate.assignments();
         assert assignments != null;
         assert assignments.length == vectors.size();
-        int[] spilledAssignments = kmeansIntermediate.soarAssignments();
+        int[] spilledAssignments = kmeansIntermediate.secondaryAssignments();
         assert spilledAssignments != null;
         assert spilledAssignments.length == vectors.size();
         float[][] centroids = kmeansIntermediate.centroids();
@@ -386,7 +386,7 @@ abstract class KMeansLocal {
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
         if (neighborAware && soarLambda >= 0) {
-            assert kMeansIntermediate.soarAssignments().length == 0;
+            assert kMeansIntermediate.secondaryAssignments().length == 0;
             kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
             assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
         }

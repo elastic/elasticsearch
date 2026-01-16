@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 /**
  * Output object for clustering (partitioning) a set of vectors
  */
-public class KMeansResult {
+public class KMeansResult implements Clusters {
     private float[][] centroids;
     private final int[] assignments;
     private int[] soarAssignments;
@@ -26,6 +26,12 @@ public class KMeansResult {
         this.soarAssignments = soarAssignments;
     }
 
+    @Override
+    public float[] getCentroid(int vectorOrdinal) {
+        return centroids[assignments[vectorOrdinal]];
+    }
+
+    @Override
     public float[][] centroids() {
         return centroids;
     }
@@ -34,6 +40,7 @@ public class KMeansResult {
         this.centroids = centroids;
     }
 
+    @Override
     public int[] assignments() {
         return assignments;
     }
@@ -42,7 +49,8 @@ public class KMeansResult {
         this.soarAssignments = soarAssignments;
     }
 
-    public int[] soarAssignments() {
+    @Override
+    public int[] secondaryAssignments() {
         return soarAssignments;
     }
 }

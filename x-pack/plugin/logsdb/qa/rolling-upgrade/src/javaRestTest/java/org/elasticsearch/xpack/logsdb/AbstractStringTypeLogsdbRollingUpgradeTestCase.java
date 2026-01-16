@@ -47,11 +47,20 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
 
     @Before
     public void createIndex() throws Exception {
+        checkRequiredFeatures();
         LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
 
         // data stream name should already be reflective of whats being tested, so template id can be random
         templateId = UUID.randomUUID().toString();
         LogsdbIndexingRollingUpgradeIT.createTemplate(dataStreamName, templateId, template);
+    }
+
+    /**
+     * Override this method to add feature checks that must pass before the test runs.
+     * Use {@code assumeTrue} to skip the test if required features are not available.
+     */
+    protected void checkRequiredFeatures() throws Exception {
+        // Default: no additional feature requirements
     }
 
     protected List<String> getMessages() {

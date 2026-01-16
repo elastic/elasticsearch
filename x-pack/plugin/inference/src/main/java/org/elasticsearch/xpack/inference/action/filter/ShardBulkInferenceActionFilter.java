@@ -78,7 +78,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -755,10 +754,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
             for (Exception failure : failures) {
                 // Generate a signature for the failure to deduplicate on the most important properties
-                FailureSignature failureSignature = new FailureSignature(failure);
+                FailureSignature failureSignature = new FailureSignature(item.request().id(), item.index(), failure);
 
-                Exception deduplicatedFailure = deduplicatedFailures.computeIfAbsent(failureSignature, k -> failure);
-                item.abort(item.index(), deduplicatedFailure);
+                Exception existing = deduplicatedFailures.putIfAbsent(failureSignature, failure);
+                if (existing == null) {
+                    // new failure for this request - mark as aborted
+                    item.abort(item.index(), failure);
+                }
             }
         }
 
@@ -848,31 +850,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
     }
 
-    static class FailureSignature {
-        private final Class<? extends Throwable> failureClass;
-        private final String failureMessage;
-        private final FailureSignature failureCauseSignature;
-
-        FailureSignature(Throwable failure) {
-            failureClass = failure.getClass();
-            failureMessage = failure.getMessage();
-            failureCauseSignature = failure.getCause() != null ? new FailureSignature(failure.getCause()) : null;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FailureSignature that = (FailureSignature) o;
-
-            return Objects.equals(failureClass, that.failureClass)
-                && Objects.equals(failureMessage, that.failureMessage)
-                && Objects.equals(failureCauseSignature, that.failureCauseSignature);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(failureClass, failureMessage, failureCauseSignature);
+    record FailureSignature(
+        String requestId,
+        String requestIndex,
+        Class<? extends Throwable> failureClass,
+        String failureMessage,
+        FailureSignature failureSignature
+    ) {
+        FailureSignature(String requestId, String index, Throwable failure) {
+            this(
+                requestId,
+                index,
+                failure.getClass(),
+                failure.getMessage(),
+                failure.getCause() != null ? new FailureSignature(requestId, index, failure.getCause()) : null
+            );
         }
     }
 }

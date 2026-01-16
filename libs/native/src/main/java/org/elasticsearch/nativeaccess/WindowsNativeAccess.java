@@ -24,16 +24,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.management.ManagementFactory.getMemoryMXBean;
 
-class WindowsNativeAccess extends AbstractNativeAccess {
+public class WindowsNativeAccess extends AbstractNativeAccess {
 
     /**
      * Memory protection constraints
      *
      * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa366786%28v=vs.85%29.aspx">docs</a>
      */
-    public static final int PAGE_NOACCESS = 0x0001;
-    public static final int PAGE_GUARD = 0x0100;
-    public static final int MEM_COMMIT = 0x1000;
+    private static final int PAGE_NOACCESS = 0x0001;
+    private static final int PAGE_GUARD = 0x0100;
+    private static final int MEM_COMMIT = 0x1000;
 
     private static final int INVALID_FILE_SIZE = -1;
 
@@ -48,12 +48,67 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     private static final int JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 8;
 
     private final Kernel32Library kernel;
-    private final WindowsFunctions windowsFunctions;
 
     WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
         super("Windows", libraryProvider);
         this.kernel = libraryProvider.getLibrary(Kernel32Library.class);
-        this.windowsFunctions = new WindowsFunctions(kernel);
+    }
+
+    /**
+     * Retrieves the short path form of the specified path.
+     *
+     * @param path the path
+     * @return the short path name, or the original path name if unsupported or unavailable
+     */
+    public String getShortPathName(String path) {
+        String longPath = "\\\\?\\" + path;
+        // first we get the length of the buffer needed
+        final int length = kernel.GetShortPathNameW(longPath, null, 0);
+        if (length == 0) {
+            logger.warn("failed to get short path name: {}", kernel.GetLastError());
+            return path;
+        }
+        final char[] shortPath = new char[length];
+        // knowing the length of the buffer, now we get the short name
+        if (kernel.GetShortPathNameW(longPath, shortPath, length) > 0) {
+            assert shortPath[length - 1] == '\0';
+            return new String(shortPath, 0, length - 1);
+        } else {
+            logger.warn("failed to get short path name: {}", kernel.GetLastError());
+            return path;
+        }
+    }
+
+    /**
+     * Adds a Console Ctrl Handler for Windows. On non-windows this is a noop.
+     *
+     * @return true if the handler is correctly set
+     */
+    public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
+        return kernel.SetConsoleCtrlHandler(dwCtrlType -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug("console control handler received event [{}]", dwCtrlType);
+            }
+            return handler.handle(dwCtrlType);
+        }, true);
+    }
+
+    /**
+     * Windows callback for console events
+     *
+     * @see <a href="http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx">HandlerRoutine docs</a>
+     */
+    public interface ConsoleCtrlHandler {
+
+        int CTRL_CLOSE_EVENT = 2;
+
+        /**
+         * Handles the Ctrl event.
+         *
+         * @param code the code corresponding to the Ctrl sent.
+         * @return true if the handler processed the event, false otherwise. If false, the next handler will be called.
+         */
+        boolean handle(int code);
     }
 
     @Override
@@ -163,11 +218,6 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     @Override
     public ProcessLimits getProcessLimits() {
         return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
-    }
-
-    @Override
-    public WindowsFunctions getWindowsFunctions() {
-        return windowsFunctions;
     }
 
     @Override

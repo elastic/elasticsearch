@@ -170,9 +170,8 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.valueColumnName(), value));
 
         // timestamp/step
-        Attribute stepBucketAttribute = stepBucket.toAttribute();
-        aggs.add(stepBucketAttribute);
-        groupings.add(stepBucketAttribute);
+        aggs.add(stepBucket.toAttribute());
+        groupings.add(stepBucket);
 
         // additional groupings (by)
         for (Attribute grouping : additionalGroupings) {
@@ -181,7 +180,6 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             }
             groupings.add(grouping);
         }
-        plan = new Eval(stepBucket.source(), plan, List.of(stepBucket));
         return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null, promqlCommand.timestamp());
     }
 

@@ -293,6 +293,24 @@ public class VerifierTests extends ESTestCase {
             error("from test* | rename multi_typed as x", analyzer)
         );
 
+        // Verify that UnsupportedAttribute can pass through KEEP (Project) unchanged without error.
+        // This is valid because the field is just being projected, not used in operations.
+        query("from test* | keep unsupported", analyzer);
+        query("from test* | keep multi_typed", analyzer);
+
+        // Verify that renaming UnsupportedAttribute fails even after passing through KEEP.
+        // This validates the fix for EsqlProject consolidation: the rename check runs unconditionally,
+        // not gated by Project.expressionsResolved() which treats UnsupportedAttribute as resolved.
+        assertEquals(
+            "1:40: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | keep unsupported | rename unsupported as x", analyzer)
+        );
+        assertEquals(
+            "1:40: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | keep multi_typed | rename multi_typed as x", analyzer)
+        );
+
         assertEquals(
             "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
             error("from test* | sort unsupported asc", analyzer)
@@ -729,6 +747,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testDropAfterRenaming() {
         assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
+    }
+
+    public void testDropUnknownPattern() {
+        assertEquals("1:18: No matches found for pattern [foobar*]", error("from test | drop foobar*"));
     }
 
     public void testNonStringFieldsInDissect() {
@@ -1175,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2926,17 +2948,17 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
-                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
-                    + "use the FROM command instead of the TS command"
+                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for host] must be "
+                    + "[numeric except unsigned_long], found value [host] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
         assertThat(
             error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
-                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
-                    + "use the FROM command instead of the TS command"
+                "1:21: argument of [implicit time-series aggregation function (LastOverTime) for name] must be "
+                    + "[numeric except unsigned_long], found value [name] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
     }
@@ -3242,27 +3264,6 @@ public class VerifierTests extends ESTestCase {
             | KEEP emp_no
             """);
         assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
-    }
-
-    // InlineStats after subquery is not supported
-    public void testSubqueryInFromWithInlineStatsInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | INLINE STATS cnt = count(*)
-            | SORT emp_no
-            """);
-        assertThat(
-            errorMessage,
-            containsString(
-                "1:6: INLINE STATS after subquery is not supported, "
-                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-            )
-        );
-        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
     }
 
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet

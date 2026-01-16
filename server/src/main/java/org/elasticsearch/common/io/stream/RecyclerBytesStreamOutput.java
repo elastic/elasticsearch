@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -26,9 +27,32 @@ import java.util.ArrayList;
 import java.util.Objects;
 
 /**
- * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
- * avoids frequent reallocation &amp; copying of the internal data. When {@link #close()} is called,
- * the bytes will be released.
+ * A @link {@link StreamOutput} that uses a {@link Recycler<BytesRef>} to acquire pages of bytes, which avoids frequent reallocation &amp;
+ * copying of the internal data. When {@link #close()} is called, the bytes will be released.
+ * <p>
+ * Best only used for outputs which are either short-lived or large, because the resulting {@link ReleasableBytesReference} retains whole
+ * pages and this overhead may be significant on small and long-lived objects.
+ *
+ * A {@link RecyclerBytesStreamOutput} obtains pages (16kiB slices of a larger {@code byte[]}) from a {@code Recycler<BytesRef>} rather than
+ * using the {@link BigArrays} abstraction that {@link BytesStreamOutput} and {@link ReleasableBytesStreamOutput} both use. This means it
+ * can access the underlying {@code byte[]} directly and therefore avoids the intermediate buffer and the copy for almost all writes (the
+ * exception being occasional writes that get too close to the end of a page).
+ * <p>
+ * It does not attempt to grow its collector slowly in the same way that {@link BigArrays#resize} does. Instead, it always obtains from the
+ * recycler a whole new 16kiB page when the need arises. This works best when the serialized data has a short lifespan (e.g. it is an
+ * outbound network message) so the overhead has limited impact and the savings on allocations and copying (due to the absence of resize
+ * operations) are significant.
+ * <p>
+ * The resulting {@link ReleasableBytesReference} is a view over the underlying {@code byte[]} pages and involves no significant extra
+ * allocation to obtain. It is oversized: The worst case for overhead is when the data is a single byte, since this takes up a whole 16kiB
+ * page almost all of which is overhead. Nonetheless, if recycled pages are available then it may still be preferable to use them via a
+ * {@link RecyclerBytesStreamOutput}. If the result is large then the overhead is less important, and if the result will only be used for
+ * a short time, for instance soon being written to the network or to disk, then the imminent recycling of these pages may mean it is ok to
+ * keep it as-is. For results which are both small and long-lived it may be better to copy them into a freshly-allocated {@code byte[]}.
+ * <p>
+ * Any memory allocated in this way is not tracked by the {@link org.elasticsearch.common.breaker} subsystem, even if the
+ * {@code Recycler<BytesRef>} was obtained from {@link BigArrays#bytesRefRecycler()}, unless the caller takes steps to add this tracking
+ * themselves.
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 

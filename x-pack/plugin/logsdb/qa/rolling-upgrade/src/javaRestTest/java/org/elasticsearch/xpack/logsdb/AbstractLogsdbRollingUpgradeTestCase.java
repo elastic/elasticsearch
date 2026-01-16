@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,6 +47,10 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         assert oldClusterTestFeatureService != null
             : "testFeatureService of old cluster cannot be accessed before initialization is complete";
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
+    }
+
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
     }
 
     @ClassRule

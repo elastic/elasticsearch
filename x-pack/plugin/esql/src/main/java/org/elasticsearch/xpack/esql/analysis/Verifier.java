@@ -114,6 +114,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
         });
@@ -152,14 +153,10 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project || p instanceof Insist) {
-                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
-                            failures.add(fail(ae, ua.unresolvedMessage()));
-                        }
-                        if (ae instanceof UnsupportedAttribute) {
-                            return;
-                        }
+                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
+                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                        return;
                     }
 
                     // Do not fail multiple times in case the children are already unresolved.
@@ -272,6 +269,22 @@ public class Verifier {
             if ((child instanceof EsRelation || child instanceof Insist) == false) {
                 failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
             }
+        }
+    }
+
+    /**
+     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
+     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
+     * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
+     */
+    private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project || p instanceof Insist) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof UnsupportedAttribute ua) {
+                    failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
         }
     }
 

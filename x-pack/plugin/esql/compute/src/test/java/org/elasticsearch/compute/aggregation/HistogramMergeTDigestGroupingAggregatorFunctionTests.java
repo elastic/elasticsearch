@@ -38,7 +38,7 @@ public class HistogramMergeTDigestGroupingAggregatorFunctionTests extends Groupi
 
     @Override
     protected boolean supportsMultiValues() {
-        // exponential histogram blocks don't support multivalues (yet)
+        // tdigest blocks don't support multivalues (yet)
         return false;
     }
 

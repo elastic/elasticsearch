@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,7 +66,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     for (DocValuesMode docValuesMode : new DocValuesMode[] { DocValuesMode.DEFAULT, DocValuesMode.DOC_VALUES_ONLY }) {
                         params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesMode, allowEmpty, 100) });
                     }
-                    if (fieldType.equals("keyword")) {
+                    if (fieldType.equals("keyword") && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                         params.add(
                             new Object[] {
                                 new StandardSetup(
@@ -252,7 +253,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", new HashSet<>());
+        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", false);
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {

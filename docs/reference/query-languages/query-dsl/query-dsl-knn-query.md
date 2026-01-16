@@ -112,7 +112,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 :   (Optional, string) Name field to identify the query
 
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
     **Parameters for `rescore_vector`**:

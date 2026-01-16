@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,7 +21,8 @@ public class EvaluatorMapperTests extends ESTestCase {
         Add add = new Add(
             Source.synthetic("shouldn't break"),
             new Literal(Source.EMPTY, 1, DataType.INTEGER),
-            new Literal(Source.EMPTY, 3, DataType.INTEGER)
+            new Literal(Source.EMPTY, 3, DataType.INTEGER),
+            EsqlTestUtils.TEST_CFG
         );
         assertEquals(add.fold(new FoldContext(100)), 4);
     }
@@ -29,7 +31,8 @@ public class EvaluatorMapperTests extends ESTestCase {
         Add add = new Add(
             Source.synthetic("should break"),
             new Literal(Source.EMPTY, 1, DataType.INTEGER),
-            new Literal(Source.EMPTY, 3, DataType.INTEGER)
+            new Literal(Source.EMPTY, 3, DataType.INTEGER),
+            EsqlTestUtils.TEST_CFG
         );
         Exception e = expectThrows(FoldContext.FoldTooMuchMemoryException.class, () -> add.fold(new FoldContext(10)));
         assertThat(

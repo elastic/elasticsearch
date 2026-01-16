@@ -55,7 +55,7 @@ setup:
 ---
 "List returns empty when no tasks":
   - do:
-      reindex.list: {}
+      reindex_list: {}
   - match: { reindex: [] }
 ---
 "List returns running reindex task":
@@ -73,7 +73,7 @@ setup:
   - set: { task: taskId }
 
   - do:
-      reindex.list:
+      reindex_list:
         human: true
         detailed: true
   - is_true: reindex
@@ -94,12 +94,12 @@ setup:
 
   # Wait for reindex to complete
   - do:
-      reindex.get:
+      reindex_get:
         task_id: $taskId
         wait_for_completion: true
 
   - do:
-      reindex.list: {}
+      reindex_list: {}
   - match: { reindex: [] }
 ---
 "List returns multiple reindex tasks":
@@ -132,7 +132,7 @@ setup:
   - set: { task: taskId2 }
 
   - do:
-      reindex.list:
+      reindex_list:
         human: true
   - is_true: reindex
   - length: { reindex: 2 }
@@ -157,16 +157,16 @@ setup:
 
   # Wait for reindex to complete
   - do:
-      reindex.get:
+      reindex_get:
         task_id: $taskId1
         wait_for_completion: true
   - do:
-      reindex.get:
+      reindex_get:
         task_id: $taskId2
         wait_for_completion: true
 
   - do:
-      reindex.list: {}
+      reindex_list: {}
   - match: { reindex: [] }
 ---
 "List returns only parent reindex tasks":
@@ -185,7 +185,7 @@ setup:
   - set: { task: taskId }
 
   - do:
-      reindex.list:
+      reindex_list:
         human: true
   - is_true: reindex
   - length: { reindex: 1 }
@@ -205,10 +205,10 @@ setup:
 
   # Wait for reindex to complete
   - do:
-      reindex.get:
+      reindex_get:
         task_id: $taskId
         wait_for_completion: true
 
   - do:
-      reindex.list: {}
+      reindex_list: {}
   - match: { reindex: [] }

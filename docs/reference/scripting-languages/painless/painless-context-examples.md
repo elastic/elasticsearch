@@ -10,7 +10,7 @@ products:
 
 # Context example data (eCommerce) [painless-context-examples]
 
-Complete the following installation steps to index the sample eCommerce orders data into {{es}}. You can run any of the context examples against this sample data after you've configured it.  
+Complete the following installation steps to index the sample eCommerce orders data into {{es}}. You can run any of the context examples against this sample data after you've configured it. To add the eCommerce data you need to have {{kib}} installed.
 
 Each document in this dataset represents a complete eCommerce order. Every order contains complete transaction data including product details, pricing information, customer data, and geographic location. Orders might include multiple products, with product-specific information stored as values within individual fields.
 

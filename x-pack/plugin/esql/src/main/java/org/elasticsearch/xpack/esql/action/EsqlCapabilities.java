@@ -161,9 +161,15 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings).
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
          */
         OPTIONAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
+         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
+         * capability until we enable the LOAD option mentioned above.
+         */
+        OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -545,6 +551,13 @@ public class EsqlCapabilities {
          * Fix for widening of short numeric types in union-types. Done in #112610
          */
         UNION_TYPES_NUMERIC_WIDENING,
+
+        /**
+         * Fix for resolving union type casts past projections (KEEP) and MV_EXPAND operations.
+         * Ensures that casting a union type field works correctly when the field has been projected
+         * and expanded through MV_EXPAND. See #137923
+         */
+        UNION_TYPES_RESOLVE_PAST_PROJECTIONS,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
@@ -1131,6 +1144,11 @@ public class EsqlCapabilities {
          * Support non-correlated subqueries in the FROM clause.
          */
         SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support non-correlated subqueries in the FROM clause without implicit limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1782,7 +1800,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1854,7 +1872,7 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tier" metadata field.
          */
-        METADATA_TIER_FIELD,
+        METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
          * https://github.com/elastic/elasticsearch/issues/139887
@@ -1884,6 +1902,11 @@ public class EsqlCapabilities {
          * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
          */
         TS_STATS_BINARY_OPS,
+
+        /**
+         * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
+         */
+        CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

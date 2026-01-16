@@ -2224,6 +2224,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     public void testPushableFunctionsInSubqueries() {
         assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled());
+
         var query = """
             from test_all, (from test_all | eval s = length(text) | keep s)
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
@@ -2277,9 +2279,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var sFieldAttr = as(sField.child(), FieldAttribute.class);
         assertThat(sFieldAttr.name(), startsWith("$$text$LENGTH$"));
         assertThat(sFieldAttr.fieldName().string(), equalTo("text"));
-        var subqueryLimit = as(subqueryEval.child(), Limit.class);
         // EsRelation[test_all] - verify pushed down field is in the relation output
-        var subqueryRelation = as(subqueryLimit.child(), EsRelation.class);
+        var subqueryRelation = as(subqueryEval.child(), EsRelation.class);
         assertTrue(subqueryRelation.output().contains(sFieldAttr));
     }
 

@@ -892,3 +892,142 @@ Stats using min as default metric for aggregate metric double:
   - match: {values.0.0: 17.0}
   - match: {values.0.1: -3.0}
   - match: {values.0.2: 2.62467}
+
+---
+PromQL rate on counter field:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL irate on counter field:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_irate=(sum by (k8s.pod.name) (irate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_irate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL increase on counter field:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_increase=(sum by (k8s.pod.name) (increase(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_increase"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL max_over_time:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test2 step=1m max_agg=(max(max_over_time(agg_metric[1m]))) | SORT step | LIMIT 5'
+
+  - match: {columns.0.name: "max_agg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 1}
+  - match: {values.0.0: 20.0}
+
+---
+PromQL sum_over_time with grouping:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test2 step=1m sum_agg=(sum by (dim) (sum_over_time(agg_metric[1m]))) | SORT step, dim | LIMIT 5'
+
+  - match: {columns.0.name: "sum_agg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "dim"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.0: 20.0}
+  - match: {values.0.2: "A"}
+  - match: {values.1.0: 83.0}
+  - match: {values.1.2: "B"}
+
+---
+PromQL avg aggregation:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test2 step=1m avg_agg=(avg(avg_over_time(agg_metric[1m]))) | SORT step | LIMIT 5'
+
+  - match: {columns.0.name: "avg_agg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 1}

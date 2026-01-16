@@ -21,7 +21,7 @@ public class MMRSerializationTests extends AbstractLogicalPlanSerializationTests
     protected MMR createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        return new MMR(source, child, randomField(), randomLimit(), null, null);
+        return new MMR(source, child, randomField(), randomLimit(), randomQueryVector(), randomLambdaValue());
     }
 
     private Attribute randomField() {
@@ -32,6 +32,22 @@ public class MMRSerializationTests extends AbstractLogicalPlanSerializationTests
         return new Literal(Source.EMPTY, randomIntBetween(5, 20), DataType.INTEGER);
     }
 
+    private Expression randomQueryVector() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        return FieldAttributeTests.createFieldAttribute(3, randomBoolean());
+    }
+
+    private Expression randomLambdaValue() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        return new Literal(Source.EMPTY, randomFloatBetween(0.0f, 1.0f, true), DataType.FLOAT);
+    }
+
     @Override
     protected MMR mutateInstance(MMR instance) throws IOException {
         LogicalPlan child = instance.child();
@@ -40,10 +56,12 @@ public class MMRSerializationTests extends AbstractLogicalPlanSerializationTests
         Expression queryVector = instance.queryVector();
         Expression lambda = instance.lambdaValue();
 
-        switch (between(0, 2)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> field = randomValueOtherThan(field, this::randomField);
             case 2 -> limit = randomValueOtherThan(limit, this::randomLimit);
+            case 3 -> queryVector = randomValueOtherThan(queryVector, this::randomQueryVector);
+            case 4 -> lambda = randomValueOtherThan(lambda, this::randomLambdaValue);
         }
 
         return new MMR(instance.source(), child, field, limit, queryVector, lambda);

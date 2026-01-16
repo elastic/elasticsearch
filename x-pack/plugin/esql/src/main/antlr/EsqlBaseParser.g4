@@ -380,14 +380,9 @@ mmrCommand
     : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
-mmrQueryVectorTextEmbeddingParam
-    : MMR_TEXT_EMBEDDING textInput=QUOTED_STRING COMMA inferenceId=QUOTED_STRING RP
-    ;
-
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
-    | mmrQueryVectorTextEmbeddingParam    # mmrQueryVectorTextEmbedding
-    | constant                            # mmrQueryVectorConstant
+    | primaryExpression                   # mmrQueryVectorExpression
     ;
 
 mmrOptionalQueryVector

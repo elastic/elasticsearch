@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -4419,7 +4418,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         var mmrCmd = as(
             processingCommand(
-                "mmr text_embedding(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
+                "mmr TEXT_EMBEDDING(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
             ),
             MMR.class
         );
@@ -4435,9 +4434,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(lambdaValue, equalTo(0.5));
 
         Expression queryVectorExpression = mmrCmd.queryVector();
-        if (queryVectorExpression instanceof TextEmbedding textEmbeddingFunction) {
-            assertThat(textEmbeddingFunction.inputText().sourceText(), equalTo("\"test text\""));
-            assertThat(textEmbeddingFunction.inferenceId().sourceText(), equalTo("\"test_inference_id\""));
+        if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
+            assertThat(uaFunctioon.name(), equalTo("TEXT_EMBEDDING"));
+            assertThat(uaFunctioon.source().text(), equalTo("TEXT_EMBEDDING(\"test text\", \"test_inference_id\")"));
         } else {
             fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
         }

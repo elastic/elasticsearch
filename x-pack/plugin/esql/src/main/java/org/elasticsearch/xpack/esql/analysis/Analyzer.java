@@ -749,18 +749,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveMMR(MMR mmr, List<Attribute> childrenOutput) {
-            if (mmr.diversifyField() instanceof UnresolvedAttribute ua) {
-                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
-                if (resolved instanceof UnresolvedAttribute stillUnresolved) {
-                    resolved = stillUnresolved.withUnresolvedMessage(
+            boolean hasResolved = false;
+
+            Attribute diversifyField = mmr.diversifyField();
+            if (diversifyField instanceof UnresolvedAttribute ua) {
+                hasResolved = true;
+                diversifyField = maybeResolveAttribute(ua, childrenOutput);
+                if (diversifyField instanceof UnresolvedAttribute stillUnresolved) {
+                    diversifyField = stillUnresolved.withUnresolvedMessage(
                         stillUnresolved.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
                     );
-                } else {
-                    if (resolved.dataType().equals(DENSE_VECTOR) == false) {
-                        // we can only work on dense vector types at the moment
-                    }
                 }
-                return new MMR(mmr.source(), mmr.child(), mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.lambdaValue());
+            }
+
+            if (hasResolved) {
+                return new MMR(mmr.source(), mmr.child(), diversifyField, mmr.limit(), mmr.queryVector(), mmr.lambdaValue());
             }
             return mmr;
         }

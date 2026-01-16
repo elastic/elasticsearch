@@ -11,17 +11,25 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class MMR extends UnaryPlan {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+
+public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordinator, PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MMR", MMR::new);
     public static final String LAMBDA_OPTION_NAME = "lambda";
     private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
@@ -128,4 +136,44 @@ public class MMR extends UnaryPlan {
         return VALID_MMR_OPTION_NAMES;
     }
 
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        // ensure the diversifyField resolves to a dense vector type
+        if (diversifyField.resolved() == false) {
+            failures.add(fail(this, "MMR diversify field must be resolved"));
+        }
+
+        if (diversifyField.dataType() != DataType.DENSE_VECTOR) {
+            failures.add(fail(this, "MMR diversify field must be a dense vector field"));
+        }
+
+        // ensure LIMIT value is integer
+        if (limit instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
+            int limitValue = (Integer) litLimit.value();
+            if (limitValue < 1) {
+                failures.add(fail(this, "MMR limit must be an positive integer"));
+            }
+        } else {
+            failures.add(fail(this, "MMR limit must be an positive integer"));
+        }
+
+        // ensure query_vector, if given, is resolved to a DENSE_VECTOR type
+        if (queryVector != null) {
+            if (queryVector.resolved() && queryVector.dataType() != DataType.DENSE_VECTOR) {
+                failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
+            }
+        }
+
+        // ensure lambda, if given, is between 0.0 and 1.0
+        if (lambdaValue != null) {
+            if (lambdaValue instanceof Literal litLambdaValue) {
+                Double lambda = (Double) litLambdaValue.value();
+                if (lambda == null || lambda < 0.0 || lambda > 1.0) {
+                    failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
+                }
+            } else {
+                failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
+            }
+        }
+    }
 }

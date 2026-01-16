@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -1449,42 +1448,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return null;
         }
 
-        if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorConstantContext qvConstant) {
-            if (qvConstant.getChildCount() == 1) {
-                var childArray = qvConstant.getChild(0);
-                if (childArray instanceof EsqlBaseParser.NumericArrayLiteralContext naLitCtx) {
-                    return expression(naLitCtx);
+        if (queryVectorParams.getChildCount() == 1) {
+            if (queryVectorParams.getChild(0) instanceof Expression asExpression) {
+                return asExpression;
+            } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorParameterContext
+                || queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorExpressionContext) {
+                    return expression(queryVectorParams.getChild(0));
                 }
-            }
-        } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorParameterContext qvParameter) {
-            if (qvParameter.getChildCount() == 1) {
-                var childParam = qvParameter.getChild(0);
-                if (childParam instanceof EsqlBaseParser.InputNamedOrPositionalParamContext inputParam) {
-                    return expression(inputParam);
-                }
-                if (childParam instanceof EsqlBaseParser.InputParamContext inputParam) {
-                    return expression(inputParam);
-                }
-            }
-        } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorTextEmbeddingContext qvTextEmbedding) {
-            if (qvTextEmbedding.getChildCount() == 1) {
-                var childParam = qvTextEmbedding.getChild(0);
-                if (childParam instanceof EsqlBaseParser.MmrQueryVectorTextEmbeddingParamContext qvTextEmbeddingParam) {
-                    return new TextEmbedding(
-                        source(qvTextEmbeddingParam),
-                        new Literal(
-                            source(qvTextEmbeddingParam.textInput),
-                            new BytesRef(qvTextEmbeddingParam.textInput.getText()),
-                            DataType.KEYWORD
-                        ),
-                        new Literal(
-                            source(qvTextEmbeddingParam.inferenceId),
-                            new BytesRef(qvTextEmbeddingParam.inferenceId.getText()),
-                            DataType.KEYWORD
-                        )
-                    );
-                }
-            }
         }
 
         throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
@@ -1501,14 +1471,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Expression lambdaValue = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
         if (lambdaValue != null) {
-            if (lambdaValue.dataType() != DataType.DOUBLE) {
-                throw new ParsingException(
-                    mmrCommand.source(),
-                    "Option [{}] in <MMR> must be a floating point number",
-                    MMR.LAMBDA_OPTION_NAME
-                );
-            }
-
             mmrCommand.setLambdaValue(lambdaValue);
         }
 

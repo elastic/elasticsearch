@@ -72,11 +72,11 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
                 // avoid modifying filter conditions, just the delegate
                 case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
-                case AbstractConvertFunction convert when convert.allMatch(
+                case ConvertFunction convert when expr.allMatch(
                     e -> e instanceof ConvertFunction || e instanceof TypedAttribute
                 ) -> {
                     changed.set(true);
-                    yield new DefaultTimeSeriesAggregateFunction(convert, timestamp);
+                    yield new DefaultTimeSeriesAggregateFunction(expr, timestamp);
                 }
 
                 // if we reach a TypedAttribute, it hasn't been wrapped in a TimeSeriesAggregateFunction yet

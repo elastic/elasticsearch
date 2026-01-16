@@ -10,11 +10,11 @@ for an initial set of documents, directly within your ES|QL queries.
 :::::{important}
 **RERANK processes each row through an inference model, which impacts performance and costs.**
 
-::::{tab-set}
+::::{applies-switch}
 
-:::{tab-item} 9.3.0+
+:::{applies-item} stack: ga 9.3+
 
-Starting in version 9.3.0, `RERANK` automatically limits processing to **1000 rows by default** to prevent accidental high consumption. This limit is applied before the `RERANK` command executes.
+`RERANK` automatically limits processing to **1000 rows by default** to prevent accidental high consumption. This limit is applied before the `RERANK` command executes.
 
 If you need to process more rows, you can adjust the limit using the cluster setting:
 ```
@@ -37,7 +37,7 @@ PUT _cluster/settings
 ```
 :::
 
-:::{tab-item} 9.2.x
+:::{applies-item} stack: ga =9.2
 
 No automatic row limit is applied. **You should always use `LIMIT` before or after `RERANK` to control the number of documents processed**, to avoid accidentally reranking large datasets which can result in high latency and increased costs.
 
@@ -108,16 +108,18 @@ necessary.
 
 How you increase the timeout depends on your deployment type:
 
-::::{tab-set}
-:::{tab-item} {{ech}}
+::::::{applies-switch}
+
+:::::{applies-item} ess:
 
 * You can adjust {{es}} settings in
   the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
 * You can also adjust the `search.default_search_timeout` cluster setting
   using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-  :::
 
-:::{tab-item} Self-managed
+:::::
+
+:::::{applies-item} self:
 
 * You can configure at the cluster level by setting
   `search.default_search_timeout` in `elasticsearch.yml` or updating
@@ -125,14 +127,17 @@ How you increase the timeout depends on your deployment type:
 * You can also adjust the `search:timeout` setting
   using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
 * Alternatively, you can add timeout parameters to individual queries
-  :::
 
-:::{tab-item} {{serverless-full}}
+:::::
+
+:::::{applies-item} serverless:
 
 * Requires a manual override from Elastic Support because you cannot modify
   timeout settings directly
-  :::
-  ::::
+
+:::::
+
+::::::
 
 If you don't want to increase the timeout limit, try the following:
 

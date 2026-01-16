@@ -279,3 +279,24 @@ Not under date histo:
                 buckets_path: percentiles
                 window: 2
                 shift: 1
+
+---
+invalid parent aggregation:
+  - do:
+      catch: /moving_percentiles aggregation \[d\] must have a histogram, date_histogram or auto_date_histogram as parent/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  moving_percentiles:
+                    buckets_path: b
+                    window: 2
+                    shift: 1

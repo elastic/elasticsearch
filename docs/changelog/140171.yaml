@@ -1,0 +1,6 @@
+pr: 140171
+summary: Converted `PackedValuesBlockHash.bytes` to `BreakingBytesRefBuilder` for
+  better memory tracking
+area: ES|QL
+type: enhancement
+issues: []

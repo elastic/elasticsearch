@@ -149,15 +149,15 @@ public class VectorScorerInt7uBenchmark {
         public void setScoringOrdinal(int node) throws IOException {}
     }
 
-    UpdateableRandomVectorScorer scorer;
-    RandomVectorScorer queryScorer;
+    private UpdateableRandomVectorScorer scorer;
+    private RandomVectorScorer queryScorer;
 
-    public static class VectorData {
+    static class VectorData {
         private final byte[][] vectorData;
         private final float[] offsets;
         private final float[] queryVector;
 
-        public VectorData(int dims) {
+        VectorData(int dims) {
             vectorData = new byte[numVectors][];
             offsets = new float[numVectors];
 
@@ -180,7 +180,7 @@ public class VectorScorerInt7uBenchmark {
         setup(new VectorData(dims));
     }
 
-    public void setup(VectorData vectorData) throws IOException {
+    void setup(VectorData vectorData) throws IOException {
         VectorScorerFactory factory = getScorerFactoryOrDie();
 
         path = Files.createTempDirectory("Int7uScorerBenchmark");

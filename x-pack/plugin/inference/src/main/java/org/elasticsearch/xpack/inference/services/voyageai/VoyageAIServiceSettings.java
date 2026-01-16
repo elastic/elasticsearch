@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,7 +31,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 public class VoyageAIServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
 
     public static final String NAME = "voyageai_service_settings";
-    public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(VoyageAIServiceSettings.class);
     // See https://docs.voyageai.com/docs/rate-limits
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
@@ -47,7 +47,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
             context
         );
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -100,7 +100,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
 
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MODEL_ID, modelId);
+        builder.field(ServiceFields.MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);
 
         return builder;

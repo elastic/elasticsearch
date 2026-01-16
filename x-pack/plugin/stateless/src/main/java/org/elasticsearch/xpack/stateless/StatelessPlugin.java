@@ -175,7 +175,8 @@ public class StatelessPlugin extends Plugin implements ClusterCoordinationPlugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 SHARD_READ_THREAD_POOL_SETTING,
-                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build()
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             ),
             new ScalingExecutorBuilder(
                 TRANSLOG_THREAD_POOL,

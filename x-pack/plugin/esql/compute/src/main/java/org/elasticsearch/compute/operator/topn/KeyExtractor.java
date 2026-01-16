@@ -19,6 +19,18 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
  * Extracts keys into a {@link BreakingBytesRefBuilder}.
+ * <p>
+ *     The keys are encoded as a sequence of bytes:
+ * </p>
+ * <pre>{@code
+ *    non_null<bytes_for_key>
+ *    null
+ *    non_null<bytes_for_key>
+ * }</pre>
+ * <p>
+ *     Where {@code non_null} is {@code 0x01} for "nulls first" or {@code 0x02} for "nulls last.
+ *     And {@code null} is {@code 0x02} for "nulls first" or {@code 0x01} for "nulls last.
+ * </p>
  */
 interface KeyExtractor {
     int writeKey(BreakingBytesRefBuilder key, int position);

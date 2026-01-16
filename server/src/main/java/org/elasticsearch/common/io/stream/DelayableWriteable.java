@@ -126,7 +126,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
             BytesStreamOutput buffer = new BytesStreamOutput();
-            try (var out = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(buffer))) {
+            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(buffer)) {
                 out.setTransportVersion(TransportVersion.current());
                 reference.writeTo(out);
             } catch (IOException e) {

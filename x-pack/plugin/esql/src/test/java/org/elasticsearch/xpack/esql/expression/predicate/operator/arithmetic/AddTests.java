@@ -14,14 +14,16 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
-import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,16 +31,18 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class AddTests extends AbstractScalarFunctionTestCase {
+public class AddTests extends AbstractConfigurationFunctionTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -48,7 +52,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                new TestCaseSupplier.NumericTypeTestConfigs<>(
                     new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
@@ -151,14 +155,14 @@ public class AddTests extends AbstractScalarFunctionTestCase {
 
         BinaryOperator<Object> result = (lhs, rhs) -> {
             try {
-                return addDatesAndTemporalAmount(lhs, rhs, AddTests::addMillis);
+                return addDatesAndTemporalAmount(lhs, rhs, ZoneOffset.UTC, AddTests::addMillis);
             } catch (ArithmeticException e) {
                 return null;
             }
         };
         BiFunction<TestCaseSupplier.TypedData, TestCaseSupplier.TypedData, List<String>> warnings = (lhs, rhs) -> {
             try {
-                addDatesAndTemporalAmount(lhs.getValue(), rhs.getValue(), AddTests::addMillis);
+                addDatesAndTemporalAmount(lhs.getValue(), rhs.getValue(), ZoneOffset.UTC, AddTests::addMillis);
                 return List.of();
             } catch (ArithmeticException e) {
                 return List.of(
@@ -193,7 +197,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         BinaryOperator<Object> nanosResult = (lhs, rhs) -> {
             try {
                 assert (lhs instanceof Instant) || (rhs instanceof Instant);
-                return addDatesAndTemporalAmount(lhs, rhs, AddTests::addNanos);
+                return addDatesAndTemporalAmount(lhs, rhs, ZoneOffset.UTC, AddTests::addNanos);
             } catch (ArithmeticException e) {
                 return null;
             }
@@ -288,6 +292,21 @@ public class AddTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Set the timezone to UTC for test cases up to here
+        suppliers = TestCaseSupplier.mapTestCases(
+            suppliers,
+            tc -> tc.withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+        );
+
+        // Date tests with timezones
+        // -5 to -4 at 2025-03-09T02:00:00-05:00
+        suppliers.addAll(suppliersForDate("2025-03-09T01:00:00-05:00", Period.ofDays(1), "Z", "2025-03-10T01:00:00-05:00"));
+        suppliers.addAll(suppliersForDate("2025-03-09T01:00:00-05:00", Period.ofDays(1), "America/New_York", "2025-03-10T01:00:00-04:00"));
+        // 24h should do nothing for timezones
+        suppliers.addAll(
+            suppliersForDate("2025-03-09T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-10T01:00:00-05:00")
+        );
+
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
         suppliers = anyNullIsNull(
@@ -311,7 +330,53 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> adder) {
+    private static List<TestCaseSupplier> suppliersForDate(
+        String dateString,
+        TemporalAmount period,
+        String zoneIdString,
+        String expectedResultString
+    ) {
+        Instant inputDate = Instant.parse(dateString);
+        long dateAsMillis = DateUtils.toLongMillis(inputDate);
+        long dateAsNanos = DateUtils.toLong(inputDate);
+        DataType periodType = period instanceof Period ? DataType.DATE_PERIOD : DataType.TIME_DURATION;
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+
+        return List.of(
+            new TestCaseSupplier(
+                "millis " + dateString + ", " + period + ", " + zoneIdString,
+                List.of(DataType.DATETIME, periodType),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(dateAsMillis, DataType.DATETIME, "date"),
+                        new TestCaseSupplier.TypedData(period, periodType, "period").forceLiteral()
+                    ),
+                    "AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount=" + period + ", zoneId=" + zoneId + "]",
+                    DataType.DATETIME,
+                    matchesDateMillis(expectedResultString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            ),
+            new TestCaseSupplier(
+                "nanos " + dateString + ", " + period + ", " + zoneIdString,
+                List.of(DataType.DATE_NANOS, periodType),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(dateAsNanos, DataType.DATE_NANOS, "date"),
+                        new TestCaseSupplier.TypedData(period, periodType, "period").forceLiteral()
+                    ),
+                    "AddDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount=" + period + ", zoneId=" + zoneId + "]",
+                    DataType.DATE_NANOS,
+                    matchesDateNanos(expectedResultString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            )
+        );
+    }
+
+    interface DateAdder {
+        long add(Instant date, TemporalAmount period, ZoneId zoneId);
+    }
+
+    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs, ZoneId zoneId, DateAdder adder) {
         // this weird casting dance makes the expected value lambda symmetric
         Instant date;
         TemporalAmount period;
@@ -323,21 +388,19 @@ public class AddTests extends AbstractScalarFunctionTestCase {
             date = (Instant) rhs;
             period = (TemporalAmount) lhs;
         }
-        return adder.applyAsLong(date, period);
+        return adder.add(date, period, zoneId);
     }
 
-    private static long addMillis(Instant date, TemporalAmount period) {
-        return asMillis(asDateTime(date).plus(period));
+    private static long addMillis(Instant date, TemporalAmount period, ZoneId zoneId) {
+        return asMillis(asDateTime(date, zoneId).plus(period));
     }
 
-    private static long addNanos(Instant date, TemporalAmount period) {
-        return DateUtils.toLong(
-            Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).plus(period))
-        );
+    private static long addNanos(Instant date, TemporalAmount period, ZoneId zoneId) {
+        return DateUtils.toLong(Instant.from(asDateTime(date, zoneId).plus(period)));
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new Add(source, args.get(0), args.get(1));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new Add(source, args.get(0), args.get(1), configuration);
     }
 }

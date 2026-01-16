@@ -10,7 +10,6 @@
 package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
@@ -45,7 +44,7 @@ record TestConfiguration(
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
-    VectorEncoding vectorEncoding,
+    KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
@@ -176,7 +175,7 @@ record TestConfiguration(
         private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
         private int quantizeBits = 8;
-        private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
+        private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
         private List<Float> filterSelectivity = List.of(1f);
@@ -293,7 +292,7 @@ record TestConfiguration(
         }
 
         public Builder setVectorEncoding(String vectorEncoding) {
-            this.vectorEncoding = VectorEncoding.valueOf(vectorEncoding.toUpperCase(Locale.ROOT));
+            this.vectorEncoding = KnnIndexTester.VectorEncoding.valueOf(vectorEncoding.toUpperCase(Locale.ROOT));
             return this;
         }
 

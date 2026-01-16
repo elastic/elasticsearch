@@ -7,7 +7,7 @@ applies_to:
 
 # Better Binary Quantization (BBQ) [bbq]
 
-Better Binary Quantization (BBQ) is an advanced vector quantization method, designed for large-scale similarity search. BBQ is a form of lossy compression for [`dense_vector` fields](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/dense-vector) that enables efficient storage and retrieval of large numbers of vectors, while keeping results close to those from the original uncompressed vectors.
+Better Binary Quantization (BBQ) is an advanced vector quantization method, designed for large-scale similarity search. BBQ is a form of lossy compression for [`dense_vector` fields](elasticsearch://reference/elasticsearch/mapping-reference/dense-vector.md) that enables efficient storage and retrieval of large numbers of vectors, while keeping results close to those from the original uncompressed vectors.
 
 BBQ offers significant improvements over scalar quantization by relying on optimized `bit` level computations to reduce memory usage and computational costs while maintaining high search relevance using pre-computed corrective factors. BBQ is designed to work in combination with [oversampling](#bbq-oversampling) and reranking, and is compatible with various [vector search algorithms](#bbq-vector-search-algorithms), such as [HNSW](#bbq-hnsw) and [brute force (flat)](#bbq-flat).
 
@@ -23,7 +23,7 @@ BBQ currently supports two vector search algorithms, each suited to different sc
 
 ### `bbq_hnsw` [bbq-hnsw]
 
-When you set a dense vector field’s `index_options` parameter to `type: bbq_hnsw`, {{es}} uses the HNSW algorithm for fast [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. With the default [oversampling](#bbq-oversampling) applied, it delivers better cost efficiency, lower latency, and improved relevance ranking, making it the best choice for large-scale similarity search.
+When you set a dense vector field’s `index_options` parameter to `type: bbq_hnsw`, {{es}} uses the HNSW algorithm for fast [kNN search](docs-content://solutions/search/vector/knn.md) on compressed vectors. With the default [oversampling](#bbq-oversampling) applied, it delivers better cost efficiency, lower latency, and improved relevance ranking, making it the best choice for large-scale similarity search.
 
 :::{note}
 Starting in version 9.1, `bbq_hnsw` is the default indexing method for new `dense_vector` fields with greater than 384 dimensions, so you typically don’t need to specify it explicitly when creating an index.  
@@ -140,7 +140,7 @@ stack: ga 9.2
 This feature requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 :::
 
-When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.
+When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](docs-content://solutions/search/vector/knn.md) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.
 
 DiskBBQ groups similar vectors into small clusters using [hierarchical K-means](https://www.elastic.co/search-labs/blog/k-means-for-vector-indices). When processing a query, it finds the centroids closest to the query vector and only compares the vectors within those clusters. This targeted approach reduces the number of in-memory operations, making it ideal for large-scale or memory-constrained environments.
 
@@ -260,12 +260,12 @@ GET bbq-index/_search
 By default, oversampling is set to 3×, meaning if you request k:10, {{es}} retrieves 30 candidates for re-ranking. You don’t need to configure this behavior; it’s applied automatically for BBQ searches.
 
 :::{note}
-You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](https://www.elastic.co/docs/solutions/search/vector/knn#dense-vector-knn-search-rescoring) for details.
+You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 :::
 
 ## Learn more [bbq-learn-more]
 
 - [Better Binary Quantization (BBQ) in Lucene and {{es}}](https://www.elastic.co/search-labs/blog/better-binary-quantization-lucene-elasticsearch) - Learn how BBQ works, its benefits, and how it reduces memory usage while preserving search accuracy.
 - [Introducing a new vector storage format: DiskBBQ](https://www.elastic.co/search-labs/blog/diskbbq-elasticsearch-introduction) - Learn how DiskBBQ improves vector search in low-memory environments and compares to HNSW in speed and cost-effectiveness. 
-- [Dense vector field type](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/dense-vector) - Find code examples for using `bbq_hnsw` `index_type`.
-- [kNN search](https://www.elastic.co/docs/solutions/search/vector/knn) - Learn about the search algorithm that BBQ works with.
+- [Dense vector field type](elasticsearch://reference/elasticsearch/mapping-reference/dense-vector.md) - Find code examples for using `bbq_hnsw` `index_type`.
+- [kNN search](docs-content://solutions/search/vector/knn.md) - Learn about the search algorithm that BBQ works with.

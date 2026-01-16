@@ -20,6 +20,25 @@ increase_bytes_in:double | time_bucket:datetime
 764.6877930046035        | 2024-05-10T00:11:00.000Z
 ;
 
+increase_of_long_no_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m increase_bytes_in=(avg(increase(network.total_bytes_in[1m])))
+| SORT increase_bytes_in DESC, step DESC | LIMIT 10;
+
+increase_bytes_in:double | step:datetime
+1156.9098342725822       | 2024-05-10T00:19:00.000Z
+1063.7582541086263       | 2024-05-10T00:17:00.000Z
+999.2874221895291        | 2024-05-10T00:07:00.000Z
+961.1440972222222        | 2024-05-10T00:01:00.000Z
+930.90625                | 2024-05-10T00:00:00.000Z
+914.237233611577         | 2024-05-10T00:18:00.000Z
+839.854243117019         | 2024-05-10T00:20:00.000Z
+838.6380935298255        | 2024-05-10T00:09:00.000Z
+795.8137508015253        | 2024-05-10T00:04:00.000Z
+764.6877930046035        | 2024-05-10T00:11:00.000Z
+;
+
 increase_of_long_grouping
 required_capability: increase
 required_capability: rate_with_interpolation_v2
@@ -32,6 +51,27 @@ TS k8s
 | SORT increase_bytes_in DESC, time_bucket, cluster | LIMIT 10;
 
 increase_bytes_in:double | cluster:keyword | time_bucket:datetime
+4628.220019              | qa              | 2024-05-10T00:15:00.000Z
+4129.646129              | qa              | 2024-05-10T00:05:00.000Z
+3821.213933              | prod            | 2024-05-10T00:15:00.000Z
+2346.663513              | qa              | 2024-05-10T00:10:00.000Z
+2260.78709               | prod            | 2024-05-10T00:10:00.000Z
+2150.862794              | staging         | 2024-05-10T00:05:00.000Z
+2049.166973              | staging         | 2024-05-10T00:10:00.000Z
+1806.457654              | staging         | 2024-05-10T00:15:00.000Z
+1716.559991              | qa              | 2024-05-10T00:00:00.000Z
+1672.349062              | prod            | 2024-05-10T00:00:00.000Z
+;
+
+increase_of_long_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=5m increase_bytes_in=(avg by (cluster) (increase(network.total_bytes_in[5m])))
+| EVAL increase_bytes_in = ROUND(increase_bytes_in, 6)
+| KEEP increase_bytes_in, cluster, step
+| SORT increase_bytes_in DESC, step, cluster | LIMIT 10;
+
+increase_bytes_in:double | cluster:keyword | step:datetime
 4628.220019              | qa              | 2024-05-10T00:15:00.000Z
 4129.646129              | qa              | 2024-05-10T00:05:00.000Z
 3821.213933              | prod            | 2024-05-10T00:15:00.000Z
@@ -67,6 +107,25 @@ increase_cost:double   | time_bucket:datetime
 
 ;
 
+increase_of_double_no_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m increase_cost=(sum(increase(network.total_cost[1m])))
+| SORT increase_cost DESC, step | LIMIT 10;
+
+increase_cost:double   | step:datetime
+116.53320614748134   | 2024-05-10T00:09:00.000Z
+84.16558290423815    | 2024-05-10T00:17:00.000Z
+78.41175332832259    | 2024-05-10T00:08:00.000Z
+59.963949716563846   | 2024-05-10T00:18:00.000Z
+58.644766831608926   | 2024-05-10T00:15:00.000Z
+52.48218339839363    | 2024-05-10T00:14:00.000Z
+48.73737443994797    | 2024-05-10T00:06:00.000Z
+47.42165775401069    | 2024-05-10T00:05:00.000Z
+43.7490171990172     | 2024-05-10T00:11:00.000Z
+41.917106313154434   | 2024-05-10T00:13:00.000Z
+;
+
 increase_with_filtering
 required_capability: increase
 required_capability: rate_with_interpolation
@@ -91,6 +150,24 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 1611.7482269503544       | prod            | 2024-05-10T00:20:00.000Z
 953.982617586912         | qa              | 2024-05-10T00:20:00.000Z
 673.5801687763715        | staging         | 2024-05-10T00:20:00.000Z
+;
+
+increase_with_filtering_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m increase_bytes_in=(sum by (cluster) (increase(network.total_bytes_in{pod="one"}[10m])))
+| SORT step, cluster | LIMIT 10;
+
+increase_bytes_in:double | step:datetime            | cluster:keyword
+2453.5                   | 2024-05-10T00:00:00.000Z | prod
+5828.87                  | 2024-05-10T00:00:00.000Z | qa
+2591.440476190476        | 2024-05-10T00:00:00.000Z | staging
+7019.4184397163135       | 2024-05-10T00:10:00.000Z | prod
+7294.064049079755        | 2024-05-10T00:10:00.000Z | qa
+2523.396021699819        | 2024-05-10T00:10:00.000Z | staging
+1611.7482269503544       | 2024-05-10T00:20:00.000Z | prod
+953.982617586912         | 2024-05-10T00:20:00.000Z | qa
+673.5801687763715        | 2024-05-10T00:20:00.000Z | staging
 ;
 
 increase_with_inline_filtering
@@ -138,6 +215,25 @@ increase_bytes:double | cluster:keyword | time_bucket:datetime     | increase_kb
 
 ;
 
+eval_on_increase_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m increase_bytes=(avg by (cluster) (increase(network.total_bytes_in[10m])))
+| EVAL increase_kb = increase_bytes / 1024.0
+| SORT step, cluster | LIMIT 10;
+
+increase_bytes:double | step:datetime            | cluster:keyword | increase_kb:double
+2735.7690879741726    | 2024-05-10T00:00:00.000Z | prod            | 2.671649499974778
+5897.438804111666     | 2024-05-10T00:00:00.000Z | qa              | 5.759217582140299
+3686.4740884724015    | 2024-05-10T00:00:00.000Z | staging         | 3.6000723520238296
+6082.001022561896     | 2024-05-10T00:10:00.000Z | prod            | 5.939454123595602
+6974.883531451061     | 2024-05-10T00:10:00.000Z | qa              | 6.811409698682676
+3855.6246268438786    | 2024-05-10T00:10:00.000Z | staging         | 3.765258424652225
+1557.7298894639323    | 2024-05-10T00:20:00.000Z | prod            | 1.5212205951796214
+987.1325706421782     | 2024-05-10T00:20:00.000Z | qa              | 0.9639966510177521
+789.2720220707564     | 2024-05-10T00:20:00.000Z | staging         | 0.770773459053473
+;
+
 increase_of_aggregate_metric
 required_capability: increase
 required_capability: ts_command_v0
@@ -173,6 +269,25 @@ increase_bytes_in:double | time_bucket:datetime
 805.8137508015253        | 2024-05-10T00:04:00.000Z
 774.6877930046035        | 2024-05-10T00:11:00.000Z
 
+;
+
+increase_of_expression_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m increase_bytes_in=(avg(increase(network.total_bytes_in[1m]) + 10))
+| SORT increase_bytes_in DESC, step DESC | LIMIT 10;
+
+increase_bytes_in:double | step:datetime
+1166.9098342725822       | 2024-05-10T00:19:00.000Z
+1073.7582541086263       | 2024-05-10T00:17:00.000Z
+1009.2874221895291       | 2024-05-10T00:07:00.000Z
+971.1440972222222        | 2024-05-10T00:01:00.000Z
+940.90625                | 2024-05-10T00:00:00.000Z
+924.237233611577         | 2024-05-10T00:18:00.000Z
+849.854243117019         | 2024-05-10T00:20:00.000Z
+848.6380935298255        | 2024-05-10T00:09:00.000Z
+805.8137508015253        | 2024-05-10T00:04:00.000Z
+774.6877930046035        | 2024-05-10T00:11:00.000Z
 ;
 
 increase_combined_avg
@@ -240,6 +355,24 @@ increase_of_ratio:double | cluster:keyword | time_bucket:datetime
 0.01904697273860459      | prod            | 2024-05-10T00:20:00.000Z
 0.04576556363812584      | qa              | 2024-05-10T00:20:00.000Z
 0.05565157854549939      | staging         | 2024-05-10T00:20:00.000Z
+;
+
+increase_of_ratio_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m increase_of_ratio=(sum by (cluster) (increase(network.total_cost[10m]) / increase(network.total_bytes_in[10m])))
+| SORT step, cluster | LIMIT 10;
+
+increase_of_ratio:double | step:datetime            | cluster:keyword
+0.05584479370760387      | 2024-05-10T00:00:00.000Z | prod
+0.04455589590741875      | 2024-05-10T00:00:00.000Z | qa
+0.041646030613741385     | 2024-05-10T00:00:00.000Z | staging
+0.029899504595540118     | 2024-05-10T00:10:00.000Z | prod
+0.03694009599618049      | 2024-05-10T00:10:00.000Z | qa
+0.0332582444590309       | 2024-05-10T00:10:00.000Z | staging
+0.01904697273860459      | 2024-05-10T00:20:00.000Z | prod
+0.04576556363812584      | 2024-05-10T00:20:00.000Z | qa
+0.05565157854549939      | 2024-05-10T00:20:00.000Z | staging
 ;
 
 increase_of_long_grouping_1min_nulls

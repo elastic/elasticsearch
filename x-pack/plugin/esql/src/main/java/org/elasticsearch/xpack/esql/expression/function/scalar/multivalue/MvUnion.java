@@ -299,31 +299,32 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
 
-        // If both field has no values, return null
+        // If both fields have no values, return null
         if (firstValueCount == 0 && secondValueCount == 0) {
             builder.appendNull();
             return;
         }
 
+        // Extract values from first field into OperationalSet
+        MvSetOperationHelper.OperationalSet<T> firstSet = new MvSetOperationHelper.OperationalSet<>();
         int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        // Use LinkedHashSet to maintain insertion order
-        Set<T> values = new LinkedHashSet<>();
-
-        // Add all values from first field
         for (int i = 0; i < firstValueCount; i++) {
-            values.add(getValueFunction.apply(firstValueIndex + i, field1));
+            firstSet.add(getValueFunction.apply(firstValueIndex + i, field1));
         }
 
-        // Add all values from second field (duplicates automatically ignored by Set)
+        // Extract values from second field
+        Set<T> secondSet = new LinkedHashSet<>();
+        int secondValueIndex = field2.getFirstValueIndex(position);
         for (int i = 0; i < secondValueCount; i++) {
-            values.add(getValueFunction.apply(secondValueIndex + i, field2));
+            secondSet.add(getValueFunction.apply(secondValueIndex + i, field2));
         }
+
+        // Compute union in-place
+        Set<T> result = firstSet.union(secondSet);
 
         // Build result
         builder.beginPositionEntry();
-        for (T value : values) {
+        for (T value : result) {
             addValueFunction.accept(value);
         }
         builder.endPositionEntry();

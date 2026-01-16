@@ -41,7 +41,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -49,7 +49,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -346,7 +345,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         "key" + idx,
                         PlannerUtils.toElementType(keyTypes.get(idx)),
                         false,
-                        shard -> searchContext.getSearchExecutionContext().getFieldType("key" + idx).blockLoader(blContext())
+                        shard -> ValuesSourceReaderOperator.load(
+                            searchContext.getSearchExecutionContext().getFieldType("key" + idx).blockLoader(blContext())
+                        )
                     )
                 );
             }
@@ -514,12 +515,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     }
 
     private static MappedFieldType.BlockLoaderContext blContext() {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return "test_index";
-            }
-
+        return new DummyBlockLoaderContext("test_index") {
             @Override
             public IndexSettings indexSettings() {
                 var imd = IndexMetadata.builder("test_index")
@@ -529,28 +525,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             }
 
             @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public Set<String> sourcePaths(String name) {
                 return Set.of(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return null;
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }

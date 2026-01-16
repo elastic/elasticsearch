@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -72,9 +71,7 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
                 // avoid modifying filter conditions, just the delegate
                 case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
-                case ConvertFunction convert when expr.allMatch(
-                    e -> e instanceof ConvertFunction || e instanceof TypedAttribute
-                ) -> {
+                case ConvertFunction convert when expr.allMatch(e -> e instanceof ConvertFunction || e instanceof TypedAttribute) -> {
                     changed.set(true);
                     yield new DefaultTimeSeriesAggregateFunction(expr, timestamp);
                 }

@@ -24,8 +24,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication.SECONDARY_AUTHC_PRESERVED_TRANSIENT_PREFIX;
 
 /**
  * Performs "secondary user authentication" (that is, a second user, _not_ second factor authentication).
@@ -43,6 +46,7 @@ public class SecondaryAuthenticator {
      * such as X-Client-Authentication.
      */
     public static final String SECONDARY_X_CLIENT_AUTH_HEADER_NAME = "es-secondary-x-client-authentication";
+    private static final String X_CLIENT_AUTHENTICATION_HEADER = "X-Client-Authentication";
 
     private static final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
@@ -116,7 +120,6 @@ public class SecondaryAuthenticator {
             listener.onResponse(null);
             return;
         }
-        final String secondaryXClientAuthHeader = threadContext.getHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME);
 
         final Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
         final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(
@@ -135,22 +138,66 @@ public class SecondaryAuthenticator {
             })
         );
 
+        final Map<String, String> additionalSecondaryAuthHeaders = extractAdditionalSecondaryHeaders(threadContext);
+
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             logger.trace(
                 "found secondary authentication credentials, placing them in the internal [{}] header for authentication",
                 UsernamePasswordToken.BASIC_AUTH_HEADER
             );
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
+            additionalSecondaryAuthHeaders.forEach(threadContext::putHeader);
 
-            if (Strings.hasText(secondaryXClientAuthHeader)) {
-                threadContext.putHeader("X-Client-Authentication", secondaryXClientAuthHeader);
-                logger.trace(
-                    "found secondary client authentication credentials, placing them in the [{}] header",
-                    "X-Client-Authentication"
-                );
+            final ActionListener<Authentication> wrappedListener = authenticationListener.delegateFailureAndWrap((l, auth) -> {
+                if (auth != null) {
+                    var capturedTransientHeaders = capturePreservableAuthcTransients(threadContext);
+                    storePreservedTransientsInOriginalContext(originalContext, capturedTransientHeaders);
+                }
+                l.onResponse(auth);
+            });
+
+            authenticate.accept(wrappedListener);
+        }
+    }
+
+    private Map<String, String> extractAdditionalSecondaryHeaders(ThreadContext threadContext) {
+        final String secondaryClientAuth = threadContext.getHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME);
+        if (Strings.hasText(secondaryClientAuth)) {
+            logger.trace(
+                "found secondary client authentication credentials in [{}], will place them in the [{}] header",
+                SECONDARY_X_CLIENT_AUTH_HEADER_NAME,
+                X_CLIENT_AUTHENTICATION_HEADER
+            );
+            return Map.of(X_CLIENT_AUTHENTICATION_HEADER, secondaryClientAuth);
+        }
+        return Map.of();
+    }
+
+    private Map<String, Object> capturePreservableAuthcTransients(ThreadContext threadContext) {
+        final Map<String, Object> transientHeaders = threadContext.getTransientHeaders();
+        final Map<String, Object> captured = new java.util.HashMap<>();
+        for (Map.Entry<String, Object> entry : transientHeaders.entrySet()) {
+            final String key = entry.getKey();
+            if (key.startsWith(SecondaryAuthentication.PRESERVABLE_AUTHC_TRANSIENT_PREFIX)) {
+                captured.put(key, entry.getValue());
             }
+        }
+        if (logger.isTraceEnabled() && captured.isEmpty() == false) {
+            logger.trace("captured preservable authc transient headers: {}", captured.keySet());
+        }
+        return captured.isEmpty() ? Map.of() : Map.copyOf(captured);
+    }
 
-            authenticate.accept(authenticationListener);
+    private void storePreservedTransientsInOriginalContext(
+        Supplier<ThreadContext.StoredContext> originalContext,
+        Map<String, Object> capturedTransientHeaders
+    ) {
+        // restoring original context temporary to add additional transient headers
+        try (var ignored = originalContext.get()) {
+            final ThreadContext originalThreadContext = securityContext.getThreadContext();
+            for (var entry : capturedTransientHeaders.entrySet()) {
+                originalThreadContext.putTransient(SECONDARY_AUTHC_PRESERVED_TRANSIENT_PREFIX + entry.getKey(), entry.getValue());
+            }
         }
     }
 }

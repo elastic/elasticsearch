@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -14,6 +16,9 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -26,7 +31,18 @@ import java.util.function.Function;
  */
 public class SecondaryAuthentication {
 
+    private static final Logger logger = LogManager.getLogger(SecondaryAuthentication.class);
+
     public static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
+    /**
+     * Prefix for transient keys that should be preserved from the authentication phase into secondary authentication execution.
+     */
+    public static final String PRESERVABLE_AUTHC_TRANSIENT_PREFIX = "_security_authc_";
+
+    /**
+     * Prefix for transient keys stored in the original context that should be restored only during secondary authentication execution.
+     */
+    public static final String SECONDARY_AUTHC_PRESERVED_TRANSIENT_PREFIX = "_security_secondary_authc_preserved_";
 
     private final SecurityContext securityContext;
     private final Authentication authentication;
@@ -62,7 +78,8 @@ public class SecondaryAuthentication {
     }
 
     public <T> T execute(Function<ThreadContext.StoredContext, T> body) {
-        return this.securityContext.executeWithAuthentication(this.authentication, body);
+        final var secondaryAuthTransientHeaders = extractPreservedSecondaryAuthTransients();
+        return securityContext.executeWithAuthentication(authentication, secondaryAuthTransientHeaders, body);
     }
 
     public Runnable wrap(Runnable runnable) {
@@ -70,6 +87,27 @@ public class SecondaryAuthentication {
             runnable.run();
             return null;
         });
+    }
+
+    private Map<String, Object> extractPreservedSecondaryAuthTransients() {
+        final var transientHeaders = securityContext.getThreadContext().getTransientHeaders();
+        if (transientHeaders.isEmpty()) {
+            logger.trace("no secondary authc preserved transient headers found");
+            return Map.of();
+        }
+        final Map<String, Object> extracted = new HashMap<>();
+        for (var transientHeader : transientHeaders.entrySet()) {
+            if (transientHeader.getKey().startsWith(SECONDARY_AUTHC_PRESERVED_TRANSIENT_PREFIX)) {
+                final String originalKey = transientHeader.getKey().substring(SECONDARY_AUTHC_PRESERVED_TRANSIENT_PREFIX.length());
+                assert originalKey.startsWith(PRESERVABLE_AUTHC_TRANSIENT_PREFIX)
+                    : "preserved transient header must start with " + PRESERVABLE_AUTHC_TRANSIENT_PREFIX;
+                extracted.put(originalKey, transientHeader.getValue());
+            }
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("found secondary authc preserved transient headers: {}", extracted.keySet());
+        }
+        return Collections.unmodifiableMap(extracted);
     }
 
     @Override

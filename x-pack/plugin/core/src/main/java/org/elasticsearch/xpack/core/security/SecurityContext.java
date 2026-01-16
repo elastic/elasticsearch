@@ -186,9 +186,22 @@ public class SecurityContext {
      * returns, the original context is restored.
      */
     public <T> T executeWithAuthentication(Authentication authentication, Function<StoredContext, T> consumer) {
+        return executeWithAuthentication(authentication, Map.of(), consumer);
+    }
+
+    /**
+     * Runs the consumer in a new context after setting the provided authentication and applying the supplied transient headers.
+     * The original context is provided to the consumer. When this method returns, the original context is restored.
+     */
+    public <T> T executeWithAuthentication(
+        Authentication authentication,
+        Map<String, Object> transientHeaders,
+        Function<StoredContext, T> consumer
+    ) {
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication);
+            transientHeaders.forEach(threadContext::putTransient);
             return consumer.apply(original);
         }
     }

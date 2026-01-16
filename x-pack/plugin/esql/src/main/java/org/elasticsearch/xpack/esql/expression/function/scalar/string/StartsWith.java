@@ -160,7 +160,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         return str;
     }
 
-    Expression prefix() {
+    public Expression prefix() {
         return prefix;
     }
 }

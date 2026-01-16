@@ -120,6 +120,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
             null,
+            randomBoolean(),
             null
         );
         assertAcked(

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,14 +15,13 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -36,35 +36,49 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
  * The grouping must be `_tsid` and `tbucket` or just `_tsid`.
  */
-public class TimeSeriesAggregate extends Aggregate {
+public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "TimeSeriesAggregate",
         TimeSeriesAggregate::new
     );
+    private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
 
     private final Bucket timeBucket;
+    private final Expression timestamp;
 
     public TimeSeriesAggregate(
         Source source,
         LogicalPlan child,
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
-        Bucket timeBucket
+        Bucket timeBucket,
+        Expression timestamp
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.timestamp = timestamp;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
+            this.timestamp = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            // We only need the timestamp during analysis and logical optimization on the coordinator.
+            // Using null (when deserialized from an old node) in this case should be okay.
+            this.timestamp = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
+            out.writeOptionalNamedWriteable(timestamp);
+        }
     }
 
     @Override
@@ -74,22 +88,29 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+    }
+
+    public LogicalPlan withTimestamp(Expression newTimestamp) {
+        if (newTimestamp.equals(timestamp)) {
+            return this;
+        }
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved());
+        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && (timestamp == null || timestamp.resolved());
     }
 
     @Nullable
@@ -98,8 +119,13 @@ public class TimeSeriesAggregate extends Aggregate {
     }
 
     @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
     }
 
     @Override
@@ -116,7 +142,8 @@ public class TimeSeriesAggregate extends Aggregate {
         return Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
-            && Objects.equals(timeBucket, other.timeBucket);
+            && Objects.equals(timeBucket, other.timeBucket)
+            && Objects.equals(timestamp, other.timestamp);
     }
 
     @Override
@@ -205,6 +232,15 @@ public class TimeSeriesAggregate extends Aggregate {
                 );
             }
         });
+        if ((timestamp instanceof TypedAttribute) == false || timestamp.dataType().isDate() == false) {
+            failures.add(
+                fail(
+                    timestamp,
+                    "the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [{}]",
+                    timestamp.dataType().typeName()
+                )
+            );
+        }
     }
 
     @Override
@@ -217,70 +253,31 @@ public class TimeSeriesAggregate extends Aggregate {
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
                     // reject COUNT(keyword), but allow COUNT(numeric)
-                } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
-                    Expression field = outer.field();
-                    var lastOverTime = new LastOverTime(source(), field, new Literal(source(), null, DataType.DATETIME));
-                    if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
-                        failures.add(
-                            fail(
-                                this,
-                                "implicit time-series aggregation function [{}] generated from [{}] doesn't support type [{}], "
-                                    + "only numeric types are supported; use the FROM command instead of the TS command",
-                                outer.sourceText().replace(field.sourceText(), "last_over_time(" + field.sourceText() + ")"),
-                                outer.sourceText(),
-                                field.dataType().typeName()
-                            )
+                }
+                outer.field().forEachDown(AggregateFunction.class, nested -> {
+                    if (nested instanceof TimeSeriesAggregateFunction == false) {
+                        fail(
+                            this,
+                            "cannot use aggregate function [{}] inside aggregation function [{}];"
+                                + "only time-series aggregation function can be used inside another aggregation function",
+                            nested.sourceText(),
+                            outer.sourceText()
                         );
                     }
-                }
-                if (outer instanceof TimeSeriesAggregateFunction ts) {
-                    outer.field()
+                    nested.field()
                         .forEachDown(
                             AggregateFunction.class,
-                            nested -> failures.add(
+                            nested2 -> failures.add(
                                 fail(
                                     this,
-                                    "cannot use aggregate function [{}] inside time-series aggregation function [{}]",
+                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
                                     nested.sourceText(),
-                                    outer.sourceText()
+                                    nested2.sourceText()
                                 )
                             )
                         );
-                    // reject `TS metrics | STATS rate(requests)`
-                    // TODO: support this
-                    failures.add(
-                        fail(
-                            ts,
-                            "time-series aggregate function [{}] can only be used with the TS command "
-                                + "and inside another aggregate function",
-                            ts.sourceText()
-                        )
-                    );
-                } else {
-                    outer.field().forEachDown(AggregateFunction.class, nested -> {
-                        if (nested instanceof TimeSeriesAggregateFunction == false) {
-                            fail(
-                                this,
-                                "cannot use aggregate function [{}] inside aggregation function [{}];"
-                                    + "only time-series aggregation function can be used inside another aggregation function",
-                                nested.sourceText(),
-                                outer.sourceText()
-                            );
-                        }
-                        nested.field()
-                            .forEachDown(
-                                AggregateFunction.class,
-                                nested2 -> failures.add(
-                                    fail(
-                                        this,
-                                        "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
-                                        nested.sourceText(),
-                                        nested2.sourceText()
-                                    )
-                                )
-                            );
-                    });
-                }
+                });
+                // }
             }
         }
     }

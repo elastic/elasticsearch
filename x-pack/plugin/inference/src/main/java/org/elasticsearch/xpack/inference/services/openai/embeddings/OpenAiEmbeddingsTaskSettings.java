@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -19,9 +18,9 @@ import java.util.Map;
 
 /**
  * Defines the task settings for the openai service.
- *
+ * <p>
  * User is an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
- *  <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
+ * <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
  */
 public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbeddingsTaskSettings> {
 
@@ -65,7 +64,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

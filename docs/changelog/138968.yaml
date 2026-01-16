@@ -1,0 +1,19 @@
+pr: 138492
+summary: Enable new exponential histograms field type
+area: Mapping
+type: enhancement
+issues: []
+highlight:
+  title: New exponential_histogram field type for native OpenTelemetry exponential histogram support
+  body: |-
+    A new `exponential_histogram` field type has been added to Elasticsearch, providing native support for
+    OpenTelemetry exponential histograms.
+
+    Exponential histograms offer an efficient way to collect distributions (e.g. response times) at a high compression
+    ratio while still maintaining good accuracy for percentile estimation. They can be easily collected via
+    OpenTelemetry SDKs, as the only required configuration is the maximum allowed number of buckets. The actual buckets will be
+    chosen automatically based on the observed values.
+
+    The new `exponential_histogram` field type is supported in ES|QL.
+    It can be aggregated using the `PERCENTILES`, `AVG`, `MIN`, `MAX` and `SUM` functions.
+  notable: true

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -127,11 +126,6 @@ public enum IndexMode {
         @Override
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
-        }
-
-        @Override
-        public boolean useDefaultPostingsFormat() {
-            return true;
         }
     },
     TIME_SERIES("time_series") {
@@ -251,6 +245,11 @@ public enum IndexMode {
         public boolean useTimeSeriesDocValuesCodec() {
             return true;
         }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
+        }
     },
     LOGSDB("logsdb") {
         @Override
@@ -339,6 +338,11 @@ public enum IndexMode {
 
         @Override
         public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
             return true;
         }
     },
@@ -575,9 +579,10 @@ public enum IndexMode {
     }
 
     /**
-     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     * Whether by default to use the ES 8.12 {@link org.apache.lucene.codecs.PostingsFormat}. This is a historical PostingsFormat we used
+     * for all indices by default. However, starting with Lucene 10.3, we began using a new, more modern format, for standard indices.
      */
-    public boolean useDefaultPostingsFormat() {
+    public boolean useEs812PostingsFormat() {
         return false;
     }
 
@@ -623,7 +628,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
+            case LOOKUP -> 3;
         };
         out.writeByte((byte) code);
     }

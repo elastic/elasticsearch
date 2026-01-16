@@ -12,13 +12,13 @@ import org.elasticsearch.common.settings.Setting;
 import java.util.List;
 
 public class CCMSettings {
-    public static final Setting<Boolean> ALLOW_CONFIGURING_CCM = Setting.boolSetting(
-        "xpack.inference.elastic.allow_configuring_ccm",
+    public static final Setting<Boolean> CCM_SUPPORTED_ENVIRONMENT = Setting.boolSetting(
+        "xpack.inference.elastic.ccm_supported_environment",
         true,
         Setting.Property.NodeScope
     );
 
     public static List<Setting<?>> getSettingsDefinitions() {
-        return List.of(ALLOW_CONFIGURING_CCM);
+        return List.of(CCM_SUPPORTED_ENVIRONMENT);
     }
 }

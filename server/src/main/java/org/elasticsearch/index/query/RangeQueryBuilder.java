@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -37,6 +37,7 @@ import java.util.Objects;
  * A Query that matches documents within an range of terms.
  */
 public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
+
     public static final String NAME = "range";
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
@@ -523,7 +524,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
             if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-                return new MatchNoDocsQuery("No mappings yet");
+                return Queries.NO_MAPPINGS;
             }
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getFieldType(FieldNamesFieldMapper.NAME);

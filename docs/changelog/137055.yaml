@@ -1,6 +1,0 @@
-pr: 137055
-summary: Do not create inference endpoint if ID is used in existing mappings
-area: Machine Learning
-type: bug
-issues:
- - 124272

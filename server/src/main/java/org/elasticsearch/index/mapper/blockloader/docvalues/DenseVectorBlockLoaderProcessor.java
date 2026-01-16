@@ -47,6 +47,8 @@ public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> 
         builder.appendNull();
     }
 
+    String name();
+
     /**
      * Processor that appends raw float vectors to a FloatBuilder as multi values.
      */
@@ -73,6 +75,11 @@ public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> 
                 builder.appendFloat(b);
             }
             builder.endPositionEntry();
+        }
+
+        @Override
+        public String name() {
+            return "Load";
         }
     }
 
@@ -101,6 +108,11 @@ public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> 
         public void process(byte[] vector, BlockLoader.DoubleBuilder builder) {
             double similarity = config.similarityFunction().calculateSimilarity(vector, config.vectorAsBytes());
             builder.appendDouble(similarity);
+        }
+
+        @Override
+        public String name() {
+            return config.similarityFunction().function().toString();
         }
     }
 }

@@ -20,8 +20,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "The name of the index to explain"
+              "type": "list",
+              "description": "Comma-separated list of index names to explain"
             }
           }
         }

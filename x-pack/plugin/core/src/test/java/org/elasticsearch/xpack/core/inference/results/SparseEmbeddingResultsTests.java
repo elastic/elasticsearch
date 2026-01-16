@@ -207,7 +207,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             embeddings.stream()
                 .map(
                     embedding -> Map.of(
-                        SparseEmbeddingResults.Embedding.EMBEDDING,
+                        EmbeddingResults.EMBEDDING,
                         embedding.tokens,
                         SparseEmbeddingResults.Embedding.IS_TRUNCATED,
                         embedding.isTruncated

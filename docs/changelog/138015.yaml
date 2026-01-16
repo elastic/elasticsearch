@@ -1,0 +1,6 @@
+pr: 138015
+summary: Don't fail delete index API if an index is deleted during the request
+area: Indices APIs
+type: bug
+issues:
+ - 137422

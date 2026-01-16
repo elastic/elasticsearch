@@ -15,6 +15,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
             }
         }
 
-        return new ConstantNullsReader();
+        return ConstantNull.READER;
     }
 
     /**
@@ -178,7 +179,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorValuesBlockReader";
+            return "FloatDenseVectorFromDocValues." + processor.name();
         }
     }
 
@@ -216,7 +217,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
+            return "FloatDenseVectorFromDocValues.Normalized." + processor.name();
         }
     }
 
@@ -237,7 +238,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
+            return "ByteDenseVectorFromDocValues." + processor.name();
         }
     }
 
@@ -255,7 +256,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.BitDenseVectorValuesBlockReader";
+            return "BitDenseVectorFromDocValues." + processor.name();
         }
     }
 }

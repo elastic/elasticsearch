@@ -61,13 +61,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEOHASH,
             DataType.GEOTILE,
             DataType.GEOHEX,
+            DataType.EXPONENTIAL_HISTOGRAM,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.EXPONENTIAL_HISTOGRAM) // TODO(b/133393): implement
-                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR && type != DataType.TDIGEST)
+                    .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
                     .toList()
             );
         }

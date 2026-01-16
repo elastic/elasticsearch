@@ -11,7 +11,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +21,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -222,7 +222,8 @@ public class XContentHelper {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
             XContentParser parser = parserDecorator.decorate(
-                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes),
+                Mapping.EMPTY
             )
         ) {
             Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
@@ -744,12 +745,7 @@ public class XContentHelper {
      * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
-            out.writeVInt(xContentType.canonical().ordinal());
-        } else {
-            out.writeVInt(xContentType.ordinal());
-        }
+        out.writeVInt(xContentType.ordinal());
     }
 
     /**

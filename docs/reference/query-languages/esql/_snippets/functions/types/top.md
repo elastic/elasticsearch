@@ -2,22 +2,38 @@
 
 **Supported types**
 
-| field | limit | order | result |
-| --- | --- | --- | --- |
-| boolean | integer | keyword | boolean |
-| boolean | integer | | boolean |
-| date | integer | keyword | date |
-| date | integer | | date |
-| double | integer | keyword | double |
-| double | integer | | double |
-| integer | integer | keyword | integer |
-| integer | integer | | integer |
-| ip | integer | keyword | ip |
-| ip | integer | | ip |
-| keyword | integer | keyword | keyword |
-| keyword | integer | | keyword |
-| long | integer | keyword | long |
-| long | integer | | long |
-| text | integer | keyword | keyword |
-| text | integer | | keyword |
+| field | limit | order | outputField | result |
+| --- | --- | --- | --- | --- |
+| boolean | integer | keyword | | boolean |
+| boolean | integer | | | boolean |
+| date | integer | keyword | date | date |
+| date | integer | keyword | double | double |
+| date | integer | keyword | integer | integer |
+| date | integer | keyword | long | long |
+| date | integer | keyword | | date |
+| date | integer | | | date |
+| double | integer | keyword | date | date |
+| double | integer | keyword | double | double |
+| double | integer | keyword | integer | integer |
+| double | integer | keyword | long | long |
+| double | integer | keyword | | double |
+| double | integer | | | double |
+| integer | integer | keyword | date | date |
+| integer | integer | keyword | double | double |
+| integer | integer | keyword | integer | integer |
+| integer | integer | keyword | long | long |
+| integer | integer | keyword | | integer |
+| integer | integer | | | integer |
+| ip | integer | keyword | | ip |
+| ip | integer | | | ip |
+| keyword | integer | keyword | | keyword |
+| keyword | integer | | | keyword |
+| long | integer | keyword | date | date |
+| long | integer | keyword | double | double |
+| long | integer | keyword | integer | integer |
+| long | integer | keyword | long | long |
+| long | integer | keyword | | long |
+| long | integer | | | long |
+| text | integer | keyword | | keyword |
+| text | integer | | | keyword |
 

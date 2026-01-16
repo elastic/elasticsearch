@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,11 +84,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
             outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
-        } else {
-            transportActionStats = Map.of();
-        }
+        transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
         assert assertHistogramsConsistent();
     }
 
@@ -112,9 +107,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
             out.writeVLong(handlingTimeBucketFrequency);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(transportActionStats, StreamOutput::writeWriteable);
-        } // else just drop these stats
+        out.writeMap(transportActionStats, StreamOutput::writeWriteable);
     }
 
     public long serverOpen() {

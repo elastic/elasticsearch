@@ -1,5 +1,0 @@
-pr: 136773
-summary: Return `ConstNullBlock` in `FromAggMetricDouble`
-area: ES|QL
-type: bug
-issues: []

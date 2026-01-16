@@ -13,6 +13,8 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -89,7 +91,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         var inputs = List.of("Hello World", "Goodnight moon");
         var queryParams = Map.of("timeout", "120s");
         var results = infer(ElasticsearchInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
-        var embeddings = (List<Map<String, Object>>) results.get("sparse_embedding");
+        var embeddings = (List<Map<String, Object>>) results.get(SparseEmbeddingResults.SPARSE_EMBEDDING);
         assertThat(results.toString(), embeddings, hasSize(2));
     }
 
@@ -120,7 +122,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         var inputs = List.of("Hello World", "Goodnight moon");
         var queryParams = Map.of("timeout", "120s");
         var results = infer(ElasticsearchInternalService.DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, inputs, queryParams);
-        var embeddings = (List<Map<String, Object>>) results.get("text_embedding");
+        var embeddings = (List<Map<String, Object>>) results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
         assertThat(results.toString(), embeddings, hasSize(2));
     }
 

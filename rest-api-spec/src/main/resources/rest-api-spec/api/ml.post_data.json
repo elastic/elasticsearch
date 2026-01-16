@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "7.11.0",
+      "description": "Posting data directly to anomaly detection jobs is deprecated, in a future major version a datafeed will be required."
+    },
     "headers": {
       "accept": [
         "application/json"

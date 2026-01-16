@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -226,7 +225,7 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

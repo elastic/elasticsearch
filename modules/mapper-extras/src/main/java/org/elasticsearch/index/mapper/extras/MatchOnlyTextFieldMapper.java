@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -22,7 +24,6 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -30,28 +31,36 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -60,6 +69,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -106,13 +117,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final TextParams.Analyzers analyzers;
         private final boolean storedFieldInBinaryFormat;
+        private final boolean usesBinaryDocValues;
 
-        public Builder(
+        private Builder(
             String name,
             IndexVersion indexCreatedVersion,
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
-            boolean isWithinMultiField
+            boolean isWithinMultiField,
+            boolean usesBinaryDocValues
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
@@ -122,11 +135,28 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
+            this.usesBinaryDocValues = usesBinaryDocValues;
+        }
+
+        public Builder(String name, MappingParserContext context) {
+            this(
+                name,
+                context.indexVersionCreated(),
+                context.getIndexAnalyzers(),
+                isSyntheticSourceStoredFieldInBinaryFormat(context.indexVersionCreated()),
+                context.isWithinMultiField(),
+                usesBinaryDocValues(context.getIndexSettings())
+            );
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { meta };
+        }
+
+        private static boolean usesBinaryDocValues(final IndexSettings indexSettings) {
+            return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES)
+                && indexSettings.useTimeSeriesDocValuesFormat();
         }
 
         private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context, MultiFields multiFields) {
@@ -143,7 +173,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 isWithinMultiField(),
                 storedFieldInBinaryFormat,
                 // match only text fields are not stored by definition
-                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(false, multiFields)
+                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(false, multiFields),
+                usesBinaryDocValues
             );
         }
 
@@ -163,21 +194,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             );
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(
-            n,
-            c.indexVersionCreated(),
-            c.getIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
-            c.isWithinMultiField()
-        )
-    );
+    public static final TypeParser PARSER = new TypeParser(Builder::new);
 
     public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
         private final boolean storedFieldInBinaryFormat;
+        private final boolean usesBinaryDocValues;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -187,12 +211,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean withinMultiField,
             boolean storedFieldInBinaryFormat,
-            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
+            boolean usesBinaryDocValues
         ) {
-            super(name, true, false, false, tsi, meta, isSyntheticSource, withinMultiField);
+            super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, withinMultiField);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -204,7 +230,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 Collections.emptyMap(),
                 false,
                 false,
-                null
+                null,
+                false
             );
         }
 
@@ -256,6 +283,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     return delegateFieldFetcher(searchExecutionContext, textFieldType.syntheticSourceDelegate().get());
                 } else {
                     // otherwise, fetch the value from self
+                    if (usesBinaryDocValues) {
+                        return ignoredValuesDocValuesFieldFetcher(syntheticSourceFallbackFieldName());
+                    }
                     return storedFieldFetcher(name(), syntheticSourceFallbackFieldName());
                 }
             }
@@ -297,12 +327,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
                 && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
-                final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
-                    return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
+                    return combineFieldFetchers(
+                        storedFieldFetcher(parentFieldName),
+                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(parentFallbackFieldName));
+                    return combineFieldFetchers(
+                        docValuesFieldFetcher(ifd),
+                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 }
             }
 
@@ -325,22 +360,21 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
             if (keywordDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
-                // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
-                String fieldName = name();
+                String delegateFieldName = keywordDelegate.name();
+                // bc we don't know whether the delegate will ignore a value, we must also check the fallback field created by this
+                // match_only_text field
                 String fallbackName = syntheticSourceFallbackFieldName();
 
-                // delegate field names
-                String delegateFieldName = keywordDelegate.name();
-                String delegateFieldFallbackName = keywordDelegate.syntheticSourceFallbackFieldName();
+                // The fallback field may be stored in binary doc values or stored fields depending on index version
+                var fallbackFetcher = usesBinaryDocValues
+                    ? ignoredValuesDocValuesFieldFetcher(fallbackName)
+                    : storedFieldFetcher(fallbackName);
 
                 if (keywordDelegate.isStored()) {
-                    return storedFieldFetcher(delegateFieldName, delegateFieldFallbackName, fieldName, fallbackName);
+                    return combineFieldFetchers(storedFieldFetcher(delegateFieldName), fallbackFetcher);
                 } else if (keywordDelegate.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(
-                        docValuesFieldFetcher(ifd),
-                        storedFieldFetcher(delegateFieldFallbackName, fieldName, fallbackName)
-                    );
+                    return combineFieldFetchers(docValuesFieldFetcher(ifd), fallbackFetcher);
                 }
             }
 
@@ -355,23 +389,32 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
         }
 
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(
-            IndexFieldData<?> ifd
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(IndexFieldData<?> ifd) {
+            return context -> {
+                SortedBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
+                return docId -> getValuesFromDocValues(indexedValuesDocValues, docId);
+            };
+        }
+
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> ignoredValuesDocValuesFieldFetcher(
+            String fieldName
         ) {
             return context -> {
-                var sortedBinaryDocValues = ifd.load(context).getBytesValues();
-                return docId -> {
-                    if (sortedBinaryDocValues.advanceExact(docId)) {
-                        var values = new ArrayList<>(sortedBinaryDocValues.docValueCount());
-                        for (int i = 0; i < sortedBinaryDocValues.docValueCount(); i++) {
-                            values.add(sortedBinaryDocValues.nextValue().utf8ToString());
-                        }
-                        return values;
-                    } else {
-                        return List.of();
-                    }
-                };
+                CustomBinaryDocValues ignoredValuesDocValues = new CustomBinaryDocValues(DocValues.getBinary(context.reader(), fieldName));
+                return docId -> getValuesFromDocValues(ignoredValuesDocValues, docId);
             };
+        }
+
+        private List<Object> getValuesFromDocValues(SortedBinaryDocValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId)) {
+                var values = new ArrayList<>(docValues.docValueCount());
+                for (int i = 0; i < docValues.docValueCount(); i++) {
+                    values.add(docValues.nextValue().utf8ToString());
+                }
+                return values;
+            } else {
+                return List.of();
+            }
         }
 
         private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String... names) {
@@ -498,7 +541,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // wildcard queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -507,7 +550,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // regexp queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // regexp queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -522,7 +565,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             return toIntervalsSource(
                 Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // range queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -583,20 +626,25 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (isSyntheticSourceEnabled()) {
-                // if there is no synthetic source delegate, then this match only text field would've created StoredFields for us to use
+                // if there is no delegate, load from a fallback field we created
                 if (textFieldType.syntheticSourceDelegate().isEmpty()) {
-                    if (storedFieldInBinaryFormat) {
-                        return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(syntheticSourceFallbackFieldName());
+                    if (usesBinaryDocValues) {
+                        return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                     } else {
-                        return new BytesFromMixedStringsBytesRefBlockLoader(syntheticSourceFallbackFieldName());
+                        // for bwc - load from a StoredField
+                        if (storedFieldInBinaryFormat) {
+                            return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(syntheticSourceFallbackFieldName());
+                        } else {
+                            return new BytesFromMixedStringsBytesRefBlockLoader(syntheticSourceFallbackFieldName());
+                        }
                     }
                 }
 
                 // otherwise, delegate block loading to the synthetic source delegate if possible
                 if (textFieldType.canUseSyntheticSourceDelegateForLoading()) {
-                    return new BlockLoader.Delegating(textFieldType.syntheticSourceDelegate().get().blockLoader(blContext)) {
+                    return new DelegatingBlockLoader(textFieldType.syntheticSourceDelegate().get().blockLoader(blContext)) {
                         @Override
-                        protected String delegatingTo() {
+                        public String delegatingTo() {
                             return textFieldType.syntheticSourceDelegate().get().name();
                         }
                     };
@@ -615,9 +663,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
-                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                        return new DelegatingBlockLoader(kwd.blockLoader(blContext)) {
+
                             @Override
-                            protected String delegatingTo() {
+                            public String delegatingTo() {
                                 return kwd.name();
                             }
                         };
@@ -638,6 +687,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
             if (isSyntheticSourceEnabled()) {
+                if (usesBinaryDocValues) {
+                    // For newer indexes, fallback data is stored in binary doc values
+                    return (cache, breaker) -> new BytesBinaryIndexFieldData(
+                        syntheticSourceFallbackFieldName(),
+                        CoreValuesSourceType.KEYWORD,
+                        TextDocValuesField::new
+                    );
+                }
+                // For older indexes, fallback data is stored in stored fields
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     syntheticSourceFallbackFieldName(),
                     CoreValuesSourceType.KEYWORD,
@@ -670,6 +728,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final boolean storedFieldInBinaryFormat;
+    private final boolean usesBinaryDocValues;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -689,6 +748,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
+        this.usesBinaryDocValues = builder.usesBinaryDocValues;
     }
 
     @Override
@@ -698,8 +758,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, storedFieldInBinaryFormat, fieldType().isWithinMultiField())
-            .init(this);
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexAnalyzers,
+            storedFieldInBinaryFormat,
+            fieldType().isWithinMultiField(),
+            usesBinaryDocValues
+        ).init(this);
     }
 
     @Override
@@ -715,20 +781,35 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
 
-        // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
+        // match only text isn't stored, so if synthetic source needs to be supported, we must find an alternative way of loading the field
         if (fieldType().textFieldType.storeFieldForSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
-            // if not, then store this field explicitly so that synthetic source can load it
-            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            if (storedFieldInBinaryFormat) {
+            // otherwise, store the field ourselves
+            final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+
+            if (usesBinaryDocValues) {
+                // store the value in a binary doc values field, create one if it doesn't exist
+                MultiValuedBinaryDocValuesField bdvField = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
+
+                if (bdvField == null) {
+                    bdvField = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
+                    context.doc().addWithKey(fallbackFieldName, bdvField);
+                }
+
                 final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-                context.doc().add(new StoredField(fieldName, bytesRef));
+                bdvField.add(bytesRef);
             } else {
-                context.doc().add(new StoredField(fieldName, value.string()));
+                // otherwise for bwc, store the value in a stored fields like we used to
+                if (storedFieldInBinaryFormat) {
+                    final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                    context.doc().add(new StoredField(fallbackFieldName, bytesRef));
+                } else {
+                    context.doc().add(new StoredField(fallbackFieldName, value.string()));
+                }
             }
         }
     }
@@ -749,34 +830,76 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        // we're using two field loaders here because we don't know who was responsible for storing this field to support synthetic source
-        // on one hand, if a delegate keyword field exists, then it might've stored the field. However, this is not true if said field was
-        // ignored during indexing (ex. it tripped ignore_above). Because of this uncertainty, we need multiple field loaders.
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
 
-        // first field loader - to check whether the field's value was stored under this match_only_text field
-        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-        final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
-            @Override
-            protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                if (value instanceof BytesRef valueBytes) {
-                    b.value(valueBytes.utf8ToString());
-                } else {
-                    assert value instanceof String;
-                    b.value(value.toString());
+        // layer for loading from a fallback field created during indexing by this text field mapper
+        final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+        if (usesBinaryDocValues) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
+        } else {
+            // for bwc - fallback fields were originally stored in StoredFields
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    if (value instanceof BytesRef valueBytes) {
+                        b.value(valueBytes.utf8ToString());
+                    } else {
+                        assert value instanceof String;
+                        b.value(value.toString());
+                    }
                 }
-            }
-        };
-
-        final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
-
-        // second loader - to check whether the field's value was stored by a keyword delegate field
-        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
-        if (kwd != null) {
-            // merge the two field loaders into one
-            var kwdFieldLoader = kwd.syntheticFieldLoader(fullPath(), leafName());
-            return fieldLoader.mergedWith(kwdFieldLoader);
+            });
         }
 
-        return fieldLoader;
+        // because we don't know whether the delegate can be used for loading fields (ex. the delegate ignored some values or the delegate
+        // doesn't even exist in the first place), we must check both the current field, as well as the delegate
+        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
+        if (kwd != null) {
+            layers.addAll(kwd.syntheticFieldLoaderLayers());
+        }
+
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+    }
+
+    /**
+     * A wrapper around {@link BinaryDocValues} that exposes some quality of life functions. Note, these values are not sorted.
+     */
+    private static class CustomBinaryDocValues extends SortedBinaryDocValues {
+
+        private final BinaryDocValues binaryDocValues;
+        private final ByteArrayStreamInput stream;
+
+        private int docValueCount = 0;
+
+        CustomBinaryDocValues(BinaryDocValues binaryDocValues) {
+            this.binaryDocValues = binaryDocValues;
+            this.stream = new ByteArrayStreamInput();
+        }
+
+        @Override
+        public BytesRef nextValue() throws IOException {
+            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
+            return stream.readBytesRef();
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            // if document has a value, read underlying bytes
+            if (binaryDocValues.advanceExact(docId)) {
+                BytesRef docValuesBytes = binaryDocValues.binaryValue();
+                stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
+                docValueCount = stream.readVInt();
+                return true;
+            }
+
+            // otherwise there is nothing to do
+            docValueCount = 0;
+            return false;
+        }
+
+        @Override
+        public int docValueCount() {
+            return docValueCount;
+        }
     }
 }

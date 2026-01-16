@@ -20,8 +20,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "Comma-separated list of indices or data streams to analyze the disk usage"
+              "type": "list",
+              "description": "Comma-separated list of data streams, indices, and aliases used to limit the request. It\u2019s recommended to execute this API with a single index (or the latest backing index of a data stream) as the API consumes resources significantly."
             }
           }
         }
@@ -49,7 +49,7 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

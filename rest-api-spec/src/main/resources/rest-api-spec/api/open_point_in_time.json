@@ -36,7 +36,7 @@
         "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "ignore_unavailable": {
@@ -45,7 +45,7 @@
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -57,7 +57,7 @@
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "keep_alive": {
-        "type": "string",
+        "type": "time",
         "description": "Specific the time to live for the point in time",
         "required": true
       },
@@ -70,10 +70,6 @@
         "type": "int",
         "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
         "default": 5
-      },
-      "project_routing": {
-        "type": "string",
-        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
     "body": {

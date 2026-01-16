@@ -83,9 +83,6 @@ setup:
   - match: { hits.hits.1.fields.name.0: "rabbit.jpg" }
 ---
 "kNN multi-field search only":
-  - requires:
-      cluster_features: "gte_v8.7.0"
-      reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
         index: test
@@ -102,9 +99,6 @@ setup:
   - match: { hits.hits.1.fields.name.0: "moose.jpg" }
 ---
 "kNN search plus query":
-  - requires:
-      cluster_features: "gte_v8.4.0"
-      reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
         index: test
@@ -129,9 +123,6 @@ setup:
   - match: { hits.hits.2.fields.name.0: "rabbit.jpg" }
 ---
 "kNN multi-field search with query":
-  - requires:
-      cluster_features: "gte_v8.7.0"
-      reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
         index: test
@@ -154,9 +145,6 @@ setup:
   - match: { hits.hits.2.fields.name.0: "moose.jpg" }
 ---
 "kNN search with filter":
-  - requires:
-      cluster_features: "gte_v8.4.0"
-      reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
         index: test
@@ -195,9 +183,6 @@ setup:
 
 ---
 "kNN search with explicit search_type":
-  - requires:
-      cluster_features: "gte_v8.4.0"
-      reason: 'kNN added to search endpoint in 8.4'
   - do:
       catch: bad_request
       search:
@@ -216,9 +201,6 @@ setup:
 
 ---
 "Test nonexistent field is match none":
-  - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: 'non-existent field handling improved in 8.16'
   - do:
       search:
         index: test
@@ -266,9 +248,6 @@ setup:
 
 ---
 "KNN Vector similarity search only":
-  - requires:
-      cluster_features: "gte_v8.8.0"
-      reason: 'kNN similarity added in 8.8'
   - do:
       search:
         index: test
@@ -287,9 +266,6 @@ setup:
   - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 ---
 "Vector similarity with filter only":
-  - requires:
-      cluster_features: "gte_v8.8.0"
-      reason: 'kNN similarity added in 8.8'
   - do:
       search:
         index: test
@@ -325,8 +301,6 @@ setup:
 ---
 "Knn search with mip":
   - requires:
-      cluster_features: "gte_v8.11.0"
-      reason: 'mip similarity added in 8.11'
       test_runner_features: "close_to"
 
   - do:
@@ -414,8 +388,6 @@ setup:
 ---
 "Knn search with _name":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: 'support for _name in knn was added in 8.15'
       test_runner_features: "close_to"
 
   - do:
@@ -450,39 +422,7 @@ setup:
   - match: { hits.hits.2.matched_queries.0: "my_knn_query" }
 
 ---
-"kNN search on empty index should return 0 results and not an error":
-  - requires:
-      cluster_features: "gte_v8.15.1"
-      reason: 'Error fixed in 8.15.1'
-  - do:
-      indices.create:
-        index: test_empty
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-  - do:
-      search:
-        index: test_empty
-        body:
-          fields: [ "name" ]
-          knn:
-            field: vector
-            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
-            k: 2
-            num_candidates: 3
-
-  - match: { hits.total.value: 0 }
----
 "Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
-  - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -571,9 +511,6 @@ setup:
 
 ---
 "Updating dim to null is not allowed":
-  - requires:
-      cluster_features: "mapper.npe_on_dims_update_fix"
-      reason: "dims update fix"
   - do:
       indices.create:
         index: test_index
@@ -598,9 +535,6 @@ setup:
 
 ---
 "Searching with no data dimensions specified":
-  - requires:
-      cluster_features: "search.vectors.no_dimensions_bugfix"
-      reason: "Search with no dimensions bugfix"
 
   - do:
       indices.create:

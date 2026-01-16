@@ -1,6 +1,0 @@
-pr: 137275
-summary: "Reindex-from-remote: Fail on manual slicing param"
-area: Indices APIs
-type: bug
-issues:
- - 136269

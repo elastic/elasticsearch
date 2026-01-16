@@ -9,10 +9,12 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,6 +25,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -30,7 +33,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 // end generated imports
 
 public final class RateDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -38,9 +43,11 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
+        private final boolean isDateNanos;
 
-        public FunctionSupplier(boolean isRateOverTime) {
+        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos) {
             this.isRateOverTime = isRateOverTime;
+            this.isDateNanos = isDateNanos;
         }
 
         @Override
@@ -60,7 +67,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
         @Override
         public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime);
+            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos);
         }
 
         @Override
@@ -79,22 +86,44 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     private ObjectArray<Buffer> buffers;
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private final LocalCircuitBreaker.SingletonService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
+    private final double dateFactor;
 
-    public RateDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
+    // tracking min/max group ids to allow flushing the raw buffer when the slice index changed
+    private int minRawInputGroupId = Integer.MAX_VALUE;
+    private int maxRawInputGroupId = Integer.MIN_VALUE;
+    private int lastSliceIndex = -1;
+
+    public RateDoubleGroupingAggregatorFunction(
+        List<Integer> channels,
+        DriverContext driverContext,
+        boolean isRateOverTime,
+        boolean isDateNanos
+    ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.bigArrays = driverContext.bigArrays();
         this.isRateOverTime = isRateOverTime;
-        ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
+        LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
+            driverContext.bigArrays().breakerService(),
+            ByteSizeValue.ofKb(8).getBytes(),
+            ByteSizeValue.ofKb(512).getBytes()
+        );
+        this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
+        this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        ObjectArray<Buffer> buffers = null;
         try {
-            this.reducedStates = driverContext.bigArrays().newObjectArray(256);
+            buffers = bigArrays.newObjectArray(256);
+            this.reducedStates = bigArrays.newObjectArray(256);
+
             this.buffers = buffers;
+            this.localCircuitBreakerService = localCircuitBreakerService;
             buffers = null;
+            localCircuitBreakerService = null;
         } finally {
-            Releasables.close(buffers);
+            Releasables.close(buffers, localCircuitBreakerService);
         }
     }
 
@@ -139,7 +168,11 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
-
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
+        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -379,7 +412,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
                 buffer.close();
             }
         }
-        Releasables.close(reducedStates, buffers);
+        Releasables.close(reducedStates, buffers, localCircuitBreakerService);
     }
 
     private Buffer getBuffer(int groupId, int newElements, long firstTimestamp) {
@@ -388,10 +421,34 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         if (buffer == null) {
             buffer = new Buffer(bigArrays, newElements);
             buffers.set(groupId, buffer);
+            minRawInputGroupId = Math.min(minRawInputGroupId, groupId);
+            maxRawInputGroupId = Math.max(maxRawInputGroupId, groupId);
         } else {
             buffer.ensureCapacity(bigArrays, newElements, firstTimestamp);
         }
         return buffer;
+    }
+
+    void flushRawBuffers() {
+        if (minRawInputGroupId > maxRawInputGroupId) {
+            return;
+        }
+        reducedStates = bigArrays.grow(reducedStates, maxRawInputGroupId + 1);
+        for (int groupId = minRawInputGroupId; groupId <= maxRawInputGroupId; groupId++) {
+            Buffer buffer = buffers.getAndSet(groupId, null);
+            if (buffer != null) {
+                try (buffer) {
+                    ReducedState state = reducedStates.get(groupId);
+                    if (state == null) {
+                        state = new ReducedState();
+                        reducedStates.set(groupId, state);
+                    }
+                    buffer.flush(state);
+                }
+            }
+        }
+        minRawInputGroupId = Integer.MAX_VALUE;
+        maxRawInputGroupId = Integer.MIN_VALUE;
     }
 
     /**
@@ -561,31 +618,45 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selected.getPositionCount();
-        try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+        try (
+            var rates = blockFactory.newDoubleBlockBuilder(positionCount);
+            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, bigArrays)
+        ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = flushAndCombineState(group);
-                if (state == null || state.samples < 2) {
-                    rates.appendNull();
-                    continue;
-                }
-                // combine intervals for the final evaluation
-                Interval[] intervals = state.intervals;
-                ArrayUtil.timSort(intervals);
-                for (int i = 1; i < intervals.length; i++) {
-                    Interval next = intervals[i - 1]; // reversed
-                    Interval prev = intervals[i];
-                    if (prev.v2 > next.v2) {
-                        state.resets += prev.v2;
+                if (state != null) {
+                    flushedStates.put(group, state);
+                    // combine intervals for the final evaluation
+                    Interval[] intervals = state.intervals;
+                    ArrayUtil.timSort(intervals);
+                    for (int i = 1; i < intervals.length; i++) {
+                        Interval next = intervals[i - 1]; // reversed
+                        Interval prev = intervals[i];
+                        if (prev.v1 > next.v2) {
+                            state.resets += prev.v1;
+                        }
                     }
                 }
+            }
+            for (int p = 0; p < positionCount; p++) {
+                int group = selected.getInt(p);
+                var state = flushedStates.get(group);
+
                 final double rate;
-                if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime);
+                if (state == null || state.samples == 0) {
+                    rate = Double.NaN;
+                } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                    rate = computeRate(flushedStates, group, tsContext, isRateOverTime, dateFactor);
                 } else {
-                    rate = computeRateWithoutExtrapolate(state, isRateOverTime);
+                    rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
                 }
-                rates.appendDouble(rate);
+
+                if (Double.isNaN(rate)) {
+                    rates.appendNull();
+                } else {
+                    rates.appendDouble(rate);
+                }
             }
             blocks[offset] = rates.build();
         }
@@ -652,17 +723,88 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         }
     }
 
-    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime) {
-        assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
+    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime, double dateFactor) {
+        if (state.samples < 2) {
+            return Double.NaN;
+        }
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
         double lastValue = state.intervals[0].v1 + state.resets;
         if (isRateOverTime) {
-            return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
+            return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
             return lastValue - firstValue;
         }
+    }
+
+    /**
+     * Computes the rate for a given group by interpolating boundary values with adjacent groups,
+     * or extrapolating values at the time bucket boundaries.
+     */
+    private static double computeRate(
+        LongObjectPagedHashMap<ReducedState> states,
+        int group,
+        TimeSeriesGroupingAggregatorEvaluationContext tsContext,
+        boolean isRateOverTime,
+        double dateFactor
+    ) {
+        var state = states.get(group);
+        final double tbucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
+        final double tbucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
+        final double firstValue;
+        final double lastValue;
+        double firstTsSec = tbucketStart;
+        double lastTsSec = tbucketEnd;
+
+        int previousGroupId = tsContext.previousGroupId(group);
+        var previousState = (previousGroupId >= 0) ? states.get(previousGroupId) : null;
+        if (previousState == null || previousState.samples == 0) {
+            if (state.samples == 1) {
+                firstTsSec = state.intervals[0].t1 / dateFactor;
+                firstValue = state.intervals[0].v1;
+            } else {
+                firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
+            }
+        } else {
+            firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
+        }
+
+        int nextGroupId = tsContext.nextGroupId(group);
+        var nextState = (nextGroupId >= 0) ? states.get(nextGroupId) : null;
+        if (nextState == null || nextState.samples == 0) {
+            if (state.samples == 1) {
+                lastTsSec = state.intervals[0].t1 / dateFactor;
+                lastValue = state.intervals[0].v1;
+            } else {
+                lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
+            }
+        } else {
+            lastValue = interpolateBetweenStates(state, nextState, tbucketStart, tbucketEnd, dateFactor, false) + state.resets;
+        }
+
+        if (lastTsSec == firstTsSec) {
+            // Check for the case where there is only one sample in state, right at the boundary towards a non-empty adjacent state.
+            if (state.samples == 1) {
+                if (previousState != null) {
+                    assert nextState == null;
+                    assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
+                    final double startTs = previousState.intervals[0].t1 / dateFactor;
+                    final double delta = deltaBetweenStates(previousState, state, dateFactor);
+                    return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
+                }
+                if (nextState != null) {
+                    assert state.intervals[0].t1 == lastTsSec * dateFactor : lastTsSec + ":" + state.intervals[0].t1;
+                    final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
+                    final double delta = deltaBetweenStates(state, nextState, dateFactor);
+                    return isRateOverTime ? delta / (endTs - lastTsSec) : delta;
+                }
+            }
+            return Double.NaN;
+        }
+        final double increase = lastValue - firstValue;
+        assert increase >= 0 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
+        return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }
 
     /**
@@ -674,33 +816,87 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, boolean isRateOverTime) {
-        assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
-        final long firstTS = state.intervals[state.intervals.length - 1].t2;
-        final long lastTS = state.intervals[0].t1;
-        double firstValue = state.intervals[state.intervals.length - 1].v2;
-        double lastValue = state.intervals[0].v1 + state.resets;
-        final double sampleTS = lastTS - firstTS;
-        final double averageSampleInterval = sampleTS / state.samples;
-        final double slope = (lastValue - firstValue) / sampleTS;
-        double startGap = firstTS - rangeStart;
-        if (startGap > 0) {
-            if (startGap > averageSampleInterval * 1.1) {
-                startGap = averageSampleInterval / 2.0;
+    private static double extrapolateToBoundary(
+        ReducedState state,
+        double tbucketStart,
+        double tbucketEnd,
+        double dateFactor,
+        boolean isLowerBoundary
+    ) {
+        final double startTs = state.intervals[state.intervals.length - 1].t2 / dateFactor;
+        final double startValue = state.intervals[state.intervals.length - 1].v2;
+        final double endTs = state.intervals[0].t1 / dateFactor;
+        final double endValue = state.intervals[0].v1 + state.resets;
+        final double sampleTsSec = endTs - startTs;
+        final double averageSampleInterval = sampleTsSec / state.samples;
+        final double slope = (endValue - startValue) / sampleTsSec;
+
+        if (isLowerBoundary) {
+            double startGapSec = startTs - tbucketStart;
+            if (startGapSec > 0) {
+                if (startGapSec > averageSampleInterval * 1.1) {
+                    startGapSec = averageSampleInterval / 2.0;
+                }
+                return Math.max(0.0, startValue - startGapSec * slope);
             }
-            firstValue = Math.max(0.0, firstValue - startGap * slope);
-        }
-        double endGap = rangeEnd - lastTS;
-        if (endGap > 0) {
-            if (endGap > averageSampleInterval * 1.1) {
-                endGap = averageSampleInterval / 2.0;
-            }
-            lastValue = lastValue + endGap * slope;
-        }
-        if (isRateOverTime) {
-            return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+            return startValue;
         } else {
-            return lastValue - firstValue;
+            double endGapSec = tbucketEnd - endTs;
+            if (endGapSec > 0) {
+                if (endGapSec > averageSampleInterval * 1.1) {
+                    endGapSec = averageSampleInterval / 2.0;
+                }
+                return endValue + endGapSec * slope;
+            }
+            return endValue;
         }
+    }
+
+    /**
+     * Interpolates the value at the time bucket boundary between two states.
+     *
+     * For the lower boundary (tbucketStart), interpolation is applied between the last sample of the lower state
+     * and the first sample of the upper state. Conversely, for the upper boundary (tbucketEnd), interpolation
+     * is applied between the first sample of the lower state and the last sample of the upper state.
+     *
+     * The logic detects counter resets across the boundary, with interpolation using the last value instead of the
+     * value delta to produce correct results.
+     */
+    private static double interpolateBetweenStates(
+        ReducedState lowerState,
+        ReducedState upperState,
+        double tbucketStart,
+        double tbucketEnd,
+        double dateFactor,
+        boolean isLowerBoundary
+    ) {
+        final double startValue = lowerState.intervals[0].v1;
+        final double startTs = lowerState.intervals[0].t1 / dateFactor;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
+        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+        assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
+        final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
+        final double slope = delta / (endTs - startTs);
+        if (isLowerBoundary) {
+            assert startTs <= tbucketStart : startTs + " <= " + tbucketStart;
+            final double baseValue = (endValue >= startValue) ? startValue : 0;
+            double timeDelta = tbucketStart - startTs;
+            return baseValue + slope * timeDelta;
+        } else {
+            assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
+            double timeDelta = tbucketEnd - startTs;
+            return startValue + slope * timeDelta;
+        }
+    }
+
+    private static double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
+        final double startValue = lowerState.intervals[0].v1;
+        final double startTs = lowerState.intervals[0].t1 / dateFactor;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
+        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+
+        // If the end value is smaller than the start value, a counter reset occurred.
+        // In this case, the delta is considered equal to the end value.
+        return (endValue >= startValue) ? endValue - startValue : endValue;
     }
 }

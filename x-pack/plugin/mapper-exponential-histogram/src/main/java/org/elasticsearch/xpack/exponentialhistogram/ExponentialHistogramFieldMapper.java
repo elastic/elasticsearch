@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -29,6 +30,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -41,13 +43,14 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -59,10 +62,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
+import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,6 +99,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "exponential_histogram";
 
+    // use the same default as numbers
+    private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
+
     private static ExponentialHistogramFieldMapper toType(FieldMapper in) {
         return (ExponentialHistogramFieldMapper) in;
     }
@@ -108,7 +116,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
      * @param fullPath the full path of the mapped field
      * @return the name for the lucene field
      */
-    private static String zeroThresholdSubFieldName(String fullPath) {
+    static String zeroThresholdSubFieldName(String fullPath) {
         return fullPath + "._zero_threshold";
     }
 
@@ -122,7 +130,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
      * @param fullPath the full path of the mapped field
      * @return the name for the lucene field
      */
-    private static String valuesCountSubFieldName(String fullPath) {
+    static String valuesCountSubFieldName(String fullPath) {
         return fullPath + "._values_count";
     }
 
@@ -142,8 +150,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         private final FieldMapper.Parameter<Map<String, String>> meta = FieldMapper.Parameter.metaParam();
         private final FieldMapper.Parameter<Explicit<Boolean>> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> coerce;
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * Only the metric type histogram is supported.
+         */
+        private final Parameter<TimeSeriesParams.MetricType> metric;
 
-        Builder(String name, boolean ignoreMalformedByDefault) {
+        Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.ignoreMalformed = FieldMapper.Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -151,18 +165,25 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+        }
+
+        public Builder metric(TimeSeriesParams.MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
         }
 
         @Override
         protected FieldMapper.Parameter<?>[] getParameters() {
-            return new FieldMapper.Parameter<?>[] { ignoreMalformed, meta };
+            return new FieldMapper.Parameter<?>[] { ignoreMalformed, coerce, meta, metric };
         }
 
         @Override
         public ExponentialHistogramFieldMapper build(MapperBuilderContext context) {
             return new ExponentialHistogramFieldMapper(
                 leafName(),
-                new ExponentialHistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
+                new ExponentialHistogramFieldType(context.buildFullName(leafName()), meta.getValue(), metric.getValue()),
                 builderParams(this, context),
                 this
             );
@@ -170,12 +191,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new FieldMapper.TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings())),
         notInMultiFields(CONTENT_TYPE)
     );
 
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
+
+    private final Explicit<Boolean> coerce;
+    private final boolean coerceByDefault;
+    private final TimeSeriesParams.MetricType metricType;
 
     ExponentialHistogramFieldMapper(
         String simpleName,
@@ -186,11 +211,18 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.coerce = builder.coerce.getValue();
+        this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.metricType = builder.metric.getValue();
     }
 
     @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    boolean coerce() {
+        return coerce.value();
     }
 
     @Override
@@ -200,7 +232,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault).metric(metricType).init(this);
     }
 
     @Override
@@ -210,9 +242,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     public static final class ExponentialHistogramFieldType extends MappedFieldType {
 
+        private final TimeSeriesParams.MetricType metricType;
+
         // Visible for testing
-        public ExponentialHistogramFieldType(String name, Map<String, String> meta) {
+        public ExponentialHistogramFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, IndexType.docValuesOnly(), false, meta);
+            this.metricType = metricType;
         }
 
         @Override
@@ -236,6 +271,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return (cache, breakerService) -> new IndexExponentialHistogramFieldData(name()) {
                 @Override
@@ -248,7 +288,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not support scripts");
                         }
 
                         @Override
@@ -256,6 +296,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                             throw new UnsupportedOperationException(
                                 "String representation of doc values " + "for [" + CONTENT_TYPE + "] fields is not supported"
                             );
+                        }
+
+                        @Override
+                        public FormattedDocValues getFormattedValues(DocValueFormat format) {
+                            return createFormattedDocValues(context.reader(), fieldName);
                         }
 
                         @Override
@@ -309,7 +354,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             DoublesBlockLoader minimaLoader = new DoublesBlockLoader(valuesMinSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
-            LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+            // we store the counts as integers for better compression, but the block requires doubles. So we simply cast the value
+            DoublesBlockLoader valueCountsLoader = new DoublesBlockLoader(valuesCountSubFieldName(name()), longVal -> (double) longVal);
             DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
                 zeroThresholdSubFieldName(name()),
                 NumericUtils::sortableLongToDouble
@@ -397,6 +443,43 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
     }
 
+    // Visible for testing
+    static FormattedDocValues createFormattedDocValues(LeafReader reader, String fieldName) {
+        return new FormattedDocValues() {
+
+            boolean hasNext = false;
+            ExponentialHistogramValuesReader delegate;
+
+            private ExponentialHistogramValuesReader lazyDelegate() throws IOException {
+                if (delegate == null) {
+                    delegate = new DocValuesReader(reader, fieldName);
+                }
+                return delegate;
+            }
+
+            @Override
+            public boolean advanceExact(int docId) throws IOException {
+                hasNext = lazyDelegate().advanceExact(docId);
+                return hasNext;
+            }
+
+            @Override
+            public int docValueCount() throws IOException {
+                return 1; // no multivalue support, so always 1
+            }
+
+            @Override
+            public Object nextValue() throws IOException {
+                if (hasNext == false) {
+                    throw new IllegalStateException("No value available, make sure to call advanceExact() first");
+                }
+                hasNext = false;
+                return lazyDelegate().histogramValue();
+            }
+
+        };
+    }
+
     @Override
     protected boolean supportsParsingObject() {
         return true;
@@ -427,7 +510,15 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 subParser = new XContentSubParser(context.parser());
             }
             subParser.nextToken();
-            ExponentialHistogramParser.ParsedExponentialHistogram parsedHistogram = ExponentialHistogramParser.parse(fullPath(), subParser);
+            ExponentialHistogramParser.ParsedExponentialHistogram parsedHistogram;
+            if (coerce()
+                && subParser.currentToken() == XContentParser.Token.FIELD_NAME
+                && HistogramParser.isHistogramSubFieldName(subParser.currentName())) {
+                HistogramParser.ParsedHistogram parsedTDigest = HistogramParser.parse(fullPath(), subParser);
+                parsedHistogram = ParsedHistogramConverter.tDigestToExponential(parsedTDigest);
+            } else {
+                parsedHistogram = ExponentialHistogramParser.parse(fullPath(), subParser);
+            }
 
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
@@ -517,10 +608,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         long thresholdAsLong = NumericUtils.doubleToSortableLong(zeroThreshold);
         NumericDocValuesField zeroThresholdField = new NumericDocValuesField(zeroThresholdSubFieldName(fieldName), thresholdAsLong);
         NumericDocValuesField valuesCountField = new NumericDocValuesField(valuesCountSubFieldName(fieldName), totalValueCount);
-        NumericDocValuesField sumField = new NumericDocValuesField(
-            valuesSumSubFieldName(fieldName),
-            NumericUtils.doubleToSortableLong(sum)
-        );
+        // for empty histograms, we store null as sum so that SUM() / COUNT() in ESQL yields NULL without warnings
+        NumericDocValuesField sumField = null;
+        if (totalValueCount > 0) {
+            sumField = new NumericDocValuesField(valuesSumSubFieldName(fieldName), NumericUtils.doubleToSortableLong(sum));
+        } else {
+            // empty histogram must have a sum of 0.0
+            assert sum == 0.0;
+        }
         NumericDocValuesField minField = null;
         if (Double.isNaN(min) == false) {
             minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
@@ -545,7 +640,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         BinaryDocValuesField histo,
         NumericDocValuesField zeroThreshold,
         NumericDocValuesField valuesCount,
-        NumericDocValuesField sumField,
+        @Nullable NumericDocValuesField sumField,
         @Nullable NumericDocValuesField minField,
         @Nullable NumericDocValuesField maxField
     ) {
@@ -554,7 +649,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             doc.addWithKey(histo.name(), histo);
             doc.add(zeroThreshold);
             doc.add(valuesCount);
-            doc.add(sumField);
+            if (sumField != null) {
+                doc.add(sumField);
+            }
             if (minField != null) {
                 doc.add(minField);
             }
@@ -568,7 +665,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             fields.add(histo);
             fields.add(zeroThreshold);
             fields.add(valuesCount);
-            fields.add(sumField);
+            if (sumField != null) {
+                fields.add(sumField);
+            }
             if (minField != null) {
                 fields.add(minField);
             }
@@ -697,13 +796,19 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
             boolean histoPresent = histoDocValues.advanceExact(currentDocId);
             boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
-            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert zeroThresholdPresent && histoPresent && valueSumsPresent;
+            assert zeroThresholdPresent && histoPresent;
 
             BytesRef encodedHistogram = histoDocValues.binaryValue();
             double zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
             long valueCount = valueCounts.longValue();
-            double valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            double valueSum;
+            if (valueCount > 0) {
+                boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+                assert valueSumsPresent;
+                valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            } else {
+                valueSum = 0.0; // empty histogram has sum of 0.0, but we store null in the doc values
+            }
             double valueMin;
             if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {
                 valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
@@ -730,8 +835,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             if (currentDocId == -1) {
                 throw new IllegalStateException("No histogram present for current document");
             }
-            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert valueSumsPresent;
+            if (valueSums == null || valueSums.advanceExact(currentDocId) == false) {
+                // empty histogram, must have sum of 0.0
+                return 0.0;
+            }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
         }
     }

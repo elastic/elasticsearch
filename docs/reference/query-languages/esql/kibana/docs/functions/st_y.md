@@ -2,7 +2,7 @@
 
 ### ST Y
 Extracts the `y` coordinate from the supplied point.
-If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
+If the point is of type `geo_point` this is equivalent to extracting the `latitude` value.
 
 ```esql
 ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")

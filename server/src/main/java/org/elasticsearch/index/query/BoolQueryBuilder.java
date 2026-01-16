@@ -19,6 +19,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -311,23 +312,38 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(
+    private void addBooleanClauses(
         SearchExecutionContext context,
         BooleanQuery.Builder booleanQueryBuilder,
         List<QueryBuilder> clauses,
         Occur occurs
     ) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
-            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
+                autoPrefilteringScope.push(collectPrefilters(query));
+                Query luceneQuery = query.toQuery(context);
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
         }
+    }
+
+    private List<QueryBuilder> collectPrefilters(QueryBuilder excluded) {
+        List<QueryBuilder> prefilters = new ArrayList<>();
+        mustClauses.stream().filter(q -> q != excluded).forEach(prefilters::add);
+        filterClauses.stream().filter(q -> q != excluded).forEach(prefilters::add);
+        mustNotClauses.stream().filter(q -> q != excluded).map(BoolQueryBuilder::invertQuery).forEach(prefilters::add);
+        return prefilters;
+    }
+
+    private static QueryBuilder invertQuery(QueryBuilder queryBuilder) {
+        return QueryBuilders.boolQuery().mustNot(queryBuilder);
     }
 
     @Override

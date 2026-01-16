@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -87,21 +89,26 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        ThreadContext traceContext = new ThreadContext(settings);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
 
+        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
 
     /**
-     * Check that when a trace is started, but it is not recorded, e.g. due to sampling, the tracer does not record it either.
+     * Check that when a root trace is started, but it is not recorded, e.g. due to sampling,
+     * the tracer tracks it but doesn't start tracing.
      */
-    public void test_onTraceStarted_ifNotRecorded_doesNotStartTrace() {
+    public void test_onTraceStarted_ifNotRecorded_doesNotStartTracing() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1_discard", null);
+        ThreadContext traceContext = new ThreadContext(settings);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1_discard", null);
 
+        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
 
@@ -116,8 +123,11 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
         try (var ignore1 = traceContext.newTraceContext()) {
             apmTracer.startTrace(traceContext, TRACEABLE2, "name2_discard", null);
+            assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+
             try (var ignore2 = traceContext.newTraceContext()) {
                 apmTracer.startTrace(traceContext, TRACEABLE3, "name3_discard", null);
+                assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
             }
         }
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
@@ -131,12 +141,13 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        ThreadContext threadContext = new ThreadContext(settings);
+        TraceContext traceContext = new ThreadContext(settings);
         // 1_000_000L because of "toNanos" conversions that overflow for large long millis
         Instant spanStartTime = Instant.ofEpochMilli(randomLongBetween(0, Long.MAX_VALUE / 1_000_000L));
-        threadContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
-        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+        traceContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
 
+        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("name1"), is(spanStartTime));
@@ -151,6 +162,7 @@ public class APMTracerTests extends ESTestCase {
 
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
         apmTracer.stopTrace(TRACEABLE1);
+        apmTracer.stopTrace(TRACEABLE2); // stopping a non-existent trace is a noop
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }

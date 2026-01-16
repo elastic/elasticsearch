@@ -63,6 +63,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -265,7 +266,8 @@ public class SecurityTests extends ESTestCase {
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            ProjectRoutingResolver.NOOP
         );
     }
 
@@ -864,6 +866,17 @@ public class SecurityTests extends ESTestCase {
     public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
         assertThatLogger(() -> Security.validateForFips(settings), Security.class);
+    }
+
+    public void testSecurityProvider() {
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:2.0"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:2*"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:*"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("sun"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:1.0"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:1*"));
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {

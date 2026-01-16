@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -139,7 +140,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         SetOnce<BytesReference> updatedPit = new SetOnce<>();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
-                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertThat(resp.pointInTimeId(), equalBytes(pitId));
                 assertHitCount(resp, docCount);
             });
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
@@ -176,7 +177,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
                     .setPointInTime(new PointInTimeBuilder(updatedPit.get()).setKeepAlive(TimeValue.timeValueMinutes(2))),
                 resp -> {
-                    assertThat(resp.pointInTimeId(), equalTo(updatedPit.get()));
+                    assertThat(resp.pointInTimeId(), equalBytes(updatedPit.get()));
                     assertHitCount(resp, docCount);
                 }
             );
@@ -208,7 +209,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
 
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
-                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertThat(resp.pointInTimeId(), equalBytes(pitId));
                 assertHitCount(resp, docCount);
             });
 
@@ -226,7 +227,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     .setAllowPartialSearchResults(true)
                     .setPointInTime(new PointInTimeBuilder(pitId)),
                 resp -> {
-                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    assertThat(resp.pointInTimeId(), equalBytes(pitId));
                     assertHitCount(resp, docCount);
                 }
             );

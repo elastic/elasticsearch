@@ -120,12 +120,55 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
+        return createAzureOpenAiModelWithTaskType(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            TaskType.COMPLETION
+        );
+    }
+
+    public static AzureOpenAiCompletionModel createChatCompletionModel(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        String user,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String inferenceEntityId
+    ) {
+        return createAzureOpenAiModelWithTaskType(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            TaskType.CHAT_COMPLETION
+        );
+    }
+
+    private static AzureOpenAiCompletionModel createAzureOpenAiModelWithTaskType(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        String user,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String inferenceEntityId,
+        TaskType taskType
+    ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
 
         return new AzureOpenAiCompletionModel(
             inferenceEntityId,
-            TaskType.COMPLETION,
+            taskType,
             "service",
             new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
             new AzureOpenAiCompletionTaskSettings(user),

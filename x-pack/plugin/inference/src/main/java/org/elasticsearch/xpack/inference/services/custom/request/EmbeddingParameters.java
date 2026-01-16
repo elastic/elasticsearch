@@ -28,7 +28,7 @@ public class EmbeddingParameters extends RequestParameters {
     private final InputTypeTranslator translator;
 
     private EmbeddingParameters(EmbeddingsInput embeddingsInput, InputTypeTranslator translator) {
-        super(embeddingsInput.getInputs());
+        super(embeddingsInput.getTextInputs());
         this.inputType = embeddingsInput.getInputType();
         this.translator = translator;
     }

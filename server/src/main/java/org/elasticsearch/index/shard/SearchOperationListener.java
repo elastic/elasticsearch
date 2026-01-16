@@ -15,6 +15,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * An listener for search, fetch and context events.
@@ -91,9 +92,10 @@ public interface SearchOperationListener {
      * Executed after the can-match phase successfully finished.
      * Note: this is not invoked if the can match phase execution failed.
      *
+     * @param searchRequestAttributes the attributes of the search request
      * @param tookInNanos the number of nanoseconds the can-match execution took
      */
-    default void onCanMatchPhase(long tookInNanos) {}
+    default void onCanMatchPhase(Map<String, Object> searchRequestAttributes, long tookInNanos) {}
 
     /**
      * Executed when a new reader context was created
@@ -246,10 +248,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onCanMatchPhase(long tookInNanos) {
+        public void onCanMatchPhase(Map<String, Object> searchRequestAttributes, long tookInNanos) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onCanMatchPhase(tookInNanos);
+                    listener.onCanMatchPhase(searchRequestAttributes, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onCanMatchPhase listener [" + listener + "] failed", e);
                 }

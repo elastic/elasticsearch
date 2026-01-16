@@ -297,10 +297,9 @@ public final class XContentDataHelper {
             BytesReference.bytes(builder),
             context.parser().contentType()
         );
-        if (DotExpandingXContentParser.isInstance(context.parser())) {
-            // If we performed dot expanding originally we need to continue to do so when we replace the parser.
-            newParser = DotExpandingXContentParser.expandDots(newParser, context.path());
-        }
+        // If we performed dot expanding originally we need to continue to do so when we replace the parser.
+        // To reliably do that, we need to delegate switching to the parser itself as it might be decorated / wrapped.
+        newParser = context.parser().switchParser(newParser);
 
         DocumentParserContext subcontext = context.switchParser(newParser);
         subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.

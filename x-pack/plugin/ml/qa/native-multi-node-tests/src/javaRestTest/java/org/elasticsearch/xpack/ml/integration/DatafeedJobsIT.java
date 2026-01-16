@@ -250,7 +250,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
             putDatafeed(datafeedConfig);
             // Datafeed did not do anything yet, hence search_count is equal to 0.
-            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+            assertBusy(() -> assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L)), 30, TimeUnit.SECONDS);
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
 
             // First, wait for data processing to complete
@@ -263,7 +263,14 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                 TimeUnit.SECONDS
             );
 
-            deleteDatafeed(datafeedId);
+            DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
+            assertBusy(() -> {
+                try {
+                    client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
+                } catch (Exception e) {
+                    throw new AssertionError("Datafeed could not be deleted", e);
+                }
+            });
             waitUntilJobIsClosed(job.getId());
         };
 
@@ -480,8 +487,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startRealtime(jobId);
 
         try {
-            StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
-            assertTrue(stopJobResponse.isStopped());
+            StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId);
+            assertTrue(stopDatafeedResponse.isStopped());
         } catch (Exception e) {
             HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
             throw e;
@@ -490,6 +497,180 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+
+        // The job should _not_ have closed automatically
+        assertBusy(() -> {
+            GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
+        });
+    }
+
+    private void doTestStopRealtime_GivenCloseJobAndForceStopParameters(
+        String jobId,
+        boolean closeJobParameter,
+        boolean forceClose,
+        JobState jobState
+    ) throws Exception {
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        try {
+            StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId, closeJobParameter, forceClose);
+            assertTrue(stopDatafeedResponse.isStopped());
+        } catch (Exception e) {
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
+            throw e;
+        }
+
+        // The job should have closed automatically
+        assertBusy(() -> {
+            GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getState(), equalTo(jobState));
+        });
+
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+    }
+
+    private void doTestStopLookback_GivenCloseJobAndForceStopParameters(
+        String jobId,
+        boolean closeJobParameter,
+        boolean forceStop,
+        JobState jobState
+    ) throws Exception {
+        String datafeedId = jobId + "-datafeed";
+
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+        long numDocs = 20480;
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, oneWeekAgo);
+
+        Job.Builder job = createScheduledJob(jobId);
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(datafeedId, jobId, Collections.singletonList("data"));
+        // Use lots of chunks to maximise the chance that we can stop the lookback before it completes
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        putDatafeed(datafeedConfig);
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), greaterThan(0L)), 60, TimeUnit.SECONDS);
+
+        // Stop the datafeed with the given close_job and force_stop parameters
+        StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId, closeJobParameter, forceStop);
+        assertTrue(stopDatafeedResponse.isStopped());
+
+        // Check the job state is as expected
+        assertBusy(() -> assertEquals(jobState, getJobStats(jobId).get(0).getState()), 2, TimeUnit.SECONDS);
+    }
+
+    public void testStopLookback_closeJobTrue() throws Exception {
+        doTestStopLookback_GivenCloseJobAndForceStopParameters("lookback-stop-close-job-true", true, false, JobState.CLOSED);
+    }
+
+    public void testStopLookback_closeJobFalse() throws Exception {
+        doTestStopLookback_GivenCloseJobAndForceStopParameters("lookback-stop-close-job-false", false, false, JobState.OPENED);
+    }
+
+    public void testStopLookback_forceTrue_closeJobTrue() throws Exception {
+        doTestStopLookback_GivenCloseJobAndForceStopParameters("lookback-force-stop-close-job-true", true, true, JobState.CLOSED);
+    }
+
+    public void testStopLookback_forceTrue_closeJobFalse() throws Exception {
+        doTestStopLookback_GivenCloseJobAndForceStopParameters("lookback-force-stop-close-job-false", false, true, JobState.OPENED);
+    }
+
+    public void testStopRealtime_closeJobTrue() throws Exception {
+        doTestStopRealtime_GivenCloseJobAndForceStopParameters("realtime-stop-close-job-true", true, false, JobState.CLOSED);
+    }
+
+    public void testStopRealtime_closeJobFalse() throws Exception {
+        doTestStopRealtime_GivenCloseJobAndForceStopParameters("realtime-stop-close-job-false", false, false, JobState.OPENED);
+    }
+
+    public void testStopRealtime_forceTrue_closeJobTrue() throws Exception {
+        doTestStopRealtime_GivenCloseJobAndForceStopParameters("realtime-force-stop-close-job-true", true, true, JobState.CLOSED);
+    }
+
+    public void testStopRealtime_forceTrue_closeJobFalse() throws Exception {
+        doTestStopRealtime_GivenCloseJobAndForceStopParameters("realtime-force-stop-close-job-false", false, true, JobState.OPENED);
+    }
+
+    public void testStopMultipleDatafeedsWithFailures_forceFalse_closeJobFalse() throws Exception {
+        doTestStopMultipleDatafeedsWithFailures(false, false, JobState.OPENED);
+    }
+
+    public void testStopMultipleDatafeedsWithFailures_forceTrue_closeJobFalse() throws Exception {
+        doTestStopMultipleDatafeedsWithFailures(false, true, JobState.OPENED);
+    }
+
+    public void testStopMultipleDatafeedsWithFailures_forceFalse_closeJobTrue() throws Exception {
+        doTestStopMultipleDatafeedsWithFailures(true, false, JobState.CLOSED);
+    }
+
+    public void testStopMultipleDatafeedsWithFailures_forceTrue_closeJobTrue() throws Exception {
+        doTestStopMultipleDatafeedsWithFailures(true, true, JobState.CLOSED);
+    }
+
+    public void doTestStopMultipleDatafeedsWithFailures(boolean closeJob, boolean forceStop, JobState expectedJobState) throws Exception {
+        // Test stopping multiple datafeeds at once, where some are not in a stoppable state.
+
+        // 1. Create and start two datafeeds that can be stopped.
+        startRealtime("job-1", "data-1", null);
+        startRealtime("job-2", "data-2", null);
+
+        // 2. Create a third datafeed but leave it stopped.
+        Job.Builder job3 = createScheduledJob("job-3");
+        putJob(job3);
+        DatafeedConfig datafeed3 = createDatafeed("already-stopped-datafeed", "job-3", Collections.singletonList("data-3"));
+        putDatafeed(datafeed3);
+
+        // 3. Attempt to stop all three plus a non-existent one.
+        StopDatafeedAction.Request stopRequest = new StopDatafeedAction.Request(
+            "job-1-datafeed,job-2-datafeed,already-stopped-datafeed,non-existent-datafeed"
+        );
+
+        // The API call should fail because some datafeeds could not be found.
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(StopDatafeedAction.INSTANCE, stopRequest).actionGet()
+        );
+
+        assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(e.getMessage(), containsString("No datafeed with id [non-existent-datafeed] exists"));
+
+        // 4. Verify that the datafeeds that were running are continuing to do so (the failed API call prevented any being stopped).
+        assertBusy(() -> {
+            assertDatafeedStats("job-1-datafeed", DatafeedState.STARTED, "job-1", greaterThan(0L));
+            assertDatafeedStats("job-2-datafeed", DatafeedState.STARTED, "job-2", greaterThan(0L));
+            assertDatafeedStats("already-stopped-datafeed", DatafeedState.STOPPED, "job-3", equalTo(0L));
+        });
+
+        // 5. Now attempt to stop all datafeeds using a wildcard and "allow_no_match" set to true.
+        StopDatafeedAction.Request stopRequest1 = new StopDatafeedAction.Request("*").setAllowNoMatch(true)
+            .setCloseJob(closeJob)
+            .setForce(forceStop);
+
+        client().execute(StopDatafeedAction.INSTANCE, stopRequest1).actionGet();
+
+        // 4. Verify that the datafeeds that were running are now stopped - and the jobs are in the expected state.
+        assertBusy(() -> {
+            assertEquals(expectedJobState, getJobStats("job-1").get(0).getState());
+            assertEquals(expectedJobState, getJobStats("job-2").get(0).getState());
+            assertEquals(JobState.CLOSED, getJobStats("job-3").get(0).getState());
+            assertDatafeedStats("job-1-datafeed", DatafeedState.STOPPED, "job-1", greaterThan(0L));
+            assertDatafeedStats("job-2-datafeed", DatafeedState.STOPPED, "job-2", greaterThan(0L));
+            assertDatafeedStats("already-stopped-datafeed", DatafeedState.STOPPED, "job-3", equalTo(0L));
         });
     }
 
@@ -738,18 +919,49 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(job.getId(), TimeValue.timeValueSeconds(2));
     }
 
+    public void testStopDatafeed_whenAlreadyStopping() throws Exception {
+        String jobId = "realtime-already-stopping";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        // 1. Send the first stop request but don't wait for the response
+        StopDatafeedAction.Request stopRequest = new StopDatafeedAction.Request(datafeedId);
+        var future1 = client().execute(StopDatafeedAction.INSTANCE, stopRequest);
+
+        // Give the first request a moment to start processing
+        // This makes it more likely the datafeed is in the "stopping" state when the second request arrives
+        Thread.sleep(100);
+
+        // 2. Send a second stop request for the same datafeed
+        StopDatafeedAction.Response stopResponse2 = client().execute(StopDatafeedAction.INSTANCE, stopRequest).actionGet();
+
+        // 3. Assert that the second request returned successfully
+        assertTrue("Second stop request should succeed and report stopped=true", stopResponse2.isStopped());
+
+        // 4. Verify the first request also completed successfully
+        StopDatafeedAction.Response stopResponse1 = future1.actionGet();
+        assertTrue("First stop request should also succeed", stopResponse1.isStopped());
+
+        // 5. Verify the final state
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
+    }
+
     private void startRealtime(String jobId) throws Exception {
-        startRealtime(jobId, null);
+        startRealtime(jobId, "data", null);
     }
 
     private void startRealtime(String jobId, Integer maxEmptySearches) throws Exception {
-        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+        startRealtime(jobId, "data", maxEmptySearches);
+    }
+
+    private void startRealtime(String jobId, String indexId, Integer maxEmptySearches) throws Exception {
+        client().admin().indices().prepareCreate(indexId).setMapping("time", "type=date").get();
         long now = System.currentTimeMillis();
         long numDocs1;
         if (maxEmptySearches == null) {
             numDocs1 = randomIntBetween(32, 2048);
             long lastWeek = now - 604800000;
-            indexDocs(logger, "data", numDocs1, lastWeek, now);
+            indexDocs(logger, indexId, numDocs1, lastWeek, now);
         } else {
             numDocs1 = 0;
         }
@@ -762,7 +974,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(
             job.getId() + "-datafeed",
             job.getId(),
-            Collections.singletonList("data")
+            Collections.singletonList(indexId)
         );
         if (maxEmptySearches != null) {
             datafeedConfigBuilder.setMaxEmptySearches(maxEmptySearches);
@@ -780,7 +992,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         long numDocs2;
         if (maxEmptySearches == null) {
             numDocs2 = randomIntBetween(2, 64);
-            indexDocs(logger, "data", numDocs2, now + 5000, now + 6000);
+            indexDocs(logger, indexId, numDocs2, now + 5000, now + 6000);
         } else {
             numDocs2 = 0;
         }

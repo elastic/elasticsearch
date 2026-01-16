@@ -36,6 +36,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMa
  * while keeping the bucket count in the result below a given limit.
  */
 public class ExponentialHistogramMerger implements Accountable, Releasable {
+    // OpenTelemetry SDK default, we might make this configurable later
+    public static final int DEFAULT_MAX_HISTOGRAM_BUCKETS = 320;
 
     private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class) + DownscaleStats.SIZE;
 
@@ -52,6 +54,16 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
 
     private final ExponentialHistogramCircuitBreaker circuitBreaker;
     private boolean closed = false;
+
+    /**
+     * Creates a new instance with the OpenTelemetry SDK default bucket limit of
+     * {@link ExponentialHistogramMerger#DEFAULT_MAX_HISTOGRAM_BUCKETS}.
+     *
+     * @param circuitBreaker the circuit breaker to use to limit memory allocations
+     */
+    public static ExponentialHistogramMerger create(ExponentialHistogramCircuitBreaker circuitBreaker) {
+        return create(DEFAULT_MAX_HISTOGRAM_BUCKETS, circuitBreaker);
+    }
 
     /**
      * Creates a new instance with the specified bucket limit.

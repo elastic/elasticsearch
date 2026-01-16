@@ -226,10 +226,11 @@ azure       | [240.0, 255.0, 255.0]
 
 knnWithNonPushableConjunction
 required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], {"min_candidates": 100}) and composed_name == false
+| where knn(rgb_vector, [128,128,0], {"k": 100}) and composed_name == false
 | sort _score desc, color asc
 | keep color, composed_name
 | limit 10
@@ -337,6 +338,7 @@ golden rod
 
 testKnnWithSemanticText
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where knn(semantic_text_dense_field, [0, 1, 2])
@@ -352,6 +354,7 @@ live long and prosper
 
 testKnnWithSemanticTextAndKeyword
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where knn(semantic_text_dense_field, [0, 1, 2])
@@ -368,6 +371,7 @@ be excellent to each other                                            | host3
 
 testKnnWithSemanticTextMultiValueField
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
 | where match(st_multi_value, "something") AND match(host, "host1")
@@ -380,6 +384,7 @@ _id: keyword | st_multi_value:text
 
 testKnnWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where qstr("description:some*")
@@ -396,6 +401,7 @@ result:long
 testKnnWithSemanticTextAndKql
 required_capability: knn_function_v5
 required_capability: kql_function
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where kql("host:host1") AND knn(semantic_text_dense_field, [0, 1, 2])

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -113,11 +112,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         name = in.readString();
         phases = in.readImmutableMap(Phase::new);
         this.metadata = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.deprecated = in.readOptionalBoolean();
-        } else {
-            this.deprecated = null;
-        }
+        this.deprecated = in.readOptionalBoolean();
     }
 
     /**
@@ -159,9 +154,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeWriteable);
         out.writeGenericMap(this.metadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalBoolean(deprecated);
-        }
+        out.writeOptionalBoolean(deprecated);
     }
 
     /**

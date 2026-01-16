@@ -365,7 +365,13 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("drivers", instanceOf(List.class))
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
+                    .entry("parsing", matchesMap().extraOk())
+                    .entry("preanalysis", matchesMap().extraOk())
+                    .entry("dependency_resolution", matchesMap().extraOk())
+                    .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())
@@ -515,7 +521,7 @@ public class PushQueriesIT extends ESRestTestCase {
             }""";
     }
 
-    private static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
+    static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
 
     private static String checkOperatorProfile(Map<String, Object> o, Matcher<String> query) {
         String name = (String) o.get("operator");
@@ -547,7 +553,7 @@ public class PushQueriesIT extends ESRestTestCase {
             return;
         }
         setupEmbeddings = true;
-        Request request = new Request("PUT", "_inference/text_embedding/test");
+        Request request = new Request("PUT", "/_inference/text_embedding/test");
         request.setJsonEntity("""
                   {
                    "service": "text_embedding_test_service",

@@ -162,18 +162,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
-import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
@@ -1277,10 +1275,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getValue().email(), is("test@user.com"));
         assertThat(result.getValue().roles(), is(emptyArray()));
         assertThat(result.getValue().metadata(), is(Collections.emptyMap()));
-        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
         assertThat(
-            result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
-            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes)
+            asInstanceOf(BytesReference.class, result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)),
+            equalBytes(apiKeyDoc.roleDescriptorsBytes)
+        );
+        assertThat(
+            asInstanceOf(BytesReference.class, result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)),
+            equalBytes(apiKeyDoc.limitedByRoleDescriptorsBytes)
         );
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(result.getMetadata().get(API_KEY_TYPE_KEY), is(apiKeyDoc.type.value()));
@@ -1302,10 +1303,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getValue().email(), is("test@user.com"));
         assertThat(result.getValue().roles(), is(emptyArray()));
         assertThat(result.getValue().metadata(), is(Collections.emptyMap()));
-        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
         assertThat(
-            result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
-            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes)
+            asInstanceOf(BytesReference.class, result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)),
+            equalBytes(apiKeyDoc.roleDescriptorsBytes)
+        );
+        assertThat(
+            asInstanceOf(BytesReference.class, result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)),
+            equalBytes(apiKeyDoc.limitedByRoleDescriptorsBytes)
         );
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(result.getMetadata().get(API_KEY_TYPE_KEY), is(apiKeyDoc.type.value()));
@@ -2150,7 +2154,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (metadata == null) {
             assertNull(cachedApiKeyDoc.metadataFlattened);
         } else {
-            assertThat(cachedApiKeyDoc.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata, XContentType.JSON)));
+            assertThat(cachedApiKeyDoc.metadataFlattened, equalBytes(XContentTestUtils.convertToXContent(metadata, XContentType.JSON)));
         }
         assertThat(cachedApiKeyDoc.type, is(type));
 
@@ -2181,7 +2185,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (metadata2 == null) {
             assertNull(cachedApiKeyDoc2.metadataFlattened);
         } else {
-            assertThat(cachedApiKeyDoc2.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata2, XContentType.JSON)));
+            assertThat(cachedApiKeyDoc2.metadataFlattened, equalBytes(XContentTestUtils.convertToXContent(metadata2, XContentType.JSON)));
         }
         assertThat(cachedApiKeyDoc2.type, is(type));
 
@@ -2223,7 +2227,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (metadata3 == null) {
             assertNull(cachedApiKeyDoc3.metadataFlattened);
         } else {
-            assertThat(cachedApiKeyDoc3.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata3, XContentType.JSON)));
+            assertThat(cachedApiKeyDoc3.metadataFlattened, equalBytes(XContentTestUtils.convertToXContent(metadata3, XContentType.JSON)));
         }
         assertThat(cachedApiKeyDoc3.type, is(type));
 
@@ -2255,7 +2259,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (metadata31 == null) {
             assertNull(cachedApiKeyDoc31.metadataFlattened);
         } else {
-            assertThat(cachedApiKeyDoc31.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata31, XContentType.JSON)));
+            assertThat(cachedApiKeyDoc31.metadataFlattened, equalBytes(XContentTestUtils.convertToXContent(metadata31, XContentType.JSON)));
         }
         assertThat(service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.roleDescriptorsHash), sameInstance(roleDescriptorsBytes3));
         assertThat(cachedApiKeyDoc31.type, is(ApiKey.Type.CROSS_CLUSTER));
@@ -2675,10 +2679,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals("{PBKDF2}10000$abc", apiKeyDoc.hash);
         assertEquals("key-1", apiKeyDoc.name);
         assertEquals(7000099, apiKeyDoc.version);
-        assertEquals(new BytesArray("""
-            {"a":{"cluster":["all"]}}"""), apiKeyDoc.roleDescriptorsBytes);
-        assertEquals(new BytesArray("""
-            {"limited_by":{"cluster":["all"],"metadata":{"_reserved":true},"type":"role"}}"""), apiKeyDoc.limitedByRoleDescriptorsBytes);
+        assertThat(apiKeyDoc.roleDescriptorsBytes, equalBytes(new BytesArray("""
+            {"a":{"cluster":["all"]}}""")));
+        assertThat(apiKeyDoc.limitedByRoleDescriptorsBytes, equalBytes(new BytesArray("""
+            {"limited_by":{"cluster":["all"],"metadata":{"_reserved":true},"type":"role"}}""")));
 
         final Map<String, Object> creator = apiKeyDoc.creator;
         assertEquals("admin", creator.get("principal"));
@@ -2877,7 +2881,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 assertEquals(new HashSet<>(newKeyRoles), new HashSet<>(actualKeyRoles));
             }
             if (changeMetadata == false) {
-                assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
+                assertThat(updatedApiKeyDoc.metadataFlattened, equalBytes(oldApiKeyDoc.metadataFlattened));
             } else {
                 assertEquals(newMetadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
             }
@@ -2938,7 +2942,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         assertEquals(-1L, apiKeyDoc.expirationTime);
         assertNull(apiKeyDoc.name);
-        assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
+        assertThat(apiKeyDoc.roleDescriptorsBytes, equalBytes(new BytesArray("{}")));
     }
 
     public void testGetApiKeyMetadata() throws IOException {
@@ -2973,58 +2977,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             () -> ApiKeyService.getApiKeyMetadata(authentication)
         );
         assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
-    }
-
-    public void testMaybeRemoveRemoteClusterPrivilegesWithUnsupportedVersion() {
-        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(2, 5, () -> RoleDescriptorTestHelper.builder().allowRemoteClusters(true).build())
-        );
-
-        // Selecting random unsupported version.
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
-            TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS)
-        );
-
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
-        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions), equalTo(false));
-        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
-
-        // Roles for which warning headers are added.
-        final List<String> userRoleNamesWithRemoteClusterPrivileges = userRoleDescriptors.stream()
-            .filter(RoleDescriptor::hasRemoteClusterPermissions)
-            .map(RoleDescriptor::getName)
-            .sorted()
-            .toList();
-
-        if (false == userRoleNamesWithRemoteClusterPrivileges.isEmpty()) {
-            assertWarnings(
-                "Removed API key's remote cluster privileges from role(s) "
-                    + userRoleNamesWithRemoteClusterPrivileges
-                    + ". Remote cluster privileges are not supported by all nodes in the cluster."
-            );
-        }
-    }
-
-    public void testMaybeRemoveRemotePrivilegesWithSupportedVersion() {
-        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemotePrivileges)
-        );
-
-        // Selecting random supported version.
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            ROLE_REMOTE_CLUSTER_PRIVS,
-            TransportVersion.current()
-        );
-
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
-
-        // User roles should be unchanged.
-        assertThat(result, equalTo(userRoleDescriptors));
     }
 
     public void testBuildDelimitedStringWithLimit() {
@@ -3156,11 +3108,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            WORKFLOWS_RESTRICTION_VERSION,
-            TransportVersion.current()
-        );
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -3713,8 +3661,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(authResult1.getMetadata().containsKey(API_KEY_METADATA_KEY), is(false));
         } else {
             assertThat(
-                authResult1.getMetadata().get(API_KEY_METADATA_KEY),
-                equalTo(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON))
+                asInstanceOf(BytesReference.class, authResult1.getMetadata().get(API_KEY_METADATA_KEY)),
+                equalBytes(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON))
             );
         }
     }

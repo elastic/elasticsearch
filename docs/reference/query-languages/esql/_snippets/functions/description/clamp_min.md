@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns clamps the values of all input samples clamped to have a lower limit of min.
+Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.
 

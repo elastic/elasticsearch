@@ -291,7 +291,7 @@ from doc with aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -320,7 +320,7 @@ stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -351,7 +351,7 @@ grouping stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -392,7 +392,7 @@ sorting with aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       allowed_warnings_regex:
@@ -424,7 +424,7 @@ aggregate_metric_double unsortable:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       catch: /cannot sort on aggregate_metric_double/
@@ -440,7 +440,7 @@ stats on aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_partial_submetrics, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -480,7 +480,7 @@ stats on aggregate_metric_double missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_partial_submetrics, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -512,7 +512,7 @@ render aggregate_metric_double when missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -536,7 +536,7 @@ render aggregate_metric_double when missing value:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -560,7 +560,7 @@ to_string aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -583,7 +583,7 @@ from index pattern unsupported counter:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_partial_submetrics, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -675,7 +675,7 @@ to_aggregate_metric_double with multi_values:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_convert_to ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
@@ -725,7 +725,7 @@ avg of aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_avg, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "support avg aggregations with aggregate metric double"
 
   - do:
@@ -846,7 +846,9 @@ error on rename timestamp:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message ]
+          # inline_stats_with_no_columns is a stand-in for a missed capability that should have been introduced along with the
+          # TimestampAware interface. This capability is the first one added past #137040.
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns ]
       reason: "TS specific check"
 
   - do:
@@ -862,3 +864,170 @@ error on rename timestamp:
 
   - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
 
+---
+Stats using min as default metric for aggregate metric double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_default_metric]
+      reason: "Default metric"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), std_dev = round(std_dev(agg_metric), 5)'
+
+  - length: {values: 1}
+  - length: {values.0: 3}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "std_dev"}
+  - match: {columns.2.type: "double"}
+  - match: {values.0.0: 17.0}
+  - match: {values.0.1: -3.0}
+  - match: {values.0.2: 2.62467}
+
+---
+PromQL rate on counter field:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL irate on counter field:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_irate=(sum by (k8s.pod.name) (irate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_irate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL increase on counter field:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_increase=(sum by (k8s.pod.name) (increase(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_increase"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL max_over_time:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test2 step=1m max_agg=(max(max_over_time(agg_metric[1m]))) | SORT step | LIMIT 5'
+
+  - match: {columns.0.name: "max_agg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 1}
+  - match: {values.0.0: 20.0}
+
+---
+PromQL sum_over_time with grouping:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test2 step=1m sum_agg=(sum by (dim) (sum_over_time(agg_metric[1m]))) | SORT step, dim | LIMIT 5'
+
+  - match: {columns.0.name: "sum_agg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "dim"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.0: 20.0}
+  - match: {values.0.2: "A"}
+  - match: {values.1.0: 83.0}
+  - match: {values.1.2: "B"}
+
+---
+PromQL avg aggregation:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_pre_tech_preview_v14]
+      reason: "PromQL support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test2 step=1m avg_agg=(avg(avg_over_time(agg_metric[1m]))) | SORT step | LIMIT 5'
+
+  - match: {columns.0.name: "avg_agg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 1}

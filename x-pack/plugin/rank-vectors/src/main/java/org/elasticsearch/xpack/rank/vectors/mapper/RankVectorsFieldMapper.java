@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -76,9 +77,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     throw new MapperParsingException(
                         "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet()
                     );
-                }
-                if (elementType == ElementType.BFLOAT16) {
-                    throw new MapperParsingException("Rank vectors does not support bfloat16");
                 }
                 return elementType;
             },
@@ -494,6 +492,13 @@ public class RankVectorsFieldMapper extends FieldMapper {
                         List<Float> vec = new ArrayList<>(dims);
                         for (int dim = 0; dim < dims; dim++) {
                             vec.add(byteBuffer.getFloat());
+                        }
+                        vectors.add(vec);
+                    }
+                    case BFLOAT16 -> {
+                        List<Float> vec = new ArrayList<>(dims);
+                        for (int dim = 0; dim < dims; dim++) {
+                            vec.add(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
                         }
                         vectors.add(vec);
                     }

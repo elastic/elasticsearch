@@ -246,7 +246,9 @@ public class TextFormatTests extends ESTestCase {
     public void testPlainTextEmptyCursorWithoutColumns() {
         assertEquals(
             StringUtils.EMPTY,
-            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), 0, 0, null, false, false, null)))
+            getTextBodyContent(
+                PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), 0, 0, null, false, false, 0L, 0L, null))
+            )
         );
     }
 
@@ -277,6 +279,8 @@ public class TextFormatTests extends ESTestCase {
             null,
             false,
             false,
+            0L,
+            0L,
             null
         );
     }
@@ -312,7 +316,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, null);
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, 0L, 0L, null);
     }
 
     private static EsqlQueryResponse escapedData() {
@@ -336,7 +340,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, null);
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, 0L, 0L, null);
     }
 
     private static RestRequest req() {

@@ -27,5 +27,4 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('blob-cache'))))
   clusterModules project(":modules:data-streams")
   clusterModules project(":modules:mapper-extras")
-  internalClusterTestImplementation project(":modules:health-shards-availability")
 }

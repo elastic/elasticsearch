@@ -28,7 +28,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongGauge;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,8 +95,12 @@ public class WriteLoadConstraintMonitor {
             this::getHotspotNodesCount
         );
         hotspotDurationHistogram = meterRegistry.registerDoubleHistogram(HOTSPOT_DURATION_METRIC_NAME, "hotspot duration", "s");
-        hotspotNodeFlagGauge = meterRegistry.registerLongsGauge(HOTSPOT_NODES_FLAG_METRIC_NAME, "hotspot node flag", "flag",
-            this::getHotspottingNodeFlags);
+        hotspotNodeFlagGauge = meterRegistry.registerLongsGauge(
+            HOTSPOT_NODES_FLAG_METRIC_NAME,
+            "hotspot node flag",
+            "flag",
+            this::getHotspottingNodeFlags
+        );
     }
 
     /**
@@ -219,10 +222,7 @@ public class WriteLoadConstraintMonitor {
             hotspotNodeStartTimes = Map.of();
         }
 
-        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet()
-            .stream()
-            .map(node -> node.getId())
-            .collect(Collectors.toSet());
+        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet().stream().map(node -> node.getId()).collect(Collectors.toSet());
         Set<String> staleHotspotNodes = Sets.difference(lastHotspotNodes, currentHotspotNodes);
         DiscoveryNodes nodes = state.nodes();
         if (staleHotspotNodes.size() > 0) {

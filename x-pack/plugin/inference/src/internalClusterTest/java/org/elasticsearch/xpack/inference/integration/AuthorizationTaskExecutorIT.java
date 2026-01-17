@@ -229,8 +229,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private static void assertWebServerReceivedRequest() throws Exception {
+        assertWebServerReceivedRequest(webServer);
+    }
+
+    static void assertWebServerReceivedRequest(MockWebServer mockWebServer) throws Exception {
         assertBusy(() -> {
-            var requests = webServer.requests();
+            var requests = mockWebServer.requests();
             assertThat(requests.size(), is(1));
         });
     }
@@ -277,8 +281,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private static void resetWebServerQueues() {
-        webServer.clearRequests();
-        webServer.clearResponses();
+        resetWebServerQueues(webServer);
+    }
+
+    static void resetWebServerQueues(MockWebServer mockWebServer) {
+        mockWebServer.clearRequests();
+        mockWebServer.clearResponses();
     }
 
     private void assertChatCompletionEndpointExists() throws Exception {

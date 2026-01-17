@@ -99,7 +99,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     protected final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
-    private final long offset;
+    protected final long offset;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     private volatile boolean isClone;

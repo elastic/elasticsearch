@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -124,6 +125,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @SuppressWarnings("unchecked")
     protected InferenceService mockedInferenceService() {
+        return mockedInferenceService(new AtomicBoolean(false), new RuntimeException("default error"));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected InferenceService mockedInferenceService(AtomicBoolean shouldFail, Exception failureException) {
         Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -133,6 +139,10 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             ) {
                 runWithRandomDelay(() -> {
                     if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                        if (shouldFail.get()) {
+                            listener.onFailure(failureException);
+                            return;
+                        }
                         listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
                         return;
                     }

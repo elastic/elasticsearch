@@ -143,6 +143,6 @@ public class MlPlatformArchitecturesUtil {
     }
     
     private static boolean isElserModel(String modelID) {
-        return modelID.startsWith(".elser_model_1") || modelID.startsWith(".elser_model_2") || modelID.contains("elser");
+        return modelID.startsWith(".elser_model_1") || modelID.startsWith(".elser_model_2");
     }
 }

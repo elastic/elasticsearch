@@ -62,7 +62,7 @@ By default, embeddings generated for `semantic_text` fields are stored internall
 
 The method for retrieving embeddings depends on your {{es}} version:
 
-- If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`. 
+- If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`.
 - If you use {{es}} versions earlier than 9.2, use the [`fields` parameter](#returning-semantic-field-embeddings-using-fields) with `_inference_fields` to retrieve embeddings.
 
 ### Include embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
@@ -101,7 +101,7 @@ stack: ga 9.2
 serverless: ga
 ```
 
-When reindexing documents with `semantic_text` fields, you can preserve existing embeddings by including them in the source documents. This allows documents to be re-indexed without triggering {{infer}} again. 
+When reindexing documents with `semantic_text` fields, you can preserve existing embeddings by including them in the source documents. This allows documents to be re-indexed without triggering {{infer}} again.
 
 ::::{warning}
 The target index's `semantic_text` field must use the same `inference_id` as the source index to reuse existing embeddings. If the `inference_id` values do not match, the documents will fail the reindex task.
@@ -220,7 +220,7 @@ This method for returning semantic field embeddings is recommended only for {{es
 For version 9.2 and later, use the [`exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter instead.
 :::
 
-To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response. 
+To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
 
 ```console
 POST my-index/_search
@@ -332,6 +332,44 @@ POST test-index/_search
 ::::
 
 :::::
+
+## Performing result diversification with `semantic_text` fields [result-diversification]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+The [{{diversify-retriever}} (diversify retriever)] supports the use of `semantic_text` field types for result diversification.
+
+:::{note}
+The `semantic_text` field must use `dense_vector` embeddings such as those from `text_embedding` inference tasks.
+:::
+
+```console
+POST test-index/_search
+{
+    "retriever": {
+        "diversify": {
+            "type": "mmr",
+            "field": "my_semantic_field",
+            "lambda": 0.9,
+            "size": 3,
+            "retriever": {
+                "standard": {
+                    "query": {
+                        "match": {
+                            "my_semantic_field": {
+                                "query": "What causes muscle soreness after running?"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
 
 ## Performing {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
 

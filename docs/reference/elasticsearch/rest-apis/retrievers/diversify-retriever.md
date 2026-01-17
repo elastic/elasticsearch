@@ -29,7 +29,7 @@ The ordering of results returned from the inner retriever is preserved.
 :   (Required, string)
 
     The name of the field that will use its values for the diversification process.
-    The field must be a `dense_vector` type.
+    The field must be a `dense_vector` type or a `semantic_text` field with dense vectors
 
 `rank_window_size`
 :   (Optional, integer)

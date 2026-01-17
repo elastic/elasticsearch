@@ -98,9 +98,8 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
 
-        Action<GenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
+        Action<AbstractGenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
             t.setGroup(taskGroup);
-            t.getReferencesFiles().setFrom(tvReferencesConfig);
             t.getIncrement().convention(1000);
             t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
         };
@@ -108,14 +107,14 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         var generateDefinitionsTask = project.getTasks()
             .register("generateTransportVersion", GenerateTransportVersionDefinitionTask.class, t -> {
                 t.setDescription("(Re)generates a transport version definition file");
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
         generateDefinitionsTask.configure(generationConfiguration);
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
 
         var resolveConflictTask = project.getTasks()
-            .register("resolveTransportVersionConflict", GenerateTransportVersionDefinitionTask.class, t -> {
+            .register("resolveTransportVersionConflict", ResolveTransportVersionConflictTask.class, t -> {
                 t.setDescription("Resolve merge conflicts in transport version internal state files");
-                t.getResolveConflict().set(true);
             });
         resolveConflictTask.configure(generationConfiguration);
         validateTask.configure(t -> t.mustRunAfter(resolveConflictTask));

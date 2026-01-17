@@ -16,6 +16,8 @@ You do not need to configure any settings to use {{ml}}. It is enabled by defaul
 
 ::::{important}
 {{ml-cap}} uses SSE4.2 instructions on x86_64 machines, so it works only on x86_64 machines whose CPUs [support](https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs) SSE4.2. (This limitation does not apply to aarch64 machines.) If you run {{es}} on older x86_64 hardware, you must disable {{ml}} (by setting `xpack.ml.enabled` to `false`). In this situation you should not attempt to use {{ml}} functionality in your cluster at all.
+
+Additionally, ELSER (Elastic Learned Sparse EncodeR) models currently require x86_64 architecture and cannot be deployed on ARM64 (aarch64) platforms. This is due to dependencies on Intel-specific optimizations (`intel_extension_for_pytorch`) in the underlying PyTorch inference engine. If you attempt to deploy ELSER models on ARM64 nodes, you will receive an error message indicating the architecture incompatibility. Other machine learning models that do not have this dependency may work on ARM64 platforms.
 ::::
 
 

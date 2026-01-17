@@ -27,11 +27,14 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Monitors the node-level write thread pool usage across the cluster and initiates a rebalancing round (via
@@ -47,7 +51,7 @@ import java.util.function.Supplier;
 public class WriteLoadConstraintMonitor {
     public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
     public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
-    public static final String HOTSPOT_NODES_FLAG_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot_node_flag.histogram";
+    public static final String HOTSPOT_NODES_FLAG_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot_node_flag.current";
 
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
     private static final int MAX_NODE_IDS_IN_MESSAGE = 3;
@@ -56,12 +60,12 @@ public class WriteLoadConstraintMonitor {
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private volatile long lastRerouteTimeMillis = 0;
-    private final Map<String, Long> hotspotNodeStartTimes = new HashMap<>();
+    private volatile Map<DiscoveryNode, Long> hotspotNodeStartTimes = Map.of();
     private long hotspotNodeStartTimesLastTerm = -1L;
 
     private final AtomicLong hotspotNodesCount = new AtomicLong(-1L); // metrics source of hotspotting node count
     private final DoubleHistogram hotspotDurationHistogram;
-    private final LongHistogram hotspotNodeFlagHistogram;
+    private final LongGauge hotspotNodeFlagGauge; // nodes hotspotting have 1 written, with the name/id
 
     protected WriteLoadConstraintMonitor(
         ClusterSettings clusterSettings,
@@ -92,7 +96,8 @@ public class WriteLoadConstraintMonitor {
             this::getHotspotNodesCount
         );
         hotspotDurationHistogram = meterRegistry.registerDoubleHistogram(HOTSPOT_DURATION_METRIC_NAME, "hotspot duration", "s");
-        hotspotNodeFlagHistogram = meterRegistry.registerLongHistogram(HOTSPOT_NODES_FLAG_METRIC_NAME, "hotspot node flag", "flag");
+        hotspotNodeFlagGauge = meterRegistry.registerLongsGauge(HOTSPOT_NODES_FLAG_METRIC_NAME, "hotspot node flag", "flag",
+            this::getHotspottingNodeFlags);
     }
 
     /**
@@ -186,7 +191,7 @@ public class WriteLoadConstraintMonitor {
             );
             lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
 
-            recordHotspotStartTimes(newHotspotNodes, currentTimeMillis);
+            recordHotspotStartTimes(state, newHotspotNodes, currentTimeMillis);
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
@@ -195,9 +200,14 @@ public class WriteLoadConstraintMonitor {
         }
     }
 
-    private void recordHotspotStartTimes(Set<String> nodeIds, long startTimestamp) {
-        for (String nodeId : nodeIds) {
-            hotspotNodeStartTimes.put(nodeId, startTimestamp);
+    private void recordHotspotStartTimes(ClusterState state, Set<String> nodeIds, long startTimestamp) {
+        if (nodeIds.size() > 0) {
+            Map<DiscoveryNode, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
+            DiscoveryNodes nodes = state.nodes();
+            for (String nodeId : nodeIds) {
+                hotspotNodeStartTimesUpdate.put(nodes.get(nodeId), startTimestamp);
+            }
+            hotspotNodeStartTimes = hotspotNodeStartTimesUpdate;
         }
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
     }
@@ -206,25 +216,26 @@ public class WriteLoadConstraintMonitor {
         // reset hotspotNodeStartTimes if the term has changed
         if (state.term() != hotspotNodeStartTimesLastTerm || state.nodes().isLocalNodeElectedMaster() == false) {
             hotspotNodeStartTimesLastTerm = state.term();
-            hotspotNodeStartTimes.clear();
+            hotspotNodeStartTimes = Map.of();
         }
 
-        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet();
+        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet()
+            .stream()
+            .map(node -> node.getId())
+            .collect(Collectors.toSet());
         Set<String> staleHotspotNodes = Sets.difference(lastHotspotNodes, currentHotspotNodes);
         DiscoveryNodes nodes = state.nodes();
-
-        for (String nodeId : staleHotspotNodes) {
-            assert hotspotNodeStartTimes.containsKey(nodeId) : "Map should contain key from its own subset";
-            long hotspotStartTime = hotspotNodeStartTimes.remove(nodeId);
-            long hotspotDuration = hotspotEndTime - hotspotStartTime;
-            assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
-            DiscoveryNode node = nodes.get(nodeId);
-            hotspotDurationHistogram.record(hotspotDuration / 1000.0, Map.of("node_name", node.getName(), "node_id", nodeId));
-        }
-
-        for (String nodeId : currentHotspotNodes) {
-            DiscoveryNode node = nodes.get(nodeId);
-            hotspotNodeFlagHistogram.record(1L, Map.of("node_name", node.getName(), "node_id", nodeId));
+        if (staleHotspotNodes.size() > 0) {
+            Map<DiscoveryNode, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
+            for (String nodeId : staleHotspotNodes) {
+                DiscoveryNode node = nodes.get(nodeId);
+                assert hotspotNodeStartTimesUpdate.containsKey(node) : "Map should contain key from its own subset";
+                long hotspotStartTime = hotspotNodeStartTimesUpdate.remove(node);
+                long hotspotDuration = hotspotEndTime - hotspotStartTime;
+                assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
+                hotspotDurationHistogram.record(hotspotDuration / 1000.0, Map.of("es_node_name", node.getName(), "es_node_id", nodeId));
+            }
+            hotspotNodeStartTimes = hotspotNodeStartTimesUpdate;
         }
 
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
@@ -239,6 +250,15 @@ public class WriteLoadConstraintMonitor {
         } else {
             return List.of();
         }
+    }
+
+    private Collection<LongWithAttributes> getHotspottingNodeFlags() {
+        final Map<DiscoveryNode, Long> hotspotNodeStartTimesView = hotspotNodeStartTimes;
+        List<LongWithAttributes> hotspottingNodeFlags = new ArrayList<>(hotspotNodeStartTimesView.size());
+        for (DiscoveryNode node : hotspotNodeStartTimesView.keySet()) {
+            hotspottingNodeFlags.add(new LongWithAttributes(1L, Map.of("es_node_name", node.getName(), "es_node_id", node.getId())));
+        }
+        return hotspottingNodeFlags;
     }
 
     private static String nodeSummary(Set<String> nodeIds) {

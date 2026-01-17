@@ -410,7 +410,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), Map.of(removeId, List.of(duration / 1000.0)), hotspotFlagCounts);
 
         // no count is issued for this collection round, as onNewInfo hasn't been called
+        // (but the async hotspot flags have been recollected)
         recordingMeterRegistry.getRecorder().collect();
+        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
         assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), Map.of(removeId, List.of(duration / 1000.0)), hotspotFlagCounts);
 
         // change cluster state term, and see that the hotspot table is reset
@@ -832,18 +834,18 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         );
         Map<String, List<Double>> measuredHotspotDurationTable = Measurement.groupMeasurementsByAttribute(
             measuredHotspotDurations,
-            (attrs -> (String) attrs.get("node_id")),
+            (attrs -> (String) attrs.get("es_node_id")),
             measurement -> measurement.getDouble()
         );
         assertEquals(hotspotDurations, measuredHotspotDurationTable);
 
         List<Measurement> hotspotFlagMeasurements = metricRecorder.getMeasurements(
-            InstrumentType.LONG_HISTOGRAM,
+            InstrumentType.LONG_GAUGE,
             HOTSPOT_NODES_FLAG_METRIC_NAME
         );
         Map<String, List<Long>> measuredHotspotFlags = Measurement.groupMeasurementsByAttribute(
             hotspotFlagMeasurements,
-            attrs -> (String) attrs.get("node_id"),
+            attrs -> (String) attrs.get("es_node_id"),
             measurement -> measurement.getLong()
         );
         Map<String, Long> measuredHotspotFlagCounts = measuredHotspotFlags.entrySet()

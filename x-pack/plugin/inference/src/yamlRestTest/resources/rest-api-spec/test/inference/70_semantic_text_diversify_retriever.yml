@@ -26,8 +26,23 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
-        index: test-result-diversification-index
+        index: test-result-diversification-dense-vector-index
         body:
           settings:
             number_of_shards: 1
@@ -45,7 +60,7 @@ setup:
       headers:
         Content-Type: application/json
       bulk:
-        index: test-result-diversification-index
+        index: test-result-diversification-dense-vector-index
         refresh: true
         body: |
           {"index":{}}
@@ -71,11 +86,75 @@ setup:
           {"index":{}}
           {"textbody": "ninth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test9"}
 
+  - do:
+      indices.create:
+        index: test-result-diversification-semantic-text-index
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              content:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-semantic-text-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 7130104, "content": "This is the definition of RNA along with examples of types of RNA molecules. This is the definition of RNA along with examples of types of RNA molecules. RNA Definition"}
+          {"index":{}}
+          {"id": 7130335, "content": "Best Answer: The AR designation comes from the name of the company that produced the firearm - Armalite. It is a common misconception that it stands for assault rifle. From Wikipedia: The AR-15 is based on the 7.62mm AR-10, designed by Eugene Stoner of the Fairchild ArmaLite corporation."}
+          {"index":{}}
+          {"id": 7130336, "content": "What does AR really mean? Posted by Quality AR barrels | Jul 29, 2016 | AR Articles | Over the years the media has programmed the public into thinking that AR stands for Assault Rifle. This is not the case. To follow is a short history and overview of the ArmaLite rifle."}
+          {"index":{}}
+          {"id": 7130348, "content": "Oxycontin is generally prescribed without acetominophen while oxycodone is generally prescribed with. The will show the same on a drug panel. They last in your system for upto 5 days after your last dose depending on your frequency, strength and personal metabolism. Laurie."}
+          {"index":{}}
+          {"id": 8001869, "content": "STRATEGIC FEDERAL CREDIT UNION Routing number is printed on the lower left corner of the Check Book. At the bottom of the check, you will find 3 groups of numbers. The first group is Routing number, the second group is your bank account number and the final group is your check number."}
+          {"index":{}}
+          {"id": 8001870, "content": "Strategic federal credit union routing number List of Strategic federal credit union routing numbers with branch details. What is Strategic federal credit union routing number? Strategic federal credit union routing number is a nine digit number used to identify bank transfers. Routing numbers will be different based on the account branch. It is based on the bank account origin by state and region. The routing number on check is available for each branch in the table below. In order to find the check routing number of the branch you are looking for, click on the Details link next to the branch name."}
+          {"index":{}}
+          {"id": 7130674, "content": "Just reformat the cell manually by (in Excel 2003 and older) going to Format > Cells > General or (in Excel 2007 and later) choosing General from the dropdown in the Format section of the Home tab. We need to convert this number of days into a number of years."}
+          {"index":{}}
+          {"id": 7130867, "content": "Binary (or base-2) a numeric system that only uses two digits — 0 and 1. Computers operate in binary, meaning they store data and perform calculations using only zeros and ones."}
+
+  - do:
+      indices.create:
+        index: test-result-diversification-sparse-semantic-text-index
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              content:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-sparse-semantic-text-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 7130104, "content": "This is the definition of RNA along with examples of types of RNA molecules. This is the definition of RNA along with examples of types of RNA molecules. RNA Definition"}
+          {"index":{}}
+          {"id": 7130335, "content": "Best Answer: The AR designation comes from the name of the company that produced the firearm - Armalite. It is a common misconception that it stands for assault rifle. From Wikipedia: The AR-15 is based on the 7.62mm AR-10, designed by Eugene Stoner of the Fairchild ArmaLite corporation."}
+          {"index":{}}
+          {"id": 7130336, "content": "What does AR really mean? Posted by Quality AR barrels | Jul 29, 2016 | AR Articles | Over the years the media has programmed the public into thinking that AR stands for Assault Rifle. This is not the case. To follow is a short history and overview of the ArmaLite rifle."}
+          {"index":{}}
+          {"id": 7130348, "content": "Oxycontin is generally prescribed without acetominophen while oxycodone is generally prescribed with. The will show the same on a drug panel. They last in your system for upto 5 days after your last dose depending on your frequency, strength and personal metabolism. Laurie."}
+
 ---
 "MMR diversification using a query_vector_builder":
   - do:
       search:
-        index: test-result-diversification-index
+        index: test-result-diversification-dense-vector-index
         body:
           retriever:
             diversify:
@@ -98,12 +177,60 @@ setup:
   - length: { hits.hits: 3 }
 
 ---
+"MMR diversification using semantic_text field":
+  - do:
+      search:
+        index: test-result-diversification-semantic-text-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "content"
+              lambda: 0.9
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match:
+                      content:
+                        query: "What causes muscle soreness after running?"
+
+  - match: { hits.total.value: 8 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.id: 8001870 }
+  - match: { hits.hits.1._source.id: 7130104 }
+  - match: { hits.hits.2._source.id: 7130867 }
+
+---
+"Validate diversification does not work with sparse vector data":
+  - do:
+      catch: /Is it a \[dense_vector\] or \[semantic_text\] field with dense vectors?/
+      search:
+        index: test-result-diversification-sparse-semantic-text-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "content"
+              lambda: 0.9
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match:
+                      content:
+                        query: "What causes muscle soreness after running?"
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+
+---
 "Validate query_vector or query_vector_builder but not both":
 
   - do:
       catch: /\[diversify\] MMR result diversification can have one of \[query_vector\] or \[query_vector_builder\], but not both/
       search:
-        index: test-result-diversification-index
+        index: test-result-diversification-dense-vector-index
         body:
           retriever:
             diversify:
@@ -132,7 +259,7 @@ setup:
   - do:
       catch: /\[unknown-model-id\] is not an inference service model or a deployed ml model/
       search:
-        index: test-result-diversification-index
+        index: test-result-diversification-dense-vector-index
         body:
           retriever:
             diversify:
@@ -157,7 +284,7 @@ setup:
   - do:
       catch: /Required \[model_text\]/
       search:
-        index: test-result-diversification-index
+        index: test-result-diversification-dense-vector-index
         body:
           retriever:
             diversify:

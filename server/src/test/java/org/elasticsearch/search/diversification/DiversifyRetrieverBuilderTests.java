@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -345,10 +346,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> retriever.combineInnerRetrieverResults(docs, false)
         );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] or [semantic_text] field?",
-            badDocFieldEx.getMessage()
-        );
+        assertEquals(Strings.format(DiversifyRetrieverBuilder.ERROR_NO_VECTORS_FOUND, "dense_vector_field"), badDocFieldEx.getMessage());
         assertEquals(400, badDocFieldEx.status().getStatus());
 
         cleanDocsAndHits(docs, hits);
@@ -361,7 +359,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             () -> retriever.combineInnerRetrieverResults(docs, false)
         );
         assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] or [semantic_text] field?",
+            Strings.format(DiversifyRetrieverBuilder.ERROR_NO_VECTORS_FOUND, "dense_vector_field"),
             docsWithNoValuesEx.getMessage()
         );
         assertEquals(400, docsWithNoValuesEx.status().getStatus());

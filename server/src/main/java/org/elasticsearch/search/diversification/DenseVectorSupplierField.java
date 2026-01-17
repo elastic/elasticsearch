@@ -14,5 +14,5 @@ import org.elasticsearch.search.vectors.VectorData;
 import java.util.List;
 
 public interface DenseVectorSupplierField {
-    List<VectorData> getVectorData(String key);
+    List<VectorData> getDenseVectorData(String key);
 }

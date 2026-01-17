@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -65,6 +66,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField TOP_N_CHUNKS_FIELD = new ParseField("top_n_chunks");
+
+    public static final String ERROR_NO_VECTORS_FOUND =
+        "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] or [semantic_text] field with dense vectors?";
 
     public static class RankDocWithSearchHit extends RankDoc {
         private final SearchHit hit;
@@ -283,7 +287,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                         ll.onFailure(
                             new IllegalArgumentException(
                                 format(
-                                    "[%s] with name [%s] returned null query_vector",
+                                    "[%s] with name [%s] returned a null query_vector",
                                     QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
                                     queryVectorBuilder.getWriteableName()
                                 )
@@ -313,14 +317,19 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of("_inference_fields", diversificationField));
-        FetchSourceContext fsCtx = FetchSourceContext.of(false, false, new String[] { "_inference_fields", diversificationField }, null);
+        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of(InferenceMetadataFieldsMapper.NAME, diversificationField));
+        FetchSourceContext fsCtx = FetchSourceContext.of(
+            false,
+            false,
+            new String[] { InferenceMetadataFieldsMapper.NAME, diversificationField },
+            null
+        );
 
         SearchSourceBuilder builder = sourceBuilder.from(0)
             .excludeVectors(false)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
-            .fetchField("_inference_fields")
+            .fetchField(InferenceMetadataFieldsMapper.NAME)
             .fetchField(diversificationField);
         return super.finalizeSourceBuilder(builder);
     }
@@ -333,14 +342,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             if (spEx.getCause() instanceof ElasticsearchException iaEx) {
                 // I'm not a fan of checking the message, but there is no other indicator we can use.
                 if (iaEx.getMessage().startsWith("Fielddata is disabled on")) {
-                    return new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
-                            diversificationField
-                        ),
-                        ex
-                    );
+                    return new IllegalArgumentException(String.format(Locale.ROOT, ERROR_NO_VECTORS_FOUND, diversificationField), ex);
                 }
             }
         }
@@ -375,11 +377,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         FieldVectorSupplier fieldVectorSupplier = FieldVectorSupplierFactory.getVectorSupplier(diversificationField, results[0]);
         if (fieldVectorSupplier == null) {
             throw new ElasticsearchStatusException(
-                String.format(
-                    Locale.ROOT,
-                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] or [semantic_text] field?",
-                    diversificationField
-                ),
+                String.format(Locale.ROOT, ERROR_NO_VECTORS_FOUND, diversificationField),
                 RestStatus.BAD_REQUEST
             );
         }
@@ -388,11 +386,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         if (vectorCount == 0) {
             throw new ElasticsearchStatusException(
-                String.format(
-                    Locale.ROOT,
-                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] or [semantic_text] field?",
-                    diversificationField
-                ),
+                String.format(Locale.ROOT, ERROR_NO_VECTORS_FOUND, diversificationField),
                 RestStatus.BAD_REQUEST
             );
         }

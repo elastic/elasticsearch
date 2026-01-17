@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.diversification.DenseVectorSupplierField;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -341,12 +342,16 @@ public record SemanticTextField(
     }
 
     @Override
-    public List<VectorData> getVectorData(String key) {
+    public List<VectorData> getDenseVectorData(String key) {
         if (this.inference == null) {
             return Collections.emptyList();
         }
 
         if (this.inference.chunks() == null) {
+            return Collections.emptyList();
+        }
+
+        if (this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
             return Collections.emptyList();
         }
 

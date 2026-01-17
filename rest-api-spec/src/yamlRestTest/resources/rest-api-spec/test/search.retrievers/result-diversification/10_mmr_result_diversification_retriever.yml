@@ -695,7 +695,7 @@ teardown:
 "Test MMR result diversification required field type":
 
   - do:
-      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] or \[semantic_text\] field?/
+      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] or \[semantic_text\] field with dense vectors?/
       search:
         index: test-result-diversification-index
         body:
@@ -718,7 +718,7 @@ teardown:
   - match: { error.suppressed.0.type: status_exception }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] or \[semantic_text\] field?/
+      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] or \[semantic_text\] field with dense vectors?/
       search:
         index: test-result-diversification-index
         body:
@@ -741,7 +741,7 @@ teardown:
   - match: { error.suppressed.0.type: status_exception }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] or \[semantic_text\] field?/
+      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] or \[semantic_text\] field with dense vectors?/
       search:
         index: test-result-diversification-index
         body:

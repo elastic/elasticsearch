@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.diversification;
 
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.util.HashMap;
@@ -33,7 +34,7 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
         fieldVectors = new HashMap<>();
 
         for (DiversifyRetrieverBuilder.RankDocWithSearchHit hit : searchHits) {
-            List<VectorData> vectorData = extractVectorDataFromHSearchHit(diversificationField, hit);
+            List<VectorData> vectorData = extractVectorDataFromSearchHit(diversificationField, hit);
             if (vectorData != null && vectorData.isEmpty() == false) {
                 fieldVectors.put(hit.rank, vectorData);
             }
@@ -43,12 +44,12 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
     }
 
     public static boolean isFieldSemanticTextVector(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
-        List<VectorData> vectorData = extractVectorDataFromHSearchHit(fieldName, hit);
+        List<VectorData> vectorData = extractVectorDataFromSearchHit(fieldName, hit);
         return (vectorData != null && vectorData.isEmpty() == false);
     }
 
-    private static List<VectorData> extractVectorDataFromHSearchHit(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
-        var inferenceFieldValue = hit.hit().getFields().getOrDefault("_inference_fields", null);
+    private static List<VectorData> extractVectorDataFromSearchHit(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
+        var inferenceFieldValue = hit.hit().getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
         if (inferenceFieldValue == null) {
             return null;
         }
@@ -61,7 +62,7 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(fieldName, null);
             if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
-                return vectorSupplier.getVectorData(fieldName);
+                return vectorSupplier.getDenseVectorData(fieldName);
             }
         }
 

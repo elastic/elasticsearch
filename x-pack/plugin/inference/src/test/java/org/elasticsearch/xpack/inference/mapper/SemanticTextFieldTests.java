@@ -186,6 +186,66 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
+    public void testGetDenseVectorData() throws IOException {
+        for (int i = 0; i < 20; i++) {
+            List<String> inputs = randomList(1, 5, () -> randomSemanticTextInput().toString());
+            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+
+            DenseVectorFieldMapper.ElementType modelElementType = model.getServiceSettings().elementType();
+
+            ChunkedInferenceEmbedding results = switch (modelElementType) {
+                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
+            };
+
+            var testfield = semanticTextFieldFromChunkedInferenceResults(
+                useLegacyFormat,
+                "testfield",
+                model,
+                generateRandomChunkingSettings(),
+                inputs,
+                results,
+                randomFrom(XContentType.values())
+            );
+
+            var vectors = testfield.getDenseVectorData("testfield");
+            assertThat(vectors.size(), equalTo(results.chunks().size()));
+            for (var vec : vectors) {
+                switch (modelElementType) {
+                    case FLOAT, BFLOAT16 -> {
+                        assertTrue(vec.isFloat());
+                        assertThat(vec.floatVector().length, equalTo(model.getServiceSettings().dimensions()));
+                    }
+                    case BYTE -> {
+                        assertFalse(vec.isFloat());
+                        assertThat(vec.byteVector().length, equalTo(model.getServiceSettings().dimensions()));
+                    }
+                    case BIT -> {
+                        assertFalse(vec.isFloat());
+                        assertThat(vec.byteVector().length * 8, equalTo(model.getServiceSettings().dimensions()));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testGetDenseVectorDataSparseVectors() throws IOException {
+        List<String> inputs = randomList(1, 5, () -> randomSemanticTextInput().toString());
+        ChunkedInference results = randomChunkedInferenceEmbeddingSparse(inputs);
+        var testfield = semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            "testfield",
+            TestModel.createRandomInstance(),
+            generateRandomChunkingSettings(),
+            inputs,
+            results,
+            randomFrom(XContentType.values())
+        );
+
+        var vectors = testfield.getDenseVectorData("testfield");
+        assertThat(vectors.size(), equalTo(0));
+    }
+
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbedding(Model model, List<String> inputs) {
         return switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);

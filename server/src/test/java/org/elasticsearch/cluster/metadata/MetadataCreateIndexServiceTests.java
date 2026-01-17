@@ -62,6 +62,7 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -106,6 +107,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_B
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.SETTING_CLUSTER_MAX_INDICES_PER_PROJECT;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
@@ -168,6 +170,32 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata))
+            .build();
+    }
+
+    private ClusterState createClusterState(int numberOfIndices) {
+        Metadata.Builder metaBuilder = Metadata.builder();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        for (int i = 1; i <= numberOfIndices; i++) {
+            String indexName = randomIndexName();
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            projectMetadataBuilder.put(indexMetadata, false);
+        }
+        metaBuilder.put(projectMetadataBuilder);
+        var clusterBlocksBuilder = ClusterBlocks.builder();
+        Metadata metadata = metaBuilder.build();
+        metadata.getProject(projectId).stream().forEach(routingTableBuilder::addAsNew);
+        metadata.getProject(projectId).stream().forEach(indexMetadata -> clusterBlocksBuilder.addBlocks(projectId, indexMetadata));
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .blocks(clusterBlocksBuilder)
             .build();
     }
 
@@ -292,6 +320,34 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             targetShards = randomIntBetween(1, numShards / 2);
         } while (isShrinkable(numShards, targetShards) == false);
         validateShrinkIndex(clusterState, "source", "target", Settings.builder().put("index.number_of_shards", targetShards).build());
+    }
+
+    public void testUserIndicesLimit() {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            var indexLimit = SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.get(clusterService.getSettings());
+            var totalUserIndices = indexLimit + randomIntBetween(1, 10);
+            ClusterState clusterState = createClusterState(totalUserIndices);
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                null,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                new IndexSettingProviders(Set.of())
+            );
+
+            IndexLimitExceededException e = expectThrows(
+                IndexLimitExceededException.class,
+                () -> checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId))
+            );
+            assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has [" + totalUserIndices));
+        }));
     }
 
     public void testValidateSplitIndex() {

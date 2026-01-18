@@ -148,7 +148,7 @@ public class MetadataCreateIndexService {
         15000,
         11250,
         Setting.Property.Dynamic,
-        Setting.Property.ProjectScope
+        Setting.Property.NodeScope
     );
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);

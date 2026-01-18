@@ -247,6 +247,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;
     exports org.elasticsearch.index.codec.zstd;
+    exports org.elasticsearch.index.codec.startree;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
     exports org.elasticsearch.index.fielddata.fieldcomparator;
@@ -258,6 +259,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper;
     exports org.elasticsearch.index.mapper.flattened;
     exports org.elasticsearch.index.mapper.vectors;
+    exports org.elasticsearch.index.mapper.startree;
     exports org.elasticsearch.index.merge;
     exports org.elasticsearch.index.query;
     exports org.elasticsearch.index.query.functionscore;

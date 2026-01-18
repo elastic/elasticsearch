@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.perfield;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
@@ -59,7 +61,25 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
 
     @Override
     public final DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new FieldsWriter(state);
+        return new FieldsWriter(state, getMergeCallback());
+    }
+
+    /**
+     * Override this method to provide a callback that will be invoked after merge completes.
+     * This can be used for building auxiliary indices like star-trees.
+     *
+     * @return a merge callback, or null if no callback is needed
+     */
+    protected MergeCallback getMergeCallback() {
+        return null;
+    }
+
+    /**
+     * Callback interface for post-merge operations.
+     */
+    @FunctionalInterface
+    public interface MergeCallback {
+        void afterMerge(SegmentWriteState state, MergeState mergeState) throws IOException;
     }
 
     record ConsumerAndSuffix(DocValuesConsumer consumer, int suffix) implements Closeable {
@@ -76,9 +96,11 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
         private final Map<String, Integer> suffixes = new HashMap<>();
 
         private final SegmentWriteState segmentWriteState;
+        private final MergeCallback mergeCallback;
 
-        FieldsWriter(SegmentWriteState state) {
+        FieldsWriter(SegmentWriteState state, MergeCallback mergeCallback) {
             segmentWriteState = state;
+            this.mergeCallback = mergeCallback;
         }
 
         @Override
@@ -106,8 +128,11 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
             getInstance(field).addSortedSetField(field, valuesProducer);
         }
 
+        private static final Logger logger = LogManager.getLogger(FieldsWriter.class);
+
         @Override
         public void merge(MergeState mergeState) throws IOException {
+            logger.info("FieldsWriter.merge called, mergeCallback={}", mergeCallback != null ? "set" : "null");
             Map<DocValuesConsumer, Collection<String>> consumersToField = new IdentityHashMap<>();
 
             // Group each consumer by the fields it handles
@@ -128,6 +153,11 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
             // Delegate the merge to the appropriate consumer
             for (Map.Entry<DocValuesConsumer, Collection<String>> e : consumersToField.entrySet()) {
                 e.getKey().merge(XPerFieldMergeState.restrictFields(mergeState, e.getValue()));
+            }
+
+            // Invoke the merge callback if one was provided (used for star-tree building)
+            if (mergeCallback != null) {
+                mergeCallback.afterMerge(segmentWriteState, mergeState);
             }
         }
 

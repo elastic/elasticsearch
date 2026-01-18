@@ -430,6 +430,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
+    /**
+     * Build a {@link SourceOperator.SourceOperatorFactory} that reads pre-aggregated data from a star-tree index.
+     */
+    public SourceOperator.SourceOperatorFactory starTreeSourceOperation(
+        LocalExecutionPlannerContext context,
+        String starTreeName,
+        List<String> groupByFields,
+        List<org.elasticsearch.xpack.esql.plan.physical.EsStarTreeQueryExec.StarTreeAgg> aggregations,
+        List<org.elasticsearch.xpack.esql.plan.physical.EsStarTreeQueryExec.GroupingFieldFilter> groupingFieldFilters,
+        org.elasticsearch.compute.aggregation.AggregatorMode mode
+    ) {
+        return new StarTreeSourceOperatorFactory(
+            shardContexts,
+            starTreeName,
+            groupByFields,
+            aggregations,
+            groupingFieldFilters,
+            context.queryPragmas().pageSize(),
+            mode
+        );
+    }
+
     @Override
     public Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
         TimeSeriesAggregateExec ts,

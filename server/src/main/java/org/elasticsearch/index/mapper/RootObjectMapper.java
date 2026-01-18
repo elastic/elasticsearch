@@ -15,10 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.startree.StarTreeConfig;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -77,6 +79,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
         protected RootObjectMapperNamespaceValidator namespaceValidator;
+        @Nullable
+        protected StarTreeConfig starTreeConfig;
 
         public Builder(String name) {
             this(name, ObjectMapper.Defaults.SUBOBJECTS);
@@ -117,6 +121,11 @@ public class RootObjectMapper extends ObjectMapper {
             return this;
         }
 
+        public RootObjectMapper.Builder starTreeConfig(StarTreeConfig starTreeConfig) {
+            this.starTreeConfig = starTreeConfig;
+            return this;
+        }
+
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             return new RootObjectMapper(
@@ -131,7 +140,8 @@ public class RootObjectMapper extends ObjectMapper {
                 dynamicTemplates,
                 dateDetection,
                 numericDetection,
-                namespaceValidator
+                namespaceValidator,
+                starTreeConfig
             );
         }
     }
@@ -142,6 +152,8 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
+    @Nullable
+    private final StarTreeConfig starTreeConfig;
 
     RootObjectMapper(
         String name,
@@ -155,7 +167,8 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection,
-        RootObjectMapperNamespaceValidator namespaceValidator
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        @Nullable StarTreeConfig starTreeConfig
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
@@ -164,6 +177,7 @@ public class RootObjectMapper extends ObjectMapper {
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
         this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
+        this.starTreeConfig = starTreeConfig;
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             throw new MapperParsingException(
                 "root object can't be configured with [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + ":" + SourceKeepMode.ALL + "]"
@@ -193,7 +207,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates,
             dateDetection,
             numericDetection,
-            namespaceValidator
+            namespaceValidator,
+            starTreeConfig
         );
     }
 
@@ -231,6 +246,14 @@ public class RootObjectMapper extends ObjectMapper {
 
     RuntimeField getRuntimeField(String name) {
         return runtimeFields.get(name);
+    }
+
+    /**
+     * Returns the star-tree configuration for this mapping, or null if not configured.
+     */
+    @Nullable
+    public StarTreeConfig getStarTreeConfig() {
+        return starTreeConfig;
     }
 
     @Override
@@ -298,6 +321,17 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
 
+        final StarTreeConfig starTreeConfig;
+        if (mergeWithObject.starTreeConfig != null) {
+            if (this.starTreeConfig != null) {
+                starTreeConfig = this.starTreeConfig.merge(mergeWithObject.starTreeConfig);
+            } else {
+                starTreeConfig = mergeWithObject.starTreeConfig;
+            }
+        } else {
+            starTreeConfig = this.starTreeConfig;
+        }
+
         return new RootObjectMapper(
             leafName(),
             mergeResult.enabled(),
@@ -310,7 +344,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates,
             dateDetection,
             numericDetection,
-            namespaceValidator
+            namespaceValidator,
+            starTreeConfig
         );
     }
 
@@ -352,6 +387,12 @@ public class RootObjectMapper extends ObjectMapper {
             for (RuntimeField fieldType : sortedRuntimeFields) {
                 fieldType.toXContent(builder, params);
             }
+            builder.endObject();
+        }
+
+        if (starTreeConfig != null) {
+            builder.startObject("_star_tree");
+            starTreeConfig.toXContent(builder, params);
             builder.endObject();
         }
     }
@@ -548,6 +589,14 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else {
                 throw new ElasticsearchParseException("runtime must be a map type");
+            }
+        } else if (fieldName.equals("_star_tree")) {
+            if (fieldNode instanceof Map) {
+                StarTreeConfig config = StarTreeConfig.parse((Map<String, Object>) fieldNode);
+                builder.starTreeConfig(config);
+                return true;
+            } else {
+                throw new ElasticsearchParseException("_star_tree must be a map type");
             }
         }
         return false;

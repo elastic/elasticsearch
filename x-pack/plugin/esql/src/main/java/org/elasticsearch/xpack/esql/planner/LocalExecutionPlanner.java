@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStarTreeQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -293,6 +294,8 @@ public class LocalExecutionPlanner {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
+        } else if (node instanceof EsStarTreeQueryExec starTreeQuery) {
+            return planEsStarTree(starTreeQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
@@ -397,6 +400,32 @@ public class LocalExecutionPlanner {
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    private PhysicalOperation planEsStarTree(EsStarTreeQueryExec starTreeQuery, LocalExecutionPlannerContext context) {
+        if (physicalOperationProviders instanceof EsPhysicalOperationProviders == false) {
+            throw new EsqlIllegalArgumentException("EsStarTreeQuery should only occur against a Lucene backend");
+        }
+
+        EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+
+        // Create the star-tree source operator factory
+        SourceOperatorFactory starTreeFactory = esProvider.starTreeSourceOperation(
+            context,
+            starTreeQuery.starTreeName(),
+            starTreeQuery.groupByFields(),
+            starTreeQuery.aggregations(),
+            starTreeQuery.groupingFieldFilters(),
+            starTreeQuery.mode()
+        );
+
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(starTreeQuery.outputSet());
+
+        // Star-tree queries are typically single-threaded since they read pre-aggregated data
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+
+        return PhysicalOperation.fromSource(starTreeFactory, layout.build());
     }
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {

@@ -200,6 +200,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.dataTypeSupported;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -402,11 +403,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     : new FieldAttribute(source, parentName, null, name, t);
 
                 // check data type against minimum transport version
-                boolean typeSupported = type.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot()) || switch (type) {
-                    case AGGREGATE_METRIC_DOUBLE -> useAggregateMetricDoubleWhenNotSupported;
-                    case DENSE_VECTOR -> useDenseVectorWhenNotSupported;
-                    default -> false;
-                };
+                boolean typeSupported = dataTypeSupported(
+                    type,
+                    minimumVersion,
+                    Build.current().isSnapshot(),
+                    useAggregateMetricDoubleWhenNotSupported,
+                    useDenseVectorWhenNotSupported
+                );
                 if (typeSupported == false) {
                     // this data type is not supported by the minimum transport version
                     type = UNSUPPORTED;

@@ -3343,6 +3343,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveDenseVector() {
         // find a transport version that does not support dense_vector
         TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(ESQL_DENSE_VECTOR_CREATED_VERSION);
+        boolean isSnapshot = Build.current().isSnapshot();
 
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
@@ -3353,7 +3354,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, transportVersion),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, randomBoolean(), true),
                 IndexResolver.DO_NOT_GROUP
             );
             // force to support dense_vector
@@ -3365,7 +3366,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, transportVersion),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, randomBoolean(), false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", resolution, transportVersion, randomBoolean(), false);
@@ -3377,6 +3378,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveAggregateMetricDouble() {
         // find a transport version that does not support aggregate_metric_double
         TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION);
+        boolean isSnapshot = Build.current().isSnapshot();
 
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
@@ -3392,7 +3394,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, transportVersion),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, true, randomBoolean()),
                 IndexResolver.DO_NOT_GROUP
             );
             // force to support aggregate_metric_double
@@ -3407,7 +3409,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, transportVersion),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, false, randomBoolean()),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", resolution, transportVersion, false, randomBoolean());
@@ -5989,6 +5991,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current());
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
     }
 }

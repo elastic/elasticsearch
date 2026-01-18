@@ -61,7 +61,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.Foldables.stringLiteralValueOf;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithFinalStateAndNoShards;
 
@@ -155,6 +154,7 @@ public class EnrichPolicyResolver {
             listener.onResponse(new EnrichResolution());
             return;
         }
+
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, executionInfo, minimumVersion, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
@@ -273,12 +273,7 @@ public class EnrichPolicyResolver {
                     field.getTimeSeriesFieldType()
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
-                // skip cases where one of the type is unsupported and resolve it again in Analyzer against the minimum transport version,
-                // instead of failing here
-                if (old != null
-                    && old.getDataType().equals(field.getDataType()) == false
-                    && field.getDataType() != UNSUPPORTED
-                    && old.getDataType() != UNSUPPORTED) {
+                if (old != null && old.getDataType().equals(field.getDataType()) == false) {
                     String error = "field [" + m.getKey() + "] of enrich policy [" + policyName + "] has different data types ";
                     error += "[" + old.getDataType() + ", " + field.getDataType() + "] across clusters";
                     return Tuple.tuple(null, error);

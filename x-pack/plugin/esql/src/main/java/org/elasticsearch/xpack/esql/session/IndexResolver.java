@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -110,6 +111,8 @@ public class IndexResolver {
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
+            false,
+            false,
             DO_NOT_GROUP,
             listener.map(Versioned::inner)
         );
@@ -142,6 +145,8 @@ public class IndexResolver {
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
         TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -150,6 +155,8 @@ public class IndexResolver {
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
@@ -169,6 +176,12 @@ public class IndexResolver {
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
         TransportVersion minimumVersion,
+        // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
+        // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
+        // with 9.2.0.
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        // Same as above
+        boolean useDenseVectorWhenNotSupported,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -176,6 +189,8 @@ public class IndexResolver {
             indexPattern,
             true, /* cps/flat index expression might resolve to empty */
             minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
@@ -189,6 +204,8 @@ public class IndexResolver {
         String indexPattern,
         boolean allowEmpty,
         TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -200,7 +217,13 @@ public class IndexResolver {
                 ? TransportVersion.minimumCompatible()
                 : TransportVersion.min(minimumVersion, responseMinimumVersion);
 
-            FieldsInfo info = new FieldsInfo(response.caps(), overallMinimumVersion);
+            FieldsInfo info = new FieldsInfo(
+                response.caps(),
+                overallMinimumVersion,
+                Build.current().isSnapshot(),
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
+            );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
                     + " using field caps response version [{}] for index pattern [{}]",
@@ -240,8 +263,25 @@ public class IndexResolver {
      *                            queries on mixed version clusters that touch DATE_NANOS will fail. All the types
      *                            added after that, like DENSE_VECTOR, will gracefully disable themselves when talking
      *                            to older nodes.
+     * @param currentBuildIsSnapshot is the current build a snapshot? Note: This is always {@code Build.current().isSnapshot()} in
+     *                               production but tests need more control
+     * @param useAggregateMetricDoubleWhenNotSupported does the query itself force us to use {@code aggregate_metric_double} fields
+     *                                                 even if the remotes don't report that they support the type? This exists because
+     *                                                 some remotes <strong>do</strong> support {@code aggregate_metric_double} without
+     *                                                 reporting that they do. And, for a while, we used the query itself to opt into
+     *                                                 reading these fields.
+     * @param useDenseVectorWhenNotSupported does the query itself force us to use {@code dense_vector} fields even if the remotes don't
+     *                                       report that they support the type? This exists because some remotes <strong>do</strong>
+     *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
+     *                                       query itself to opt into reading these fields.
      */
-    public record FieldsInfo(FieldCapabilitiesResponse caps, @Nullable TransportVersion minTransportVersion) {}
+    public record FieldsInfo(
+        FieldCapabilitiesResponse caps,
+        @Nullable TransportVersion minTransportVersion,
+        boolean currentBuildIsSnapshot,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {}
 
     // public for testing only
     public static IndexResolution mergedMappings(
@@ -295,7 +335,7 @@ public class IndexResolver {
             var fieldCap = fieldsCaps.get(fullName);
             List<IndexFieldCapabilities> fcs = fieldCap.fieldCapabilities;
             EsField field = firstUnsupportedParent == null
-                ? createField(name, fullName, fcs, isAlias, fieldsInfo.caps)
+                ? createField(fieldsInfo, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -384,21 +424,31 @@ public class IndexResolver {
     }
 
     private static EsField createField(
+        FieldsInfo fieldsInfo,
         String name,
         String fullName,
         List<IndexFieldCapabilities> fcs,
-        boolean isAlias,
-        FieldCapabilitiesResponse fieldCapsResponse
+        boolean isAlias
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
+        boolean typeSupported = dataTypeSupported(
+            type,
+            fieldsInfo.minTransportVersion(),
+            fieldsInfo.currentBuildIsSnapshot,
+            fieldsInfo.useAggregateMetricDoubleWhenNotSupported,
+            fieldsInfo.useDenseVectorWhenNotSupported
+        );
+        if (false == typeSupported) {
+            type = UNSUPPORTED;
+        }
         boolean aggregatable = first.isAggregatable();
         EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {
-                    return conflictingMetricTypes(name, fullName, fieldCapsResponse);
+                    return conflictingMetricTypes(name, fullName, fieldsInfo.caps);
                 }
                 try {
                     timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
@@ -408,7 +458,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldCapsResponse);
+                    return conflictingTypes(name, fullName, fieldsInfo.caps);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -503,4 +553,22 @@ public class IndexResolver {
     }
 
     public static final OriginalIndexExtractor DO_NOT_GROUP = (indexPattern, fieldCapabilitiesResponse) -> Map.of();
+
+    // Public for Analyzer to reuse it, keep the check against minimum transport version here as MultiClusterSpecIT on enrich relies on it.
+    // otherwise enrich.EnrichDecadesStats fails.
+    // newToOld: the enrich policy cannot be resolved if there is mismatched data types within the policy
+    // oldToNew: new data types like date_range cannot be sent to old nodes
+    public static boolean dataTypeSupported(
+        DataType dataType,
+        TransportVersion minTransportVersion,
+        boolean currentBuildIsSnapshot,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
+        return dataType.supportedVersion().supportedOn(minTransportVersion, currentBuildIsSnapshot) || switch (dataType) {
+            case AGGREGATE_METRIC_DOUBLE -> useAggregateMetricDoubleWhenNotSupported;
+            case DENSE_VECTOR -> useDenseVectorWhenNotSupported;
+            default -> false;
+        };
+    }
 }

@@ -1014,6 +1014,8 @@ public class EsqlSession {
                 // Thus, the EsIndex for `FROM remote1:*` may contain data types that aren't supported on the overall minimum version
                 // if we only find out that the overall version is actually lower when resolving `FROM remote2:*`.
                 result.minimumTransportVersion(),
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported(),
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -1045,6 +1047,8 @@ public class EsqlSession {
             indexMode == IndexMode.TIME_SERIES,
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);

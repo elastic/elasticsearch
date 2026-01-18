@@ -14,6 +14,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -97,6 +99,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource
     ) throws IOException {
+        return get(id, gFields, realtime, version, versionType, fetchSourceContext, forceSyntheticSource, SplitShardCountSummary.UNSET);
+    }
+
+    public GetResult get(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws IOException {
         return doGet(
             id,
             gFields,
@@ -107,6 +122,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
+            splitShardCountSummary,
             indexShard::get
         );
     }
@@ -131,6 +147,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
+            SplitShardCountSummary.UNSET,
             mget::get
         );
     }
@@ -145,6 +162,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
@@ -187,6 +205,38 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } else {
                 missingMetric.inc(System.nanoTime() - now);
             }
+            if (getResult == null || getResult.isExists() == false) {
+                // during resharding, a coordinating node may route a get request to a shard that is the source of a split
+                // before the target shard has taken over that document, but by the time the request is processed on the
+                // source shard, handoff has occurred. If the get succeeds, this is fine - we block refreshes during this
+                // period so although indexing may have occured on the target shard, the source shard's copy is still valid
+                // because refresh hasn't happened. However, if the source shard doesn't have the document in this case, it
+                // may be that it is because the shard has deleted unowned documents after the split. Normally this shouldn't
+                // occur because we will delay deleting those documents for some grace period, but if it does happen we should
+                // fail the request rather than possibly incorrectly reporting that the document doesn't exist, when it may
+                // in fact be present on a different shard.
+                // We can defer this check until we know whether the response is missing, so that the common case doesn't
+                // have to resolve the current split shard summary. This way also means that a race between the get and handoff state
+                // can only cause us to throw an exception unnecessarily, rather than incorrectly returning a missing document.
+                final var indexMetadata = mapperService.getIndexSettings().getIndexMetadata();
+                final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId().getId());
+                if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
+                    // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
+                    return getResult;
+                }
+                if (splitShardCountSummary.equals(currentSummary)) {
+                    // coordinator is current, so response is valid
+                    return getResult;
+                }
+                final var reshardingMetadata = indexMetadata.getReshardingMetadata();
+                if (reshardingMetadata != null && reshardingMetadata.getSplit().targetsDone(shardId().getId()) == false) {
+                    // coordinator is stale, but we should still have a valid response because we haven't entered delete unowned
+                    return getResult;
+                }
+                // Otherwise, we may have deleted unowned documents - fail the request.
+                // XXX we may want a more specific exception type here
+                throw new NoNodeAvailableException("stale get request for document [" + id + "]");
+            }
             return getResult;
         } finally {
             currentMetric.dec();
@@ -212,6 +262,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
+            SplitShardCountSummary.UNSET,
             indexShard::getFromTranslog
         );
     }
@@ -227,6 +278,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             fetchSourceContext,
             false,
+            SplitShardCountSummary.UNSET,
             indexShard::get
         );
     }

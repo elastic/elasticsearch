@@ -157,7 +157,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.version(),
                 request.versionType(),
                 request.fetchSourceContext(),
-                request.isForceSyntheticSource()
+                request.isForceSyntheticSource(),
+                request.getSplitShardCountSummary()
             );
         return new GetResponse(result);
     }

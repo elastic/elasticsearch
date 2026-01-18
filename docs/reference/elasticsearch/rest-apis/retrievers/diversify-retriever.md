@@ -69,6 +69,14 @@ The ordering of results returned from the inner retriever is preserved.
 
     The maximum number of top-N results to return. Defaults to 10.
 
+`top_n_chunks`
+:    (Optional, only if `field` is a `semantic_text` field, integer)
+
+    The maximum number of chunks that should be considered for diversiviation if a `semantic_text` field is used.
+    If a query vector or builder is given, the top N chunks most relevant to the query vector will be used.
+    If no query vector is available, the first N chunks will be used.
+    Defaults to 100.
+
 ## Example
 
 The following example uses a `diversify` retriever of type `mmr` to diversify and

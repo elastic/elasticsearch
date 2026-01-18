@@ -62,7 +62,7 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
      *    |<------------- [ACK (Empty)]-------------------|
      */
 
-    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("indices:data/read/fetch/chunk");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("internal:data/read/search/fetch/chunk");
 
     /**
      * Action name for zero-copy BytesTransportRequest path.

@@ -25,6 +25,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -91,6 +93,12 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
     private final TransportService transportService;
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
     private final CircuitBreakerService circuitBreakerService;
+
+    /**
+     * Required for deserializing SearchHits from chunk bytes that may contain NamedWriteable
+     * fields (e.g., LookupField from lookup runtime fields). See {@link NamedWriteableAwareStreamInput}.
+     */
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     public static class Request extends ActionRequest implements IndicesRequest {
         private final ShardFetchSearchRequest shardFetchRequest;
@@ -186,12 +194,14 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         TransportService transportService,
         ActionFilters actionFilters,
         ActiveFetchPhaseTasks activeFetchPhaseTasks,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         super(TYPE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.activeFetchPhaseTasks = activeFetchPhaseTasks;
         this.circuitBreakerService = circuitBreakerService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     // Creates and registers a response stream for the coordinating task
@@ -230,7 +240,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                         );
                     }
 
-                    try (StreamInput in = lastChunkBytes.streamInput()) {
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                         for (int i = 0; i < hitCount; i++) {
                             SearchHit hit = SearchHit.readFrom(in, false);
 

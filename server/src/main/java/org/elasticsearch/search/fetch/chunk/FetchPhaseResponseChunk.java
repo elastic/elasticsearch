@@ -13,11 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,9 +40,8 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     private final long sequenceStart;
 
     private BytesReference serializedHits;
-
-    // Lazily deserialized on receiving side
     private SearchHit[] deserializedHits;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
     /**
      * The type of chunk being sent.
@@ -103,6 +98,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         this.expectedDocs = in.readVInt();
         this.sequenceStart = in.readVLong();
         this.serializedHits = in.readBytesReference();
+        this.namedWriteableRegistry = in.namedWriteableRegistry();
     }
 
     @Override
@@ -140,19 +136,24 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         }
     }
 
-    /**
-     * Deserializes and returns the hits. Results are cached.
-     */
     public SearchHit[] getHits() throws IOException {
         if (deserializedHits == null && serializedHits != null && hitCount > 0) {
             deserializedHits = new SearchHit[hitCount];
-            try (StreamInput in = serializedHits.streamInput()) {
+            try (StreamInput in = createStreamInput()) {
                 for (int i = 0; i < hitCount; i++) {
                     deserializedHits[i] = SearchHit.readFrom(in, false);
                 }
             }
         }
         return deserializedHits != null ? deserializedHits : new SearchHit[0];
+    }
+
+    private StreamInput createStreamInput() throws IOException {
+        StreamInput in = serializedHits.streamInput();
+        if (namedWriteableRegistry != null) {
+            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+        }
+        return in;
     }
 
     public Type type() {

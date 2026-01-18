@@ -19,6 +19,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -73,6 +75,17 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
 
     /**
+     * Required for deserializing SearchHits that contain NamedWriteable objects.
+     * <p>
+     * SearchHit's DocumentFields can contain types like {@link org.elasticsearch.search.fetch.subphase.LookupField}
+     * which implement NamedWriteable. When reading serialized hits from raw bytes (from chunks),
+     * the basic StreamInput cannot deserialize these types. Wrapping with
+     * {@link NamedWriteableAwareStreamInput} provides the registry needed to resolve
+     * NamedWriteable types by their registered names.
+     */
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    /**
      * Creates a new chunk receiver action.
      *
      * @param transportService the transport service
@@ -83,10 +96,12 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     public TransportFetchPhaseResponseChunkAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        ActiveFetchPhaseTasks activeFetchPhaseTasks
+        ActiveFetchPhaseTasks activeFetchPhaseTasks,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         super(TYPE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.activeFetchPhaseTasks = activeFetchPhaseTasks;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         registerZeroCopyHandler(transportService);
     }
 
@@ -107,7 +122,7 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
                 FetchPhaseResponseChunk chunk = null;
                 boolean handedOff = false;
 
-                try (StreamInput in = bytesRef.streamInput()) {
+                try (StreamInput in = new NamedWriteableAwareStreamInput(bytesRef.streamInput(), namedWriteableRegistry)) {
                     long coordinatingTaskId = in.readVLong();
                     chunk = new FetchPhaseResponseChunk(in);
 

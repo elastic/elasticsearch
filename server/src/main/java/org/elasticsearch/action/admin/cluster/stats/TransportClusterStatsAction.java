@@ -187,6 +187,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
 
+        var totalUserIndices = clusterService.state()
+            .projectState(projectResolver.getProjectId())
+            .metadata()
+            .stream()
+            .filter(indexMetadata -> indexMetadata.isSystem() == false)
+            .count();
+
         additionalStatsListener.andThenApply(
             additionalStats -> request.isRemoteStats()
                 // Return stripped down stats for remote clusters
@@ -201,7 +208,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     Map.of(),
-                    false
+                    false,
+                    (int) totalUserIndices
                 )
                 : new ClusterStatsResponse(
                     System.currentTimeMillis(),
@@ -214,7 +222,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     VersionStats.of(clusterService.state().metadata(), responses),
                     additionalStats.clusterSnapshotStats(),
                     additionalStats.getRemoteStats(),
-                    request.isCPS()
+                    request.isCPS(),
+                    (int) totalUserIndices
                 )
         ).addListener(listener);
     }

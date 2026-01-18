@@ -8,7 +8,6 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -29,12 +28,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -94,9 +95,22 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         testIndexing(true);
     }
 
+    public static void verifyClusterIsRunningOldVersion() throws IOException {
+        String expectedOldVersion = System.getProperty("tests.old_cluster_version");
+        assertThat("tests.old_cluster_version system property must be set", expectedOldVersion, notNullValue());
+
+        Set<String> nodeVersions = readVersionsFromNodesInfo(adminClient());
+        assertThat(
+            "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
+            nodeVersions,
+            everyItem(equalTo(expectedOldVersion))
+        );
+    }
+
     protected void testIndexing(boolean shouldIncludeKeywordMultifield) throws Exception {
         String dataStreamName = DATA_STREAM + (shouldIncludeKeywordMultifield ? "-multifield" : "");
         if (isOldCluster()) {
+            verifyClusterIsRunningOldVersion();
             // given - reset data stream since it could've been used by other tests
             smallestMessageMap.remove(dataStreamName);
 

@@ -25,9 +25,12 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
     private static final String USER = "admin-user";
@@ -36,11 +39,24 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     private static TestFeatureService oldClusterTestFeatureService;
 
     @Before
-    public void retainOldClusterTestFeatureService() {
+    public void retainOldClusterTestFeatureService() throws IOException {
+        verifyClusterIsRunningOldVersion();
         if (oldClusterTestFeatureService == null) {
             assert testFeatureServiceInitialized() : "testFeatureService must be initialized, see ESRestTestCase#initClient";
             oldClusterTestFeatureService = testFeatureService;
         }
+    }
+
+    public static void verifyClusterIsRunningOldVersion() throws IOException {
+        String expectedOldVersion = System.getProperty("tests.old_cluster_version");
+        assertThat("tests.old_cluster_version system property must be set", expectedOldVersion, notNullValue());
+
+        Set<String> nodeVersions = readVersionsFromNodesInfo(adminClient());
+        assertThat(
+            "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
+            nodeVersions,
+            everyItem(equalTo(expectedOldVersion))
+        );
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {

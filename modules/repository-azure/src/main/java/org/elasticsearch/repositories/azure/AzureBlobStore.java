@@ -358,7 +358,7 @@ public class AzureBlobStore implements BlobStore {
         long position,
         final @Nullable Long length,
         @Nullable String eTag
-    ) throws IOException {
+    ) {
         logger.trace(() -> format("reading container [%s], blob [%s]", container, blob));
         final AzureBlobServiceClient azureBlobServiceClient = getAzureBlobServiceClientClient(purpose);
         final BlobServiceClient syncClient = azureBlobServiceClient.getSyncClient();

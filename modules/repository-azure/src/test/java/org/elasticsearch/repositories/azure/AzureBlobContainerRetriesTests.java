@@ -503,7 +503,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     public void testRetryUntilFail() throws Exception {
         final int maxRetries = randomIntBetween(2, 5);
         final AtomicInteger requestsReceived = new AtomicInteger(0);
-        logger.info("Max retries {}", maxRetries);
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_max_retries"), exchange -> {
             try {

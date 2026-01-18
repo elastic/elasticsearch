@@ -6,8 +6,8 @@ RUN apt-get update -qqy && apt-get install -qqy python3
 
 COPY --from=c2id /c2id-server /c2id-server
 COPY --from=c2id /etc/c2id /etc/c2id
-COPY ./oidc/setup.sh /fixture/
-COPY ./oidc/testnode.jks /c2id-server/tomcat/conf/keystore.jks
+COPY ./setup.sh /fixture/
+COPY ./testnode.jks /c2id-server/tomcat/conf/keystore.jks
 
 RUN sed -i '/<!-- A "Connector" using the shared thread pool-->/ i\
     <Connector port="8443" \

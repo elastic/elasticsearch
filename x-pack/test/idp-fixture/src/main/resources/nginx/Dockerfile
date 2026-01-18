@@ -25,7 +25,7 @@ RUN set -x \
     && make && make install \
     && apt-get remove --purge --auto-remove -y && rm -rf /var/lib/apt/lists/*
 
-COPY ./nginx/nginx.conf /etc/nginx/nginx.conf
+COPY ./nginx.conf /etc/nginx/nginx.conf
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 

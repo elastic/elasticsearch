@@ -38,7 +38,7 @@ Merges are one of the more expensive background tasks a cluster must perform. Me
 * Increasing the [`index.refresh_interval`](https://www.elastic.co/docs/reference/elasticsearch/index-settings/index-modules#dynamic-index-settings) setting.
 * [Using bulk requests](docs-content://deploy-manage/production-guidance/optimize-performance/indexing-speed.md#_use_bulk_requests). As examples, refer to Elastic's client-side product tuning guides:
     * Elastic Agent's [tuning settings](https://www.elastic.co/docs/reference/fleet/elasticsearch-output#output-elasticsearch-performance-tuning-settings) under the [Fleet Settings UI])(https://www.elastic.co/docs/reference/fleet/fleet-settings#output-settings)
-    * Logstash [`pipeline.batch.size`](https://www.elastic.co/docs/reference/logstash/tuning-logstash)  
+    * Logstash [tuning settings](https://www.elastic.co/docs/reference/logstash/tuning-logstash#tuning-logstash-settings)
 :::::
 
 

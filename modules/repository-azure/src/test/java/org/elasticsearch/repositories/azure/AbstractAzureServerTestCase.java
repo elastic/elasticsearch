@@ -223,7 +223,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
     }
 
-    protected void readFromInputStream(InputStream inputStream, long bytesToRead) {
+    public static void readFromInputStream(InputStream inputStream, long bytesToRead) {
         try {
             long totalBytesRead = 0;
             while (inputStream.read() != -1 && totalBytesRead < bytesToRead) {

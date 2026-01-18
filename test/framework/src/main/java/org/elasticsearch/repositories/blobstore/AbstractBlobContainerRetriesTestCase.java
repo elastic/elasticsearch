@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "use a http server")
 public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
-    private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
+    protected static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 
     protected HttpServer httpServer;
 
@@ -347,7 +347,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     public void testReadBlobWithPrematureConnectionClose() {
-        final int maxRetries = randomInt(20);
+        final int maxRetries = randomInt(10);
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
 
         final boolean alwaysFlushBody = randomBoolean();

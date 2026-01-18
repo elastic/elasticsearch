@@ -138,11 +138,6 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // ensure the diversifyField resolves to a dense vector type
-        if (diversifyField.resolved() == false) {
-            failures.add(fail(this, "MMR diversify field must be resolved"));
-        }
-
         if (diversifyField.dataType() != DataType.DENSE_VECTOR) {
             failures.add(fail(this, "MMR diversify field must be a dense vector field"));
         }

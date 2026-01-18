@@ -130,7 +130,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -544,7 +543,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
-                case MMR mmr -> resolveMMR(mmr, childrenOutput);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
@@ -746,26 +744,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
             }
             return l;
-        }
-
-        private LogicalPlan resolveMMR(MMR mmr, List<Attribute> childrenOutput) {
-            boolean hasResolved = false;
-
-            Attribute diversifyField = mmr.diversifyField();
-            if (diversifyField instanceof UnresolvedAttribute ua) {
-                hasResolved = true;
-                diversifyField = maybeResolveAttribute(ua, childrenOutput);
-                if (diversifyField instanceof UnresolvedAttribute stillUnresolved) {
-                    diversifyField = stillUnresolved.withUnresolvedMessage(
-                        stillUnresolved.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
-                    );
-                }
-            }
-
-            if (hasResolved) {
-                return new MMR(mmr.source(), mmr.child(), diversifyField, mmr.limit(), mmr.queryVector(), mmr.lambdaValue());
-            }
-            return mmr;
         }
 
         private Expression resolveJoinFiltersAndSwapIfNeeded(

@@ -340,7 +340,7 @@ stack: ga 9.4
 serverless: ga
 ```
 
-The [{{diversify-retriever}} (diversify retriever)] supports the use of `semantic_text` field types for result diversification.
+The [diversify retriever](/reference/elasticsearch/rest-apis/retrievers/diversify-retriever) supports the use of `semantic_text` field types for result diversification.
 
 :::{note}
 The `semantic_text` field must use `dense_vector` embeddings such as those from `text_embedding` inference tasks.

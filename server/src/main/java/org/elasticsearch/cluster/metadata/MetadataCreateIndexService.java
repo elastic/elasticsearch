@@ -227,12 +227,15 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public void validateIndexLimit(ProjectMetadata projectMetadata) {
+    public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
+        if (systemIndices.isSystemIndex(request.index())) {
+            return;
+        }
         var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["
-                    + projectMetadata.getConcreteAllIndices().length
+                    + totalUserIndices
                     + "]/["
                     + maxIndicesPerProject
                     + "] maximum indices; for more information, see "
@@ -1654,7 +1657,7 @@ public class MetadataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ProjectMetadata projectMetadata, RoutingTable routingTable) {
-        validateIndexLimit(projectMetadata);
+        validateIndexLimit(projectMetadata, request);
         validateIndexName(request.index(), projectMetadata, routingTable);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings && request.settingsSystemProvided() == false);
     }

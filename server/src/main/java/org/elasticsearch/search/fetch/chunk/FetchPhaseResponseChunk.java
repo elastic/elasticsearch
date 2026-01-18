@@ -12,6 +12,8 @@ package org.elasticsearch.search.fetch.chunk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +43,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     private final int expectedDocs;
     private final long sequenceStart;
 
-    // The raw serialized hits - may be a ReleasableBytesReference from Netty pool
     private BytesReference serializedHits;
 
     // Lazily deserialized on receiving side
@@ -116,6 +117,29 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         out.writeBytesReference(serializedHits);
     }
 
+    public ReleasableBytesReference toReleasableBytesReference(long coordinatingTaskId) throws IOException {
+        final ReleasableBytesReference result;
+        try (BytesStreamOutput header = new BytesStreamOutput(16)) {
+            header.writeVLong(coordinatingTaskId);
+
+            BytesReference composite = CompositeBytesReference.of(header.copyBytes(), toBytesReference());
+            if (serializedHits instanceof ReleasableBytesReference releasableHits) {
+                result = new ReleasableBytesReference(composite, releasableHits::decRef);
+            } else {
+                result = ReleasableBytesReference.wrap(composite);
+            }
+            this.serializedHits = null;
+        }
+        return result;
+    }
+
+    private BytesReference toBytesReference() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput(128)) {
+            writeTo(out);
+            return out.copyBytes();
+        }
+    }
+
     /**
      * Deserializes and returns the hits. Results are cached.
      */
@@ -129,21 +153,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             }
         }
         return deserializedHits != null ? deserializedHits : new SearchHit[0];
-    }
-
-    /**
-     * Takes ownership of the serialized hits bytes.
-     * After calling this, close() will not release the bytes.
-     */
-    public BytesReference takeSerializedHits() {
-        BytesReference bytes = this.serializedHits;
-        this.serializedHits = null;
-        return bytes;
-    }
-
-    // Getters
-    public long timestampMillis() {
-        return timestampMillis;
     }
 
     public Type type() {
@@ -170,10 +179,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         return sequenceStart;
     }
 
-    public BytesReference serializedHits() {
-        return serializedHits;
-    }
-
     @Override
     public void close() {
         if (serializedHits instanceof Releasable) {
@@ -194,15 +199,15 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     /**
      * Interface for sending chunk responses from the data node to the coordinator.
      * <p>
-     * Implementations handle network transport and provide buffer allocation
-     * using Netty's pooled allocator for efficient memory management.
+     * Implementations handle network transport using {@link org.elasticsearch.transport.BytesTransportRequest}
+     * for zero-copy transmission, and provide buffer allocation using Netty's pooled allocator.
      */
     public interface Writer {
 
         /**
-         * Sends a chunk to the coordinator.
+         * Sends a chunk to the coordinator using zero-copy transport.
          *
-         * @param responseChunk the chunk to send (ownership transferred to writer)
+         * @param responseChunk the chunk to send
          * @param listener      called when the chunk is acknowledged or fails
          */
         void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener);
@@ -211,8 +216,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
          * Creates a new byte stream for serializing hits.
          * <p>
          * Uses {@link org.elasticsearch.transport.TransportService#newNetworkBytesStream()}
-         * which allocates buffers from Netty's pooled allocator. This avoids heap allocation
-         * and enables zero-copy network transmission.
+         * which allocates buffers from Netty's pooled allocator.
          *
          * @return a new RecyclerBytesStreamOutput from the network buffer pool
          */

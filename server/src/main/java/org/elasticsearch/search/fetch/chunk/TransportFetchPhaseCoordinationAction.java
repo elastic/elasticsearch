@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
@@ -80,6 +83,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
      *      |                                     |  (from accumulated chunks)               |
      *      |<-- FetchSearchResult (complete) ----|                                          |
      */
+    private static final Logger LOGGER = LogManager.getLogger(TransportFetchPhaseCoordinationAction.class);
 
     public static final ActionType<Response> TYPE = new ActionType<>("internal:data/read/search/fetch/coordination");
 
@@ -221,12 +225,13 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 if (lastChunkBytes != null && hitCount > 0) {
                     // Get sequence start for last chunk from the result metadata
 
-                   /* if (logger.isDebugEnabled()) {
-                        logger.debug(
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.debug(
                             "Received final chunk [{}] for shard [{}]",
+                            hitCount,
                             request.shardFetchRequest.getShardSearchRequest().shardId()
                         );
-                    }*/
+                    }
 
                     try (StreamInput in = lastChunkBytes.streamInput()) {
                         for (int i = 0; i < hitCount; i++) {

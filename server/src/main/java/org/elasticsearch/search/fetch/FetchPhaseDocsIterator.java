@@ -277,31 +277,40 @@ abstract class FetchPhaseDocsIterator {
                 boolean bufferFull = chunkBuffer.size() >= targetChunkBytes;
 
                 if (bufferFull || isLast) {
-                    ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
-                    chunkBuffer = null;
-
-                    if (isLast) {
-                        // Hold back last chunk for final response
-                        lastChunkBytes = chunkBytes;
-                        lastChunkHitCount = hitsInChunk;
-                        lastChunkSeqStart = chunkStartIndex;
-                    } else {
+                    if (isLast == false) {
                         acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
+                    }
 
-                        sendChunk(
-                            chunkBytes,
-                            hitsInChunk,
-                            chunkStartIndex,
-                            chunkStartIndex,
-                            totalDocs,
-                            chunkWriter,
-                            shardId,
-                            sendFailure,
-                            chunkCompletionRefs.acquire(),
-                            transmitPermits
-                        );
+                    ReleasableBytesReference chunkBytes = null;
+                    try {
+                        chunkBytes = chunkBuffer.moveToBytesReference();
+                        chunkBuffer = null;
 
-                        // Start new chunk buffer
+                        if (isLast) {
+                            lastChunkBytes = chunkBytes;
+                            lastChunkHitCount = hitsInChunk;
+                            lastChunkSeqStart = chunkStartIndex;
+                            chunkBytes = null; // ownership transferred to lastChunkBytes
+                        } else {
+                            sendChunk(
+                                chunkBytes,
+                                hitsInChunk,
+                                chunkStartIndex,
+                                chunkStartIndex,
+                                totalDocs,
+                                chunkWriter,
+                                shardId,
+                                sendFailure,
+                                chunkCompletionRefs.acquire(),
+                                transmitPermits
+                            );
+                            chunkBytes = null;
+                        }
+                    } finally {
+                        Releasables.closeWhileHandlingException(chunkBytes);
+                    }
+
+                    if (isLast == false) {
                         chunkBuffer = chunkWriter.newNetworkBytesStream();
                         chunkStartIndex = scoreIndex + 1;
                         hitsInChunk = 0;

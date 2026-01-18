@@ -69,6 +69,7 @@ import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInference
  * Supports both traditional mode (all results in memory) and streaming mode (results sent in chunks).
  */
 public final class FetchPhase {
+
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
@@ -442,7 +443,7 @@ public final class FetchPhase {
                     if (lastChunkBytes != null && countLong > 0) {
                         int hitCount = Math.toIntExact(countLong);
                         context.fetchResult().setLastChunkBytes(lastChunkBytes, hitCount);
-                        lastChunkBytes = null; // ownership transferred; don't close here
+                        lastChunkBytes = null;
                     }
 
                     l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));

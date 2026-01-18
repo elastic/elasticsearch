@@ -322,6 +322,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
     /**
      * Makes sure that lookup fields are resolved using the lookup index on each cluster.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/139124")
     public void testLookupFields() throws Exception {
         cluster("cluster_a").client()
             .admin()

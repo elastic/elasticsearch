@@ -93,16 +93,24 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
         long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
 
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> internalCluster().client(coordinatorNode)
+        ElasticsearchException exception;
+        try {
+            var resp = internalCluster().client(coordinatorNode)
                 .prepareSearch(INDEX_NAME)
                 .setQuery(matchAllQuery())
                 .setSize(3)  // Request 3 huge docs = ~6MB > 5MB limit
                 .setAllowPartialSearchResults(false)
                 .addSort(SORT_FIELD, SortOrder.ASC)
-                .get()
-        );
+                .get();
+            try {
+                fail("expected circuit breaker to trip");
+                return;
+            } finally {
+                resp.decRef();
+            }
+        } catch (ElasticsearchException e) {
+            exception = e;
+        }
 
         Throwable cause = exception.getCause();
         while (cause != null && (cause instanceof CircuitBreakingException) == false) {
@@ -158,13 +166,16 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(numSearches);
         try {
             List<CompletableFuture<Void>> futures = IntStream.range(0, numSearches).mapToObj(i -> CompletableFuture.runAsync(() -> {
-                internalCluster().client(coordinatorNode)
-                    .prepareSearch(INDEX_NAME)
+                var client = internalCluster().client(coordinatorNode);
+                var resp = client.prepareSearch(INDEX_NAME)
                     .setQuery(matchAllQuery())
                     .setSize(4)
                     .setAllowPartialSearchResults(false)
                     .addSort(SORT_FIELD, SortOrder.ASC)
                     .get();
+                try {} finally {
+                    resp.decRef();
+                }
             }, executor)).toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0])).exceptionally(ex -> null).get(30, TimeUnit.SECONDS);
@@ -227,16 +238,23 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         refresh(INDEX_NAME);
 
         long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> internalCluster().client(coordinatorNode)
+        ElasticsearchException exception;
+        try {
+            var resp = internalCluster().client(coordinatorNode)
                 .prepareSearch(INDEX_NAME)
                 .setQuery(matchAllQuery())
                 .setSize(5)
                 .setAllowPartialSearchResults(false)
                 .addSort(SORT_FIELD, SortOrder.ASC)
-                .get()
-        );
+                .get();
+            try {
+                return;
+            } finally {
+                resp.decRef();
+            }
+        } catch (ElasticsearchException e) {
+            exception = e;
+        }
 
         boolean foundBreakerException = containsCircuitBreakerException(exception);
         assertThat("Circuit breaker should have tripped on single large document", foundBreakerException, equalTo(true));
@@ -280,16 +298,20 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         long initialBreaker = getNodeRequestBreakerUsed(coordinatorNode);
 
         for (int i = 0; i < 10; i++) {
-            expectThrows(
-                ElasticsearchException.class,
-                () -> internalCluster().client(coordinatorNode)
+            try {
+                var resp = internalCluster().client(coordinatorNode)
                     .prepareSearch(INDEX_NAME)
                     .setQuery(matchAllQuery())
                     .setSize(5)  // 5 docs × 1.2MB = 6MB > 5MB limit
                     .setAllowPartialSearchResults(false)
                     .addSort(SORT_FIELD, SortOrder.ASC)
-                    .get()
-            );
+                    .get();
+                try {
+                    fail("expected circuit breaker to trip (iteration " + i + ")");
+                } finally {
+                    resp.decRef();
+                }
+            } catch (ElasticsearchException expected) {}
             Thread.sleep(100);
         }
 

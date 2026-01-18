@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -58,6 +60,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -722,32 +725,33 @@ public class SearchTransportService {
                 chunkWriter = new FetchPhaseResponseChunk.Writer() {
                     @Override
                     public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
-                        boolean success = false;
-
+                        ReleasableBytesReference bytesToSend = null;
                         // Restore the ThreadContext before sending the chunk
                         try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
+                            Transport.Connection connection = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
+                            bytesToSend = responseChunk.toReleasableBytesReference(fetchSearchReq.getCoordinatingTaskId());
+                            BytesTransportRequest request = new BytesTransportRequest(bytesToSend, connection.getTransportVersion());
+
+                            final ReleasableBytesReference bytesRef = bytesToSend;
+                            bytesToSend = null;
+
                             transportService.sendChildRequest(
-                                transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
-                                TransportFetchPhaseResponseChunkAction.TYPE.name(),
-                                new TransportFetchPhaseResponseChunkAction.Request(
-                                    fetchSearchReq.getCoordinatingTaskId(),
-                                    responseChunk,
-                                    indices,
-                                    indicesOptions
-                                ),
+                                connection,
+                                TransportFetchPhaseResponseChunkAction.ZERO_COPY_ACTION_NAME,
+                                request,
                                 task,
                                 TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(
-                                    listener.map(ignored2 -> null),
-                                    in -> ActionResponse.Empty.INSTANCE,
-                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
-                                )
+                                new ActionListenerResponseHandler<>(ActionListener.wrap(r -> {
+                                    Releasables.close(bytesRef);
+                                    listener.onResponse(null);
+                                }, e -> {
+                                    Releasables.close(bytesRef);
+                                    listener.onFailure(e);
+                                }), in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                             );
-                            success = true;
                         } catch (Exception e) {
-                            if (success == false) {
-                                responseChunk.close();
-                            }
+                            Releasables.closeWhileHandlingException(bytesToSend);
+                            responseChunk.close();
                             listener.onFailure(e);
                         }
                     }
@@ -758,7 +762,6 @@ public class SearchTransportService {
                     }
                 };
             }
-
             searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
         };
 

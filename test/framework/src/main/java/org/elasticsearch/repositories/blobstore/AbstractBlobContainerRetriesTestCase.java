@@ -16,6 +16,7 @@ import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,7 +36,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.TimeoutException;
@@ -73,6 +77,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         httpServer.stop(0);
         super.tearDown();
+    }
+
+    protected void restartHttpServer() throws IOException {
+        InetSocketAddress currentAddress = httpServer.getAddress();
+        httpServer.stop(0);
+        httpServer = MockHttpServer.createHttp(currentAddress, 0);
+        httpServer.start();
     }
 
     /**
@@ -265,7 +276,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     public void testReadBlobWithReadTimeouts() {
         final int maxRetries = randomInt(5);
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).readTimeout(readTimeout).build();
+        final ByteSizeValue bufferSize = ByteSizeValue.ofMb(between(10, 20));
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries)
+            .bufferSize(bufferSize)
+            .readTimeout(readTimeout)
+            .build();
 
         // HTTP server does not send a response
         final byte[] bytes = randomBlobContent();
@@ -286,6 +301,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         );
         assertThat(exception.getCause(), anyOf(instanceOf(SocketTimeoutException.class), instanceOf(TimeoutException.class)));
 
+        // A list to track response sizes, some streams (i.e. RetryingInputStream) allow more retries when meaningful amount of bytes
+        // is transferred in a single try. See below.
+        final List<Long> retryContentSizes = Collections.synchronizedList(new ArrayList<>());
+
         // HTTP server sends a partial response
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
             if (exchange.getRequestMethod().equals("HEAD")) {
@@ -293,18 +312,22 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                     handleHeadRequest(exchange, bytes);
                 }
             } else {
-                sendIncompleteContent(exchange, bytes);
+                retryContentSizes.add((long) sendIncompleteContent(exchange, bytes));
             }
         });
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        final AtomicLong meaningfulProgressSize = new AtomicLong(Long.MAX_VALUE);
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
                     ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
                     : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
+                if (stream instanceof RetryingInputStream<?> ris) {
+                    meaningfulProgressSize.set(ris.meaningfulProgressSize());
+                }
                 Streams.readFully(stream);
             }
         });
@@ -318,7 +341,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("unexpected end of file from server")
             )
         );
-        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
+        int meaningfulProgressRetries = Math.toIntExact(
+            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
+        );
+        assertEquals(exception.getSuppressed().length, maxRetries + meaningfulProgressRetries);
     }
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {

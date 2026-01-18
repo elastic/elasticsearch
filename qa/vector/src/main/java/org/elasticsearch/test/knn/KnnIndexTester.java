@@ -26,10 +26,12 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
@@ -51,6 +53,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,6 +61,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -90,6 +95,22 @@ public class KnnIndexTester {
         GPU_HNSW
     }
 
+    enum VectorEncoding {
+        BYTE(org.apache.lucene.index.VectorEncoding.BYTE),
+        FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32),
+        BFLOAT16(org.apache.lucene.index.VectorEncoding.FLOAT32);
+
+        private final org.apache.lucene.index.VectorEncoding luceneEncoding;
+
+        VectorEncoding(org.apache.lucene.index.VectorEncoding luceneEncoding) {
+            this.luceneEncoding = luceneEncoding;
+        }
+
+        public org.apache.lucene.index.VectorEncoding luceneEncoding() {
+            return luceneEncoding;
+        }
+    }
+
     enum MergePolicyType {
         TIERED,
         LOG_BYTE,
@@ -116,9 +137,14 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args) {
+    static Codec createCodec(TestConfiguration args, @Nullable ExecutorService exec) {
         final KnnVectorsFormat format;
         int quantizeBits = args.quantizeBits();
+        DenseVectorFieldMapper.ElementType elementType = switch (args.vectorEncoding()) {
+            case BYTE -> DenseVectorFieldMapper.ElementType.BYTE;
+            case FLOAT32 -> DenseVectorFieldMapper.ElementType.FLOAT;
+            case BFLOAT16 -> DenseVectorFieldMapper.ElementType.BFLOAT16;
+        };
         if (args.indexType() == IndexType.IVF) {
             ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
                 case (1) -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
@@ -132,8 +158,10 @@ public class KnnIndexTester {
                 encoding,
                 args.ivfClusterSize(),
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                args.onDiskRescore()
+                elementType,
+                args.onDiskRescore(),
+                exec,
+                exec != null ? args.numMergeWorkers() : 1
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {
@@ -146,37 +174,41 @@ public class KnnIndexTester {
         } else {
             if (quantizeBits == 1) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93BinaryQuantizedVectorsFormat();
+                    format = new ES93BinaryQuantizedVectorsFormat(elementType, false);
                 } else {
                     format = new ES93HnswBinaryQuantizedVectorsFormat(
                         args.hnswM(),
                         args.hnswEfConstruction(),
-                        DenseVectorFieldMapper.ElementType.FLOAT,
-                        false
+                        elementType,
+                        false,
+                        exec != null ? args.numMergeWorkers() : 1,
+                        exec
                     );
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93ScalarQuantizedVectorsFormat(
-                        DenseVectorFieldMapper.ElementType.FLOAT,
-                        null,
-                        quantizeBits,
-                        true,
-                        false
-                    );
+                    format = new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
                 } else {
                     format = new ES93HnswScalarQuantizedVectorsFormat(
                         args.hnswM(),
                         args.hnswEfConstruction(),
-                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        elementType,
                         null,
                         quantizeBits,
                         true,
-                        false
+                        false,
+                        exec != null ? args.numMergeWorkers() : 1,
+                        exec
                     );
                 }
             } else {
-                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), DenseVectorFieldMapper.ElementType.FLOAT);
+                format = new ES93HnswVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    exec != null ? args.numMergeWorkers() : 1,
+                    exec
+                );
             }
         }
         return new Lucene103Codec() {
@@ -305,81 +337,85 @@ public class KnnIndexTester {
             }
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            Codec codec = createCodec(testConfiguration);
-            Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
-            MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
-                KnnIndexer knnIndexer = new KnnIndexer(
-                    testConfiguration.docVectors(),
-                    indexPath,
-                    codec,
-                    testConfiguration.indexThreads(),
-                    testConfiguration.vectorEncoding(),
-                    testConfiguration.dimensions(),
-                    testConfiguration.vectorSpace(),
-                    testConfiguration.numDocs(),
-                    mergePolicy,
-                    testConfiguration.writerBufferSizeInMb(),
-                    testConfiguration.writerMaxBufferedDocs()
-                );
-                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
-                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                }
-                if (testConfiguration.reindex()) {
-                    knnIndexer.createIndex(indexResults);
-                }
-                if (testConfiguration.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
-                }
+            final ExecutorService exec;
+            if (testConfiguration.numMergeWorkers() > 1) {
+                exec = Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"));
+            } else {
+                exec = null;
             }
-            numSegments(indexPath, indexResults);
-            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
-                if (parsedArgs.warmUpIterations() > 0) {
-                    logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
-                }
-                // Warm up
-                for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
-                    for (int i = 0; i < results.length; i++) {
-                        var ignoreResults = new Results(
-                            testConfiguration.docVectors().get(0).getFileName().toString(),
-                            indexType,
-                            testConfiguration.numDocs()
-                        );
-                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                        knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+            try {
+                Codec codec = createCodec(testConfiguration, exec);
+                Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
+                MergePolicy mergePolicy = getMergePolicy(testConfiguration);
+                if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
+                    KnnIndexer knnIndexer = new KnnIndexer(
+                        testConfiguration.docVectors(),
+                        indexPath,
+                        codec,
+                        testConfiguration.indexThreads(),
+                        testConfiguration.vectorEncoding().luceneEncoding,
+                        testConfiguration.dimensions(),
+                        testConfiguration.vectorSpace(),
+                        testConfiguration.numDocs(),
+                        mergePolicy,
+                        testConfiguration.writerBufferSizeInMb(),
+                        testConfiguration.writerMaxBufferedDocs()
+                    );
+                    if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
+                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
+                    }
+                    if (testConfiguration.reindex()) {
+                        knnIndexer.createIndex(indexResults);
+                    }
+                    if (testConfiguration.forceMerge()) {
+                        knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
                     }
                 }
+                numSegments(indexPath, indexResults);
+                if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+                    if (parsedArgs.warmUpIterations() > 0) {
+                        logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+                    }
+                    // Warm up
+                    for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+                        for (int i = 0; i < results.length; i++) {
+                            var ignoreResults = new Results(
+                                testConfiguration.docVectors().get(0).getFileName().toString(),
+                                indexType,
+                                testConfiguration.numDocs()
+                            );
+                            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                            knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+                        }
+                    }
 
-                for (int i = 0; i < results.length; i++) {
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                    knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                    for (int i = 0; i < results.length; i++) {
+                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                        knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                    }
+                }
+                formattedResults.queryResults.addAll(List.of(results));
+                formattedResults.indexResults.add(indexResults);
+            } finally {
+                if (exec != null) {
+                    exec.shutdown();
                 }
             }
-            formattedResults.queryResults.addAll(List.of(results));
-            formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
     }
 
     private static MergePolicy getMergePolicy(TestConfiguration args) {
-        MergePolicy mergePolicy = null;
-        if (args.mergePolicy() != null) {
-            if (args.mergePolicy() == MergePolicyType.TIERED) {
-                mergePolicy = new TieredMergePolicy();
-            } else if (args.mergePolicy() == MergePolicyType.LOG_BYTE) {
-                mergePolicy = new LogByteSizeMergePolicy();
-            } else if (args.mergePolicy() == MergePolicyType.NO) {
-                mergePolicy = NoMergePolicy.INSTANCE;
-            } else if (args.mergePolicy() == MergePolicyType.LOG_DOC) {
-                mergePolicy = new LogDocMergePolicy();
-            } else {
-                throw new IllegalArgumentException("Invalid merge policy: " + args.mergePolicy());
-            }
-        }
-        return mergePolicy;
+        return switch (args.mergePolicy()) {
+            case null -> null;
+            case TIERED -> new TieredMergePolicy();
+            case LOG_BYTE -> new LogByteSizeMergePolicy();
+            case NO -> NoMergePolicy.INSTANCE;
+            case LOG_DOC -> new LogDocMergePolicy();
+        };
     }
 
-    static void numSegments(Path indexPath, KnnIndexTester.Results result) {
+    static void numSegments(Path indexPath, Results result) {
         try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
         } catch (IOException e) {
@@ -547,7 +583,7 @@ public class KnnIndexTester {
     }
 
     static final class ThreadDetails {
-        private static final ThreadMXBean threadBean = (ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        private static final ThreadMXBean threadBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
         public final long[] threadIDs;
         public final long[] cpuTimesNS;
         public final ThreadInfo[] threadInfos;

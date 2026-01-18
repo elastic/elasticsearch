@@ -1,0 +1,6 @@
+pr: 139314
+summary: Improve Lookup Join performance with `CachedDirectoryReader`
+area: ES|QL
+type: enhancement
+issues:
+ - 137268

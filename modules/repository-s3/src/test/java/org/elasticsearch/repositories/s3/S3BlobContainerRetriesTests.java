@@ -94,6 +94,8 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
@@ -116,6 +118,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -1452,6 +1455,49 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         // fail because the value was overwritten leaving the overwritten value in place. If, however, the CAS were not atomic with respect
         // to other non-CAS-based writes, then we would see casTargetValue here:
         assertThat(Streams.readFully(statefulBlobContainer.readBlob(randomPurpose(), blobName)), equalBytes(overwriteValue));
+    }
+
+    public void testContentsChangeWhileStreaming() throws IOException {
+        final S3HttpHandler handler = new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel());
+        httpServer.createContext("/", handler);
+        // The blob needs to be large enough that it won't be entirely buffered on the first request
+        final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
+
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+
+        final String key = randomIdentifier();
+        byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+        container.writeBlob(randomFiniteRetryingPurpose(), key, new BytesArray(initialValue), true);
+
+        BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
+        assertThat(reference, equalBytes(new BytesArray(initialValue)));
+
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), key)) {
+            // Trigger the first chunk to load
+            int read = inputStream.read();
+            assert read != -1;
+
+            // Restart the server (this triggers a retry)
+            restartHttpServer();
+            httpServer.createContext("/", handler);
+
+            // Update the file
+            byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+            container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
+
+            // Read the rest of the stream, it should throw because the contents changed
+            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            assertThat(
+                message,
+                matchesRegex(
+                    "Blob object \\["
+                        + container.path().buildAsString()
+                        + key
+                        + "] with ETag \\[\\S+] unavailable on resume: At least one of the pre-conditions you specified did not hold "
+                        + "\\(Service: S3, Status Code: 412, Request ID: test-request-id\\) \\(SDK Attempt Count: 1\\)"
+                )
+            );
+        }
     }
 
     @Override

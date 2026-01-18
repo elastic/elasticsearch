@@ -52,7 +52,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -667,13 +666,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 )
             );
         }
-    }
-
-    private void restartHttpServer() throws IOException {
-        InetSocketAddress currentAddress = httpServer.getAddress();
-        httpServer.stop(0);
-        httpServer = MockHttpServer.createHttp(currentAddress, 0);
-        httpServer.start();
     }
 
     private HttpHandler safeHandler(HttpHandler handler) {

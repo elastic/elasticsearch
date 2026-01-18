@@ -735,7 +735,8 @@ public class EsqlSession {
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        indexResolver.resolveIndices(
+        executionInfo.planningProfile().incFieldCapsCalls();
+        indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
@@ -997,7 +998,8 @@ public class EsqlSession {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            indexResolver.resolveIndicesVersioned(
+            executionInfo.planningProfile().incFieldCapsCalls();
+            indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
@@ -1034,7 +1036,8 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        indexResolver.resolveFlatWorldIndicesVersioned(
+        executionInfo.planningProfile().incFieldCapsCalls();
+        indexResolver.resolveMainFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,

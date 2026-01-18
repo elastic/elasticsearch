@@ -61,6 +61,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.Foldables.stringLiteralValueOf;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithFinalStateAndNoShards;
 
@@ -154,7 +155,6 @@ public class EnrichPolicyResolver {
             listener.onResponse(new EnrichResolution());
             return;
         }
-
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, executionInfo, minimumVersion, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
@@ -273,7 +273,12 @@ public class EnrichPolicyResolver {
                     field.getTimeSeriesFieldType()
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
-                if (old != null && old.getDataType().equals(field.getDataType()) == false) {
+                // skip cases where one of the type is unsupported and resolve it again in Analyzer against the minimum transport version,
+                // instead of failing here
+                if (old != null
+                    && old.getDataType().equals(field.getDataType()) == false
+                    && field.getDataType() != UNSUPPORTED
+                    && old.getDataType() != UNSUPPORTED) {
                     String error = "field [" + m.getKey() + "] of enrich policy [" + policyName + "] has different data types ";
                     error += "[" + old.getDataType() + ", " + field.getDataType() + "] across clusters";
                     return Tuple.tuple(null, error);
@@ -337,6 +342,7 @@ public class EnrichPolicyResolver {
                     getRemoteConnection(cluster, skipOnFailure == false, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
+                            executionInfo.planningProfile().incFieldCapsCalls();
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
@@ -363,6 +369,7 @@ public class EnrichPolicyResolver {
                 .map(u -> u.name)
                 .collect(toSet());
             if (localPolicies.isEmpty() == false) {
+                executionInfo.planningProfile().incFieldCapsCalls();
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,
@@ -478,7 +485,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveIndices(
+                        indexResolver.resolveLookupIndices(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             request.minimumVersion,

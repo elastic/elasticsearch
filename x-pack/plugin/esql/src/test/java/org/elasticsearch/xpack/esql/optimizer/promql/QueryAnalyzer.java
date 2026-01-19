@@ -155,9 +155,11 @@ public class QueryAnalyzer implements Closeable {
             .map(e -> truncateAfter(e, "mismatched input"))
             .map(e -> e.contains("optimized incorrectly due to missing references") ? "optimized incorrectly due to missing references" : e)
             // avoid lumping all missing function errors into one group
-            .map(e -> e.contains("Function [") && e.contains("] does not exist")
-                ? e.replaceAll(".*Function \\[(.*)\\] does not exist.*", "Function $1 does not exist")
-                : e)
+            .map(
+                e -> e.contains("Function [") && e.contains("] does not exist")
+                    ? e.replaceAll(".*Function \\[(.*)\\] does not exist.*", "Function $1 does not exist")
+                    : e
+            )
             .map(e -> e.replaceAll("line \\d+:\\d+: ", ""))
             .map(e -> e.replaceAll("\\[.*\\]", "[...]"))
             .map(e -> e.replaceAll("\\d+", "N"))

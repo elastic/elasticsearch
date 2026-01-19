@@ -111,6 +111,9 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             return;
         }
 
+        // We do not check if ILM has stopped before submitting the cluster state update
+        // like we do in other requests, because it is possible that this cluster state is
+        // not up to date and this API is not heavily used.
         final SetOnce<MigratedEntities> migratedEntities = new SetOnce<>();
         submitUnbatchedTask("migrate-to-data-tiers []", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override

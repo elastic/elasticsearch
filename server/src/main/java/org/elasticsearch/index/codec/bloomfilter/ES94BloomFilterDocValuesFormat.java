@@ -362,6 +362,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 for (int i = 0; i < bitSetSizeInBytes; i++) {
                     var existingBloomFilterByte = bloomFilterData.readByte(i);
                     var resultingBloomFilterByte = buffer.get(i);
+                    // TODO: Consider merging more than a byte at a time to speed up the process
                     buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
                 }
             }

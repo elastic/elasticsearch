@@ -190,14 +190,14 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            return idBloomFilterDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
                 ? tsdbDocValuesFormatLargeNumericBlock
                 : tsdbDocValuesFormat;
-        }
-
-        if (useTSDBSyntheticId(field)) {
-            return idBloomFilterDocValuesFormat;
         }
 
         return docValuesFormat;

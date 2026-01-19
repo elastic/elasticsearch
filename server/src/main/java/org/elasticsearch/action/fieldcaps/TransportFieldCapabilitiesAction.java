@@ -260,6 +260,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         if (concreteLocalIndices.length == 0 && remoteClusterIndices.isEmpty()) {
+            if (resolveCrossProject) {
+                final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                    request.indicesOptions(),
+                    request.getProjectRouting(),
+                    request.getResolvedIndexExpressions(),
+                    Map.of()
+                );
+                if (ex != null) {
+                    listener.onFailure(ex);
+                    return;
+                }
+            }
             FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder();
             responseBuilder.withMinTransportVersion(minTransportVersion.get());
             if (request.includeResolvedTo()) {

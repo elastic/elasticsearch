@@ -17,7 +17,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -147,34 +146,25 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     /**
      * Request wrapper containing the coordinating task ID and the chunk contents.
      */
-    public static class Request extends LegacyActionRequest implements IndicesRequest {
+    public static class Request extends LegacyActionRequest {
         private long coordinatingTaskId;
         private FetchPhaseResponseChunk chunkContents;
-
-        private String[] indices;
-        private IndicesOptions indicesOptions;
 
         /**
          * Creates a new chunk request.
          *
          * @param coordinatingTaskId the ID of the coordinating search task
          * @param chunkContents the chunk to deliver
-         * @param indices the indices being searched
-         * @param indicesOptions the indices options
          */
-        public Request(long coordinatingTaskId, FetchPhaseResponseChunk chunkContents, String[] indices, IndicesOptions indicesOptions) {
+        public Request(long coordinatingTaskId, FetchPhaseResponseChunk chunkContents) {
             this.coordinatingTaskId = coordinatingTaskId;
             this.chunkContents = Objects.requireNonNull(chunkContents);
-            this.indices = indices;
-            this.indicesOptions = indicesOptions;
         }
 
         Request(StreamInput in) throws IOException {
             super(in);
             coordinatingTaskId = in.readVLong();
             chunkContents = new FetchPhaseResponseChunk(in);
-            this.indices = in.readStringArray();
-            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
@@ -182,8 +172,6 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
             super.writeTo(out);
             out.writeVLong(coordinatingTaskId);
             chunkContents.writeTo(out);
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
@@ -193,16 +181,6 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
 
         public FetchPhaseResponseChunk chunkContents() {
             return chunkContents;
-        }
-
-        @Override
-        public String[] indices() {
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
         }
     }
 

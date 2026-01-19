@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -100,25 +99,19 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
      */
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest {
         private final ShardFetchSearchRequest shardFetchRequest;
         private final DiscoveryNode dataNode;
         private final Map<String, String> headers;
-        private final String[] indices;
-        private final IndicesOptions indicesOptions;
 
         public Request(
             ShardFetchSearchRequest shardFetchRequest,
             DiscoveryNode dataNode,
-            Map<String, String> headers,
-            String[] indices,
-            IndicesOptions indicesOptions
+            Map<String, String> headers
         ) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
             this.headers = headers;
-            this.indices = indices;
-            this.indicesOptions = indicesOptions;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -126,8 +119,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             this.shardFetchRequest = new ShardFetchSearchRequest(in);
             this.dataNode = new DiscoveryNode(in);
             this.headers = in.readMap(StreamInput::readString);
-            this.indices = in.readStringArray();
-            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
@@ -136,8 +127,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             shardFetchRequest.writeTo(out);
             dataNode.writeTo(out);
             out.writeMap(headers, StreamOutput::writeString);
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
@@ -155,16 +144,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         public Map<String, String> getHeaders() {
             return headers;
-        }
-
-        @Override
-        public String[] indices() {
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
         }
     }
 

@@ -356,20 +356,13 @@ public class SearchTransportService {
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
 
-            // Extract index info for IndicesRequest implementation - required for security authorization
-            final var shardReq = shardFetchRequest.getShardSearchRequest();
-            final String[] indices = new String[] { shardReq.shardId().getIndexName() };
-            final var indicesOptions = shardReq.indicesOptions();
-
             transportService.sendChildRequest(
                 transportService.getConnection(transportService.getLocalNode()),
                 TransportFetchPhaseCoordinationAction.TYPE.name(),
                 new TransportFetchPhaseCoordinationAction.Request(
                     shardFetchRequest,
                     connection.getNode(),
-                    headers,
-                    indices,
-                    indicesOptions
+                    headers
                 ),
                 task,
                 TransportRequestOptions.EMPTY,

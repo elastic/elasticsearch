@@ -108,7 +108,10 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
             // shibboleth-idp conf/authn
             .withFileFromClasspath("shibboleth-idp/conf/authn/general-authn.xml", "/idp/shibboleth-idp/conf/authn/general-authn.xml")
             .withFileFromClasspath("shibboleth-idp/conf/authn/authn-comparison.xml", "/idp/shibboleth-idp/conf/authn/authn-comparison.xml")
-            .withFileFromClasspath("shibboleth-idp/conf/authn/authn-events-flow.xml", "/idp/shibboleth-idp/conf/authn/authn-events-flow.xml")
+            .withFileFromClasspath(
+                "shibboleth-idp/conf/authn/authn-events-flow.xml",
+                "/idp/shibboleth-idp/conf/authn/authn-events-flow.xml"
+            )
             .withFileFromClasspath("shibboleth-idp/conf/authn/duo-authn-config.xml", "/idp/shibboleth-idp/conf/authn/duo-authn-config.xml")
             .withFileFromClasspath("shibboleth-idp/conf/authn/duo.properties", "/idp/shibboleth-idp/conf/authn/duo.properties")
             .withFileFromClasspath(
@@ -123,10 +126,19 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                 "shibboleth-idp/conf/authn/ipaddress-authn-config.xml",
                 "/idp/shibboleth-idp/conf/authn/ipaddress-authn-config.xml"
             )
-            .withFileFromClasspath("shibboleth-idp/conf/authn/jaas-authn-config.xml", "/idp/shibboleth-idp/conf/authn/jaas-authn-config.xml")
+            .withFileFromClasspath(
+                "shibboleth-idp/conf/authn/jaas-authn-config.xml",
+                "/idp/shibboleth-idp/conf/authn/jaas-authn-config.xml"
+            )
             .withFileFromClasspath("shibboleth-idp/conf/authn/jaas.config", "/idp/shibboleth-idp/conf/authn/jaas.config")
-            .withFileFromClasspath("shibboleth-idp/conf/authn/krb5-authn-config.xml", "/idp/shibboleth-idp/conf/authn/krb5-authn-config.xml")
-            .withFileFromClasspath("shibboleth-idp/conf/authn/ldap-authn-config.xml", "/idp/shibboleth-idp/conf/authn/ldap-authn-config.xml")
+            .withFileFromClasspath(
+                "shibboleth-idp/conf/authn/krb5-authn-config.xml",
+                "/idp/shibboleth-idp/conf/authn/krb5-authn-config.xml"
+            )
+            .withFileFromClasspath(
+                "shibboleth-idp/conf/authn/ldap-authn-config.xml",
+                "/idp/shibboleth-idp/conf/authn/ldap-authn-config.xml"
+            )
             .withFileFromClasspath("shibboleth-idp/conf/authn/mfa-authn-config.xml", "/idp/shibboleth-idp/conf/authn/mfa-authn-config.xml")
             .withFileFromClasspath(
                 "shibboleth-idp/conf/authn/password-authn-config.xml",
@@ -144,7 +156,10 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                 "shibboleth-idp/conf/authn/spnego-authn-config.xml",
                 "/idp/shibboleth-idp/conf/authn/spnego-authn-config.xml"
             )
-            .withFileFromClasspath("shibboleth-idp/conf/authn/x509-authn-config.xml", "/idp/shibboleth-idp/conf/authn/x509-authn-config.xml")
+            .withFileFromClasspath(
+                "shibboleth-idp/conf/authn/x509-authn-config.xml",
+                "/idp/shibboleth-idp/conf/authn/x509-authn-config.xml"
+            )
             .withFileFromClasspath(
                 "shibboleth-idp/conf/authn/x509-internal-authn-config.xml",
                 "/idp/shibboleth-idp/conf/authn/x509-internal-authn-config.xml"

@@ -706,6 +706,7 @@ public class CsvTests extends ESTestCase {
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
                         new ActualResults(
+                            configuration,
                             result.schema().stream().map(Attribute::name).toList(),
                             result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
                             result.schema().stream().map(Attribute::dataType).toList(),
@@ -867,7 +868,7 @@ public class CsvTests extends ESTestCase {
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         runner.runToCompletion(
             drivers,
-            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, configuration, DriverCompletionInfo.EMPTY, null))
         );
     }
 }

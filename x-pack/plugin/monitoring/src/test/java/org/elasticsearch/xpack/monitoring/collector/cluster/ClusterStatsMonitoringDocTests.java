@@ -794,7 +794,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "clients": {
                         },
                         "clusters": {}
-                    }
+                    },
+                    "index_count_guardrail":{"message":""}
                   }
             """;
 

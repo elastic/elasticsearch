@@ -264,22 +264,26 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         NUDGE(
             11_250,
             13_499,
-            "To ensure the best performance, we recommend grouping related data into fewer, larger indices. For time-based data, consider using a data stream."
+            "To ensure the best performance, we recommend grouping related data into fewer, "
+                + "larger indices. For time-based data, consider using a data stream."
         ),
         WARN(
             13_500,
             14_699,
-            "Your project is approaching an operational limit due to a high number of indices. To avoid service interruptions, please review your indexing strategy."
+            "Your project is approaching an operational limit due to a high number of indices. "
+                + "To avoid service interruptions, please review your indexing strategy."
         ),
         CRITICAL(
             14_701,
             14_999,
-            "CRITICAL: Your project is about to reach its index limit. Further index creation may be blocked. You must reduce your number of indices immediately."
+            "CRITICAL: Your project is about to reach its index limit. "
+                + "Further index creation may be blocked. You must reduce your number of indices immediately."
         ),
         BLOCK(
             15_000,
             Integer.MAX_VALUE,
-            "Too Many Indices. Your project has reached its operational limit for the number of indices it can contain. Please consolidate smaller indices or delete unused ones."
+            "Too Many Indices. Your project has reached its operational limit for the number of indices it can contain. "
+                + "Please consolidate smaller indices or delete unused ones."
         );
 
         private final int minInclusive;

@@ -414,7 +414,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         var pages = this.pages;
         closeFields();
 
-        return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
+        return new ReleasableBytesReference(bytes, pages.size() == 1 ? pages.getFirst() : () -> Releasables.close(pages));
     }
 
     private void closeFields() {

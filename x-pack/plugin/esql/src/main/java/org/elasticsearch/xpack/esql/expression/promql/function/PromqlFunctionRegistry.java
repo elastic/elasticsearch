@@ -39,6 +39,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -110,7 +117,7 @@ public class PromqlFunctionRegistry {
             if (toNearest == null) {
                 return new Round(source, value, null);
             } else {
-                // round to nearest multiple of toNearest: round(value / toNearest) * toNearest
+                // round to the nearest multiple of toNearest: round(value / toNearest) * toNearest
                 return new Mul(source, new Round(source, new Div(source, value, toNearest), null), toNearest);
             }
         }),
@@ -124,6 +131,9 @@ public class PromqlFunctionRegistry {
         valueTransformationFunction("sin", Sin::new),
         valueTransformationFunction("tan", Tan::new),
         valueTransformationFunction("tanh", Tanh::new),
+        valueTransformationFunctionBinary("clamp_min", ClampMin::new),
+        valueTransformationFunctionBinary("clamp_max", ClampMax::new),
+        valueTransformationFunctionTernary("clamp", Clamp::new),
 
         vector(),
 
@@ -228,6 +238,7 @@ public class PromqlFunctionRegistry {
         T build(Source source, Expression field, Expression filter, Expression window, Expression param);
     }
 
+
     @FunctionalInterface
     protected interface ValueTransformationFunction<T extends ScalarFunction> {
         T build(Source source, Expression value);
@@ -236,6 +247,11 @@ public class PromqlFunctionRegistry {
     @FunctionalInterface
     protected interface ValueTransformationFunctionBinary<T extends ScalarFunction> {
         T build(Source source, Expression value, Expression arg1);
+    }
+
+    @FunctionalInterface
+    protected interface ValueTransformationFunctionTernary<T extends Expression> {
+        T build(Source source, Expression value, Expression arg1, Expression arg2);
     }
 
     @FunctionalInterface
@@ -309,6 +325,24 @@ public class PromqlFunctionRegistry {
         );
     }
 
+    private static FunctionDefinition valueTransformationFunctionBinary(String name, ValueTransformationFunctionBinary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.VALUE_TRANSFORMATION,
+            Arity.TWO,
+            (source, target, timestamp, window, extraParams) -> builder.build(source, target, extraParams.get(0))
+        );
+    }
+
+    private static FunctionDefinition valueTransformationFunctionTernary(String name, ValueTransformationFunctionTernary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.VALUE_TRANSFORMATION,
+            Arity.fixed(3),
+            (source, target, timestamp, window, extraParams) -> builder.build(source, target, extraParams.get(0), extraParams.get(1))
+        );
+    }
+
     private static FunctionDefinition valueTransformationFunctionOptionalArg(String name, ValueTransformationFunctionBinary<?> builder) {
         return new FunctionDefinition(
             name,
@@ -358,9 +392,6 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "clamp",
-        "clamp_max",
-        "clamp_min",
         "ln",
         "log2",
         "scalar",

@@ -1,4 +1,0 @@
-1;foo
-1;foo+bar
-2;rate(foo[5m])
-3;histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))

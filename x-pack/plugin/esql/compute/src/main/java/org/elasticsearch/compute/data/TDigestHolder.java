@@ -153,7 +153,7 @@ public class TDigestHolder implements GenericNamedWriteable {
         // TODO: This is copied from the method of the same name in TDigestFieldMapper. It would be nice to find a way to reuse that code
         BytesStreamOutput streamOutput = new BytesStreamOutput();
 
-        for (Iterator<Centroid> it = rawTDigest.uniqueCentroids(); it.hasNext();) {
+        for (Iterator<Centroid> it = rawTDigest.centroids().iterator(); it.hasNext();) {
             Centroid centroid = it.next();
             if (centroid.count() > 0) {
                 streamOutput.writeVLong(centroid.count());

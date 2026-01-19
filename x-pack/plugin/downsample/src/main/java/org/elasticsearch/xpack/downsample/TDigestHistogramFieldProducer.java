@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -87,10 +86,8 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 Collection<Centroid> centroids = tDigestState.centroids();
                 final double[] values = new double[centroids.size()];
                 final long[] counts = new long[centroids.size()];
-                Iterator<Centroid> it = centroids.iterator();
                 int i = 0;
-                while (it.hasNext()) {
-                    Centroid centroid = it.next();
+                for (Centroid centroid : centroids) {
                     values[i] = centroid.mean();
                     counts[i] = centroid.count();
                     i++;

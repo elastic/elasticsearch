@@ -1286,19 +1286,6 @@ public abstract class DocsV3Support {
             return null;
         }
 
-        private static Example example(QuerySettingDef<?> def) {
-            for (Field declaredField : QuerySettings.class.getFields()) {
-                try {
-                    if (declaredField != null && declaredField.get(null) == def) {
-                        return declaredField.getAnnotation(Example.class);
-                    }
-                } catch (IllegalAccessException e) {
-                    // do nothing
-                }
-            }
-            return null;
-        }
-
         private static Example[] examples(QuerySettingDef<?> def) {
             for (Field declaredField : QuerySettings.class.getFields()) {
                 try {

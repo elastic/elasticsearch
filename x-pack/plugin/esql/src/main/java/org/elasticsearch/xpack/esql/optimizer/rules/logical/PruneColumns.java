@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -102,7 +103,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
         LogicalPlan p = aggregate;
         var remaining = pruneUnusedAndAddReferences(aggregate.aggregates(), used);
-
         if (remaining == null) {
             return p;
         }
@@ -141,8 +141,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
-
         var right = pruneColumns(ij.right(), used, true);
+
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
             p = pruneRightSideAndProject(ij);
             recheck.set(true);
@@ -199,12 +199,43 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     // Note: only run when the Project is a descendent of an InlineJoin.
+    // Note: it's only applied on Projects on the right-hand side of the InlineJoin.
     private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = project;
+        LogicalPlan newChild = pruneColumns(project.child(), used, true);
 
-        var remaining = pruneUnusedAndAddReferences(project.projections(), used);
+        if (newChild == project.child()) {
+            return p;
+        }
+        List<Expression> unPrunnableAttrs = List.of();
+        // Check to see if there is any aggregation left and, if so, compare the aggregation's groupings with the project's remaining
+        // used attributes. We don't want to prune all groupings if there is at least one aggregate left, since we need the grouping
+        // to compute the aggregate.
+        var aggs = newChild.collectFirstChildren(a -> a instanceof Aggregate);
+        if (aggs.isEmpty() == false) {// this can happen if the aggregate is completely pruned and replaced by its child
+            var agg = (Aggregate) aggs.get(0);
+
+            boolean isOneGroupingKept = false;
+            boolean isOneAggregateKept = false;
+            var output = newChild.output();
+            for (var attr : output) {
+                if (isOneGroupingKept == false && agg.groupings().contains(attr)) {
+                    isOneGroupingKept = true;
+                }
+                if (isOneAggregateKept == false && agg.aggregates().contains(attr) && agg.groupings().contains(attr) == false) {
+                    isOneAggregateKept = true;
+                }
+            }
+
+            if (isOneGroupingKept == false && agg.groupings().isEmpty() == false && isOneAggregateKept) {
+                // don't let the groupings be completely pruned if there is at least one aggregate left
+                unPrunnableAttrs = agg.groupings();
+            }
+        }
+
+        var remaining = pruneUnusedAndAddReferences(project.projections(), used, unPrunnableAttrs);
         if (remaining != null) {
-            p = remaining.isEmpty() ? emptyLocalRelation(project) : new Project(project.source(), project.child(), remaining);
+            p = remaining.isEmpty() ? emptyLocalRelation(project) : new Project(project.source(), newChild, remaining);
             recheck.set(true);
         }
 
@@ -303,7 +334,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Returns null if no pruning occurred.
      * As a side effect, the references of the kept attributes are added to the input set (builder) -- irrespective of the return value.
      */
-    private static <N extends NamedExpression> List<N> pruneUnusedAndAddReferences(List<N> named, AttributeSet.Builder used) {
+    private static <N extends NamedExpression> List<N> pruneUnusedAndAddReferences(
+        List<N> named,
+        AttributeSet.Builder used,
+        List<Expression> exceptions
+    ) {
         var clone = new ArrayList<>(named);
 
         for (var it = clone.listIterator(clone.size()); it.hasPrevious();) {
@@ -311,11 +346,15 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             var attr = prev.toAttribute();
             if (used.contains(attr)) {
                 used.addAll(prev.references());
-            } else {
+            } else if (exceptions.contains(attr) == false) {
                 it.remove();
             }
         }
 
         return clone.size() != named.size() ? clone : null;
+    }
+
+    private static <N extends NamedExpression> List<N> pruneUnusedAndAddReferences(List<N> named, AttributeSet.Builder used) {
+        return pruneUnusedAndAddReferences(named, used, List.of());
     }
 }

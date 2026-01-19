@@ -2342,7 +2342,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testHandshakeUpdatesVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
         try (
             MockTransportService service = buildService(
                 "TS_C",

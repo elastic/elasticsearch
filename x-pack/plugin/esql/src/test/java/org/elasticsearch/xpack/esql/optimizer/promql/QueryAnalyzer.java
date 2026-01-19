@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,7 +79,7 @@ public class QueryAnalyzer {
     );
 
     public static void main(String[] args) throws IOException {
-        if (args.length != 1) {
+        if (args.length != 1 || args[0].isBlank()) {
             System.err.println("Usage: QueryAnalyzer <path-to-query-file>");
             System.exit(1);
         }
@@ -87,7 +87,7 @@ public class QueryAnalyzer {
         LogConfigurator.configureESLogging();
         QueryAnalyzer analyzer = new QueryAnalyzer();
         var lineCounter = new AtomicInteger(0);
-        try (Stream<String> lines = Files.lines(Path.of(args[0]))) {
+        try (Stream<String> lines = Files.lines(PathUtils.get(args[0]))) {
             var results = lines.map(query -> query.replaceAll("\\[\\$\\w+\\]", "[1m]"))
                 .map(query -> query.replaceAll("\\$(\\w+)", "$1"))
                 .map(query -> query.replaceAll("\\$\\{(\\w+)\\}", "$1"))

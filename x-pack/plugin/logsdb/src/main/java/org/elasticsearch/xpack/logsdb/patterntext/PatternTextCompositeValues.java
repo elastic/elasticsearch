@@ -65,6 +65,8 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
 
         FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldType.storedNamed());
         if (fieldInfo == null) {
+            // If there is no stored subfield (either binary doc values or stored field),
+            // then there is no need to use PatternTextCompositeValues
             return docValues;
         }
 
@@ -73,9 +75,6 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         BinaryDocValues rawBinaryDocValues;
         if (fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
             rawBinaryDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
-            if (rawBinaryDocValues == null) {
-                return docValues;
-            }
             storedTemplateLoader = StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
         } else {
             // use an empty object here to avoid making null checks later

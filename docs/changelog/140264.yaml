@@ -1,5 +1,6 @@
 pr: 140264
-summary: "New optimized (native) functions for BBQ Int4 to 1-bit scoring"
+summary: New optimized (native) functions for BBQ Int4 to 1-bit scoring
 area: Vector Search
 type: enhancement
-issues: []
+issues:
+ - 128523

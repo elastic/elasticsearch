@@ -316,9 +316,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             );
                         }
                         if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-                            failures.add(
-                                fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText())
-                            );
+                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
                         }
                     }
                 }

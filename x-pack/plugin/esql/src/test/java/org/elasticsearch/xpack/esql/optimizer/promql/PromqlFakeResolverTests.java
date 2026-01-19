@@ -103,9 +103,7 @@ public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
         }
     }
 
-    private static void printSummary(
-        List<QueryResult> results
-    ) {
+    private static void printSummary(List<QueryResult> results) {
         Map<String, List<QueryResult>> resultsByDashboard = results.stream().collect(groupingBy(QueryResult::dashboardId));
         int successfulDashboards = resultsByDashboard.entrySet()
             .stream()

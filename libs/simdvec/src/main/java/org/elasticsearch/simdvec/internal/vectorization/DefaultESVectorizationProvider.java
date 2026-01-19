@@ -15,8 +15,6 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
-import java.io.IOException;
-
 final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     private final ESVectorUtilSupport vectorUtilSupport;
 
@@ -30,23 +28,29 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) {
-        return new ES91OSQVectorsScorer(input, dimension);
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) {
+        return new ES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(IndexInput input, byte queryBits, byte indexBits, int dimension, int dataLength)
-        throws IOException {
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize
+    ) {
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
     @Override
-    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) {
-        return new ES91Int4VectorsScorer(input, dimension);
+    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) {
+        return new ES91Int4VectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
-    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension) {
-        return new ES92Int7VectorsScorer(input, dimension);
+    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
+        return new ES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 }

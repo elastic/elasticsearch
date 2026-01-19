@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
@@ -220,23 +221,22 @@ public class ViewResolver {
         for (String name : unresolvedRelation.indexPattern().indexPattern().split(",")) {
             name = name.trim();
             // We do not allow remote cluster ':' specifications for views
-            if (name.contains("*") && name.contains(":") == false) {
+            if (Regex.isSimpleMatchPattern(name) && name.contains(":") == false) {
                 if (seenWildcards.contains(name)) {
                     continue; // already processed this wildcard
                 }
                 seenWildcards.add(name);
                 // If the name includes a wildcard, expand it to all matching views,
                 // leaving the original wildcard name in place for index resolution
-                String namePattern = name.replace("*", ".*");
                 for (String viewName : viewMetadata.views().keySet()) {
-                    if (viewName.matches(namePattern)) {
+                    if (Regex.simpleMatch(name, viewName)) {
                         views.add(viewMetadata.getView(viewName));
                     }
                 }
                 // If there exist local indices matching the wildcard, keep the wildcard for later index resolution
                 // TODO: See how to generalize this for CCS and CPS, probably need additional field-caps calls
                 for (String indexName : nonViewNames) {
-                    if (indexName.matches(namePattern)) {
+                    if (Regex.simpleMatch(name, indexName)) {
                         // The existence of any non-view index matching the wildcard means we need to keep the wildcard
                         wildCards.add(name);
                         break;

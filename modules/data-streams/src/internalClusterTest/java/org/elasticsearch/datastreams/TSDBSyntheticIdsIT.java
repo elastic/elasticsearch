@@ -382,12 +382,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            // When _id's are only used to populate the bloom filter,
-            // IndexDiskUsageStats won't account for anything since
-            // the bloom filter it's not exposed through the Reader API and
-            // the analyzer expects to get documents with fields to do the
-            // disk usage accounting.
-            assertThat(diskUsageIdField, nullValue());
+            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
         }
     }
 
@@ -498,12 +493,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            // When _id's are only used to populate the bloom filter,
-            // IndexDiskUsageStats won't account for anything since
-            // the bloom filter it's not exposed through the Reader API and
-            // the analyzer expects to get documents with fields to do the
-            // disk usage accounting.
-            assertThat(diskUsageIdField, nullValue());
+            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);

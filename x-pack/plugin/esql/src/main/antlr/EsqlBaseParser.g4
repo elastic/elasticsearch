@@ -224,7 +224,7 @@ limitCommand
     ;
 
 limitPerGroupKey:
-    {this.isDevVersion()}? PER qualifiedNameExpression
+    {this.isDevVersion()}? PER grouping=fields
     ;
 
 sortCommand

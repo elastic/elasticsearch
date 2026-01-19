@@ -121,6 +121,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1079,8 +1080,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
-        assertThat(limit.groupKey(), instanceOf(UnresolvedAttribute.class));
-        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupKey();
+        assertThat(limit.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
+        assertThat(limit.groupings().size(), equalTo(1));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupings().getFirst();
         assertThat(groupKey.name(), equalTo("hostname"));
 
         assertThat(limit.child(), instanceOf(OrderBy.class));
@@ -1110,8 +1112,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
-        assertThat(limit.groupKey(), instanceOf(UnresolvedAttribute.class));
-        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupKey();
+        assertThat(limit.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
+        assertThat(limit.groupings().size(), equalTo(1));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupings().getFirst();
         assertThat(groupKey.qualifier(), equalTo("foo"));
         assertThat(groupKey.name(), equalTo("hostname"));
 

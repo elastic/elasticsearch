@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.plan.logical.GroupedTopN;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+
+import java.util.List;
 
 public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
 
@@ -21,10 +23,10 @@ public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRul
 
         // TODO Is this correct for a constant? Would we have to introduce a new column with that constant name?
         if (limit.child() instanceof OrderBy o) {
-            if (limit.groupKey() == null || limit.groupKey().foldable()) {
-                p = new TopN(o.source(), o.child(), o.order(), limit.limit(), false);
+            if (limit.groupings().stream().allMatch(Expression::foldable)) {
+                p = new TopN(o.source(), o.child(), o.order(), limit.limit(), List.of(), false);
             } else {
-                p = new GroupedTopN(o.source(), o.child(), o.order(), limit.limit(), limit.groupKey(), false);
+                p = new TopN(o.source(), o.child(), o.order(), limit.limit(), limit.groupings(), false);
             }
         }
         return p;

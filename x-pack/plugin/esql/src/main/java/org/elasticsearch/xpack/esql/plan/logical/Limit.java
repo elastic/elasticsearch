@@ -10,12 +10,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn {
@@ -23,7 +25,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     private final Expression limit;
 
-    private final Expression groupKey;
+    private final List<Expression> groupings;
     /**
      * Important for optimizations. This should be {@code false} in most cases, which allows this instance to be duplicated past a child
      * plan node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
@@ -49,16 +51,16 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
      * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated}
      * and {@link Limit#local} to {@code false}.
      */
-    public Limit(Source source, Expression limit, Expression groupKey, LogicalPlan child) {
-        this(source, limit, groupKey, child, false, false);
+    public Limit(Source source, Expression limit, List<Expression> groupings, LogicalPlan child) {
+        this(source, limit, groupings, child, false, false);
     }
 
-    public Limit(Source source, Expression limit, Expression groupKey, LogicalPlan child, boolean duplicated, boolean local) {
+    public Limit(Source source, Expression limit, List<Expression> groupings, LogicalPlan child, boolean duplicated, boolean local) {
         super(source, child);
         this.limit = limit;
         this.duplicated = duplicated;
         this.local = local;
-        this.groupKey = groupKey;
+        this.groupings = groupings;
     }
 
     public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
@@ -66,7 +68,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         this.limit = limit;
         this.duplicated = duplicated;
         this.local = local;
-        this.groupKey = null;
+        this.groupings = List.of();
     }
 
     /**
@@ -76,7 +78,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
             false,
             false
@@ -92,7 +94,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
-        out.writeNamedWriteable(groupKey());
+        out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteable(child());
     }
 
@@ -103,24 +105,24 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, groupKey, child(), duplicated, local);
+        return NodeInfo.create(this, Limit::new, limit, groupings, child(), duplicated, local);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, groupKey, newChild, duplicated, local);
+        return new Limit(source(), limit, groupings, newChild, duplicated, local);
     }
 
     public Expression limit() {
         return limit;
     }
 
-    public Expression groupKey() {
-        return groupKey;
+    public List<Expression> groupings() {
+        return groupings;
     }
 
     public Limit withLimit(Expression limit) {
-        return new Limit(source(), limit, groupKey, child(), duplicated, local);
+        return new Limit(source(), limit, groupings, child(), duplicated, local);
     }
 
     public boolean duplicated() {
@@ -132,17 +134,17 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit withDuplicated(boolean duplicated) {
-        return new Limit(source(), limit, groupKey, child(), duplicated, local);
+        return new Limit(source(), limit, groupings, child(), duplicated, local);
     }
 
     public Limit withLocal(boolean newLocal) {
-        return new Limit(source(), limit, groupKey, child(), duplicated, newLocal);
+        return new Limit(source(), limit, groupings, child(), duplicated, newLocal);
     }
 
     @Override
     public boolean expressionsResolved() {
-        // TODO Maybe we do not need the condition groupKey == null here
-        return limit.resolved() && (groupKey == null || groupKey.resolved());
+        // TODO Maybe we do not need the condition groupings == null here
+        return limit.resolved() && Resolvables.resolved(groupings);
     }
 
     @Override

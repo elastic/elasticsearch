@@ -131,7 +131,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.GroupedTopN;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -10672,7 +10671,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(leftEval.child(), EsRelation.class);
     }
 
-    public void testGroupedTopNPlan() {
+    public void testTopNWithGroupingsPlan() {
         var query = """
             FROM employees
             | SORT salary DESC
@@ -10681,12 +10680,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var plan = optimizedPlan(query);
 
-        var groupedTopN = as(plan, GroupedTopN.class);
+        var groupedTopN = as(plan, TopN.class);
         var limit = as(groupedTopN.limit(), Literal.class);
         assertThat(limit.value(), equalTo(5));
         assertThat(groupedTopN.order().size(), equalTo(1));
 
-        var groupKey = as(groupedTopN.groupKey(), FieldAttribute.class);
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
         assertThat(groupKey.name(), equalTo("languages"));
 
         var order = as(groupedTopN.order().getFirst(), Order.class);
@@ -10698,7 +10699,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(esRelation.indexPattern(), equalTo("employees"));
     }
 
-    public void testGroupedTopNQualifiedNamePlan() {
+    public void testTopNWithGroupingsQualifiedNamePlan() {
         var query = """
             FROM employees
             | SORT salary DESC
@@ -10707,12 +10708,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var plan = optimizedPlan(query);
 
-        var groupedTopN = as(plan, GroupedTopN.class);
+        var groupedTopN = as(plan, TopN.class);
         var limit = as(groupedTopN.limit(), Literal.class);
         assertThat(limit.value(), equalTo(5));
         assertThat(groupedTopN.order().size(), equalTo(1));
 
-        var groupKey = as(groupedTopN.groupKey(), FieldAttribute.class);
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
         assertThat(groupKey.name(), equalTo("languages"));
 
         var order = as(groupedTopN.order().getFirst(), Order.class);

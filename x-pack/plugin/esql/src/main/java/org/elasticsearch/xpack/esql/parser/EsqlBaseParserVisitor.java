@@ -792,12 +792,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNameExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQualifiedNameExpression(EsqlBaseParser.QualifiedNameExpressionContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
    * @param ctx the parse tree
    * @return the visitor result

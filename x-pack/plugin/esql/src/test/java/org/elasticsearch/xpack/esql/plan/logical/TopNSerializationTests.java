@@ -23,7 +23,8 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan child = randomChild(depth);
         List<Order> order = randomOrders();
         Expression limit = AbstractExpressionSerializationTests.randomChild();
-        return new TopN(source, child, order, limit, randomBoolean());
+        List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
+        return new TopN(source, child, order, limit, groupings, randomBoolean());
     }
 
     private static List<Order> randomOrders() {
@@ -48,7 +49,8 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
             case 2 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
             case 3 -> local = local == false;
         }
-        return new TopN(source, child, order, limit, local);
+        var groupings = instance.groupings();
+        return new TopN(source, child, order, limit, groupings, local);
     }
 
     @Override

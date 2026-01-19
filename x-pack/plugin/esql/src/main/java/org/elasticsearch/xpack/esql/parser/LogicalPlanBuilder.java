@@ -543,12 +543,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
 
         if (val instanceof Integer i && i >= 0) {
-            Expression groupKey;
+            List<Expression> groupings;
 
             var limitPerGroupKey = ctx.limitPerGroupKey();
             if (ctx.limitPerGroupKey() != null) {
-                groupKey = expression(limitPerGroupKey.qualifiedNameExpression());
-                return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), groupKey, input);
+                groupings = new ArrayList<>(visitGrouping(limitPerGroupKey.grouping));
+                return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), groupings, input);
             }
 
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);

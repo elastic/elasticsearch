@@ -1318,16 +1318,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNameExpression}.
-   * @param ctx the parse tree
-   */
-  void enterQualifiedNameExpression(EsqlBaseParser.QualifiedNameExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNameExpression}.
-   * @param ctx the parse tree
-   */
-  void exitQualifiedNameExpression(EsqlBaseParser.QualifiedNameExpressionContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#joinCommand}.
    * @param ctx the parse tree
    */

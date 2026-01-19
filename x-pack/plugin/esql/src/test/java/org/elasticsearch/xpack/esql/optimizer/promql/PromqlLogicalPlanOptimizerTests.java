@@ -718,6 +718,15 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
     }
 
+    public void testRound() {
+        assertConstantResult("round(vector(pi()))", equalTo(3.0)); // round down to nearest integer
+        assertConstantResult("round(vector(pi()), 1)", equalTo(3.0)); // same as above but with explicit argument
+        assertConstantResult("round(vector(pi()), 0.01)", equalTo(3.14)); // round down 2 decimal places
+        assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
+        assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
+        assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
     private void assertConstantResult(String query, Matcher<Double> matcher) {
         var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m " + query);
         Eval eval = plan.collect(Eval.class).getFirst();

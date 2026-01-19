@@ -691,21 +691,19 @@ public class SearchTransportService {
 
             FetchPhaseResponseChunk.Writer chunkWriter = null;
 
+
             // Decides whether to use chunked or traditional fetch based on:
-            // 1. Feature flag enabled on this node
-            // 2. Channel transport version supports chunked fetch
-            // 3. Request includes coordinator node info (set by coordinator when using chunked path)
-            // 4. Can establish connection back to coordinator (fails for CCS scenarios)
-            // Double checking here, already checking on the coord side, to ensure compatibility even if coordinator and data node
-            // have different feature flag states or versions.
-            if (fetchPhaseChunkedEnabled && versionSupported && canConnectToCoordinator && coordinatorSupportsChunkedFetch) {
+            // 1. Feature flag enabled on this node (fetchPhaseChunkedEnabled)
+            // 2. Channel transport version supports chunked fetch (versionSupported)
+            // 3. Request includes coordinator node info (hasCoordinator) - set by coordinator when using chunked path
+            // 4. Can establish connection back to coordinator (canConnectToCoordinator) - fails for CCS scenarios
+            // 5. Coordinator's connection supports chunked fetch version (coordinatorSupportsChunkedFetch)
+            //
+            // Double-checking here (already checked on coordinator side) ensures compatibility when
+            // coordinator and data node have different feature flag states or versions.
+            if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
-
-                final var shardReq = fetchSearchReq.getShardSearchRequest();
-                assert shardReq != null;
-                final String[] indices = new String[] { shardReq.shardId().getIndexName() };
-                final IndicesOptions indicesOptions = shardReq.indicesOptions();
 
                 // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()

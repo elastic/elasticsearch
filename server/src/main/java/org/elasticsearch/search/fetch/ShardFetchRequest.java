@@ -12,7 +12,6 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -30,8 +29,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
-
 /**
  * Shard level fetch base request. Holds all the info needed to execute a fetch.
  * Used with search scroll as the original request doesn't hold indices.
@@ -44,10 +41,6 @@ public class ShardFetchRequest extends AbstractTransportRequest {
 
     @Nullable
     private final ScoreDoc lastEmittedDoc;
-
-    private DiscoveryNode coordinatingNode;
-
-    private long coordinatingTaskId;
 
     public ShardFetchRequest(ShardSearchContextId contextId, List<Integer> docIds, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
@@ -73,10 +66,6 @@ public class ShardFetchRequest extends AbstractTransportRequest {
         } else {
             lastEmittedDoc = null;
         }
-        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
-            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
-            coordinatingTaskId = in.readLong();
-        }
     }
 
     @Override
@@ -92,10 +81,6 @@ public class ShardFetchRequest extends AbstractTransportRequest {
         } else {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
-        }
-        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
-            out.writeOptionalWriteable(coordinatingNode);
-            out.writeLong(coordinatingTaskId);
         }
     }
 
@@ -139,21 +124,5 @@ public class ShardFetchRequest extends AbstractTransportRequest {
     @Nullable
     public RankDocShardInfo getRankDocks() {
         return null;
-    }
-
-    public DiscoveryNode getCoordinatingNode() {
-        return coordinatingNode;
-    }
-
-    public long getCoordinatingTaskId() {
-        return coordinatingTaskId;
-    }
-
-    public void setCoordinatingNode(DiscoveryNode coordinatingNode) {
-        this.coordinatingNode = coordinatingNode;
-    }
-
-    public void setCoordinatingTaskId(long coordinatingTaskId) {
-        this.coordinatingTaskId = coordinatingTaskId;
     }
 }

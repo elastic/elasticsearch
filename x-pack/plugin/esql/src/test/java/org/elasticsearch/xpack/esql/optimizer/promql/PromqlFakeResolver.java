@@ -33,7 +33,7 @@ import java.util.Set;
 /**
  * A fake resolver that simulates resolving PromQL queries by creating an EsRelation
  * with fields based on the labels and metrics found in the PromQL logical plan.
- * This is primarily used for testing.
+ * This is only used for testing.
  */
 public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -56,7 +56,7 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
             return logicalPlan;
         }
 
-        return this.resolve(logicalPlan, promqlCommand.getFirst());
+        return resolve(logicalPlan, promqlCommand.getFirst());
     }
 
     public LogicalPlan resolve(LogicalPlan logicalPlan, PromqlCommand promqlCommand) {

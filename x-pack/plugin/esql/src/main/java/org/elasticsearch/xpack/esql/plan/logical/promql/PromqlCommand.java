@@ -332,7 +332,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                         failures.add(
                             fail(
                                 lp,
-                                "{} queries with vector matching are not supported at this time [{}]",
+                                "{} queries with group modifiers are not supported at this time [{}]",
                                 lp.getClass().getSimpleName(),
                                 lp.sourceText()
                             )

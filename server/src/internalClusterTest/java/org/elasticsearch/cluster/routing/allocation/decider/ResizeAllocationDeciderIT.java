@@ -11,7 +11,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
-import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -97,7 +98,9 @@ public class ResizeAllocationDeciderIT extends ESIntegTestCase {
                 return false;
             }
         });
-        ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndex, targetIndex, Settings.builder());
+        final var resizeRequest = new ResizeRequest(sourceIndex, targetIndex);
+        resizeRequest.setResizeType(ResizeType.CLONE);
+        client().execute(ResizeAction.INSTANCE, resizeRequest);
         safeAwait(indexCreatedLatch);
 
         // Delete the source index and unblock the allocation for the target index

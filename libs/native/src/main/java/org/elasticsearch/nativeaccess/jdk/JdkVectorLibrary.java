@@ -25,10 +25,10 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.nio.channels.FileChannel;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -236,24 +236,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return new AssertionError(msg, t);
         }
 
-        static boolean checkSingleInt(MemorySegment a, MemorySegment b, int length) {
-            if (a.byteSize() != b.byteSize()) {
-                throw new IllegalArgumentException("Dimensions differ: " + a.byteSize() + " != " + b.byteSize());
-            }
-            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return true;
-        }
-
-        static boolean checkSingleFloat(MemorySegment a, MemorySegment b, int length) {
-            if (a.byteSize() != b.byteSize()) {
-                throw new IllegalArgumentException(
-                    "Dimensions differ: " + a.byteSize() / Float.BYTES + " != " + b.byteSize() / Float.BYTES
-                );
-            }
-            Objects.checkFromIndexSize(0, length * Float.BYTES, (int) a.byteSize());
-            return true;
-        }
-
         static boolean checkBulk(int elementSize, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
             Objects.checkFromIndexSize(0, length * count * elementSize, (int) a.byteSize());
             Objects.checkFromIndexSize(0, length, (int) b.byteSize());
@@ -281,34 +263,14 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
 
             try {
-                Map<OperationSignature, MethodHandle> handlesWithChecks = new HashMap<>(HANDLES);
+                Map<OperationSignature, MethodHandle> handlesWithChecks = new HashMap<>();
 
-                for (var op : handlesWithChecks.entrySet()) {
-                    MethodHandle checkedHandle = switch (op.getKey().operation()) {
-                        case SINGLE -> {
-                            MethodType checkMethodType = MethodType.methodType(
-                                boolean.class,
-                                MemorySegment.class,
-                                MemorySegment.class,
-                                int.class
-                            );
-                            MethodHandle checkMethod = switch (op.getKey().dataType()) {
-                                case INT7 -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "checkSingleInt", checkMethodType);
-                                case FLOAT32 -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "checkSingleFloat", checkMethodType);
-                            };
-                            MethodHandle callMethod = switch (op.getKey().dataType()) {
-                                case INT7 -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "callSingleDistanceInt", MethodType.methodType(
-                                    int.class, MethodHandle.class, MemorySegment.class, MemorySegment.class, int.class
-                                ));
-                                case FLOAT32 -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "callSingleDistanceFloat", MethodType.methodType(
-                                    float.class, MethodHandle.class, MemorySegment.class, MemorySegment.class, int.class
-                                ));
-                            };
-                            yield MethodHandles.guardWithTest(
-                                checkMethod,
-                                MethodHandles.insertArguments(callMethod, 0, op.getValue()), MethodHandles.empty(op.getValue().type()));
-                        }
-                        case BULK -> {
+                for (var op : HANDLES.entrySet()) {
+                    switch (op.getKey().operation()) {
+                        case SINGLE:
+                            // don't access through the handles map, use specialized methods below
+                            continue;
+                        case BULK: {
                             MethodHandle checkMethod = lookup.findStatic(
                                 JdkVectorSimilarityFunctions.class,
                                 "checkBulk",
@@ -322,13 +284,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     MemorySegment.class
                                 )
                             );
-                            yield MethodHandles.guardWithTest(
+                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
                                 MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
                                 op.getValue(),
                                 MethodHandles.empty(op.getValue().type())
                             );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                            break;
                         }
-                        case BULK_OFFSETS -> {
+                        case BULK_OFFSETS: {
                             MethodHandle checkMethod = lookup.findStatic(
                                 JdkVectorSimilarityFunctions.class,
                                 "checkBulkOffsets",
@@ -344,15 +308,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     MemorySegment.class
                                 )
                             );
-                            yield MethodHandles.guardWithTest(
+                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
                                 MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
                                 op.getValue(),
                                 MethodHandles.empty(op.getValue().type())
                             );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                            break;
                         }
-                    };
-
-                    op.setValue(checkedHandle);
+                    }
                 }
 
                 HANDLES_WITH_CHECKS = Collections.unmodifiableMap(handlesWithChecks);
@@ -361,9 +325,81 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static final MethodHandle dot7uHandle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.INT7, Operation.SINGLE)
+        );
+
+        static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceInt(dot7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle square7uHandle = HANDLES.get(
+            new OperationSignature(Function.SQUARE_DISTANCE, DataType.INT7, Operation.SINGLE)
+        );
+
+        static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceInt(square7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle dotF32Handle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE)
+        );
+
+        static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return callSingleDistanceFloat(dotF32Handle, a, b, elementCount);
+        }
+
+        private static final MethodHandle squareF32Handle = HANDLES.get(
+            new OperationSignature(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.SINGLE)
+        );
+
+        static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
+        }
+
+        private static void checkByteSize(MemorySegment a, MemorySegment b) {
+            if (a.byteSize() != b.byteSize()) {
+                throw new IllegalArgumentException("Dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
+            }
+        }
+
         @Override
         public MethodHandle getHandle(Function function, DataType dataType, Operation operation) {
-            return HANDLES_WITH_CHECKS.get(new OperationSignature(function, dataType, operation));
+            if (operation == Operation.SINGLE) {
+                // single score methods are called once for each vector,
+                // this means we need to reduce the overheads as much as possible
+                var lookup = MethodHandles.lookup();
+                try {
+                    return switch (dataType) {
+                        case INT7 -> {
+                            MethodType type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                            yield switch (function) {
+                                case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", type);
+                                case SQUARE_DISTANCE -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", type);
+                            };
+                        }
+                        case FLOAT32 -> {
+                            MethodType type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
+                            yield switch (function) {
+                                case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", type);
+                                case SQUARE_DISTANCE -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", type);
+                            };
+                        }
+                    };
+                } catch (NoSuchMethodException | IllegalAccessException e) {
+                    throw new AssertionError(e);
+                }
+            } else {
+                return HANDLES_WITH_CHECKS.get(new OperationSignature(function, dataType, operation));
+            }
         }
     }
 }

@@ -41,25 +41,33 @@ public interface BloomFilter extends Closeable {
     static BloomFilter getBloomFilterForId(SegmentReadState state) throws IOException {
         var codec = state.segmentInfo.getCodec();
         final var docValuesProducer = codec.docValuesFormat().fieldsProducer(state);
-        var idFieldInfo = state.fieldInfos.fieldInfo(IdFieldMapper.NAME);
-        assert idFieldInfo != null;
+        boolean success = false;
+        try {
+            var idFieldInfo = state.fieldInfos.fieldInfo(IdFieldMapper.NAME);
+            assert idFieldInfo != null;
 
-        var binaryDocValuesProducer = docValuesProducer.getBinary(idFieldInfo);
-        if (binaryDocValuesProducer instanceof BloomFilter bloomFilter) {
-            return new BloomFilter() {
-                @Override
-                public boolean mayContainValue(String field, BytesRef term) throws IOException {
-                    return bloomFilter.mayContainValue(field, term);
-                }
+            var binaryDocValuesProducer = docValuesProducer.getBinary(idFieldInfo);
+            if (binaryDocValuesProducer instanceof BloomFilter bloomFilter) {
+                success = true;
+                return new BloomFilter() {
+                    @Override
+                    public boolean mayContainValue(String field, BytesRef term) throws IOException {
+                        return bloomFilter.mayContainValue(field, term);
+                    }
 
-                @Override
-                public void close() throws IOException {
-                    docValuesProducer.close();
-                }
-            };
-        } else {
-            docValuesProducer.close();
-            return BloomFilter.NO_FILTER;
+                    @Override
+                    public void close() throws IOException {
+                        docValuesProducer.close();
+                    }
+                };
+            } else {
+                docValuesProducer.close();
+                return BloomFilter.NO_FILTER;
+            }
+        } finally {
+            if (success == false) {
+                docValuesProducer.close();
+            }
         }
     }
 }

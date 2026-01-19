@@ -44,7 +44,7 @@ import java.util.Set;
  * Example:
  *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_UNION(A, B) returns {"a", "b", "c", "d"}
  */
-public class MvUnion extends AbstractMvSetOperation {
+public class MvUnion extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvUnion", MvUnion::new);
 
     @FunctionInfo(
@@ -166,7 +166,9 @@ public class MvUnion extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((BooleanBlock) b).getBoolean(p),
             builder::appendBoolean,
-            Operation.UNION
+            Set::addAll,
+            false,
+            false
         );
     }
 
@@ -179,18 +181,20 @@ public class MvUnion extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()),
             builder::appendBytesRef,
-            Operation.UNION
+            Set::addAll,
+            false,
+            false
         );
     }
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
-        processSetOperation(builder, position, field1, field2, (p, b) -> ((IntBlock) b).getInt(p), builder::appendInt, Operation.UNION);
+        processSetOperation(builder, position, field1, field2, (p, b) -> ((IntBlock) b).getInt(p), builder::appendInt, Set::addAll, false, false);
     }
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
-        processSetOperation(builder, position, field1, field2, (p, b) -> ((LongBlock) b).getLong(p), builder::appendLong, Operation.UNION);
+        processSetOperation(builder, position, field1, field2, (p, b) -> ((LongBlock) b).getLong(p), builder::appendLong, Set::addAll, false, false);
     }
 
     @Evaluator(extraName = "Double")
@@ -202,7 +206,9 @@ public class MvUnion extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((DoubleBlock) b).getDouble(p),
             builder::appendDouble,
-            Operation.UNION
+            Set::addAll,
+            false,
+            false
         );
     }
 

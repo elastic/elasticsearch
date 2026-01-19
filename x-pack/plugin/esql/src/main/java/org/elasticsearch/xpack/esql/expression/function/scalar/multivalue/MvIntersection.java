@@ -33,13 +33,14 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Adds a function to return a result set with multivalued items that are contained in the input sets.
  * Example:
  *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_INTERSECTION(A, B) returns {"b", "c"}
  */
-public class MvIntersection extends AbstractMvSetOperation {
+public class MvIntersection extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvIntersection",
@@ -140,7 +141,9 @@ public class MvIntersection extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((BooleanBlock) b).getBoolean(p),
             builder::appendBoolean,
-            Operation.INTERSECTION
+            Set::retainAll,
+            true,
+            true
         );
     }
 
@@ -153,7 +156,9 @@ public class MvIntersection extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()),
             builder::appendBytesRef,
-            Operation.INTERSECTION
+            Set::retainAll,
+            true,
+            true
         );
     }
 
@@ -166,7 +171,9 @@ public class MvIntersection extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((IntBlock) b).getInt(p),
             builder::appendInt,
-            Operation.INTERSECTION
+            Set::retainAll,
+            true,
+            true
         );
     }
 
@@ -179,7 +186,9 @@ public class MvIntersection extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((LongBlock) b).getLong(p),
             builder::appendLong,
-            Operation.INTERSECTION
+            Set::retainAll,
+            true,
+            true
         );
     }
 
@@ -192,7 +201,9 @@ public class MvIntersection extends AbstractMvSetOperation {
             field2,
             (p, b) -> ((DoubleBlock) b).getDouble(p),
             builder::appendDouble,
-            Operation.INTERSECTION
+            Set::retainAll,
+            true,
+            true
         );
     }
 

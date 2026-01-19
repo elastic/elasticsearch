@@ -24,6 +24,7 @@
     "params": {
       "names": {
         "type": "list",
+        "default": [],
         "description": "A comma-separated list of node names to prevalidate"
       },
       "ids": {
@@ -41,6 +42,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     }

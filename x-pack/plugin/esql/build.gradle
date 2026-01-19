@@ -614,3 +614,18 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }
+
+
+test {
+  if (System.getProperty("golden.noactual") != null || project.hasProperty("golden.noactual")) {
+    systemProperty "golden.noactual", "true"
+  }
+  if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
+    systemProperty "golden.cleanactual", "true"
+  }
+  if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
+    systemProperty "golden.overwrite", "true"
+  }
+  systemProperty "policy.directory", file("${projectDir}").absolutePath
+  systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
+}

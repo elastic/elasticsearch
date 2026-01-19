@@ -145,7 +145,8 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         private MergeState unwrapStoredFieldReaders(MergeState mergeState, boolean unwrapBloomFilterReaders) {
             StoredFieldsReader[] updatedReaders = new StoredFieldsReader[mergeState.storedFieldsReaders.length];
             for (int i = 0; i < mergeState.storedFieldsReaders.length; i++) {
-                final StoredFieldsReader storedFieldsReader = mergeState.storedFieldsReaders[i];
+                final StoredFieldsReader storedFieldsReader = FilterStoredFieldsReader.unwrap(mergeState.storedFieldsReaders[i]);
+                final StoredFieldsReader originalStoredFieldsReader = mergeState.storedFieldsReaders[i];
 
                 // We need to unwrap the stored field readers belonging to a PerFieldStoredFieldsFormat,
                 // otherwise, downstream formats won't be able to perform certain optimizations when
@@ -153,7 +154,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
                 // (i.e. Lucene90CompressingStoredFieldsReader would do chunk merging for instances of the same class)
                 if (storedFieldsReader instanceof TSDBStoredFieldsReader reader) {
                     // In case that we're dealing with a previous format, the newer formats should be able to handle it
-                    updatedReaders[i] = unwrapBloomFilterReaders ? reader.bloomFilterStoredFieldsReader : reader.storedFieldsReader;
+                    updatedReaders[i] = unwrapBloomFilterReaders ? reader.bloomFilterStoredFieldsReader : originalStoredFieldsReader;
                 } else {
                     updatedReaders[i] = storedFieldsReader;
                 }

@@ -30,6 +30,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
+import org.elasticsearch.index.codec.storedfields.FilterStoredFieldsReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
@@ -171,33 +172,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public CacheHelper getReaderCacheHelper() {
             return null;
-        }
-
-        private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
-
-            protected final StoredFieldsReader in;
-
-            FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
-                this.in = fieldsReader;
-            }
-
-            @Override
-            public void close() throws IOException {
-                in.close();
-            }
-
-            @Override
-            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-                in.document(docID, visitor);
-            }
-
-            @Override
-            public abstract StoredFieldsReader clone();
-
-            @Override
-            public void checkIntegrity() throws IOException {
-                in.checkIntegrity();
-            }
         }
 
         private static class RecoverySourcePruningStoredFieldsReader extends FilterStoredFieldsReader {

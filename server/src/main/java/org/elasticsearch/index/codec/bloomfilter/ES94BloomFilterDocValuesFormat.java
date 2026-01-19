@@ -153,7 +153,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class Writer extends DocValuesConsumer {
         private final int numHashFunctions;
         private final String bloomFilterFieldName;
-        private final List<Closeable> toClose = new ArrayList<>();
+        private final List<Closeable> toClose = new ArrayList<>(3);
 
         private final IndexOutput metadataOut;
         private final IndexOutput bloomFilterDataOut;

@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
  * To run the utility, execute the following command:
  * {@code ./gradlew :x-pack:plugin:esql:analyzePromqlQueries -PqueriesFile=<path-to-query-file> -PoutputFile=<path-to-output-file>}
  */
-public class QueryAnalyzer implements Closeable {
+public class PromqlCoverageAnalyzer implements Closeable {
 
     private final EsqlParser parser = EsqlParser.INSTANCE;
     private final PromqlFakeResolver resolver = new PromqlFakeResolver();
@@ -86,7 +86,7 @@ public class QueryAnalyzer implements Closeable {
 
     private final BufferedWriter writer;
 
-    public QueryAnalyzer(BufferedWriter writer) {
+    public PromqlCoverageAnalyzer(BufferedWriter writer) {
         this.writer = writer;
     }
 
@@ -102,7 +102,7 @@ public class QueryAnalyzer implements Closeable {
 
         LogConfigurator.configureWithoutConfig(Settings.builder().put("logger.level", Level.INFO.name()).build());
         LogConfigurator.configureESLogging();
-        try (QueryAnalyzer analyzer = new QueryAnalyzer(Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE))) {
+        try (PromqlCoverageAnalyzer analyzer = new PromqlCoverageAnalyzer(Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE))) {
 
             var lineCounter = new AtomicInteger(0);
             try (Stream<String> lines = Files.lines(inputFile)) {

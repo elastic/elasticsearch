@@ -1916,6 +1916,11 @@ public class EsqlCapabilities {
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
+        /**
+         * MMR result diversification command
+         */
+        MMR(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

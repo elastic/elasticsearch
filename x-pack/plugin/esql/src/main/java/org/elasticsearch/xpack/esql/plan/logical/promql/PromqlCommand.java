@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
@@ -288,6 +289,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
                         failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
                     }
+                    if (s.series() == null) {
+                        failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
+                    }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
                             failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
@@ -311,6 +315,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                                 )
                             );
                         }
+                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+                            failures.add(
+                                fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText())
+                            );
+                        }
                     }
                 }
                 case VectorBinaryOperator binaryOperator -> {
@@ -321,6 +330,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             );
                         }
                     });
+                    if (binaryOperator.match() != VectorMatch.NONE) {
+                        failures.add(
+                            fail(
+                                lp,
+                                "{} queries with vector matching are not supported at this time [{}]",
+                                lp.getClass().getSimpleName(),
+                                lp.sourceText()
+                            )
+                        );
+                    }
                     if ((binaryOperator instanceof VectorBinaryArithmetic) == false) {
                         failures.add(
                             fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())

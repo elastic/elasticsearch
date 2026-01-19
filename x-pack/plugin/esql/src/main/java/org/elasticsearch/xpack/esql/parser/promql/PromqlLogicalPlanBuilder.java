@@ -50,7 +50,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
@@ -148,7 +147,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         boolean nonEmptyMatcher = id != null;
-        Set<String> seenLabelNames = new LinkedHashSet<>();
 
         PromqlBaseParser.LabelsContext labelsCtx = seriesMatcher.labels();
         if (labelsCtx != null) {
@@ -172,10 +170,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     }
                     // always add as label matcher
                     labels.add(new LabelMatcher(NAME, labelName, LabelMatcher.Matcher.EQ));
-                    // add unresolved attribute on first encounter
-                    if (seenLabelNames.add(NAME)) {
-                        labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
-                    }
+                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
                     nonEmptyMatcher = true;
 
                     continue;
@@ -204,10 +199,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // always add label matcher
                 LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
                 labels.add(label);
-                // add unresolved attribute on first encounter
-                if (seenLabelNames.add(labelName)) {
-                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
-                }
+                labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
                 // require at least one non-empty matcher
                 if (nonEmptyMatcher == false && label.matchesEmpty() == false) {
@@ -445,6 +437,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         // child plan is always the first parameter
+        // TODO this is not the case for the quantile function as the first parameter is the quantile value
         LogicalPlan child = switch (params.getFirst()) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
@@ -470,10 +463,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         // explicit grouping
         if (groupingContext != null) {
             var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
-
-            if (grouping != AcrossSeriesAggregate.Grouping.BY) {
-                throw new ParsingException(source, "[{}] clause not supported yet", grouping.name().toLowerCase(Locale.ROOT), name);
-            }
 
             if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
                 throw new ParsingException(

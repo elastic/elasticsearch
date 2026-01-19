@@ -454,7 +454,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlDataType actualInputType = PromqlPlan.getReturnType(child);
         if (actualInputType != expectedInputType) {
             throw new ParsingException(
-                child.source(),
+                source,
                 "expected type {} in call to function [{}], got {}",
                 expectedInputType,
                 name,
@@ -490,7 +490,10 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
             plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
         } else {
-            List<Expression> extraParams = params.stream().skip(1).map(Expression.class::cast).toList();
+            List<Expression> extraParams = params.stream()
+                .skip(1) // skip first param (child)
+                .map(Expression.class::cast)
+                .toList();
             plan = switch (metadata.functionType()) {
                 case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
                     source,

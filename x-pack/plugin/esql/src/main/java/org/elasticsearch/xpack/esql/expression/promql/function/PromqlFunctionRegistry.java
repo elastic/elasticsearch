@@ -370,7 +370,7 @@ public class PromqlFunctionRegistry {
         "histogram_stddev",
         "histogram_stdvar",
         "histogram_sum",
-        // scalar functions
+        // Scalar functions
         "time"
 
     );

@@ -71,6 +71,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -168,6 +170,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<Tuple<ProjectId, String>, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final List<DlmAction> actions;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -216,7 +219,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        List<DlmAction> actions
     ) {
         this.settings = settings;
         this.client = client;
@@ -246,6 +250,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
+        this.actions = actions;
     }
 
     /**
@@ -444,6 +449,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
+            maybeProcessTierTransitions(projectState, dataStream, indicesToExcludeForRemainingRun);
+
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
         }
@@ -455,6 +462,81 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             affectedDataStreams,
             project.id()
         );
+    }
+
+    // Visible for testing
+    void maybeProcessTierTransitions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
+        for (DlmAction action : actions) {
+            var actionSchedule = action.schedulingFieldFunction().apply(dataStream.getDataLifecycle());
+
+            if (actionSchedule == null) {
+                logger.trace(
+                    "Data stream lifecycle action [{}] is not scheduled for data stream [{}]",
+                    action.actionName(),
+                    dataStream.getName()
+                );
+                continue;
+            }
+
+            List<Index> indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                indexName -> projectState.metadata().index(indexName),
+                nowSupplier,
+                actionSchedule,
+                false
+            );
+
+            indicesEligibleForAction.removeAll(indicesToExclude);
+
+            logger.trace(
+                "Data stream lifecycle action [{}] found [{}] eligible indices for data stream [{}]",
+                action.actionName(),
+                indicesEligibleForAction.size(),
+                dataStream.getName()
+            );
+
+            for (Index index : indicesEligibleForAction) {
+                for (DlmStep step : action.steps().reversed()) {
+                    boolean stepCompleted;
+                    try {
+                        stepCompleted = step.stepCompleted(index, projectState);
+                    } catch (Exception ex) {
+                        logger.warn(
+                            logger.getMessageFactory()
+                                .newMessage(
+                                    "Unable to execute check for step complete [{}] for action [{}] on index [{}]",
+                                    step.stepName(),
+                                    action.actionName(),
+                                    index.getName()
+                                ),
+                            ex
+                        );
+                        continue;
+                    }
+
+                    if (stepCompleted == false) {
+                        // Throttling init
+                        try {
+                            step.execute(index, projectState, transportActionsDeduplicator);
+                        } catch (Exception ex) {
+                            logger.warn(
+                                logger.getMessageFactory()
+                                    .newMessage(
+                                        "Unable to execute step [{}] for action [{}] on index [{}]",
+                                        step.stepName(),
+                                        action.actionName(),
+                                        index.getName()
+                                    ),
+                                ex
+                            );
+                            continue;
+                        }
+                        // Throttling closedown
+                        indicesToExclude.add(index);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     // visible for testing

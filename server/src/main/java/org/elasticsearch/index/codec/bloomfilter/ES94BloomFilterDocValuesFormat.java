@@ -181,6 +181,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
             boolean success = false;
             try {
+                int bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
+                assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
+                this.bitsetSizeInBits = bloomFilterSizeInBits;
+                this.bitSetSizeInBytes = bitsetSizeInBits / Byte.SIZE;
+                this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
+                toClose.add(buffer);
+                
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(metadataOut);
                 CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
@@ -195,13 +202,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     IOUtils.closeWhileHandlingException(toClose);
                 }
             }
-
-            int bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
-            assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
-            this.bitsetSizeInBits = bloomFilterSizeInBits;
-            this.bitSetSizeInBytes = bitsetSizeInBits / Byte.SIZE;
-            this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
-            toClose.add(buffer);
         }
 
         @Override

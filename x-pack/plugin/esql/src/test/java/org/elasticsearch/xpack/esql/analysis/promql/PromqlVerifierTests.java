@@ -61,21 +61,6 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testTopLevelArithmeticOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m 1+foo", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo+bar", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-    }
-
     @AwaitsFix(
         bugUrl = "Doesn't parse: line 1:27: Invalid query 'method_code_http_errors_rate5m{code=\"500\"}'"
             + "[ValueExpressionContext] given; expected Expression but found InstantSelector"
@@ -112,7 +97,7 @@ public class PromqlVerifierTests extends ESTestCase {
         List.of("and", "or", "unless").forEach(op -> {
             assertThat(
                 error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
-                containsString("top-level binary operators are not supported at this time")
+                containsString("VectorBinarySet queries are not supported at this time")
             );
         });
     }
@@ -121,6 +106,27 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
             equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+        );
+    }
+
+    public void testNoMetricNameMatcherNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+            containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
+        );
+    }
+
+    public void testWithoutNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
+            containsString("'without' grouping is not supported at this time")
+        );
+    }
+
+    public void groupModifiersNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+            containsString("queries with group modifiers are not supported at this time")
         );
     }
 

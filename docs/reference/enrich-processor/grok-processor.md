@@ -289,8 +289,8 @@ $$$grok-watchdog-options$$$
 
 | Name | Default | Description |
 | --- | --- | --- |
-| `ingest.grok.watchdog.interval` | 1s | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time. |
 | `ingest.grok.watchdog.max_execution_time` | 1s | The maximum allowed execution of a grok expression evaluation. |
+| `ingest.grok.watchdog.interval` {applies_to}`stack: deprecated 9.3`| 1s | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time. As of Elasticsearch 9.3, this setting is no longer necessary and is deprecated. |
 
 
 ## Grok debugging [grok-debugging]

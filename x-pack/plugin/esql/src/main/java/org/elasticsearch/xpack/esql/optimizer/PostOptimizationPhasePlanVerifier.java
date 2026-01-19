@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -48,6 +49,8 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         checkPlanConsistency(optimizedPlan, failures, depFailures);
 
         verifyOutputNotChanged(optimizedPlan, expectedOutputAttributes, failures);
+
+        ConfigurationAware.verifyNoMarkerConfiguration(optimizedPlan, failures);
 
         if (depFailures.hasFailures()) {
             throw new IllegalStateException(depFailures.toString());

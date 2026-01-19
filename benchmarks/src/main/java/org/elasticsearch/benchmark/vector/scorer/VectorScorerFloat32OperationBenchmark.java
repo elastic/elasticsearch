@@ -143,7 +143,11 @@ public class VectorScorerFloat32OperationBenchmark {
 
     static float dotProductFloat32(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (float) vectorSimilarityFunctions.dotProductHandleFloat32().invokeExact(a, b, length);
+            return (float) vectorSimilarityFunctions.getHandle(
+                VectorSimilarityFunctions.Function.DOT_PRODUCT,
+                VectorSimilarityFunctions.DataType.FLOAT32,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -151,7 +155,11 @@ public class VectorScorerFloat32OperationBenchmark {
 
     static float squareDistanceFloat32(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (float) vectorSimilarityFunctions.squareDistanceHandleFloat32().invokeExact(a, b, length);
+            return (float) vectorSimilarityFunctions.getHandle(
+                VectorSimilarityFunctions.Function.SQUARE_DISTANCE,
+                VectorSimilarityFunctions.DataType.FLOAT32,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable e) {
             throw rethrow(e);
         }

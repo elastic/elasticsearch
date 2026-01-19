@@ -128,7 +128,11 @@ public class VectorScorerInt7uOperationBenchmark {
 
     static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (int) vectorSimilarityFunctions.dotProductHandle7u().invokeExact(a, b, length);
+            return (int) vectorSimilarityFunctions.getHandle(
+                VectorSimilarityFunctions.Function.DOT_PRODUCT,
+                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -136,7 +140,11 @@ public class VectorScorerInt7uOperationBenchmark {
 
     static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (int) vectorSimilarityFunctions.squareDistanceHandle7u().invokeExact(a, b, length);
+            return (int) vectorSimilarityFunctions.getHandle(
+                VectorSimilarityFunctions.Function.SQUARE_DISTANCE,
+                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable e) {
             throw rethrow(e);
         }

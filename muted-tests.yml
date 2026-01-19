@@ -60,9 +60,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
-  issue: https://github.com/elastic/elasticsearch/issues/122102
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -330,45 +327,12 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testRecoveredOperations
   issue: https://github.com/elastic/elasticsearch/issues/140665
-- class: org.elasticsearch.xpack.esql.parser.SetParserTests
-  method: testSetUnmappedFieldsWrongValue
-  issue: https://github.com/elastic/elasticsearch/issues/140673
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInOrOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140750
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140751
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInAndNotOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140752
 - class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140763
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140766
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140767
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140768
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140769
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/140772
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/140773
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/46_downsample/Stats from downsampled and non-downsampled index simultaneously with implicit casting}
   issue: https://github.com/elastic/elasticsearch/issues/140774
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=false p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/140778
 - class: org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140784

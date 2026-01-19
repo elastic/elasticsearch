@@ -18,7 +18,7 @@ null               | 2024-05-10T00:01:00.000Z
 ;
 
 idelta_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m cost_change=(sum(idelta(network.cost[1m])))
 | SORT cost_change DESC, step DESC | LIMIT 10;
@@ -54,7 +54,7 @@ null                | 2024-05-10T00:01:00.000Z
 ;
 
 idelta_of_integer_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m clients=(avg(idelta(network.eth0.currently_connected_clients[1m])))
 | SORT step | LIMIT 10;
@@ -91,7 +91,7 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 ;
 
 idelta_of_integer_grouping_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (idelta(network.eth0.currently_connected_clients[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -133,7 +133,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 ;
 
 idelta_with_filtering_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (idelta(network.bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -187,7 +187,7 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 ;
 
 eval_on_idelta_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (idelta(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
@@ -266,7 +266,7 @@ events:double | pod:keyword | time_bucket:datetime
 ;
 
 idelta_all_value_types_promql
-required_capability: promql_pre_tech_preview_v13
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m events=(sum by (pod) (idelta(events_received[10m])))
 | SORT events DESC, pod, step | LIMIT 10;

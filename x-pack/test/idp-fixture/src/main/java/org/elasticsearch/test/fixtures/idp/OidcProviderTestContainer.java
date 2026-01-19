@@ -15,7 +15,7 @@ import org.testcontainers.images.builder.Transferable;
 
 public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/oidc-fixture:1.0";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/oidc-fixture:2.0";
 
     private static final int PORT = 8080;
     private static final int SSL_PORT = 8443;

@@ -1,4 +1,4 @@
-The ES|QL documentation is composed of static content and generated content.
+The language documentation is composed of static content and generated content.
 The static content exists in this directory and can be edited by hand.
 However, the subdirectories `_snippets`, `images` and `kibana` contain a mix
 of static and generated content, and so updating them is a bit more involved.
@@ -273,3 +273,29 @@ The following example shows the detection of a step change:
 :::{include} ../examples/change_point.csv-spec/changePointForDocs.md
 :::
 ```
+
+## PromQL
+
+PromQL documentation is generated separately and stored in:
+```
+docs/reference/query-languages/promql/kibana/definitions/*.json
+```
+
+### Generating PromQL Definitions
+
+To generate the PromQL definition files, run:
+
+```bash
+./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests" -DgenerateDocs=write
+```
+
+### PromQL Function Types
+
+| Type | Input | Output | Description |
+|------|-------|--------|-------------|
+| `promql_within_series` | `range_vector` | `instant_vector` | Aggregates within each time series over time |
+| `promql_across_series` | `instant_vector` | `instant_vector` | Aggregates across multiple time series |
+| `promql_value_transformation` | `instant_vector` | `instant_vector` | Transforms values element-wise |
+| `promql_vector` | `scalar` | `instant_vector` | Converts scalar to vector |
+
+For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/

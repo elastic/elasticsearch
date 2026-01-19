@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,11 +37,8 @@ import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
-import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
-import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 
 public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction<MigrateToDataTiersRequest, MigrateToDataTiersResponse> {
 
@@ -110,17 +106,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                     entities.migratedTemplates().migratedComposableTemplates(),
                     entities.migratedTemplates().migratedComponentTemplates(),
                     true
-                )
-            );
-            return;
-        }
-
-        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
-        IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentILMMode(projectMetadata) != STOPPED) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentILMMode(projectMetadata) + "]"
                 )
             );
             return;

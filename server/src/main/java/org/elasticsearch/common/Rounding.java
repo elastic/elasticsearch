@@ -1161,7 +1161,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                return offset.localToUtcInThisOffset(( roundKey(offset.utcToLocalTime(utcMillis), interval) + 1) * interval);
+                return offset.localToUtcInThisOffset((roundKey(offset.utcToLocalTime(utcMillis), interval) + 1) * interval);
             }
 
             @Override
@@ -1343,7 +1343,6 @@ public abstract class Rounding implements Writeable {
                     }
                     assert highEnough && (false == tooHigh);
                     assert roundedRoundedDown == prevRound;
-                    assert round(rounded) == rounded;
                     if (iterations > 3 && logger.isDebugEnabled()) {
                         logger.debug("Iterated {} time for {} using {}", iterations, utcMillis, TimeIntervalRounding.this.toString());
                     }

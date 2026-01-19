@@ -144,7 +144,7 @@ import java.util.stream.Stream;
  */
 public class Approximation {
 
-    public record QueryProperties(boolean canDecreaseRowCount, boolean canIncreaseRowCount) {}
+    public record QueryProperties(boolean hasGrouping, boolean canDecreaseRowCount, boolean canIncreaseRowCount) {}
 
     /**
      * These processing commands are supported.
@@ -274,9 +274,16 @@ public class Approximation {
     private static final int ROW_COUNT_FOR_COUNT_ESTIMATION = 10_000;
 
     /**
-     * Default number of rows to sample for approximation.
+     * Default number of rows to sample for approximation without grouping.
+     * 100_000 rows is enough to accurately estimate most single aggregates.
      */
-    private static final int DEFAULT_ROW_COUNT = 100_000;
+    private static final int DEFAULT_ROW_COUNT_WITHOUT_GROUPING = 100_000;
+
+    /**
+     * Default number of rows to sample for approximation with grouping.
+     * To accurately estimate aggregates for each group, more rows are needed.
+     */
+    private static final int DEFAULT_ROW_COUNT_WITH_GROUPING = 1_000_000;
 
     /**
      * Default confidence level for confidence intervals.
@@ -364,14 +371,16 @@ public class Approximation {
         });
 
         Holder<Boolean> encounteredStats = new Holder<>(false);
+        Holder<Boolean> hasGrouping = new Holder<>();
         Holder<Boolean> canIncreaseRowCount = new Holder<>(false);
         Holder<Boolean> canDecreaseRowCount = new Holder<>(false);
 
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (plan instanceof Aggregate) {
+                if (plan instanceof Aggregate aggregate) {
                     // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);
+                    hasGrouping.set(aggregate.groupings().isEmpty() == false);
                     plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
@@ -399,7 +408,7 @@ public class Approximation {
             return plan;
         });
 
-        return new QueryProperties(canDecreaseRowCount.get(), canIncreaseRowCount.get());
+        return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get(), canIncreaseRowCount.get());
     }
 
     /**
@@ -455,7 +464,13 @@ public class Approximation {
     }
 
     private int sampleRowCount() {
-        return settings.rows() != null ? settings.rows() : DEFAULT_ROW_COUNT;
+        if (settings.rows() != null) {
+            return settings.rows();
+        } else if (queryProperties.hasGrouping) {
+            return DEFAULT_ROW_COUNT_WITH_GROUPING;
+        } else {
+            return DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
+        }
     }
 
     private double confidenceLevel() {

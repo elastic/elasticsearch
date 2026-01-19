@@ -158,25 +158,31 @@ public class ApproximationTests extends ESTestCase {
     public void testVerify_validQuery_queryProperties() throws Exception {
         assertThat(
             verify("FROM test | SORT last_name | RENAME gender AS whatever | EVAL blah=1 | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(false, false))
+            equalTo(new Approximation.QueryProperties(true, false, false))
         );
         assertThat(
             verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
-            equalTo(new Approximation.QueryProperties(false, false))
+            equalTo(new Approximation.QueryProperties(true, false, false))
         );
         assertThat(
-            verify("FROM test | WHERE emp_no > 10 | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false))
+            verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"),
+            equalTo(new Approximation.QueryProperties(false, true, false))
         );
-        assertThat(verify("FROM test | LIMIT 3 | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(true, false)));
-        assertThat(verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(true, false)));
+        assertThat(
+            verify("FROM test | LIMIT 3 | STATS COUNT(), SUM(emp_no) BY emp_no"),
+            equalTo(new Approximation.QueryProperties(true, true, false))
+        );
+        assertThat(
+            verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
+            equalTo(new Approximation.QueryProperties(true, true, false))
+        );
         assertThat(
             verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(false, true))
+            equalTo(new Approximation.QueryProperties(true, false, true))
         );
         assertThat(
             verify("FROM test | MV_EXPAND gender | LIMIT 42 | STATS COUNT()"),
-            equalTo(new Approximation.QueryProperties(true, true))
+            equalTo(new Approximation.QueryProperties(false, true, true))
         );
     }
 
@@ -439,7 +445,7 @@ public class ApproximationTests extends ESTestCase {
         assertThat(runner.invocations, hasSize(3));
 
         LogicalPlan approximatePlan = runner.invocations.getLast();
-        assertThat(approximatePlan, hasSample(1e-4));
+        assertThat(approximatePlan, hasSample(1e-3));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(COUNT())"));
         assertThat(approximatePlan, hasEval("RELIABLE(COUNT())"));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(SUM(emp_no))"));

@@ -184,27 +184,6 @@ mv:double
 ;
 
 
-approximate stats by on large data
-required_capability: approximation
-
-SET approximation=true\;
-FROM many_numbers
-    | MV_EXPAND value
-    | STATS count=COUNT() BY value
-    | SORT value DESC
-    | KEEP value, count
-    | LIMIT 5
-;
-
-value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean
-2000          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1999          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1998          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1997          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1996          | 1000..3000 | [500..2500,1500..4000]          | {any}
-;
-
-
 approximate stats with zero variance
 required_capability: approximation
 
@@ -225,10 +204,31 @@ avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(av
 ;
 
 
+approximate stats by on large data
+required_capability: approximation
+
+SET approximation={"rows":100000}\;
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS count=COUNT() BY value
+    | SORT value DESC
+    | KEEP value, count
+    | LIMIT 5
+;
+
+value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean
+2000          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1999          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1998          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1997          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1996          | 1000..3000 | [500..2500,1500..4000]          | {any}
+;
+
+
 exact stats by on small data
 required_capability: approximation
 
-SET approximation=true\;
+SET approximation={"rows":100000}\;
 FROM many_numbers
     | MV_EXPAND value
     | WHERE value <= 5

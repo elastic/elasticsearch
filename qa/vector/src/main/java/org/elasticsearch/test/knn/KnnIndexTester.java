@@ -26,10 +26,12 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
@@ -59,6 +61,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -133,7 +137,7 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args) {
+    static Codec createCodec(TestConfiguration args, @Nullable ExecutorService exec) {
         final KnnVectorsFormat format;
         int quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = switch (args.vectorEncoding()) {
@@ -156,8 +160,8 @@ public class KnnIndexTester {
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
                 args.onDiskRescore(),
-                null,
-                1
+                exec,
+                exec != null ? args.numMergeWorkers() : 1
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {
@@ -172,7 +176,14 @@ public class KnnIndexTester {
                 if (args.indexType() == IndexType.FLAT) {
                     format = new ES93BinaryQuantizedVectorsFormat(elementType, false);
                 } else {
-                    format = new ES93HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, false);
+                    format = new ES93HnswBinaryQuantizedVectorsFormat(
+                        args.hnswM(),
+                        args.hnswEfConstruction(),
+                        elementType,
+                        false,
+                        exec != null ? args.numMergeWorkers() : 1,
+                        exec
+                    );
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
@@ -185,11 +196,19 @@ public class KnnIndexTester {
                         null,
                         quantizeBits,
                         true,
-                        false
+                        false,
+                        exec != null ? args.numMergeWorkers() : 1,
+                        exec
                     );
                 }
             } else {
-                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType);
+                format = new ES93HnswVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    exec != null ? args.numMergeWorkers() : 1,
+                    exec
+                );
             }
         }
         return new Lucene103Codec() {
@@ -318,58 +337,70 @@ public class KnnIndexTester {
             }
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            Codec codec = createCodec(testConfiguration);
-            Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
-            MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
-                KnnIndexer knnIndexer = new KnnIndexer(
-                    testConfiguration.docVectors(),
-                    indexPath,
-                    codec,
-                    testConfiguration.indexThreads(),
-                    testConfiguration.vectorEncoding().luceneEncoding,
-                    testConfiguration.dimensions(),
-                    testConfiguration.vectorSpace(),
-                    testConfiguration.numDocs(),
-                    mergePolicy,
-                    testConfiguration.writerBufferSizeInMb(),
-                    testConfiguration.writerMaxBufferedDocs()
-                );
-                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
-                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                }
-                if (testConfiguration.reindex()) {
-                    knnIndexer.createIndex(indexResults);
-                }
-                if (testConfiguration.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
-                }
+            final ExecutorService exec;
+            if (testConfiguration.numMergeWorkers() > 1) {
+                exec = Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"));
+            } else {
+                exec = null;
             }
-            numSegments(indexPath, indexResults);
-            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
-                if (parsedArgs.warmUpIterations() > 0) {
-                    logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
-                }
-                // Warm up
-                for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
-                    for (int i = 0; i < results.length; i++) {
-                        var ignoreResults = new Results(
-                            testConfiguration.docVectors().get(0).getFileName().toString(),
-                            indexType,
-                            testConfiguration.numDocs()
-                        );
-                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                        knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+            try {
+                Codec codec = createCodec(testConfiguration, exec);
+                Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
+                MergePolicy mergePolicy = getMergePolicy(testConfiguration);
+                if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
+                    KnnIndexer knnIndexer = new KnnIndexer(
+                        testConfiguration.docVectors(),
+                        indexPath,
+                        codec,
+                        testConfiguration.indexThreads(),
+                        testConfiguration.vectorEncoding().luceneEncoding,
+                        testConfiguration.dimensions(),
+                        testConfiguration.vectorSpace(),
+                        testConfiguration.numDocs(),
+                        mergePolicy,
+                        testConfiguration.writerBufferSizeInMb(),
+                        testConfiguration.writerMaxBufferedDocs()
+                    );
+                    if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
+                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
+                    }
+                    if (testConfiguration.reindex()) {
+                        knnIndexer.createIndex(indexResults);
+                    }
+                    if (testConfiguration.forceMerge()) {
+                        knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
                     }
                 }
+                numSegments(indexPath, indexResults);
+                if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+                    if (parsedArgs.warmUpIterations() > 0) {
+                        logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+                    }
+                    // Warm up
+                    for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+                        for (int i = 0; i < results.length; i++) {
+                            var ignoreResults = new Results(
+                                testConfiguration.docVectors().get(0).getFileName().toString(),
+                                indexType,
+                                testConfiguration.numDocs()
+                            );
+                            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                            knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+                        }
+                    }
 
-                for (int i = 0; i < results.length; i++) {
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                    knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                    for (int i = 0; i < results.length; i++) {
+                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                        knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                    }
+                }
+                formattedResults.queryResults.addAll(List.of(results));
+                formattedResults.indexResults.add(indexResults);
+            } finally {
+                if (exec != null) {
+                    exec.shutdown();
                 }
             }
-            formattedResults.queryResults.addAll(List.of(results));
-            formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
     }

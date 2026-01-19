@@ -152,6 +152,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         GetResult result = indexShard.getService()
             .get(
                 request.id(),
+                request.routing(),
                 request.storedFields(),
                 request.realtime(),
                 request.version(),

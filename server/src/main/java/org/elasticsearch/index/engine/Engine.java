@@ -1090,15 +1090,6 @@ public abstract class Engine implements Closeable {
     public Searcher acquireSearcher(
         String source,
         SearcherScope scope,
-        Function<Searcher, Searcher> wrapper,
-        SplitShardCountSummary splitShardCountSummary
-    ) throws EngineException {
-        return acquireSearcher(source, scope, splitShardCountSummary, wrapper);
-    }
-
-    public Searcher acquireSearcher(
-        String source,
-        SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> wrapper
     ) throws EngineException {

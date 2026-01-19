@@ -108,4 +108,11 @@ public class SplitShardCountSummaryTests extends ESTestCase {
             assertThat(SplitShardCountSummary.forSearch(indexMetadataSplit, i), equalTo(postSplitSummary));
         }
     }
+
+    public void testSplitShardCountSummaryComparison() {
+        int n = randomInt(5);
+        int m = randomInt(5);
+
+        assertThat(new SplitShardCountSummary(n).compareTo(new SplitShardCountSummary(m)), equalTo(Integer.compare(n, m)));
+    }
 }

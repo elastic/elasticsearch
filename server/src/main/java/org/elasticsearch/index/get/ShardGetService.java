@@ -15,6 +15,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -99,11 +100,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource
     ) throws IOException {
-        return get(id, gFields, realtime, version, versionType, fetchSourceContext, forceSyntheticSource, SplitShardCountSummary.UNSET);
+        return get(
+            id,
+            null,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            fetchSourceContext,
+            forceSyntheticSource,
+            SplitShardCountSummary.UNSET
+        );
     }
 
     public GetResult get(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -114,6 +126,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
+            routing,
             gFields,
             realtime,
             version,
@@ -139,6 +152,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
+            null,
             gFields,
             realtime,
             version,
@@ -154,6 +168,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult doGet(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -224,18 +239,24 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
                     return getResult;
                 }
-                if (splitShardCountSummary.equals(currentSummary)) {
+                if (splitShardCountSummary.compareTo(currentSummary) >= 0) {
                     // coordinator is current, so response is valid
                     return getResult;
                 }
-                final var reshardingMetadata = indexMetadata.getReshardingMetadata();
-                if (reshardingMetadata != null && reshardingMetadata.getSplit().targetsDone(shardId().getId()) == false) {
-                    // coordinator is stale, but we should still have a valid response because we haven't entered delete unowned
+                // Otherwise, recompute the route of the requested document based on current metadata and fail the request if it
+                // doesn't map to this shard anymore, since delete unowned may have removed it by this point. This is conservative:
+                // the document may genuinely not have existed, but unless we can be certain that delete-unowned hasn't run yet
+                // (which is difficult, because the index shard may see the target move to done before the search shard) it is safer
+                // to fail the request.
+                final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+                final var docShard = indexRouting.getShard(id, routing);
+                if (docShard != shardId().getId()) {
+                    // XXX we may want a more specific exception type here. Of the existing registered exceptions, this one
+                    // is reasonably close semantically and returns a 503.
+                    throw new NoNodeAvailableException("stale get request for document [" + id + "]");
+                } else {
                     return getResult;
                 }
-                // Otherwise, we may have deleted unowned documents - fail the request.
-                // XXX we may want a more specific exception type here
-                throw new NoNodeAvailableException("stale get request for document [" + id + "]");
             }
             return getResult;
         } finally {
@@ -254,6 +275,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
+            null,
             gFields,
             realtime,
             version,
@@ -270,6 +292,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) throws IOException {
         return doGet(
             id,
+            null,
             new String[] { RoutingFieldMapper.NAME },
             true,
             Versions.MATCH_ANY,

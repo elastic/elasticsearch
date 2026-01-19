@@ -14,7 +14,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
@@ -91,6 +92,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
+    @Deprecated
     public GetResult get(
         String id,
         String[] gFields,
@@ -251,9 +253,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
                 final var docShard = indexRouting.getShard(id, routing);
                 if (docShard != shardId().getId()) {
-                    // XXX we may want a more specific exception type here. Of the existing registered exceptions, this one
-                    // is reasonably close semantically and returns a 503.
-                    throw new NoNodeAvailableException("stale get request for document [" + id + "]");
+                    // XXX we may want a more specific exception type here
+                    throw new ElasticsearchStatusException("stale get request for document [" + id + "]", RestStatus.SERVICE_UNAVAILABLE);
                 } else {
                     return getResult;
                 }

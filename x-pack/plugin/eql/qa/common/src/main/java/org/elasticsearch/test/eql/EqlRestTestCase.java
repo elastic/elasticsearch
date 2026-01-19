@@ -189,7 +189,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         deleteIndexWithProvisioningClient("test");
     }
 
-    @SuppressWarnings({"unchecked", "checkstyle:LineLength"})
+    @SuppressWarnings({ "unchecked", "checkstyle:LineLength" })
     public void testMissingEvents() throws Exception {
         createIndex("missing", (String) null);
 
@@ -230,7 +230,8 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
 
         {
             Request request = new Request("GET", endpoint);
-            request.setJsonEntity("""
+            request.setJsonEntity(
+                """
                     {"query":"sequence with maxspan=10m [any where log == \\"foo\\"] ![any where log == \\"baz\\"] [any where log == \\"bar\\"]"}"""
             );
             Response response = client().performRequest(request);

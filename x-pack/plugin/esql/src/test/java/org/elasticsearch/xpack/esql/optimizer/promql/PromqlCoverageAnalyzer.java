@@ -102,7 +102,11 @@ public class PromqlCoverageAnalyzer implements Closeable {
 
         LogConfigurator.configureWithoutConfig(Settings.builder().put("logger.level", Level.INFO.name()).build());
         LogConfigurator.configureESLogging();
-        try (PromqlCoverageAnalyzer analyzer = new PromqlCoverageAnalyzer(Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE))) {
+        try (
+            PromqlCoverageAnalyzer analyzer = new PromqlCoverageAnalyzer(
+                Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE)
+            )
+        ) {
 
             var lineCounter = new AtomicInteger(0);
             try (Stream<String> lines = Files.lines(inputFile)) {

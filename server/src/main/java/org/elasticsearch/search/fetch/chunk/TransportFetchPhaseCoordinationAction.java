@@ -20,7 +20,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -104,11 +103,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         private final DiscoveryNode dataNode;
         private final Map<String, String> headers;
 
-        public Request(
-            ShardFetchSearchRequest shardFetchRequest,
-            DiscoveryNode dataNode,
-            Map<String, String> headers
-        ) {
+        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode, Map<String, String> headers) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
             this.headers = headers;

@@ -359,11 +359,7 @@ public class SearchTransportService {
             transportService.sendChildRequest(
                 transportService.getConnection(transportService.getLocalNode()),
                 TransportFetchPhaseCoordinationAction.TYPE.name(),
-                new TransportFetchPhaseCoordinationAction.Request(
-                    shardFetchRequest,
-                    connection.getNode(),
-                    headers
-                ),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
                 task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(

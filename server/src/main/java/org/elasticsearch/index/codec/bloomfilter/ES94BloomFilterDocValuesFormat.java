@@ -359,7 +359,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                         + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
-                bloomFilterData.prefetch(0, bitSetSizeInBytes);
                 for (int i = 0; i < bitSetSizeInBytes; i++) {
                     var existingBloomFilterByte = bloomFilterData.readByte(i);
                     var resultingBloomFilterByte = buffer.get(i);
@@ -496,6 +495,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         @Override
         public void checkIntegrity() throws IOException {
+            bloomFilterData.prefetch(0, bloomFilterMetadata.sizeInBytes());
             CodecUtil.checksumEntireFile(bloomFilterData);
         }
 

@@ -31,7 +31,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 
@@ -45,9 +45,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportGetInferenceFieldsAction extends HandledTransportAction<
-    GetInferenceFieldsAction.Request,
-    GetInferenceFieldsAction.Response> {
+public class TransportGetInferenceFieldsInternalAction extends HandledTransportAction<
+    GetInferenceFieldsInternalAction.Request,
+    GetInferenceFieldsInternalAction.Response> {
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -56,7 +56,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     private final Client client;
 
     @Inject
-    public TransportGetInferenceFieldsAction(
+    public TransportGetInferenceFieldsInternalAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
@@ -65,10 +65,10 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         Client client
     ) {
         super(
-            GetInferenceFieldsAction.NAME,
+            GetInferenceFieldsInternalAction.NAME,
             transportService,
             actionFilters,
-            GetInferenceFieldsAction.Request::new,
+            GetInferenceFieldsInternalAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transportService = transportService;
@@ -81,37 +81,33 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     @Override
     protected void doExecute(
         Task task,
-        GetInferenceFieldsAction.Request request,
-        ActionListener<GetInferenceFieldsAction.Response> listener
+        GetInferenceFieldsInternalAction.Request request,
+        ActionListener<GetInferenceFieldsInternalAction.Response> listener
     ) {
-        final Set<String> indices = request.getIndices();
-        final Map<String, Float> fields = request.getFields();
+        final String[] indices = request.indices();
+        final Map<String, Float> fields = request.fields();
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
-        final String query = request.getQuery();
-        final IndicesOptions indicesOptions = request.getIndicesOptions();
+        final String query = request.query();
+        final IndicesOptions indicesOptions = request.indicesOptions();
 
         try {
             Map<String, OriginalIndices> groupedIndices = transportService.getRemoteClusterService()
-                .groupIndices(indicesOptions, indices.toArray(new String[0]), true);
+                .groupIndices(indicesOptions, indices, true);
             OriginalIndices localIndices = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (groupedIndices.isEmpty() == false) {
-                throw new IllegalArgumentException("GetInferenceFieldsAction does not support remote indices");
+                throw new IllegalArgumentException("GetInferenceFieldsInternalAction does not support remote indices");
             }
 
             ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             String[] concreteLocalIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
 
-            Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(
+            Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(
                 concreteLocalIndices.length
             );
             Arrays.stream(concreteLocalIndices).forEach(index -> {
-                List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(
-                    index,
-                    fields,
-                    resolveWildcards,
-                    useDefaultFields
-                );
+                List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataList =
+                    getInferenceFieldMetadata(index, fields, resolveWildcards, useDefaultFields);
                 inferenceFieldsMap.put(index, inferenceFieldMetadataList);
             });
 
@@ -124,14 +120,14 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
 
                 getInferenceResults(query, inferenceIds, inferenceFieldsMap, listener);
             } else {
-                listener.onResponse(new GetInferenceFieldsAction.Response(inferenceFieldsMap, Map.of()));
+                listener.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, Map.of()));
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> getInferenceFieldMetadata(
+    private List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata> getInferenceFieldMetadata(
         String index,
         Map<String, Float> fields,
         boolean resolveWildcards,
@@ -149,18 +145,18 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         );
         return matchingInferenceFieldMap.entrySet()
             .stream()
-            .map(e -> new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(e.getKey(), e.getValue()))
+            .map(e -> new GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata(e.getKey(), e.getValue()))
             .toList();
     }
 
     private void getInferenceResults(
         String query,
         Set<String> inferenceIds,
-        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
-        ActionListener<GetInferenceFieldsAction.Response> listener
+        Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
+        ActionListener<GetInferenceFieldsInternalAction.Response> listener
     ) {
         if (inferenceIds.isEmpty()) {
-            listener.onResponse(new GetInferenceFieldsAction.Response(inferenceFieldsMap, Map.of()));
+            listener.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, Map.of()));
             return;
         }
 
@@ -170,7 +166,10 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
                 Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceIds.size());
                 c.forEach(t -> inferenceResultsMap.put(t.v1(), t.v2()));
 
-                GetInferenceFieldsAction.Response response = new GetInferenceFieldsAction.Response(inferenceFieldsMap, inferenceResultsMap);
+                GetInferenceFieldsInternalAction.Response response = new GetInferenceFieldsInternalAction.Response(
+                    inferenceFieldsMap,
+                    inferenceResultsMap
+                );
                 l.onResponse(response);
             })
         );

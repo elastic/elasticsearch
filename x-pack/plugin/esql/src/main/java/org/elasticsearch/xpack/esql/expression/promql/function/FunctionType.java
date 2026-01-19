@@ -108,11 +108,19 @@ public enum FunctionType {
     HISTOGRAM(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
+     * Converts a scalar to a vector.
+     * <p>
+     * Input: Scalar
+     * <br>
+     * Output: Instant vector (single sample with no labels)
+     */
+    VECTOR(PromqlDataType.SCALAR, PromqlDataType.INSTANT_VECTOR),
+
+    /**
      * Special functions that don't fit standard patterns.
      * <p>
      * Examples:
      * <ul>
-     * <li>vector() - converts scalar to vector</li>
      * <li>scalar() - converts single-element vector to scalar</li>
      * <li>time() - current timestamp as scalar</li>
      * <li>pi() - mathematical constant</li>

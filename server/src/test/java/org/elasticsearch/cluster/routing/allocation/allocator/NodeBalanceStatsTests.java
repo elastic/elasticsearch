@@ -61,10 +61,7 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
     public void testSerializationWithTransportVersionNodeWeightsAddedToNodeBalanceStats() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
-            TransportVersion.current()
-        );
+        final var oldVersion = TransportVersionUtils.randomVersionSupporting(random(), NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS);
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
         // Assert the values are as expected

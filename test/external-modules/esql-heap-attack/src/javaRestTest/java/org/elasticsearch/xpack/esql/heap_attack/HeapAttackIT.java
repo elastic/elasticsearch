@@ -702,7 +702,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initIndex("manybigfields", bulk.toString());
     }
 
-    private void initGiantTextField(int docs, boolean includeId) throws IOException {
+    void initGiantTextField(int docs, boolean includeId) throws IOException {
         int docsPerBulk = isServerless() ? 3 : 10;
         logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
 

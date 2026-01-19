@@ -29,8 +29,7 @@ public final class HttpProxyTestContainer extends DockerEnvironmentAwareTestCont
         super(
             new PullOrBuildImage(
                 DOCKER_BASE_IMAGE,
-
-                new ImageFromDockerfile("es-http-proxy-fixture").withFileFromClasspath("Dockerfile", "/nginx/Dockerfile")
+                new ImageFromDockerfile("localhost/es-http-proxy-fixture").withFileFromClasspath("Dockerfile", "nginx/Dockerfile")
                     .withFileFromClasspath("nginx.conf", "/nginx/nginx.conf")
             )
         );

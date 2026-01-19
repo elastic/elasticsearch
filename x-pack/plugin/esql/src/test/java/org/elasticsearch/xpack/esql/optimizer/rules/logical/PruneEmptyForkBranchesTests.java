@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -89,6 +90,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testOneEmptySubquery() {
+        checkSubquerySupport();
         var plan = plan("""
             FROM (FROM test | EVAL x = 1),
                  (FROM test | WHERE false)
@@ -108,6 +110,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
     }
 
     public void testAllEmptySubqueries() {
+        checkSubquerySupport();
         var plan = plan("""
             FROM (FROM test | KEEP salary | EVAL x = 1 | WHERE CONTAINS(CONCAT("something", "else"), "nothing")),
                  (FROM test | KEEP salary | WHERE false)
@@ -119,5 +122,13 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
 
         var attributeNames = localRelation.output().stream().map(NamedExpression::name).toList();
         assertEquals(List.of("salary", "x"), attributeNames);
+    }
+
+    private void checkSubquerySupport() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
     }
 }

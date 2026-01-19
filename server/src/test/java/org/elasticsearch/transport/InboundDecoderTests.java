@@ -175,7 +175,7 @@ public class InboundDecoderTests extends ESTestCase {
         final var isHandshake = randomBoolean();
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         logger.info("--> version = {}", version);
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
@@ -224,7 +224,7 @@ public class InboundDecoderTests extends ESTestCase {
         final var isHandshake = randomBoolean();
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
@@ -367,7 +367,7 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testCheckVersionCompatibility() {
         try {
-            InboundDecoder.checkVersionCompatibility(TransportVersionUtils.randomCompatibleVersion(random()));
+            InboundDecoder.checkVersionCompatibility(TransportVersionUtils.randomCompatibleVersion());
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }

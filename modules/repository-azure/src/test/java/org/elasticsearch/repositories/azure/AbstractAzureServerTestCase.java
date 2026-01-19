@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -44,8 +45,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.Base64;
-import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -104,21 +106,13 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     }
 
     protected BlobContainer createBlobContainer(final int maxRetries) {
-        return createBlobContainer(maxRetries, null, LocationMode.PRIMARY_ONLY);
-    }
-
-    protected BlobContainer createBlobContainer(final int maxRetries, String secondaryHost, final LocationMode locationMode) {
-        final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
-        secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
-
-        return createBlobContainer(maxRetries, secondaryHost, locationMode, clientName, secureSettings);
+        return builder().withMaxRetries(maxRetries).build();
     }
 
     protected BlobContainer createBlobContainer(
         final int maxRetries,
+        final TimeValue tryTimeout,
+        @Nullable final TimeValue readTimeout,
         String secondaryHost,
         final LocationMode locationMode,
         String clientName,
@@ -132,7 +126,10 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         }
         clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
-        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(500));
+        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), tryTimeout);
+        if (readTimeout != null) {
+            clientSettings.put(AzureStorageSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
+        }
 
         clientSettings.setSecureSettings(secureSettings);
         clientSettings.put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, serverlessMode);
@@ -145,13 +142,14 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         ) {
             @Override
             RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
+                RequestRetryOptions retryOptions = super.getRetryOptions(locationMode, azureStorageSettings);
                 return new RequestRetryOptions(
                     RetryPolicyType.EXPONENTIAL,
-                    maxRetries + 1,
-                    60,
-                    50L,
-                    100L,
-                    // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain
+                    retryOptions.getMaxTries(),
+                    retryOptions.getTryTimeoutDuration(),
+                    Duration.ofMillis(50),
+                    Duration.ofMillis(100L),
+                    // The SDK doesn't work well with ip endpoints. Secondary host endpoints that contain
                     // a path causes the sdk to rewrite the endpoint with an invalid path, that's the reason why we provide just the host +
                     // port.
                     secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
@@ -232,6 +230,70 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             assertThat(totalBytesRead, equalTo(bytesToRead));
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    protected BlobContainerBuilder builder() {
+        return new BlobContainerBuilder();
+    }
+
+    protected class BlobContainerBuilder {
+        private int maxRetries = 5;
+        private TimeValue tryTimeout = TimeValue.timeValueSeconds(60);
+        @Nullable
+        private TimeValue readTimeout;
+        @Nullable
+        private String secondaryHost;
+        private LocationMode locationMode = LocationMode.PRIMARY_ONLY;
+        private String clientName = randomIdentifier();
+        @Nullable
+        private SecureSettings secureSettings;
+
+        public BlobContainerBuilder withClientName(String clientName) {
+            this.clientName = Objects.requireNonNull(clientName);
+            return this;
+        }
+
+        public BlobContainerBuilder withMaxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+            return this;
+        }
+
+        public BlobContainerBuilder withTryTimeout(TimeValue tryTimeout) {
+            this.tryTimeout = Objects.requireNonNull(tryTimeout);
+            return this;
+        }
+
+        public BlobContainerBuilder withReadTimeout(TimeValue readTimeout) {
+            this.readTimeout = readTimeout;
+            return this;
+        }
+
+        public BlobContainerBuilder withSecondaryHost(String secondaryHost) {
+            this.secondaryHost = secondaryHost;
+            return this;
+        }
+
+        public BlobContainerBuilder withLocationMode(LocationMode locationMode) {
+            this.locationMode = Objects.requireNonNull(locationMode);
+            return this;
+        }
+
+        public BlobContainerBuilder withSecureSettings(SecureSettings secureSettings) {
+            this.secureSettings = secureSettings;
+            return this;
+        }
+
+        public BlobContainer build() {
+            if (secureSettings == null) {
+                final MockSecureSettings secureSettings = new MockSecureSettings();
+                secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
+                final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
+                secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
+                this.secureSettings = secureSettings;
+            }
+
+            return createBlobContainer(maxRetries, tryTimeout, readTimeout, secondaryHost, locationMode, clientName, secureSettings);
         }
     }
 }

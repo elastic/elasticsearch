@@ -77,7 +77,10 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
             }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, LocationMode.PRIMARY_ONLY, clientName, secureSettings);
+        final BlobContainer blobContainer = builder().withMaxRetries(maxRetries)
+            .withClientName(clientName)
+            .withSecureSettings(secureSettings)
+            .build();
         try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "sas_test")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }

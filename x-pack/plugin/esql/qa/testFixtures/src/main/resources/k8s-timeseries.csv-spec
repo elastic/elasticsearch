@@ -139,7 +139,7 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 required_capability: rate_with_interpolation_v2
 
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
@@ -163,7 +163,7 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
@@ -752,7 +752,7 @@ maxRate:double | tbucket:datetime
 ;
 
 instant_selector_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
@@ -817,6 +817,26 @@ count:long | _timeseries:keyword                                                
 29         | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
 ;
 
+bare_count_over_time_with_tbucket_outputs_dimensions_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
+| SORT count DESC
+;
+ignoreOrder:true
+
+count:double | step:datetime            | _timeseries:keyword
+13.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+16.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+20.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+22.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+23.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
 bare_metric_with_tbucket_outputs_dimensions
 required_capability: ts_command_v0
 required_capability: metrics_group_by_all  
@@ -841,24 +861,23 @@ network.cost:double | _timeseries:keyword                                       
 10.875              | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
 ;
 
-bare_count_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
-
-PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
-| SORT count DESC
+bare_metric_with_tbucket_outputs_dimensions_promql
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h network.cost
+| SORT network.cost DESC
 ;
 ignoreOrder:true
 
-count:double | step:datetime            | _timeseries:keyword
-13.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-16.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-20.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-22.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-23.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
-24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
-29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+network.cost:double | step:datetime            | _timeseries:keyword
+0.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625               | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+7.875               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375               | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9.5                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875              | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
 ;
 
 bare_avg_over_time_outputs_dimensions
@@ -908,7 +927,7 @@ avg:double         | _timeseries:keyword                                        
 ;
 
 bare_avg_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1h avg=(avg_over_time(network.cost[1h]))
 | SORT avg DESC
@@ -974,7 +993,7 @@ sum:double | _timeseries:keyword                                                
 ;
 
 bare_sum_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1h sum=(sum_over_time(network.cost[1h]))
 | SORT sum DESC
@@ -1019,7 +1038,7 @@ _timeseries:keyword                                                   | tbucket:
 ;
 
 bare_rate_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
 | EVAL rate=ROUND(rate, 3)
@@ -1197,7 +1216,7 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 ;
 
 derivative_of_gauge_metric_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=5m max_deriv=(max by (pod) (deriv(network.cost{pod="three"}[5m])))
 | SORT step

@@ -637,7 +637,8 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     @Override
     protected Class<? extends Exception> unresponsiveExceptionType() {
-        return Exception.class;
+        // Actually a reactor.core.Exceptions.ReactiveException which is not visible, but extends RuntimeException
+        return RuntimeException.class;
     }
 
     @Override

@@ -80,12 +80,17 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 Iterator<Centroid> centroids = tDigestState.uniqueCentroids();
-                final List<Double> values = new ArrayList<>();
-                final List<Long> counts = new ArrayList<>();
+                List<Centroid> sortedCentroids = new ArrayList<>(tDigestState.centroidCount());
                 while (centroids.hasNext()) {
-                    Centroid centroid = centroids.next();
-                    values.add(centroid.mean());
-                    counts.add(centroid.count());
+                    sortedCentroids.add(centroids.next());
+                }
+                sortedCentroids.sort(Centroid::compareTo);
+                double[] values = new double[sortedCentroids.size()];
+                long[] counts = new long[sortedCentroids.size()];
+                for (int i = 0; i < sortedCentroids.size(); i++) {
+                    Centroid centroid = sortedCentroids.get(i);
+                    values[i] = centroid.mean();
+                    counts[i] = centroid.count();
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
                 tDigestState.close();

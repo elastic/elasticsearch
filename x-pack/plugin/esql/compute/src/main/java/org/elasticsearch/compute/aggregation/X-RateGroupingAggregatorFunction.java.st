@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -84,6 +86,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     private ObjectArray<Buffer> buffers;
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private final LocalCircuitBreaker.SingletonService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
@@ -102,16 +105,25 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.bigArrays = driverContext.bigArrays();
         this.isRateOverTime = isRateOverTime;
-        ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
+        LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
+            driverContext.bigArrays().breakerService(),
+            ByteSizeValue.ofKb(8).getBytes(),
+            ByteSizeValue.ofKb(512).getBytes()
+        );
+        this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        ObjectArray<Buffer> buffers = null;
         try {
-            this.reducedStates = driverContext.bigArrays().newObjectArray(256);
+            buffers = bigArrays.newObjectArray(256);
+            this.reducedStates = bigArrays.newObjectArray(256);
+
             this.buffers = buffers;
+            this.localCircuitBreakerService = localCircuitBreakerService;
             buffers = null;
+            localCircuitBreakerService = null;
         } finally {
-            Releasables.close(buffers);
+            Releasables.close(buffers, localCircuitBreakerService);
         }
     }
 
@@ -400,7 +412,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 buffer.close();
             }
         }
-        Releasables.close(reducedStates, buffers);
+        Releasables.close(reducedStates, buffers, localCircuitBreakerService);
     }
 
     private Buffer getBuffer(int groupId, int newElements, long firstTimestamp) {
@@ -608,7 +620,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         int positionCount = selected.getPositionCount();
         try (
             var rates = blockFactory.newDoubleBlockBuilder(positionCount);
-            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, driverContext.bigArrays())
+            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, bigArrays)
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);

@@ -452,7 +452,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final String segmentSuffix = state.segmentSuffix;
             final IOContext context = state.context;
 
-            final List<Closeable> toClose = new ArrayList<>();
+            IndexInput bloomFilterData = null;
             boolean success = false;
             try (var metaInput = directory.openChecksumInput(bloomFilterMetadataFileName(si, segmentSuffix))) {
                 var metadataVersion = CodecUtil.checkIndexHeader(
@@ -466,8 +466,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 BloomFilterMetadata bloomFilterMetadata = BloomFilterMetadata.readFrom(metaInput);
                 CodecUtil.checkFooter(metaInput);
 
-                IndexInput bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), context);
-                toClose.add(bloomFilterData);
+                bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), context);
                 var bloomFilterDataVersion = CodecUtil.checkIndexHeader(
                     bloomFilterData,
                     FORMAT_NAME,
@@ -490,7 +489,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 success = true;
             } finally {
                 if (success == false) {
-                    IOUtils.closeWhileHandlingException(toClose);
+                    IOUtils.closeWhileHandlingException(bloomFilterData);
                 }
             }
         }

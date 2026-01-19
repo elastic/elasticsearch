@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -424,11 +423,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK,
-                        TransportVersion.current()
-                    )
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
@@ -490,11 +485,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK,
-                        TransportVersion.current()
-                    )
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock, equalTo(origBlock));

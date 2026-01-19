@@ -137,8 +137,8 @@ public class RepositoryPerformanceSummary implements Writeable, ToXContentFragme
             );
         }
 
-        public void add(BlobAnalyzeAction.Response response) {
-            writeCount.add(1L);
+        public void add(BlobAnalyzeAction.Request request, BlobAnalyzeAction.Response response) {
+            writeCount.add(request.getCopyBlobName() == null ? 1L : 2L);
             writeBytes.add(response.getWriteBytes());
             writeThrottledNanos.add(response.getWriteThrottledNanos());
             writeElapsedNanos.add(response.getWriteElapsedNanos());

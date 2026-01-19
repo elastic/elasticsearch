@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -286,33 +285,37 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
     ) {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
+
         if (firstValueCount == 0 || secondValueCount == 0) {
-            // if either block has no values, there will be no intersection
+            // If either block has no values, there will be no intersection
             builder.appendNull();
             return;
         }
 
+        // Extract values from first field into OperationalSet (preserves order)
+        MvSetOperationHelper.OperationalSet<T> firstSet = new MvSetOperationHelper.OperationalSet<>();
         int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        Set<T> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
-            values.add(getValueFunction.apply(firstValueIndex + i, field1));
+            firstSet.add(getValueFunction.apply(firstValueIndex + i, field1));
         }
 
-        Set<T> secondValues = new HashSet<>();
+        // Extract values from second field (HashSet - order doesn't matter for lookup)
+        Set<T> secondSet = new HashSet<>();
+        int secondValueIndex = field2.getFirstValueIndex(position);
         for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(getValueFunction.apply(secondValueIndex + i, field2));
+            secondSet.add(getValueFunction.apply(secondValueIndex + i, field2));
         }
 
-        values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        // Compute intersection in-place
+        Set<T> result = firstSet.intersect(secondSet);
+
+        if (result.isEmpty()) {
             builder.appendNull();
             return;
         }
 
         builder.beginPositionEntry();
-        for (T value : values) {
+        for (T value : result) {
             addValueFunction.accept(value);
         }
         builder.endPositionEntry();

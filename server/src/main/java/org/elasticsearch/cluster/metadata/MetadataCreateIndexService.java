@@ -230,6 +230,9 @@ public class MetadataCreateIndexService {
         if (projectMetadata.hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
         }
+        if (projectMetadata.hasView(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL view");
+        }
     }
 
     /**
@@ -1797,6 +1800,12 @@ public class MetadataCreateIndexService {
     ) {
         if (projectMetadata.hasIndex(targetIndexName)) {
             throw new ResourceAlreadyExistsException(projectMetadata.index(targetIndexName).getIndex());
+        }
+        if (projectMetadata.hasView(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL view already exists with that name",
+                targetIndexName
+            );
         }
         final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {

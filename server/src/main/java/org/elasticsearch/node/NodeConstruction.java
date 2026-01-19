@@ -113,8 +113,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -872,64 +872,20 @@ class NodeConstruction {
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
         SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-            public SlowLogFields create() {
+            public SlowLogFields create(SlowLogContext context) {
                 final List<SlowLogFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
-                    fields.add(provider.create());
+                    fields.add(provider.create(context));
                 }
-                return new SlowLogFields() {
+                return new SlowLogFields(context) {
                     @Override
-                    public Map<String, String> indexFields() {
+                    public Map<String, String> logFields() {
                         return fields.stream()
-                            .flatMap(f -> f.indexFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.searchFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> queryFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.queryFields().entrySet().stream())
+                            .flatMap(f -> f.logFields().entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     }
                 };
             }
-
-            public SlowLogFields create(IndexSettings indexSettings) {
-                final List<SlowLogFields> fields = new ArrayList<>();
-                for (var provider : slowLogFieldProviders) {
-                    fields.add(provider.create(indexSettings));
-                }
-                return new SlowLogFields() {
-                    @Override
-                    public Map<String, String> indexFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.indexFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.searchFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> queryFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.queryFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-                };
-            }
-
         };
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -1285,7 +1241,7 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
-        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
+        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 

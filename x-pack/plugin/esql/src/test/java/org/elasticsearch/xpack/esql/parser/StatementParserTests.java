@@ -13,12 +13,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -29,7 +31,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -67,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -84,6 +90,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -112,6 +119,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -296,7 +304,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Eval(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                List.of(new Alias(EMPTY, "b", attribute("a")), new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1))))
+                List.of(
+                    new Alias(EMPTY, "b", attribute("a")),
+                    new Alias(EMPTY, "c", new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                )
             ),
             processingCommand("eval b = a, c = a + 1")
         );
@@ -316,7 +327,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(
                         EMPTY,
                         "fn(a + 1)",
-                        new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "fn",
+                            DEFAULT,
+                            List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
+                        )
                     )
                 )
             ),
@@ -1247,10 +1263,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldMultipleDeclarations() {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
-    }
-
-    public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test metadata _tier", "line 1:20: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
@@ -2547,7 +2559,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2560,7 +2573,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
         );
         assertQuery(
@@ -2583,7 +2597,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     ),
                     attribute("ts")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
             )
         );
         assertQuery(
@@ -2593,7 +2608,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
             )
         );
         assertQuery(
@@ -2603,7 +2619,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2613,7 +2630,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
         );
         assertQuery(
@@ -2623,7 +2641,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
             )
         );
         assertQuery(
@@ -2637,7 +2656,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("c"),
                     attribute("d.e")
                 ),
-                null
+                null,
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
             )
         );
     }
@@ -4304,6 +4324,153 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     }
 
+    public void testMMRCommandWithLimitOnly() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr dense_embedding limit 10");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+        assertNull(mmrCmd.queryVector());
+        verifyMMRLambdaValue(mmrCmd, null);
+    }
+
+    public void testMMRCommandWithLimitAndLambda() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        assertNull(mmrCmd.queryVector());
+    }
+
+    public void testMMRCommandWithConstantQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
+    }
+
+    public void testMMRCommandWithFieldQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var mmrCmd = as(
+            parser.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            MMR.class
+        );
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
+    }
+
+    public void testMMRCommandWithTextEmbeddingQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var mmrCmd = as(
+            processingCommand(
+                "mmr TEXT_EMBEDDING(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
+            ),
+            MMR.class
+        );
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
+            assertThat(uaFunctioon.name(), equalTo("TEXT_EMBEDDING"));
+            assertThat(uaFunctioon.source().text(), equalTo("TEXT_EMBEDDING(\"test text\", \"test_inference_id\")"));
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
+    }
+
+    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
+        if (value == null) {
+            assertNull(mmrCmd.options());
+            return;
+        }
+
+        assertTrue(mmrCmd.options() instanceof MapExpression);
+        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
+    }
+
+    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
+        if (options == null) {
+            return null;
+        }
+
+        Map<String, Expression> optionsMap = options.keyFoldedMap();
+
+        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
+        assertNotNull(lambdaValueExpression);
+        Literal litLambdaValue = (Literal) lambdaValueExpression;
+        assertNotNull(litLambdaValue);
+        assertEquals(DOUBLE, litLambdaValue.dataType());
+        return (Double) litLambdaValue.value();
+    }
+
+    public void testInvalidMMRCommands() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        expectError("row a = 1 | mmr some_field", "line 1:27: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
+        expectError("row a = 1 | mmr some_field limit", "line 1:33: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError(
+            "row a = 1 | mmr some_field limit 5 {\"unknown\": true}",
+            "line 1:36: mismatched input '{' expecting {<EOF>, '|', 'with'}"
+        );
+    }
+
     public void testInvalidSample() {
         expectError(
             "row a = 1 | sample \"foo\"",
@@ -4322,4 +4489,5 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
         );
     }
+
 }

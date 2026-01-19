@@ -23,6 +23,25 @@ null               | 2024-05-10T00:01:00.000Z
 
 ;
 
+delta_of_double_no_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m cost_change=(sum(delta(network.cost[1m])))
+| SORT cost_change DESC, step DESC | LIMIT 10;
+
+cost_change:double | step:datetime
+null               | 2024-05-10T00:01:00.000Z
+22.5701486013986   | 2024-05-10T00:20:00.000Z
+13.259615384615385 | 2024-05-10T00:13:00.000Z
+11.486895161290322 | 2024-05-10T00:12:00.000Z
+11.066666666666666 | 2024-05-10T00:21:00.000Z
+11.0625            | 2024-05-10T00:22:00.000Z
+9.222489316239315  | 2024-05-10T00:09:00.000Z
+6.991071428571427  | 2024-05-10T00:15:00.000Z
+5.833333333333333  | 2024-05-10T00:10:00.000Z
+5.03125            | 2024-05-10T00:00:00.000Z
+;
+
 delta_of_integer
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
@@ -42,6 +61,25 @@ null                | 2024-05-10T00:01:00.000Z
 
 ;
 
+delta_of_integer_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m clients=(avg(delta(network.eth0.currently_connected_clients[1m])))
+| SORT step | LIMIT 10;
+
+clients:double      | step:datetime
+-520.0              | 2024-05-10T00:00:00.000Z
+null                | 2024-05-10T00:01:00.000Z
+-248.5              | 2024-05-10T00:02:00.000Z
+-179.0              | 2024-05-10T00:03:00.000Z
+289.0               | 2024-05-10T00:04:00.000Z
+-436.0              | 2024-05-10T00:05:00.000Z
+117.25              | 2024-05-10T00:06:00.000Z
+-214.0              | 2024-05-10T00:07:00.000Z
+-80.66666666666667  | 2024-05-10T00:08:00.000Z
+-46.714285714285715 | 2024-05-10T00:09:00.000Z
+;
+
 delta_of_integer_grouping
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
@@ -59,6 +97,25 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 93.0           | qa              | 2024-05-10T00:03:00.000Z
 -315.0         | staging         | 2024-05-10T00:03:00.000Z
 
+;
+
+delta_of_integer_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m clients=(avg by (cluster) (delta(network.eth0.currently_connected_clients[1m])))
+| SORT step, cluster | LIMIT 10;
+
+clients:double | step:datetime            | cluster:keyword
+-520.0         | 2024-05-10T00:00:00.000Z | prod
+null           | 2024-05-10T00:00:00.000Z | staging
+null           | 2024-05-10T00:01:00.000Z | prod
+null           | 2024-05-10T00:01:00.000Z | qa
+-54.0          | 2024-05-10T00:02:00.000Z | prod
+null           | 2024-05-10T00:02:00.000Z | qa
+-443.0         | 2024-05-10T00:02:00.000Z | staging
+null           | 2024-05-10T00:03:00.000Z | prod
+93.0           | 2024-05-10T00:03:00.000Z | qa
+-315.0         | 2024-05-10T00:03:00.000Z | staging
 ;
 
 delta_with_filtering
@@ -83,6 +140,24 @@ tx:double | cluster:keyword | time_bucket:datetime
 -22.0     | prod            | 2024-05-10T00:20:00.000Z
 -711.0    | qa              | 2024-05-10T00:20:00.000Z
 -511.0    | staging         | 2024-05-10T00:20:00.000Z
+;
+
+delta_with_filtering_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m tx=(sum by (cluster) (delta(network.bytes_in{pod="one"}[10m])))
+| SORT step, cluster | LIMIT 10;
+
+tx:double | step:datetime            | cluster:keyword
+-351.0    | 2024-05-10T00:00:00.000Z | prod
+552.0     | 2024-05-10T00:00:00.000Z | qa
+127.0     | 2024-05-10T00:00:00.000Z | staging
+280.0     | 2024-05-10T00:10:00.000Z | prod
+73.0      | 2024-05-10T00:10:00.000Z | qa
+-600.0    | 2024-05-10T00:10:00.000Z | staging
+-22.0     | 2024-05-10T00:20:00.000Z | prod
+-711.0    | 2024-05-10T00:20:00.000Z | qa
+-511.0    | 2024-05-10T00:20:00.000Z | staging
 ;
 
 delta_with_inline_filtering
@@ -119,6 +194,25 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 56.0                | prod            | 2024-05-10T00:20:00.000Z | -0.044
 -367.0              | qa              | 2024-05-10T00:20:00.000Z | -0.467
 -505.0              | staging         | 2024-05-10T00:20:00.000Z | -0.605
+;
+
+eval_on_delta_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (delta(network.bytes_in[10m])))
+| EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
+| SORT step, cluster | LIMIT 10;
+
+avg_bytes:double    | step:datetime            | cluster:keyword | kb_minus_offset:double
+-199.66666666666666 | 2024-05-10T00:00:00.000Z | prod            | -0.29966666666666664
+-68.33333333333333  | 2024-05-10T00:00:00.000Z | qa              | -0.1683333333333333
+-26.666666666666668 | 2024-05-10T00:00:00.000Z | staging         | -0.12666666666666668
+140.33333333333334  | 2024-05-10T00:10:00.000Z | prod            | 0.040333333333333346
+322.3333333333333   | 2024-05-10T00:10:00.000Z | qa              | 0.22233333333333333
+196.33333333333334  | 2024-05-10T00:10:00.000Z | staging         | 0.09633333333333334
+56.0                | 2024-05-10T00:20:00.000Z | prod            | -0.044
+-367.0              | 2024-05-10T00:20:00.000Z | qa              | -0.467
+-505.0              | 2024-05-10T00:20:00.000Z | staging         | -0.605
 ;
 
 delta_multi_values
@@ -176,4 +270,22 @@ events:double | pod:keyword | time_bucket:datetime
 -4.0          | three       | 2024-05-10T00:00:00.000Z
 -4.0          | two         | 2024-05-10T00:00:00.000Z
 
+;
+
+delta_all_value_types_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m events=(sum by (pod) (delta(events_received[10m])))
+| SORT events DESC, pod, step | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+18.0          | 2024-05-10T00:10:00.000Z | three
+7.0           | 2024-05-10T00:00:00.000Z | one
+2.0           | 2024-05-10T00:10:00.000Z | two
+0.0           | 2024-05-10T00:10:00.000Z | one
+-1.0          | 2024-05-10T00:20:00.000Z | three
+-1.0          | 2024-05-10T00:20:00.000Z | two
+-4.0          | 2024-05-10T00:20:00.000Z | one
+-4.0          | 2024-05-10T00:00:00.000Z | three
+-4.0          | 2024-05-10T00:00:00.000Z | two
 ;

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshot
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -67,6 +67,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,6 +89,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -751,15 +753,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Tests writing multiple blobs to ShardBlobToDelete when it has a variable sized stream.
-     * Initially, if there is capacity, we write N blobs to ShardBlobToDelete. We expect each of them to be compressed
-     *  and written to the underlying stream.
-     * Once capacity is reached, we write M subsequent blobs, but expect that they will not be written to the
-     *  underlying stream.
+     * Tests writing to a {@link BlobStoreRepository.BlobsToDelete} until the configured capacity is exhausted.
+     * While there is capacity, the blobs-to-delete are compressed and written to the underlying stream.
+     * Once capacity is reached, we continue to write blobs, expecting that they will not be written to the underlying stream.
      * When we read from the stream, we expect only the successful writes to be returned
      */
     @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
-    public void testWriteToShardBlobToDelete() {
+    public void testBlobsToDeleteCapacity() {
         int heapMemory = randomIntBetween(0, 20000);
         int leakedBlobCount = 0;
 
@@ -772,59 +772,59 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .get();
 
         final var repo = setupRepo();
-        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
+        try (var blobsToDelete = repo.new BlobsToDelete()) {
             try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
                 final var expectedShardGenerations = ShardGenerations.builder();
                 final var expectedBlobsToDelete = new HashSet<String>();
-                CountDownLatch countDownLatch;
                 int blobCount = 0;
 
                 // Write while there is capacity, and then bound the number of leaked blobs
                 while (leakedBlobCount < 100) {
-                    // Generate the next blob to write
+                    // Generate the next entry to write
                     final var indexId = new IndexId(randomIdentifier(), randomUUID());
-                    final var shardId = between(1, 30);
-                    final var shardGeneration = new ShardGeneration(randomUUID());
-                    // Always write at least one blob, guaranteeing that the shardDeleteResults stream increases in size
-                    final var blobsToDelete = randomList(
-                        1,
-                        100,
-                        () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
-                            "",
-                            METADATA_BLOB_NAME_SUFFIX
-                        )
-                    );
 
-                    expectedShardGenerations.put(indexId, shardId, shardGeneration);
-                    final var indexPath = repo.basePath()
-                        .add("indices")
-                        .add(indexId.getId())
-                        .add(Integer.toString(shardId))
-                        .buildAsString();
-
-                    countDownLatch = new CountDownLatch(1);
-                    try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                        repo.threadPool()
-                            .generic()
-                            .execute(
-                                ActionRunnable.run(
-                                    refs.acquireListener(),
-                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
-                                )
-                            );
+                    final List<String> blobNames;
+                    final CheckedRunnable<Exception> addResult; // never an empty write, so the test always completes
+                    final UnaryOperator<String> blobNameOperator;
+                    // randomly choose between shard-level and index-level records
+                    if (randomBoolean()) {
+                        final var shardId = between(0, 10);
+                        final var shardGeneration = new ShardGeneration(randomUUID());
+                        expectedShardGenerations.put(indexId, shardId, shardGeneration);
+                        blobNames = randomList(
+                            1,
+                            100,
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
+                        );
+                        addResult = () -> blobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobNames);
+                        final var shardPath = repo.basePath()
+                            .add("indices")
+                            .add(indexId.getId())
+                            .add(Integer.toString(shardId))
+                            .buildAsString();
+                        blobNameOperator = blobName -> shardPath + blobName;
+                    } else {
+                        blobNames = randomList(1, 100, ESTestCase::randomUUID);
+                        addResult = () -> blobsToDelete.addIndexDeleteResult(indexId, blobNames);
+                        final var indexPath = repo.basePath().add("indices").add(indexId.getId()).buildAsString();
+                        blobNameOperator = blobName -> indexPath + "meta-" + blobName + ".dat";
                     }
-                    safeAwait(countDownLatch);
+
+                    safeAwait(l -> repo.threadPool().generic().execute(ActionRunnable.run(l, addResult)));
 
                     // The entire blob was written to memory, so we expect to see it returned
-                    if (shardBlobsToDelete.sizeInBytes() < heapMemory && heapMemory != 0) {
-                        for (final var blobToDelete : blobsToDelete) {
-                            expectedBlobsToDelete.add(indexPath + blobToDelete);
+                    if (blobsToDelete.sizeInBytes() < heapMemory && heapMemory != 0) {
+                        for (final var blobToDelete : blobNames) {
+                            expectedBlobsToDelete.add(blobNameOperator.apply(blobToDelete));
                         }
-                        blobCount += blobsToDelete.size();
+                        blobCount += blobNames.size();
                     }
                     // We've overflowed the stream with our latest write, and expect to see a WARN log
                     else {
-                        leakedBlobCount += blobsToDelete.size();
+                        leakedBlobCount += blobNames.size();
                     }
                 }
 
@@ -843,10 +843,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     )
                 );
 
-                assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+                assertEquals(expectedShardGenerations.build(), blobsToDelete.getUpdatedShardGenerations());
+                blobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(s, expectedBlobsToDelete.remove(s)));
                 assertThat(expectedBlobsToDelete, empty());
-                assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
+                assertThat(blobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
 
                 mockLog.assertAllExpectationsMatched();
             }

@@ -16,6 +16,8 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED;
+
 /**
  * Defines the type of embedding that the Jina AI API should return for a request.
  *
@@ -47,10 +49,6 @@ public enum JinaAIEmbeddingType {
     );
     static final EnumSet<DenseVectorFieldMapper.ElementType> SUPPORTED_ELEMENT_TYPES = EnumSet.copyOf(
         ELEMENT_TYPE_TO_JINA_AI_EMBEDDING.keySet()
-    );
-
-    private static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
-        "jina_ai_embedding_type_support_added"
     );
 
     private final DenseVectorFieldMapper.ElementType elementType;

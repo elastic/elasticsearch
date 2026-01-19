@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
@@ -52,7 +59,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
 
@@ -62,12 +71,52 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testStringToDateNanos() {
+    public void testStringToDatetimeUtc() {
+        Configuration utcConfig = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        assertEquals(
+            Instant.parse("2023-01-01T00:00:00.000Z").toEpochMilli(),
+            EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000", DATETIME, utcConfig)
+        );
+        assertEquals(
+            Instant.parse("2023-01-01T00:00:00.000Z").toEpochMilli(),
+            EsqlDataTypeConverter.convert("2023-01-01", DATETIME, utcConfig)
+        );
+    }
+
+    public void testStringToDatetimeCetCest() {
+        Configuration cetCestConfig = randomConfigurationBuilder().zoneId(ZoneId.of("Europe/Rome")).build();
+        assertEquals(
+            Instant.parse("2023-01-01T00:00:00.000Z").toEpochMilli(),
+            EsqlDataTypeConverter.convert("2023-01-01T01:00:00.000", DATETIME, cetCestConfig)
+        );
+        assertEquals(
+            Instant.parse("2023-05-01T22:00:00.000Z").toEpochMilli(),
+            EsqlDataTypeConverter.convert("2023-05-02", DATETIME, cetCestConfig)
+        );
+    }
+
+    public void testStringToDateNanosUtc() {
+        Configuration utcConfig = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
         assertEquals(
             DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
-            EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000000000", DATE_NANOS)
+            EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000000000", DATE_NANOS, utcConfig)
         );
-        assertEquals(DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")), EsqlDataTypeConverter.convert("2023-01-01", DATE_NANOS));
+        assertEquals(
+            DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
+            EsqlDataTypeConverter.convert("2023-01-01", DATE_NANOS, utcConfig)
+        );
+    }
+
+    public void testStringToDateNanosCetCest() {
+        Configuration cetCestConfig = randomConfigurationBuilder().zoneId(ZoneId.of("Europe/Rome")).build();
+        assertEquals(
+            DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
+            EsqlDataTypeConverter.convert("2023-01-01T01:00:00.000000000", DATE_NANOS, cetCestConfig)
+        );
+        assertEquals(
+            DateUtils.toLong(Instant.parse("2023-05-01T22:00:00.000Z")),
+            EsqlDataTypeConverter.convert("2023-05-02", DATE_NANOS, cetCestConfig)
+        );
     }
 
     public void testCommonTypeNull() {
@@ -178,6 +227,18 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
                     assertNullCommonType(dataType1, dataType2);
                 }
             }
+        }
+    }
+
+    public void testConfigurationConvertersAreConfigurationAware() {
+        var configuration = randomConfiguration();
+        var field = FieldAttributeTests.createFieldAttribute(0, false);
+
+        for (var converterFactory : EsqlDataTypeConverter.TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.values()) {
+            var converter = converterFactory.apply(TEST_SOURCE, field, configuration);
+            assertThat(converter, instanceOf(ConfigurationAware.class));
+            var configurationAware = (ConfigurationAware) converter;
+            assertSame(configuration, configurationAware.configuration());
         }
     }
 

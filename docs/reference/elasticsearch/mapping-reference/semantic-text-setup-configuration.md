@@ -111,7 +111,7 @@ PUT my-index-000001
 ### Use ELSER on EIS [using-elser-on-eis]
 
 ```{applies_to}
-stack: preview 9.1, ga 9.2
+stack: preview =9.1, ga 9.2+
 deployment:
   self: unavailable
 serverless: ga

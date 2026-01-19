@@ -38,7 +38,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        return (indexSettings, options, similarity, elementType) -> {
+        return (indexSettings, options, similarity, elementType, mergingExecutorService, maxMergingWorkers) -> {
             if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
                     && DISK_BBQ_FEATURE.check(getLicenseState()) == false) {
@@ -52,14 +52,18 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         clusterSize,
                         ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
-                        onDiskRescore
+                        onDiskRescore,
+                        mergingExecutorService,
+                        maxMergingWorkers
                     );
                 }
                 return new ES920DiskBBQVectorsFormat(
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore
+                    onDiskRescore,
+                    mergingExecutorService,
+                    maxMergingWorkers
                 );
             }
             return null;

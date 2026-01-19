@@ -18,13 +18,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
-import java.time.ZonedDateTime;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -35,10 +37,12 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
 
+    private final Configuration configuration;
+
     @FunctionInfo(
         operator = "+",
         returnType = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" },
-        description = "Add two numbers together. " + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
+        description = "Add two numbers together. If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
     )
     public Add(
         Source source,
@@ -51,7 +55,8 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             name = "rhs",
             description = "A numeric value or a date time value.",
             type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
-        ) Expression right
+        ) Expression right,
+        Configuration configuration
     ) {
         super(
             source,
@@ -65,6 +70,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
+        this.configuration = configuration;
     }
 
     private Add(StreamInput in) throws IOException {
@@ -78,6 +84,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
+        this.configuration = ((PlanStreamInput) in).configuration();
     }
 
     @Override
@@ -87,22 +94,22 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     protected NodeInfo<Add> info() {
-        return NodeInfo.create(this, Add::new, left(), right());
+        return NodeInfo.create(this, Add::new, left(), right(), configuration);
     }
 
     @Override
     protected Add replaceChildren(Expression left, Expression right) {
-        return new Add(source(), left, right);
+        return new Add(source(), left, right, configuration);
     }
 
     @Override
     public Add swapLeftAndRight() {
-        return new Add(source(), right(), left());
+        return new Add(source(), right(), left(), configuration);
     }
 
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
-        return Sub::new;
+        return (source, left, right) -> new Sub(source, left, right, configuration);
     }
 
     @Override
@@ -131,21 +138,16 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
+    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
-        return asMillis(asDateTime(datetime).plus(temporalAmount));
+        return asMillis(asDateTime(datetime, zoneId).plus(temporalAmount));
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount) {
+    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
         try {
-            return DateUtils.toLong(
-                Instant.from(
-                    ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
-                        .plus(temporalAmount)
-                )
-            );
+            return DateUtils.toLong(Instant.from(asDateTime(DateUtils.toInstant(dateNanos), zoneId).plus(temporalAmount)));
         } catch (IllegalArgumentException e) {
             /*
              toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want
@@ -163,5 +165,15 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     public Duration fold(Duration left, Duration right) {
         return left.plus(right);
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public Add withConfiguration(Configuration configuration) {
+        return new Add(source(), left(), right(), configuration);
     }
 }

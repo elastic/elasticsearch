@@ -26,6 +26,7 @@ public class AnalyzerContext {
     private final InferenceResolution inferenceResolution;
     private final TransportVersion minimumVersion;
     private Boolean hasRemoteIndices;
+    private final UnmappedResolution unmappedResolution;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -34,7 +35,8 @@ public class AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -43,6 +45,7 @@ public class AnalyzerContext {
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.minimumVersion = minimumVersion;
+        this.unmappedResolution = unmappedResolution;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -85,7 +88,16 @@ public class AnalyzerContext {
         return hasRemoteIndices;
     }
 
-    public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {
+    public UnmappedResolution unmappedResolution() {
+        return unmappedResolution;
+    }
+
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        UnmappedResolution unmappedResolution,
+        EsqlSession.PreAnalysisResult result
+    ) {
         this(
             configuration,
             functionRegistry,
@@ -93,7 +105,8 @@ public class AnalyzerContext {
             result.lookupIndices(),
             result.enrichResolution(),
             result.inferenceResolution(),
-            result.minimumTransportVersion()
+            result.minimumTransportVersion(),
+            unmappedResolution
         );
     }
 }

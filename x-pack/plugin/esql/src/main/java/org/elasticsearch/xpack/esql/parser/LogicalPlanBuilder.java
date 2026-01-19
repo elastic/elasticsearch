@@ -190,7 +190,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
         String name = visitIdentifier(ctx.identifier());
-        Expression value = expression(ctx.constant());
+        Expression value;
+        if (ctx.constant() != null) {
+            value = expression(ctx.constant());
+        } else {
+            value = visitMapExpression(ctx.mapExpression());
+        }
         return new Alias(source(ctx), name, value);
     }
 
@@ -484,7 +489,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             if (input.anyMatch(p -> p instanceof Aggregate) == false
                 && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
-                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
+                return new TimeSeriesAggregate(
+                    source(ctx),
+                    input,
+                    stats.groupings,
+                    stats.aggregates,
+                    null,
+                    new UnresolvedTimestamp(source(ctx))
+                );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
             }
@@ -1271,7 +1283,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 params.startLiteral(),
                 params.endLiteral(),
                 promqlStartLine,
-                promqlStartColumn
+                promqlStartColumn,
+                context.params()
             );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);

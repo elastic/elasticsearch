@@ -11,6 +11,7 @@ package fixture.aws.sts;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.core.TimeValue;
 import org.junit.rules.ExternalResource;
 
 import java.net.InetAddress;
@@ -18,21 +19,28 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public class AwsStsHttpFixture extends ExternalResource {
 
     private HttpServer server;
 
     private final BiConsumer<String, String> newCredentialsConsumer;
-    private final String webIdentityToken;
+    private final Supplier<String> webIdentityTokenSupplier;
+    private final TimeValue tokenValidDuration;
 
-    public AwsStsHttpFixture(BiConsumer<String, String> newCredentialsConsumer, String webIdentityToken) {
+    public AwsStsHttpFixture(
+        BiConsumer<String, String> newCredentialsConsumer,
+        Supplier<String> webIdentityTokenSupplier,
+        TimeValue tokenValidDuration
+    ) {
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
-        this.webIdentityToken = Objects.requireNonNull(webIdentityToken);
+        this.webIdentityTokenSupplier = Objects.requireNonNull(webIdentityTokenSupplier);
+        this.tokenValidDuration = tokenValidDuration;
     }
 
     protected HttpHandler createHandler() {
-        return new AwsStsHttpHandler(newCredentialsConsumer, webIdentityToken);
+        return new AwsStsHttpHandler(newCredentialsConsumer, webIdentityTokenSupplier, tokenValidDuration);
     }
 
     public String getAddress() {

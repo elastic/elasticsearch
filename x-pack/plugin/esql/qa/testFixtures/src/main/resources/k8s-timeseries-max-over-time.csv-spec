@@ -17,6 +17,25 @@ cost:double | time_bucket:datetime
 42.25       | 2024-05-10T00:03:00.000Z
 ;
 
+max_over_time_of_double_no_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m cost=(sum(max_over_time(network.cost[1m])))
+| SORT cost DESC, step DESC | LIMIT 10;
+
+cost:double | step:datetime           
+83.125      | 2024-05-10T00:09:00.000Z
+65.75       | 2024-05-10T00:08:00.000Z
+60.375      | 2024-05-10T00:17:00.000Z
+55.25       | 2024-05-10T00:18:00.000Z
+51.625      | 2024-05-10T00:22:00.000Z
+50.125      | 2024-05-10T00:15:00.000Z
+44.875      | 2024-05-10T00:06:00.000Z
+43.5        | 2024-05-10T00:20:00.000Z
+42.625      | 2024-05-10T00:13:00.000Z
+42.25       | 2024-05-10T00:03:00.000Z
+;
+
 max_over_time_of_ip
 required_capability: ts_command_v0
 TS k8s | STATS ip = max(max_over_time(client.ip)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
@@ -99,6 +118,25 @@ bytes_in:long | time_bucket:datetime
 3618          | 2024-05-10T00:06:00.000Z
 ;
 
+max_over_time_of_long_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m bytes_in=(sum(max_over_time(network.bytes_in[1m])))
+| SORT bytes_in DESC, step | LIMIT 10;
+
+bytes_in:double | step:datetime           
+6707.0          | 2024-05-10T00:18:00.000Z
+6000.0          | 2024-05-10T00:20:00.000Z
+5899.0          | 2024-05-10T00:17:00.000Z
+4836.0          | 2024-05-10T00:09:00.000Z
+4384.0          | 2024-05-10T00:15:00.000Z
+4115.0          | 2024-05-10T00:08:00.000Z
+4030.0          | 2024-05-10T00:14:00.000Z
+3685.0          | 2024-05-10T00:13:00.000Z
+3623.0          | 2024-05-10T00:02:00.000Z
+3618.0          | 2024-05-10T00:06:00.000Z
+;
+
 max_over_time_of_long_grouping
 required_capability: ts_command_v0
 TS k8s | STATS bytes_in = sum(max_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT bytes_in DESC, time_bucket | LIMIT 10;
@@ -114,6 +152,25 @@ bytes_in:long | cluster:keyword | time_bucket:datetime
 1908          | qa              | 2024-05-10T00:20:00.000Z
 1904          | qa              | 2024-05-10T00:06:00.000Z
 1811          | prod            | 2024-05-10T00:13:00.000Z
+;
+
+max_over_time_of_long_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m bytes_in=(sum by (cluster) (max_over_time(network.bytes_in[1m])))
+| SORT bytes_in DESC, step | LIMIT 10;
+
+bytes_in:double | step:datetime            | cluster:keyword
+3013.0          | 2024-05-10T00:18:00.000Z | prod
+2848.0          | 2024-05-10T00:17:00.000Z | prod
+2483.0          | 2024-05-10T00:20:00.000Z | prod
+2247.0          | 2024-05-10T00:18:00.000Z | qa
+2153.0          | 2024-05-10T00:15:00.000Z | qa
+2087.0          | 2024-05-10T00:17:00.000Z | qa
+2035.0          | 2024-05-10T00:09:00.000Z | staging
+1908.0          | 2024-05-10T00:20:00.000Z | qa
+1904.0          | 2024-05-10T00:06:00.000Z | qa
+1811.0          | 2024-05-10T00:13:00.000Z | prod
 ;
 
 max_over_time_of_boolean
@@ -133,6 +190,25 @@ false           | 2024-05-10T00:08:00.000Z
 false           | 2024-05-10T00:09:00.000Z
 ;
 
+max_over_time_of_boolean_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m eth0_up=(min(max_over_time(network.eth0.up[1m])))
+| SORT step | LIMIT 10;
+
+eth0_up:double | step:datetime           
+0.0            | 2024-05-10T00:00:00.000Z
+0.0            | 2024-05-10T00:01:00.000Z
+1.0            | 2024-05-10T00:02:00.000Z
+0.0            | 2024-05-10T00:03:00.000Z
+0.0            | 2024-05-10T00:04:00.000Z
+0.0            | 2024-05-10T00:05:00.000Z
+0.0            | 2024-05-10T00:06:00.000Z
+0.0            | 2024-05-10T00:07:00.000Z
+0.0            | 2024-05-10T00:08:00.000Z
+0.0            | 2024-05-10T00:09:00.000Z
+;
+
 max_over_time_of_boolean_grouping
 required_capability: ts_command_v0
 TS k8s | STATS eth0_up = min(max_over_time(network.eth0.up)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
@@ -148,6 +224,25 @@ true            | staging         | 2024-05-10T00:02:00.000Z
 false           | prod            | 2024-05-10T00:03:00.000Z
 true            | qa              | 2024-05-10T00:03:00.000Z
 false           | staging         | 2024-05-10T00:03:00.000Z
+;
+
+max_over_time_of_boolean_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m eth0_up=(min by (cluster) (max_over_time(network.eth0.up[1m])))
+| SORT step, cluster | LIMIT 10;
+
+eth0_up:double | step:datetime            | cluster:keyword
+0.0            | 2024-05-10T00:00:00.000Z | prod
+1.0            | 2024-05-10T00:00:00.000Z | staging
+0.0            | 2024-05-10T00:01:00.000Z | prod
+0.0            | 2024-05-10T00:01:00.000Z | qa
+1.0            | 2024-05-10T00:02:00.000Z | prod
+1.0            | 2024-05-10T00:02:00.000Z | qa
+1.0            | 2024-05-10T00:02:00.000Z | staging
+0.0            | 2024-05-10T00:03:00.000Z | prod
+1.0            | 2024-05-10T00:03:00.000Z | qa
+0.0            | 2024-05-10T00:03:00.000Z | staging
 ;
 
 max_over_time_of_date_nanos
@@ -235,6 +330,25 @@ clients:double    | time_bucket:datetime
 642.1111111111111 | 2024-05-10T00:09:00.000Z
 ;
 
+max_over_time_of_integer_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m clients=(avg(max_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT step | LIMIT 10;
+
+clients:double    | step:datetime           
+726.6666666666666 | 2024-05-10T00:00:00.000Z
+418.25            | 2024-05-10T00:01:00.000Z
+550.3333333333334 | 2024-05-10T00:02:00.000Z
+598.8             | 2024-05-10T00:03:00.000Z
+546.3333333333334 | 2024-05-10T00:04:00.000Z
+809.8             | 2024-05-10T00:05:00.000Z
+656.8333333333334 | 2024-05-10T00:06:00.000Z
+822.6666666666666 | 2024-05-10T00:07:00.000Z
+605.25            | 2024-05-10T00:08:00.000Z
+642.1111111111111 | 2024-05-10T00:09:00.000Z
+;
+
 max_over_time_of_integer_grouping
 required_capability: ts_command_v0
 TS k8s | STATS clients = avg(max_over_time(network.eth0.currently_connected_clients)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
@@ -250,6 +364,25 @@ clients:double | cluster:keyword | time_bucket:datetime
 742.0          | prod            | 2024-05-10T00:03:00.000Z
 454.0          | qa              | 2024-05-10T00:03:00.000Z
 672.0          | staging         | 2024-05-10T00:03:00.000Z
+;
+
+max_over_time_of_integer_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m clients=(avg by (cluster) (max_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT step, cluster | LIMIT 10;
+
+clients:double | step:datetime            | cluster:keyword
+949.0          | 2024-05-10T00:00:00.000Z | prod
+615.5          | 2024-05-10T00:00:00.000Z | staging
+396.5          | 2024-05-10T00:01:00.000Z | prod
+440.0          | 2024-05-10T00:01:00.000Z | qa
+659.5          | 2024-05-10T00:02:00.000Z | prod
+565.0          | 2024-05-10T00:02:00.000Z | qa
+426.5          | 2024-05-10T00:02:00.000Z | staging
+742.0          | 2024-05-10T00:03:00.000Z | prod
+454.0          | 2024-05-10T00:03:00.000Z | qa
+672.0          | 2024-05-10T00:03:00.000Z | staging
 ;
 
 max_over_time_of_text
@@ -304,6 +437,25 @@ false       | 2024-05-10T00:09:00.000Z
 
 ;
 
+max_over_time_of_keyword_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m pod=(min(max_over_time(network.eth0.up[1m])))
+| SORT step | LIMIT 10;
+
+pod:double | step:datetime           
+0.0        | 2024-05-10T00:00:00.000Z
+0.0        | 2024-05-10T00:01:00.000Z
+1.0        | 2024-05-10T00:02:00.000Z
+0.0        | 2024-05-10T00:03:00.000Z
+0.0        | 2024-05-10T00:04:00.000Z
+0.0        | 2024-05-10T00:05:00.000Z
+0.0        | 2024-05-10T00:06:00.000Z
+0.0        | 2024-05-10T00:07:00.000Z
+0.0        | 2024-05-10T00:08:00.000Z
+0.0        | 2024-05-10T00:09:00.000Z
+;
+
 max_over_time_of_keyword_grouping
 required_capability: ts_command_v0
 TS k8s | STATS pod = min(max_over_time(network.eth0.up)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
@@ -321,11 +473,43 @@ true        | qa              | 2024-05-10T00:03:00.000Z
 false       | staging         | 2024-05-10T00:03:00.000Z
 ;
 
+max_over_time_of_keyword_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m pod=(min by (cluster) (max_over_time(network.eth0.up[1m])))
+| SORT step, cluster | LIMIT 10;
+
+pod:double | step:datetime            | cluster:keyword
+0.0        | 2024-05-10T00:00:00.000Z | prod
+1.0        | 2024-05-10T00:00:00.000Z | staging
+0.0        | 2024-05-10T00:01:00.000Z | prod
+0.0        | 2024-05-10T00:01:00.000Z | qa
+1.0        | 2024-05-10T00:02:00.000Z | prod
+1.0        | 2024-05-10T00:02:00.000Z | qa
+1.0        | 2024-05-10T00:02:00.000Z | staging
+0.0        | 2024-05-10T00:03:00.000Z | prod
+1.0        | 2024-05-10T00:03:00.000Z | qa
+0.0        | 2024-05-10T00:03:00.000Z | staging
+;
+
 max_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(max_over_time(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket | LIMIT 10;
 tx:double | time_bucket:datetime
+6053.0    | 2024-05-09T23:30:00.000Z
+6699.0    | 2024-05-09T23:40:00.000Z
+5895.0    | 2024-05-09T23:50:00.000Z
+;
+
+max_over_time_of_aggregate_metric_double_promql
+required_capability: promql_pre_tech_preview_v14
+required_capability: aggregate_metric_double_v0
+
+PROMQL index=k8s-downsampled step=10m tx=(sum(max_over_time(network.eth0.tx[10m])))
+| SORT step | LIMIT 10;
+
+tx:double | step:datetime           
 6053.0    | 2024-05-09T23:30:00.000Z
 6699.0    | 2024-05-09T23:40:00.000Z
 5895.0    | 2024-05-09T23:50:00.000Z
@@ -348,6 +532,25 @@ tx:double | cluster:keyword | time_bucket:datetime
 1832.0    | staging         | 2024-05-09T23:50:00.000Z
 ;
 
+max_over_time_of_aggregate_metric_double_grouping_promql
+required_capability: promql_pre_tech_preview_v14
+required_capability: aggregate_metric_double_v0
+
+PROMQL index=k8s-downsampled step=10m tx=(sum by (cluster) (max_over_time(network.eth0.tx[10m])))
+| SORT step, cluster | LIMIT 10;
+
+tx:double | step:datetime            | cluster:keyword
+1601.0    | 2024-05-09T23:30:00.000Z | prod
+2109.0    | 2024-05-09T23:30:00.000Z | qa
+2343.0    | 2024-05-09T23:30:00.000Z | staging
+1854.0    | 2024-05-09T23:40:00.000Z | prod
+2975.0    | 2024-05-09T23:40:00.000Z | qa
+1870.0    | 2024-05-09T23:40:00.000Z | staging
+2377.0    | 2024-05-09T23:50:00.000Z | prod
+1686.0    | 2024-05-09T23:50:00.000Z | qa
+1832.0    | 2024-05-09T23:50:00.000Z | staging
+;
+
 max_over_time_with_filtering
 required_capability: ts_command_v0
 TS k8s | WHERE pod == "one" | STATS tx = sum(max_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
@@ -362,6 +565,24 @@ tx:long | cluster:keyword | time_bucket:datetime
 953     | prod            | 2024-05-10T00:20:00.000Z
 917     | qa              | 2024-05-10T00:20:00.000Z
 749     | staging         | 2024-05-10T00:20:00.000Z
+;
+
+max_over_time_with_filtering_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m tx=(sum by (cluster) (max_over_time(network.bytes_in{pod="one"}[10m])))
+| SORT step, cluster | LIMIT 10;
+
+tx:double | step:datetime            | cluster:keyword
+970.0     | 2024-05-10T00:00:00.000Z | prod
+842.0     | 2024-05-10T00:00:00.000Z | qa
+753.0     | 2024-05-10T00:00:00.000Z | staging
+990.0     | 2024-05-10T00:10:00.000Z | prod
+1006.0    | 2024-05-10T00:10:00.000Z | qa
+947.0     | 2024-05-10T00:10:00.000Z | staging
+953.0     | 2024-05-10T00:20:00.000Z | prod
+917.0     | 2024-05-10T00:20:00.000Z | qa
+749.0     | 2024-05-10T00:20:00.000Z | staging
 ;
 
 max_over_time_older_than_10h
@@ -393,6 +614,25 @@ max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset
 786.0             | staging         | 2024-05-10T00:20:00.000Z | 0.686
 ;
 
+eval_on_max_over_time_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m max_bytes=(avg by (cluster) (max_over_time(network.bytes_in[10m])))
+| EVAL kb_minus_offset = (max_bytes - 100) / 1000.0
+| LIMIT 10 | SORT step, cluster;
+
+max_bytes:double  | step:datetime            | cluster:keyword | kb_minus_offset:double
+909.3333333333334 | 2024-05-10T00:00:00.000Z | prod            | 0.8093333333333333
+908.6666666666666 | 2024-05-10T00:00:00.000Z | qa              | 0.8086666666666666
+794.0             | 2024-05-10T00:00:00.000Z | staging         | 0.694
+1005.0            | 2024-05-10T00:10:00.000Z | prod            | 0.905
+980.0             | 2024-05-10T00:10:00.000Z | qa              | 0.88
+917.6666666666666 | 2024-05-10T00:10:00.000Z | staging         | 0.8176666666666667
+846.3333333333334 | 2024-05-10T00:20:00.000Z | prod            | 0.7463333333333334
+941.6666666666666 | 2024-05-10T00:20:00.000Z | qa              | 0.8416666666666667
+786.0             | 2024-05-10T00:20:00.000Z | staging         | 0.686
+;
+
 max_over_time_multi_values
 required_capability: ts_command_v0
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(max_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, time_bucket  | LIMIT 10;
@@ -410,21 +650,25 @@ events:long | pod:keyword | time_bucket:datetime
 14          | three       | 2024-05-10T00:00:00.000Z
 ;
 
-max_over_time_null_values
-required_capability: ts_command_v0
-TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(max_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, time_bucket  | LIMIT 10;
+# PromQL omits buckets with no samples:
+# https://github.com/prometheus/prometheus/blob/14de1eb043f2b264056a9d1426d5db8c068c3b32/promql/functions.go#L1052
+max_over_time_multi_values_promql
+required_capability: promql_pre_tech_preview_v14
 
-events:long | pod:keyword | time_bucket:datetime
-null        | one         | 2024-05-10T00:12:00.000Z
-null        | two         | 2024-05-10T00:13:00.000Z
-20          | two         | 2024-05-10T00:14:00.000Z
-18          | two         | 2024-05-10T00:12:00.000Z
-17          | one         | 2024-05-10T00:13:00.000Z
-16          | one         | 2024-05-10T00:14:00.000Z
-11          | one         | 2024-05-10T00:10:00.000Z
-9           | one         | 2024-05-10T00:11:00.000Z
-9           | three       | 2024-05-10T00:13:00.000Z
-7           | two         | 2024-05-10T00:10:00.000Z
+PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:09:00.000Z" events=(sum by (pod) (max_over_time(events_received[1m])))
+| SORT events DESC, step | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+27.0          | 2024-05-10T00:08:00.000Z | two
+26.0          | 2024-05-10T00:08:00.000Z | one
+24.0          | 2024-05-10T00:06:00.000Z | three
+21.0          | 2024-05-10T00:02:00.000Z | two
+18.0          | 2024-05-10T00:01:00.000Z | one
+17.0          | 2024-05-10T00:05:00.000Z | one
+14.0          | 2024-05-10T00:00:00.000Z | three
+12.0          | 2024-05-10T00:03:00.000Z | one
+12.0          | 2024-05-10T00:06:00.000Z | two
+12.0          | 2024-05-10T00:08:00.000Z | three
 ;
 
 max_over_time_null_values
@@ -444,6 +688,25 @@ null        | two         | 2024-05-10T00:13:00.000Z
 7           | two         | 2024-05-10T00:10:00.000Z
 ;
 
+max_over_time_null_values_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (max_over_time(events_received[1m])))
+| SORT events DESC, step | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+null          | 2024-05-10T00:12:00.000Z | one
+null          | 2024-05-10T00:13:00.000Z | two 
+20.0          | 2024-05-10T00:14:00.000Z | two
+18.0          | 2024-05-10T00:12:00.000Z | two
+17.0          | 2024-05-10T00:13:00.000Z | one
+16.0          | 2024-05-10T00:14:00.000Z | one
+11.0          | 2024-05-10T00:10:00.000Z | one
+9.0           | 2024-05-10T00:11:00.000Z | one
+9.0           | 2024-05-10T00:13:00.000Z | three
+7.0           | 2024-05-10T00:10:00.000Z | two
+;
+
 max_over_time_all_value_types
 required_capability: ts_command_v0
 TS k8s | STATS events = sum(max_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
@@ -460,12 +723,44 @@ events:long | pod:keyword | time_bucket:datetime
 19          | one         | 2024-05-10T00:20:00.000Z
 ;
 
+max_over_time_all_value_types_promql
+required_capability: promql_pre_tech_preview_v14
+
+PROMQL index=k8s step=10m start="2024-05-09T23:20:00.000Z" end="2024-05-10T00:20:00.000Z" events=(sum by (pod) (max_over_time(events_received[10m])))
+| SORT step, pod | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+29.0          | 2024-05-10T00:00:00.000Z | one
+29.0          | 2024-05-10T00:00:00.000Z | three
+29.0          | 2024-05-10T00:00:00.000Z | two
+30.0          | 2024-05-10T00:10:00.000Z | one
+28.0          | 2024-05-10T00:10:00.000Z | three
+30.0          | 2024-05-10T00:10:00.000Z | two
+20.0          | 2024-05-10T00:20:00.000Z | three
+;
 max_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(max_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, time_bucket | LIMIT 10 ;
 
 bytes:double | time_bucket:datetime
+9058.0       | 2024-05-10T00:20:00.000Z
+8070.0       | 2024-05-10T00:10:00.000Z
+7088.0       | 2024-05-09T23:50:00.000Z
+6380.0       | 2024-05-09T23:30:00.000Z
+6095.0       | 2024-05-09T23:40:00.000Z
+4290.0       | 2024-05-10T00:00:00.000Z
+;
+
+# Awaits fix: https://github.com/elastic/metrics-program/issues/302
+max_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
+required_capability: promql_pre_tech_preview_v14
+required_capability: aggregate_metric_double_v0
+
+PROMQL index=k8s* step=10m bytes=(sum(max_over_time(network.eth0.rx[10m])))
+| SORT bytes DESC, step | LIMIT 10;
+
+bytes:double | step:datetime           
 9058.0       | 2024-05-10T00:20:00.000Z
 8070.0       | 2024-05-10T00:10:00.000Z
 7088.0       | 2024-05-09T23:50:00.000Z
@@ -490,4 +785,25 @@ bytes:double | pod:keyword | time_bucket:datetime
 2570.0       | one         | 2024-05-09T23:30:00.000Z
 2535.0       | two         | 2024-05-10T00:10:00.000Z
 2478.0       | one         | 2024-05-09T23:50:00.000Z
+;
+
+# Awaits fix: https://github.com/elastic/metrics-program/issues/302
+max_over_time_aggregate_metric_double_implicit_casting_grouping_promql-Ignore
+required_capability: promql_pre_tech_preview_v14
+required_capability: aggregate_metric_double_v0
+
+PROMQL index=k8s* step=10m bytes=(sum by (pod) (max_over_time(network.eth0.rx[10m])))
+| SORT bytes DESC, pod, step | LIMIT 10;
+
+bytes:double | step:datetime            | pod:keyword
+3156.0       | 2024-05-10T00:20:00.000Z | one
+3028.0       | 2024-05-10T00:20:00.000Z | three
+2874.0       | 2024-05-10T00:20:00.000Z | two
+2825.0       | 2024-05-10T00:10:00.000Z | one
+2810.0       | 2024-05-09T23:40:00.000Z | three
+2710.0       | 2024-05-10T00:10:00.000Z | three
+2653.0       | 2024-05-09T23:50:00.000Z | three
+2570.0       | 2024-05-09T23:30:00.000Z | one
+2535.0       | 2024-05-10T00:10:00.000Z | two
+2478.0       | 2024-05-09T23:50:00.000Z | one
 ;

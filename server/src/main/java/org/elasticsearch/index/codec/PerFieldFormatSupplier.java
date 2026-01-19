@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -75,6 +76,7 @@ public class PerFieldFormatSupplier {
     private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
+    private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
@@ -82,6 +84,7 @@ public class PerFieldFormatSupplier {
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
+        this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -121,6 +124,12 @@ public class PerFieldFormatSupplier {
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            // This gets called during merges where the segment merger
+            // instead of relying on the field format name attribute,
+            // it delegates that decision to the codec.
+            return syntheticIdPostingsFormat;
+        }
         if (useBloomFilter(field)) {
             return bloomFilterPostingsFormat;
         }
@@ -154,6 +163,13 @@ public class PerFieldFormatSupplier {
         } else {
             return IdFieldMapper.NAME.equals(field) && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         }
+    }
+
+    private boolean useTSDBSyntheticId(String field) {
+        if (mapperService == null || IdFieldMapper.NAME.equals(field) == false) {
+            return false;
+        }
+        return mapperService.getIndexSettings().useTimeSeriesSyntheticId();
     }
 
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {

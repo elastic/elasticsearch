@@ -18,7 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -47,8 +47,6 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
     private static final String INFERENCE_ID = "test-inference-id";
     private static final Map<String, Object> INFERENCE_ENDPOINT_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
 
-    private boolean clustersConfigured = false;
-
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
@@ -71,23 +69,20 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
 
     @Before
     public void configureClusters() throws Exception {
-        if (clustersConfigured == false) {
-            setupTwoClusters();
-            clustersConfigured = true;
-        }
+        setupTwoClusters();
     }
 
     public void testRemoteIndex() {
-        Consumer<GetInferenceFieldsAction.Request> assertFailedRequest = r -> {
+        Consumer<GetInferenceFieldsInternalAction.Request> assertFailedRequest = r -> {
             IllegalArgumentException e = assertThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(GetInferenceFieldsAction.INSTANCE, r).actionGet(TEST_REQUEST_TIMEOUT)
+                () -> client().execute(GetInferenceFieldsInternalAction.INSTANCE, r).actionGet(TEST_REQUEST_TIMEOUT)
             );
-            assertThat(e.getMessage(), containsString("GetInferenceFieldsAction does not support remote indices"));
+            assertThat(e.getMessage(), containsString("GetInferenceFieldsInternalAction does not support remote indices"));
         };
 
-        var concreteIndexRequest = new GetInferenceFieldsAction.Request(
-            Set.of(REMOTE_CLUSTER + ":test-index"),
+        var concreteIndexRequest = new GetInferenceFieldsInternalAction.Request(
+            new String[] { REMOTE_CLUSTER + ":test-index" },
             Map.of(),
             false,
             false,
@@ -95,10 +90,22 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         );
         assertFailedRequest.accept(concreteIndexRequest);
 
-        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":*"), Map.of(), false, false, "foo");
+        var wildcardIndexRequest = new GetInferenceFieldsInternalAction.Request(
+            new String[] { REMOTE_CLUSTER + ":*" },
+            Map.of(),
+            false,
+            false,
+            "foo"
+        );
         assertFailedRequest.accept(wildcardIndexRequest);
 
-        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(Set.of("*:*"), Map.of(), false, false, "foo");
+        var wildcardClusterAndIndexRequest = new GetInferenceFieldsInternalAction.Request(
+            new String[] { "*:*" },
+            Map.of(),
+            false,
+            false,
+            "foo"
+        );
         assertFailedRequest.accept(wildcardClusterAndIndexRequest);
     }
 
@@ -109,15 +116,15 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
             RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
         );
 
-        var request = new GetInferenceFieldsAction.Request(
-            Set.of(INDEX_NAME),
+        var request = new GetInferenceFieldsInternalAction.Request(
+            new String[] { INDEX_NAME },
             generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD)),
             false,
             false,
             "foo"
         );
-        PlainActionFuture<GetInferenceFieldsAction.Response> future = new PlainActionFuture<>();
-        remoteClusterClient.execute(GetInferenceFieldsAction.REMOTE_TYPE, request, future);
+        PlainActionFuture<GetInferenceFieldsInternalAction.Response> future = new PlainActionFuture<>();
+        remoteClusterClient.execute(GetInferenceFieldsInternalAction.REMOTE_TYPE, request, future);
 
         var response = future.actionGet(TEST_REQUEST_TIMEOUT);
         assertInferenceFieldsMap(

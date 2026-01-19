@@ -1817,7 +1817,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -1867,7 +1866,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -1880,7 +1878,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -1894,7 +1891,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );

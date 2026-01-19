@@ -5,23 +5,64 @@
 matchWithField
 required_capability: match_operator_colon
 
-// tag::match-with-field[]
+// tag::match-with-text-field[]
 FROM books 
 | WHERE author:"Faulkner"
-// end::match-with-field[]
+// end::match-with-text-field[]
 | KEEP book_no, author 
-| SORT book_no 
+| SORT book_no
 | LIMIT 5
 ;
 
-// tag::match-with-field-result[]
+// tag::match-with-text-field-result[]
 book_no:keyword | author:text
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
 2713            | William Faulkner
 2847            | Colleen Faulkner
 2883            | William Faulkner
 3293            | Danny Faulkner
-// end::match-with-field-result[]
+// end::match-with-text-field-result[]
+;
+
+matchWithMultivaluedKeywordField
+required_capability: match_operator_colon
+
+// tag::match-with-keyword-field[]
+FROM employees
+| WHERE job_positions:"Internship"
+| KEEP emp_no, job_positions
+// end::match-with-keyword-field[]
+| SORT emp_no
+| LIMIT 3
+;
+
+// tag::match-with-keyword-field-result[]
+emp_no:integer | job_positions:keyword
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
+10009          | [Internship, Senior Python Developer]
+10022          | [Data Scientist, Internship, Python Developer, Reporting Analyst]
+// end::match-with-keyword-field-result[]
+;
+
+# this is a docs example for semantic search, it's skipped because constructing a meaningful
+# example for semantic search is hard, when we don't use a real ML model to generate embeddings
+matchWithSemanticTextDocsExample-Ignore
+required_capability: match_operator_colon
+
+// tag::match-with-semantic-text-field[]
+FROM books METADATA _score
+| WHERE semantic_title:"Shakespeare"
+| SORT _score DESC
+| KEEP _score, semantic_title
+// end::match-with-semantic-text-field[]
+;
+
+// tag::match-with-semantic-text-field-result[]
+_score:double | semantic_text_field:text
+9.5770        | Romeo and Juliet
+9.6850        | Hamlet
+8.232         | Othello
+// end::match-with-semantic-text-field-result[]
 ;
 
 matchWithMultipleFunctions

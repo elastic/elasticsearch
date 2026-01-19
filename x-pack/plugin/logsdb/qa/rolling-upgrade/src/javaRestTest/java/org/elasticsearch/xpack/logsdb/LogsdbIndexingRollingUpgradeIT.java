@@ -111,20 +111,6 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateId));
     }
 
-    static void createTemplate(String dataStreamName, String id, String template) throws IOException {
-        final String INDEX_TEMPLATE = """
-            {
-                "priority": 200,
-                "index_patterns": ["$DATASTREAM"],
-                "template": $TEMPLATE,
-                "data_stream": {
-                }
-            }""";
-        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
-        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
-        assertOK(client().performRequest(putIndexTemplateRequest));
-    }
-
     static String docSupplier(Instant startTime, int j) {
         String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
         String methodName = "method" + j % 5;

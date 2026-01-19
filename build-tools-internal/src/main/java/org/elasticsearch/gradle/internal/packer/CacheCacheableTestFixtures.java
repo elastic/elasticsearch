@@ -50,6 +50,7 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
      */
     @TaskAction
     public void checkForbidden() {
+        getClasspath().getFiles().forEach(f -> System.out.println("classpath file: " + f.getAbsolutePath()));
         WorkQueue workQueue = getWorkerExecutor().classLoaderIsolation(spec -> spec.getClasspath().from(getClasspath()));
         workQueue.submit(CacheTestFixtureWorkAction.class, params -> params.getClasspath().setFrom(getClasspath()));
     }
@@ -68,22 +69,31 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
         public void execute() {
             final URLClassLoader urlLoader = createClassLoader(getParameters().getClasspath());
             try {
+                Set<URL> packageUrls = new LinkedHashSet<>();
+                packageUrls.addAll(ClasspathHelper.forPackage("org.elasticsearch.test.fixtures"));
+                packageUrls.addAll(ClasspathHelper.forPackage("co.elastic.elasticsearch.test.fixtures"));
                 Reflections reflections = new Reflections(
-                    new ConfigurationBuilder().setUrls(ClasspathHelper.forPackage("org.elasticsearch.test.fixtures"))
-                        .setScanners(new SubTypesScanner())
+                    new ConfigurationBuilder().setUrls(packageUrls).setScanners(new SubTypesScanner())
                 );
 
                 Class<?> ifClass = Class.forName("org.elasticsearch.test.fixtures.CacheableTestFixture");
                 Set<Class<?>> classes = (Set<Class<?>>) reflections.getSubTypesOf(ifClass);
 
+                System.out.println("fixtures found: " + classes.size());
                 for (Class<?> cacheableTestFixtureClazz : classes) {
+                    System.out.println("cacheableTestFixtureClazz = " + cacheableTestFixtureClazz);
                     if (Modifier.isAbstract(cacheableTestFixtureClazz.getModifiers()) == false) {
-                        Constructor<?> declaredConstructor = cacheableTestFixtureClazz.getDeclaredConstructor();
-                        declaredConstructor.setAccessible(true);
-                        Object o = declaredConstructor.newInstance();
-                        Method cacheMethod = cacheableTestFixtureClazz.getMethod("cache");
-                        System.out.println("Caching resources from " + cacheableTestFixtureClazz.getName());
-                        cacheMethod.invoke(o);
+                        try {
+                            Constructor<?> declaredConstructor = cacheableTestFixtureClazz.getDeclaredConstructor();
+                            declaredConstructor.setAccessible(true);
+                            Object o = declaredConstructor.newInstance();
+                            Method cacheMethod = cacheableTestFixtureClazz.getMethod("cache");
+                            System.out.println("Caching resources from " + cacheableTestFixtureClazz.getName());
+                            cacheMethod.invoke(o);
+                        } catch (NoSuchMethodException e) {
+                            // Skip classes without a no-arg constructor - they are not meant to be cached directly
+                            System.out.println("Skipping " + cacheableTestFixtureClazz.getName() + " (no no-arg constructor)");
+                        }
                     }
                 }
             } catch (Exception e) {

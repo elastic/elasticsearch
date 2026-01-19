@@ -32,6 +32,8 @@ public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestC
             new PullOrBuildImage(
                 DOCKER_BASE_IMAGE,
                 new ImageFromDockerfile("localhost/es-oidc-provider-fixture").withFileFromClasspath("setup.sh", "/oidc/setup.sh")
+                    // we cannot make use of docker file builder
+                    // as it does not support multi-stage builds
                     .withFileFromClasspath("testnode.jks", "/oidc/testnode.jks")
                     .withFileFromClasspath("Dockerfile", "/oidc/Dockerfile")
             )

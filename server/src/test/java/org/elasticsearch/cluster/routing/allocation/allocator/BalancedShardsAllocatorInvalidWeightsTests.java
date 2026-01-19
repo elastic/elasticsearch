@@ -361,7 +361,9 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 BalancedShardsAllocator.ModelNode[] modelNodes,
                 BalancedShardsAllocator.Balancer balancer
             ) {
-                final var nodeSorters = List.of(new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer));
+                final var nodeSorters = List.of(
+                    new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer, BalancerSettings.DEFAULT.getThreshold())
+                );
                 return new NodeSorters() {
 
                     @Override

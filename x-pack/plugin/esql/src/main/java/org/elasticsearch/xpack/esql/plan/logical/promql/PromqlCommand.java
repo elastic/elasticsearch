@@ -313,6 +313,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                         }
                     }
                 }
+                case ScalarFunction scalarFunction -> {
+                    // ok
+                }
                 case VectorBinaryOperator binaryOperator -> {
                     binaryOperator.children().forEach(child -> {
                         if (child instanceof RangeSelector) {

@@ -477,7 +477,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     stats.groupings,
                     stats.aggregates,
                     null,
-                    new UnresolvedTimestamp(source(ctx))
+                    new UnresolvedTimestamp(source(ctx)),
+                    null
                 );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);

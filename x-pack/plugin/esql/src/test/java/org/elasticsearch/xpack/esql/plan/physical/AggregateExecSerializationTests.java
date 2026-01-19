@@ -31,7 +31,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         if (randomBoolean()) {
             return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         } else {
-            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
+            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null, null);
         }
     }
 
@@ -69,6 +69,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 mode,
                 intermediateAttributes,
                 estimatedRowSize,
+                null,
                 null
             );
         } else {

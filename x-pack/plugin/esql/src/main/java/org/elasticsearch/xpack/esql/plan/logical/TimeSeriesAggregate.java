@@ -43,9 +43,16 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
+    private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName("time_series_aggregate_timestamp_value_range");
 
     private final Bucket timeBucket;
     private final Expression timestamp;
+
+    // During local planning, we extract the minimum and maximum timestamps from the data to allow for optimized rounding
+    private final TimeRange timestampRange;
+
+    public record TimeRange(long min, long max) {}
+
 
     public TimeSeriesAggregate(
         Source source,
@@ -53,11 +60,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
-        Expression timestamp
+        Expression timestamp,
+        TimeRange timestampRange
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.timestamp = timestamp;
+        this.timestampRange = timestampRange;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
@@ -70,6 +79,16 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             // Using null (when deserialized from an old node) in this case should be okay.
             this.timestamp = null;
         }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
+            if (in.readBoolean()) {
+                this.timestampRange = new  TimeRange(in.readLong(), in.readLong());
+            } else {
+                this.timestampRange = null;
+            }
+        } else {
+            // Timestamp values are only used for optimized rounding and may not be available for older nodes
+            this.timestampRange = null;
+        }
     }
 
     @Override
@@ -78,6 +97,15 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         out.writeOptionalWriteable(timeBucket);
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
+            if (timestampRange != null) {
+                out.writeBoolean(true);
+                out.writeLong(timestampRange.min);
+                out.writeLong(timestampRange.max);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 
@@ -88,24 +116,32 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, timestampRange);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, timestampRange);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, timestampRange);
     }
 
-    public LogicalPlan withTimestamp(Expression newTimestamp) {
+    public TimeSeriesAggregate withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, timestampRange);
+    }
+
+    public TimeSeriesAggregate withTimestampRange(long minTimestampValue, long maxTimestampValue) {
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, timestamp, new TimeRange(minTimestampValue, maxTimestampValue));
+    }
+
+    public TimeRange timestampRange() {
+        return timestampRange;
     }
 
     @Override
@@ -125,7 +161,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, timestampRange);
     }
 
     @Override
@@ -143,7 +179,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(timestamp, other.timestamp);
+            && Objects.equals(timestamp, other.timestamp)
+           && Objects.equals(timestampRange, other.timestampRange);
     }
 
     @Override

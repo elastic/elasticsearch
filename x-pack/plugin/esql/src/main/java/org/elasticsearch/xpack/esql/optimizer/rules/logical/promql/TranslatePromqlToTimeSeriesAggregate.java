@@ -180,7 +180,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             }
             groupings.add(grouping);
         }
-        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null, promqlCommand.timestamp());
+        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null, promqlCommand.timestamp(), null);
     }
 
     private static FieldAttribute getTimeSeriesGrouping(List<Attribute> groupings) {

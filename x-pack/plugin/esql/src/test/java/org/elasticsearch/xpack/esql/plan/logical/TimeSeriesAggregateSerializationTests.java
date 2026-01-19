@@ -25,14 +25,27 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = AggregateSerializationTests.randomAggregates();
         Bucket timeBucket = BucketSerializationTests.createRandomBucket(configuration());
+        TimeSeriesAggregate.TimeRange timeRange = null;
+        if (randomBoolean()) {
+            timeRange = randomTimeRange();
+        }
         return new TimeSeriesAggregate(
             source,
             child,
             groupings,
             aggregates,
             timeBucket,
-            AbstractExpressionSerializationTests.randomChild()
+            AbstractExpressionSerializationTests.randomChild(),
+            timeRange
         );
+    }
+
+    private static TimeSeriesAggregate.TimeRange randomTimeRange() {
+        TimeSeriesAggregate.TimeRange timeRange;
+        long start = randomLongBetween(0, 1_000_000);
+        long end = randomLongBetween(start, start + 1_000_000);
+        timeRange = new TimeSeriesAggregate.TimeRange(start, end);
+        return timeRange;
     }
 
     @Override
@@ -41,7 +54,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = instance.groupings();
         List<? extends NamedExpression> aggregates = instance.aggregates();
         Bucket timeBucket = instance.timeBucket();
-        switch (between(0, 3)) {
+        TimeSeriesAggregate.TimeRange timeRange = null;
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(
                 groupings,
@@ -49,8 +63,9 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             );
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
             case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
+            case 4 -> timeRange = randomValueOtherThan(timeRange, TimeSeriesAggregateSerializationTests::randomTimeRange);
         }
-        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp());
+        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp(), timeRange);
     }
 
     @Override

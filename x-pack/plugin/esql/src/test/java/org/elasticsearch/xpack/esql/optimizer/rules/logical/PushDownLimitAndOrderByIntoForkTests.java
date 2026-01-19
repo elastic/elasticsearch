@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -17,6 +19,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -25,7 +29,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.BeforeClass;
 
@@ -46,6 +52,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOptimizerTests {
 
     protected static Analyzer analyzerWithoutForkImplicitLimit;
+    protected static LogicalPlanOptimizer optimizerWithoutForkImplicitLimit;
 
     @BeforeClass
     public static void initCustomAnalyzer() throws Exception {
@@ -67,11 +74,16 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
             ),
             TEST_VERIFIER
         );
+
+        optimizerWithoutForkImplicitLimit = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current())
+        );
+
     }
 
     protected LogicalPlan planWithoutForkImplicitLimit(String query) {
         var analyzed = analyzerWithoutForkImplicitLimit.analyze(parser.parseQuery(query));
-        return logicalOptimizer.optimize(analyzed);
+        return optimizerWithoutForkImplicitLimit.optimize(analyzed);
     }
 
     /**
@@ -320,6 +332,48 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
             assertThat(((Literal) topN.limit()).value(), equalTo(10));
             assertOrders(List.of("salary", "ASC"), topN);
             var filter = as(topN.child(), Filter.class);
+            assertThat(filter.child(), instanceOf(EsRelation.class));
+        }
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[emp_no{r}#29,ASC,LAST]],20[INTEGER],false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   | \_Subquery[]
+     *   |   \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *   |     \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     \_Subquery[]
+     *       \_Filter[emp_no{f}#17 < 10[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
+     */
+    public void testWithSubqueries() {
+        var query = """
+            from (from employees | where emp_no > 100),
+                 (from employees | where emp_no < 10)
+             | sort emp_no
+             | LIMIT 20
+            """;
+
+        var plan = planWithoutForkImplicitLimit(query);
+        var topN = as(plan, TopN.class);
+        assertOrders(List.of("emp_no", "ASC"), topN);
+        assertThat(((Literal) topN.limit()).value(), equalTo(20));
+
+        var unionAll = as(topN.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        for (LogicalPlan child : unionAll.children()) {
+            // update this test once we push TopN into subqueries
+            var project = as(child, Project.class);
+            var subquery = as(project.child(), Subquery.class);
+            var filter = as(subquery.child(), Filter.class);
             assertThat(filter.child(), instanceOf(EsRelation.class));
         }
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -35,13 +36,20 @@ import java.util.Map;
  * }</pre>
  * By pushing down (TopN) in both branches, we reduce the number of rows that are returned to the coordinator.
  */
-public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.OptimizerRule<Limit> {
+public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
     public PushDownLimitAndOrderByIntoFork() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
     @Override
-    protected LogicalPlan rule(Limit limit) {
+    protected LogicalPlan rule(Limit limit, LogicalOptimizerContext context) {
+        // if the implicit limit is added to the FORK branches, we can do an early return
+        // since we know the FORK branches will contain at least one pipeline breaker (the implicit LIMIT)
+        // and we won't push down Limit + OrderBy into any branch
+        if (context.configuration().pragmas().forkImplicitLimit()) {
+            return limit;
+        }
+
         if (limit.child() instanceof OrderBy == false) {
             return limit;
         }
@@ -81,6 +89,9 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.OptimizerRul
 
             orders.add(order.replaceChildren(List.of(orderExp)));
         }
+
+        assert orderBy.order().size() == orders.size()
+            : "Expected the same size for OrderBy but got " + orderBy.order().size() + "!=" + orders.size();
 
         return limit.replaceChild(new OrderBy(orderBy.source(), forkChild, orders));
     }

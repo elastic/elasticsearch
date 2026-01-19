@@ -156,41 +156,32 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
 
-        static int checkSingleInt(MethodHandle function, MemorySegment a, MemorySegment b, int length) throws Throwable {
+        static boolean checkSingleInt(MemorySegment a, MemorySegment b, int length) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("Dimensions differ: " + a.byteSize() + " != " + b.byteSize());
             }
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return (int) function.invokeExact(a, b, length);
+            return true;
         }
 
-        static float checkSingleFloat(MethodHandle function, MemorySegment a, MemorySegment b, int length) throws Throwable {
+        static boolean checkSingleFloat(MemorySegment a, MemorySegment b, int length) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException(
                     "Dimensions differ: " + a.byteSize() / Float.BYTES + " != " + b.byteSize() / Float.BYTES
                 );
             }
             Objects.checkFromIndexSize(0, length * Float.BYTES, (int) a.byteSize());
-            return (float) function.invokeExact(a, b, length);
+            return true;
         }
 
-        static void checkBulk(
-            MethodHandle function,
-            int elementSize,
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int count,
-            MemorySegment result
-        ) throws Throwable {
+        static boolean checkBulk(int elementSize, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
             Objects.checkFromIndexSize(0, length * count * elementSize, (int) a.byteSize());
             Objects.checkFromIndexSize(0, length, (int) b.byteSize());
             Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
-            function.invokeExact(a, b, length, count, result);
+            return true;
         }
 
-        static void checkBulkOffsets(
-            MethodHandle function,
+        static boolean checkBulkOffsets(
             int elementSize,
             MemorySegment a,
             MemorySegment b,
@@ -199,9 +190,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment offsets,
             int count,
             MemorySegment result
-        ) throws Throwable {
+        ) {
             if ((pitch % elementSize) != 0) throw new IllegalArgumentException("Pitch needs to be a multiple of " + elementSize);
-            function.invokeExact(a, b, length, pitch, offsets, count, result);
+            return true;
         }
 
         private static final Map<OperationSignature, MethodHandle> HANDLES_WITH_CHECKS;
@@ -215,39 +206,24 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 for (var op : handlesWithChecks.entrySet()) {
                     MethodHandle checkedHandle = switch (op.getKey().operation()) {
                         case SINGLE -> {
+                            MethodType checkMethodType = MethodType.methodType(
+                                boolean.class,
+                                MemorySegment.class,
+                                MemorySegment.class,
+                                int.class
+                            );
                             MethodHandle checkMethod = switch (op.getKey().dataType()) {
-                                case INT7 -> lookup.findStatic(
-                                    JdkVectorSimilarityFunctions.class,
-                                    "checkSingleInt",
-                                    MethodType.methodType(
-                                        int.class,
-                                        MethodHandle.class,
-                                        MemorySegment.class,
-                                        MemorySegment.class,
-                                        int.class
-                                    )
-                                );
-                                case FLOAT32 -> lookup.findStatic(
-                                    JdkVectorSimilarityFunctions.class,
-                                    "checkSingleFloat",
-                                    MethodType.methodType(
-                                        float.class,
-                                        MethodHandle.class,
-                                        MemorySegment.class,
-                                        MemorySegment.class,
-                                        int.class
-                                    )
-                                );
+                                case INT7 -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "checkSingleInt", checkMethodType);
+                                case FLOAT32 -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "checkSingleFloat", checkMethodType);
                             };
-                            yield MethodHandles.insertArguments(checkMethod, 0, op.getValue());
+                            yield MethodHandles.guardWithTest(checkMethod, op.getValue(), MethodHandles.empty(op.getValue().type()));
                         }
                         case BULK -> {
                             MethodHandle checkMethod = lookup.findStatic(
                                 JdkVectorSimilarityFunctions.class,
                                 "checkBulk",
                                 MethodType.methodType(
-                                    void.class,
-                                    MethodHandle.class,
+                                    boolean.class,
                                     int.class,
                                     MemorySegment.class,
                                     MemorySegment.class,
@@ -256,15 +232,18 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     MemorySegment.class
                                 )
                             );
-                            yield MethodHandles.insertArguments(checkMethod, 0, op.getValue(), op.getKey().dataType().bytes());
+                            yield MethodHandles.guardWithTest(
+                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                op.getValue(),
+                                MethodHandles.empty(op.getValue().type())
+                            );
                         }
                         case BULK_OFFSETS -> {
                             MethodHandle checkMethod = lookup.findStatic(
                                 JdkVectorSimilarityFunctions.class,
                                 "checkBulkOffsets",
                                 MethodType.methodType(
-                                    void.class,
-                                    MethodHandle.class,
+                                    boolean.class,
                                     int.class,
                                     MemorySegment.class,
                                     MemorySegment.class,
@@ -275,7 +254,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     MemorySegment.class
                                 )
                             );
-                            yield MethodHandles.insertArguments(checkMethod, 0, op.getValue(), op.getKey().dataType().bytes());
+                            yield MethodHandles.guardWithTest(
+                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                op.getValue(),
+                                MethodHandles.empty(op.getValue().type())
+                            );
                         }
                     };
 

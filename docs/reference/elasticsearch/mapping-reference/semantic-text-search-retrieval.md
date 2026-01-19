@@ -333,7 +333,7 @@ POST test-index/_search
 
 :::::
 
-## Performing result diversification with `semantic_text` fields [result-diversification]
+## Diversify results with `semantic_text` fields [result-diversification]
 
 ```{applies_to}
 stack: ga 9.4
@@ -371,7 +371,7 @@ POST test-index/_search
 }
 ```
 
-## Performing {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
+## {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
 
 ```{applies_to}
 stack: ga 9.2

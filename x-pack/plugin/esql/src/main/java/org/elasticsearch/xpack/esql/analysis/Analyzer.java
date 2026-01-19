@@ -349,6 +349,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
             LinkedHashMap<String, NamedExpression> resolved = new LinkedHashMap<>();
+            Set<String> allTags = null;
             for (NamedExpression item : metadata) {
                 switch (item) {
                     case MetadataAttribute ma -> {
@@ -356,7 +357,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved.put(ma.name(), ma);
                     }
                     case UnresolvedMetadataAttributeExpression um -> {
-                        List<? extends NamedExpression> resolvedItems = tryResolveMetadata(um, context);
+                        if (allTags == null) {
+                            allTags = context.allowedTags();
+                        }
+                        List<? extends NamedExpression> resolvedItems = tryResolveMetadata(um, allTags);
                         if (resolvedItems.isEmpty()) {
                             resolved.put(um.pattern(), um); // unresolved
                         } else {
@@ -372,10 +376,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved.values().stream().toList();
         }
 
-        private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, AnalyzerContext context) {
+        private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
             Pattern pattern = Pattern.compile(StringUtils.wildcardToJavaPattern(um.pattern(), '\\'));
-
-            List<String> matchingMetadata = context.allowedTags().stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
+            List<String> matchingMetadata = allowedTags.stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
             List<NamedExpression> result = new ArrayList<>();
             for (String item : matchingMetadata) {
                 // See if it's a known metadata attribute (we know the type there)

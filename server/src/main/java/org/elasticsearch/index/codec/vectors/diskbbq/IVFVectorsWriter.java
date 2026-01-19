@@ -191,6 +191,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException;
 
+    public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException;
+
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
@@ -204,11 +206,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
-            // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
+            final CentroidSupplier centroidSupplier = createCentroidSupplier(
+                fieldWriter.fieldInfo,
                 centroidAssignments.centroids(),
-                centroidAssignments.globalCentroid(),
-                fieldWriter.fieldInfo.getVectorDimension()
+                centroidAssignments.globalCentroid()
             );
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);

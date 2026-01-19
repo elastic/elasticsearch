@@ -9,4 +9,4 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-public record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
+public record CentroidGroups(CentroidSupplier centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}

@@ -20,29 +20,27 @@ public interface Clusters {
 
     int[] secondaryAssignments();
 
-    static Clusters empty() {
-        return new Clusters() {
-            @Override
-            public float[] getCentroid(int vectorOrdinal) {
-                return null;
-            }
+    Clusters EMPTY = new Clusters() {
+        @Override
+        public float[] getCentroid(int vectorOrdinal) {
+            return null;
+        }
 
-            @Override
-            public float[][] centroids() {
-                return new float[0][0];
-            }
+        @Override
+        public CentroidSupplier centroids() {
+            return CentroidSupplier.empty(0);
+        }
 
-            @Override
-            public int[] assignments() {
-                return new int[0];
-            }
+        @Override
+        public int[] assignments() {
+            return new int[0];
+        }
 
-            @Override
-            public int[] secondaryAssignments() {
-                return new int[0];
-            }
-        };
-    }
+        @Override
+        public int[] secondaryAssignments() {
+            return new int[0];
+        }
+    };
 
     class SingleCluster implements Clusters {
         private final float[][] centroid;

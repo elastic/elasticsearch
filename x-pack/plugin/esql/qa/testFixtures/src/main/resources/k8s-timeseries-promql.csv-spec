@@ -39,6 +39,14 @@ cost:double | step:datetime            | cluster:keyword
 10277.0     | 2024-05-10T00:00:00.000Z | prod
 ;
 
+equals_filter_case_sensitive
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="PROD"}))
+| SORT cluster;
+
+cost:double | step:datetime            | cluster:keyword
+;
+
 not_regex_filter
 required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))

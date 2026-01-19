@@ -187,7 +187,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 this.bitSetSizeInBytes = bitsetSizeInBits / Byte.SIZE;
                 this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
                 toClose.add(buffer);
-                
+
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(metadataOut);
                 CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
@@ -412,9 +412,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 return;
             }
 
+            closed = true;
             flush();
             IOUtils.close(toClose);
-            closed = true;
         }
 
         @Override

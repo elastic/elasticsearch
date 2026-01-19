@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -146,8 +148,12 @@ public class Approximation {
 
     /**
      * These processing commands are supported.
+     *
+     * When a command is not supported, it should be added to
+     * ApproximationSupportTests.UNSUPPORTED_COMMANDS
+     * to make sure all commands are captured.
      */
-    private static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS = Set.of(
+    static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS = Set.of(
         Aggregate.class,
         ChangePoint.class,
         Completion.class,
@@ -167,6 +173,7 @@ public class Approximation {
         RegexExtract.class,
         Rename.class,
         Rerank.class,
+        ResolvingProject.class,
         Row.class,
         Sample.class,
         TopN.class
@@ -216,8 +223,12 @@ public class Approximation {
     /**
      * These aggregate functions behave well with random sampling, in the sense
      * that they converge to the true value as the sample size increases.
+     *
+     * When an aggregation is not supported, it should be added to
+     * ApproximationSupportTests.UNSUPPORTED_AGGS
+     * to make sure all aggregations are captured.
      */
-    private static final Set<Class<? extends AggregateFunction>> SUPPORTED_SINGLE_VALUED_AGGS = Set.of(
+    static final Set<Class<? extends AggregateFunction>> SUPPORTED_SINGLE_VALUED_AGGS = Set.of(
         Avg.class,
         Count.class,
         Median.class,
@@ -225,6 +236,7 @@ public class Approximation {
         Percentile.class,
         StdDev.class,
         Sum.class,
+        Variance.class,
         WeightedAvg.class
     );
 
@@ -239,12 +251,17 @@ public class Approximation {
      * These multivalued aggregate functions work well with random sampling.
      * However, confidence intervals make no sense anymore and are dropped.
      */
-    private static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTIVALUED_AGGS = Set.of(
+    static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTIVALUED_AGGS = Set.of(
         org.elasticsearch.xpack.esql.expression.function.aggregate.Sample.class
     );
 
     /**
-     * These scalar functions produce multivalued output.
+     * These numerical scalar functions produce multivalued output. This means that
+     * confidence intervals cannot be computed anymore and are dropped.
+     *
+     * Numerical scalar functions that produce multivalued output should be added
+     * here. Forgetting to do so leads to confidence intervals columns for the
+     * multivalued fields, that are filled with nulls.
      */
     private static final Set<Class<? extends EsqlScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(MvAppend.class);
 

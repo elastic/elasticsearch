@@ -25,8 +25,11 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
@@ -54,9 +60,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
  * dashboard2;http_requests_total{job="api-server"}
  * </pre>
  * To run the utility, execute the following command:
- * {@code ./gradlew :x-pack:plugin:esql:analyzePromqlQueries -PqueriesFile=<path-to-query-file>}
+ * {@code ./gradlew :x-pack:plugin:esql:analyzePromqlQueries -PqueriesFile=<path-to-query-file> -PoutputFile=<path-to-output-file>}
  */
-public class QueryAnalyzer {
+public class QueryAnalyzer implements Closeable {
 
     private final EsqlParser parser = EsqlParser.INSTANCE;
     private final PromqlFakeResolver resolver = new PromqlFakeResolver();
@@ -78,25 +84,36 @@ public class QueryAnalyzer {
         new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), TransportVersion.current())
     );
 
+    private final BufferedWriter writer;
+
+    public QueryAnalyzer(BufferedWriter writer) {
+        this.writer = writer;
+    }
+
     public static void main(String[] args) throws IOException {
-        if (args.length != 1 || args[0].isBlank()) {
-            System.err.println("Usage: QueryAnalyzer <path-to-query-file>");
-            System.exit(1);
+        if (args.length < 1 || args[0].isBlank()) {
+            throw new IllegalArgumentException("Path to query file is required");
         }
+        if (args.length < 2 || args[1].isBlank()) {
+            throw new IllegalArgumentException("Path to output file is required");
+        }
+        Path inputFile = PathUtils.get(args[0]);
+        Path outputFile = PathUtils.get(args[1]);
+
         LogConfigurator.configureWithoutConfig(Settings.builder().put("logger.level", Level.INFO.name()).build());
         LogConfigurator.configureESLogging();
-        QueryAnalyzer analyzer = new QueryAnalyzer();
-        var lineCounter = new AtomicInteger(0);
-        try (Stream<String> lines = Files.lines(PathUtils.get(args[0]))) {
-            var results = lines.map(query -> query.replaceAll("\\[\\$\\w+\\]", "[1m]"))
-                .map(query -> query.replaceAll("\\$(\\w+)", "$1"))
-                .map(query -> query.replaceAll("\\$\\{(\\w+)\\}", "$1"))
-                .map(query -> analyzer.tryParse(lineCounter.incrementAndGet(), query))
-                .toList();
+        try (QueryAnalyzer analyzer = new QueryAnalyzer(Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE))) {
 
-            analyzer.printSummary(results);
-            analyzer.printErrorGroupStats(results);
-            analyzer.printMissingFunctionStats(results);
+            var lineCounter = new AtomicInteger(0);
+            try (Stream<String> lines = Files.lines(inputFile)) {
+                var results = lines.map(query -> query.replaceAll("\\[\\$\\w+\\]", "[1m]"))
+                    .map(query -> query.replaceAll("\\$(\\w+)", "$1"))
+                    .map(query -> query.replaceAll("\\$\\{(\\w+)\\}", "$1"))
+                    .map(query -> analyzer.tryParse(lineCounter.incrementAndGet(), query))
+                    .toList();
+                analyzer.writeSummary(results);
+                analyzer.writeErrorGroupStats(results);
+            }
         }
     }
 
@@ -137,6 +154,10 @@ public class QueryAnalyzer {
             .map(e -> truncateAfter(e, "Cannot parse regex"))
             .map(e -> truncateAfter(e, "mismatched input"))
             .map(e -> e.contains("optimized incorrectly due to missing references") ? "optimized incorrectly due to missing references" : e)
+            // avoid lumping all missing function errors into one group
+            .map(e -> e.contains("Function [") && e.contains("] does not exist")
+                ? e.replaceAll(".*Function \\[(.*)\\] does not exist.*", "Function $1 does not exist")
+                : e)
             .map(e -> e.replaceAll("line \\d+:\\d+: ", ""))
             .map(e -> e.replaceAll("\\[.*\\]", "[...]"))
             .map(e -> e.replaceAll("\\d+", "N"))
@@ -159,7 +180,7 @@ public class QueryAnalyzer {
         );
     }
 
-    private void printSummary(List<QueryResult> results) {
+    private void writeSummary(List<QueryResult> results) {
         Map<String, List<QueryResult>> resultsByDashboard = results.stream().collect(groupingBy(QueryResult::dashboardId));
         int successfulDashboards = resultsByDashboard.entrySet()
             .stream()
@@ -167,24 +188,26 @@ public class QueryAnalyzer {
             .mapToInt(e -> 1)
             .sum();
         long successfulQueries = results.stream().filter(QueryResult::success).count();
-        System.out.println("| Successful Queries | Successful Dashboards |");
-        System.out.println("|-------------------:|----------------------:|");
-        System.out.printf(
-            Locale.ROOT,
-            "| %.2f%% (%d/%d) | %.2f%% (%d/%d) |\n",
-            (successfulQueries * 100.0 / results.size()),
-            successfulQueries,
-            results.size(),
-            (successfulDashboards * 100.0 / resultsByDashboard.size()),
-            successfulDashboards,
-            resultsByDashboard.size()
+        writeLine("| Successful Queries | Successful Dashboards |");
+        writeLine("|-------------------:|----------------------:|");
+        writeLine(
+            String.format(
+                Locale.ROOT,
+                "| %.2f%% (%d/%d) | %.2f%% (%d/%d) |",
+                (successfulQueries * 100.0 / results.size()),
+                successfulQueries,
+                results.size(),
+                (successfulDashboards * 100.0 / resultsByDashboard.size()),
+                successfulDashboards,
+                resultsByDashboard.size()
+            )
         );
-        System.out.println("\n");
+        writeLine("");
     }
 
-    private void printErrorGroupStats(List<QueryResult> results) {
-        System.out.println("| Error Group | Total | Dashboards | Only error |");
-        System.out.println("|-------------|------:|-----------:|-----------:|");
+    private void writeErrorGroupStats(List<QueryResult> results) {
+        writeLine("| Error Group | Total | Dashboards | Only error |");
+        writeLine("|-------------|------:|-----------:|-----------:|");
         Map<String, Integer> countByGroup = results.stream()
             .flatMap(q -> q.errorGroups().stream())
             .filter(Objects::nonNull)
@@ -208,68 +231,19 @@ public class QueryAnalyzer {
             .stream()
             .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
             .forEach(
-                entry -> System.out.printf(
-                    Locale.ROOT,
-                    "| %s | %d | %d | %d |%n",
-                    entry.getKey(),
-                    entry.getValue(),
-                    distinctErrorGroupsByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
-                    onlyErrorGroupByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count()
-                )
-            );
-
-        System.out.println("\n");
-    }
-
-    private void printMissingFunctionStats(List<QueryResult> results) {
-        Map<String, List<String>> missingFunctionsByDashboard = results.stream()
-            .collect(
-                groupingBy(
-                    QueryResult::dashboardId,
-                    Collectors.flatMapping(
-                        q -> q.errors()
-                            .stream()
-                            .filter(e -> e.contains("Function [") && e.contains("] does not exist"))
-                            .map(e -> e.replaceAll(".*Function \\[(.*)\\] does not exist.*", "$1")),
-                        toList()
+                entry -> writeLine(
+                    String.format(
+                        Locale.ROOT,
+                        "| %s | %d | %d | %d |",
+                        entry.getKey(),
+                        entry.getValue(),
+                        distinctErrorGroupsByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
+                        onlyErrorGroupByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count()
                     )
                 )
-            )
-            // filter out dashboards without missing functions
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue().isEmpty() == false)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        Map<String, Set<String>> distinctMissingFunctionsByDashboard = missingFunctionsByDashboard.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue())));
-
-        Map<String, Set<String>> onlyMissingFunctionByDashboard = distinctMissingFunctionsByDashboard.entrySet()
-            .stream()
-            .filter(e -> e.getValue().size() == 1)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        Map<String, Integer> totalFunctionErrors = missingFunctionsByDashboard.values()
-            .stream()
-            .flatMap(List::stream)
-            .collect(groupingBy(e -> e, summingInt(e -> 1)));
-
-        System.out.println("| Missing Function | Total | Dashboards | Only missing |");
-        System.out.println("|------------------|------:|-----------:|-------------:|");
-        totalFunctionErrors.entrySet()
-            .stream()
-            .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
-            .forEach(
-                entry -> System.out.printf(
-                    Locale.ROOT,
-                    "| %s | %d | %d | %d |%n",
-                    entry.getKey(),
-                    entry.getValue(),
-                    distinctMissingFunctionsByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
-                    onlyMissingFunctionByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count()
-                )
             );
+
+        writeLine("");
     }
 
     private String truncateAfter(String s, String truncateAfter) {
@@ -278,6 +252,20 @@ public class QueryAnalyzer {
             return s.substring(0, idx + truncateAfter.length());
         }
         return s;
+    }
+
+    private void writeLine(String line) {
+        try {
+            writer.write(line);
+            writer.newLine();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write line: " + line, e);
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        writer.close();
     }
 
     record QueryResult(

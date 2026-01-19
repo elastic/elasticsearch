@@ -618,5 +618,5 @@ tasks.named('stringTemplates').configure {
 tasks.register("analyzePromqlQueries", JavaExec) {
   mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.QueryAnalyzer'
   classpath = sourceSets.test.runtimeClasspath
-  args project.findProperty("queriesFile") ?: ""
+  args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
 }

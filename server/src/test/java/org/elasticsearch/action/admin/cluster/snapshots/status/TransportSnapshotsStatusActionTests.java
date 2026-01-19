@@ -371,4 +371,127 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
         );
         assertTrue("Expected listener to be invoked", listenerInvoked.get());
     }
+
+    /**
+     * Tests the {@code convertShardStateToSnapshotIndexShardStage()} function to ensure it maps the correct
+     * {@link SnapshotsInProgress.ShardState} to {@link SnapshotIndexShardStage}
+     */
+    public void testConvertShardStateToSnapshotIndexShardStage() {
+        assertEquals(
+            SnapshotIndexShardStage.INIT,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.QUEUED)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.FAILURE,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.FAILED)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.FAILURE,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.ABORTED)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.FAILURE,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.MISSING)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.STARTED,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.INIT)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.STARTED,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.WAITING)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.STARTED,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL)
+        );
+        assertEquals(
+            SnapshotIndexShardStage.DONE,
+            action.convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState.SUCCESS)
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports the {@link SnapshotIndexShardStage} as {@code INIT} when the
+     * {@link SnapshotsInProgress.ShardState} is {@code QUEUED}. No other API fields are validated for correctness in this test
+     */
+    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsInitForQueuedShards() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        // For simplicity, create a single snapshot that is queued, even though in practice this is not possible
+        final var currentSnapshotEntries = List.of(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.STARTED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(shardId0, new SnapshotsInProgress.ShardSnapshotStatus(null, SnapshotsInProgress.ShardState.QUEUED, null)),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            )
+        );
+
+        final Consumer<SnapshotsStatusResponse> verifyResponse = rsp -> {
+            assertNotNull(rsp);
+            final var snapshotStatuses = rsp.getSnapshots();
+            assertNotNull(snapshotStatuses);
+            assertEquals(
+                "expected 1 snapshot status, got " + snapshotStatuses.size() + ": " + snapshotStatuses,
+                1,
+                snapshotStatuses.size()
+            );
+            final var snapshotStatus = snapshotStatuses.getFirst();
+            assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatus.getState());
+
+            final var snapshotStatusIndices = snapshotStatus.getIndices();
+            assertNotNull("expected a non-null map from getIndices() from SnapshotStatus: " + snapshotStatus, snapshotStatusIndices);
+            final var snapshotIndexStatus = snapshotStatusIndices.get(indexName);
+            assertNotNull(
+                "no entry for indexName [" + indexName + "] found in snapshotStatusIndices: " + snapshotStatusIndices,
+                snapshotIndexStatus
+            );
+            final var shardMap = snapshotIndexStatus.getShards();
+            assertNotNull("expected a non-null shard map for SnapshotIndexStatus: " + snapshotIndexStatus, shardMap);
+
+            // Verify data for the shard 0 entry, expecting it to be in the init stage.
+            final var shard0Entry = shardMap.get(0);
+            assertNotNull("no entry for shard 0 found in indexName [" + indexName + "] shardMap: " + shardMap, shard0Entry);
+            assertEquals(SnapshotIndexShardStage.INIT, shard0Entry.getStage());
+        };
+
+        final var listener = new ActionListener<SnapshotsStatusResponse>() {
+            @Override
+            public void onResponse(SnapshotsStatusResponse rsp) {
+                verifyResponse.accept(rsp);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expected onResponse() instead of onFailure(" + e + ")");
+            }
+        };
+
+        final var listenerInvoked = new AtomicBoolean(false);
+
+        action.buildResponse(
+            SnapshotsInProgress.EMPTY,
+            ProjectId.DEFAULT,
+            new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
+            currentSnapshotEntries,
+            null,
+            TransportVersion.current(),
+            new CancellableTask(randomLong(), "type", "action", "desc", null, Map.of()),
+            ActionListener.runAfter(listener, () -> listenerInvoked.set(true))
+        );
+        assertTrue("Expected listener to be invoked", listenerInvoked.get());
+    }
 }

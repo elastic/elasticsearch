@@ -11,7 +11,6 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
-import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -528,33 +526,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    static class ExitableSliceableByteVectorValues extends ExitableByteVectorValues implements HasIndexSlice {
-
-        private final HasIndexSlice delegate;
-
-        protected ExitableSliceableByteVectorValues(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
-            super(vectorValues, queryCancellation);
-            delegate = (HasIndexSlice) in;
-        }
-
-        @Override
-        public IndexInput getSlice() {
-            return delegate.getSlice();
-        }
-
-        @Override
-        public ByteVectorValues copy() throws IOException {
-            return new ExitableSliceableByteVectorValues(in.copy(), queryCancellation);
-        }
-    }
-
     private static ByteVectorValues wrapIfNeeded(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
         if (queryCancellation.isEnabled()) {
-            if (vectorValues instanceof HasIndexSlice) {
-                return new ExitableSliceableByteVectorValues(vectorValues, queryCancellation);
-            } else {
-                return new ExitableByteVectorValues(vectorValues, queryCancellation);
-            }
+            return new ExitableByteVectorValues(vectorValues, queryCancellation);
         } else {
             return vectorValues;
         }
@@ -562,11 +536,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
     private static FloatVectorValues wrapIfNeeded(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
         if (queryCancellation.isEnabled()) {
-            if (vectorValues instanceof HasIndexSlice) {
-                return new ExitableSliceableFloatVectorValues(vectorValues, queryCancellation);
-            } else {
-                return new ExitableFloatVectorValues(vectorValues, queryCancellation);
-            }
+            return new ExitableFloatVectorValues(vectorValues, queryCancellation);
         } else {
             return vectorValues;
         }
@@ -643,26 +613,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public FloatVectorValues copy() throws IOException {
             return new ExitableFloatVectorValues(in.copy(), queryCancellation);
-        }
-    }
-
-    static class ExitableSliceableFloatVectorValues extends ExitableFloatVectorValues implements HasIndexSlice {
-
-        private final HasIndexSlice delegate;
-
-        protected ExitableSliceableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
-            super(vectorValues, queryCancellation);
-            delegate = (HasIndexSlice) in;
-        }
-
-        @Override
-        public IndexInput getSlice() {
-            return delegate.getSlice();
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            return new ExitableSliceableFloatVectorValues(in.copy(), queryCancellation);
         }
     }
 

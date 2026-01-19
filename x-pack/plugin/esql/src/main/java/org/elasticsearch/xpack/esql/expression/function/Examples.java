@@ -19,5 +19,5 @@ import java.lang.annotation.Target;
 @Target({ ElementType.CONSTRUCTOR, ElementType.FIELD })
 public @interface Examples {
 
-    Example[] values();
+    Example[] value();
 }

@@ -1154,9 +1154,9 @@ public abstract class DocsV3Support {
 
             org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
             MapParam mapParam = mapParam(setting);
-            Example example = example(setting);
-            Examples examples = examples(setting);
             assert param != null || mapParam != null;
+
+            Example[] examples = examples(setting);
 
             StringBuilder builder = new StringBuilder();
 
@@ -1197,11 +1197,8 @@ public abstract class DocsV3Support {
                 builder.append("\n   \n");
             }
 
-            if (example != null) {
-                renderExample(example, builder);
-            }
             if (examples != null) {
-                for (Example value : examples.values()) {
+                for (Example value : examples) {
                     renderExample(value, builder);
                 }
             }
@@ -1302,11 +1299,11 @@ public abstract class DocsV3Support {
             return null;
         }
 
-        private static Examples examples(QuerySettingDef<?> def) {
+        private static Example[] examples(QuerySettingDef<?> def) {
             for (Field declaredField : QuerySettings.class.getFields()) {
                 try {
                     if (declaredField != null && declaredField.get(null) == def) {
-                        return declaredField.getAnnotation(Examples.class);
+                        return declaredField.getAnnotationsByType(Example.class);
                     }
                 } catch (IllegalAccessException e) {
                     // do nothing

@@ -119,11 +119,8 @@ public class QuerySettings {
     )
     @SuppressWarnings("unchecked")
     // TODO add examples when approximate is implemented, eg.
-    // @Examples(
-    // values = {
-    // @Example(file = "approximate", tag = "approximate-with-boolean"),
-    // @Example(file = "approximate", tag = "approximate-with-map") }
-    // )
+    // @Example(file = "approximate", tag = "approximate-with-boolean")
+    // @Example(file = "approximate", tag = "approximate-with-map")
     public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
         "approximate",
         null,

@@ -29,10 +29,12 @@
       },
       "ids": {
         "type": "list",
+        "default": [],
         "description": "A comma-separated list of node IDs to prevalidate"
       },
       "external_ids": {
         "type": "list",
+        "default": [],
         "description": "A comma-separated list of node external IDs to prevalidate"
       },
       "master_timeout": {

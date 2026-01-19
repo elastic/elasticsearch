@@ -28,12 +28,12 @@ import static org.apache.logging.log4j.LogManager.getLogger;
 public class NoopStep implements DlmStep {
 
     private static final Logger logger = getLogger(NoopStep.class);
-    private int itterCount = 0;
+    private int iterCount = 0;
 
     @Override
     public boolean stepCompleted(Index index, ProjectState projectState) {
-        if (itterCount < 3) {
-            itterCount++;
+        if (iterCount < 3) {
+            iterCount++;
             return false;
         } else {
             return true;

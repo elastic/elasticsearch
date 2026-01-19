@@ -20,7 +20,7 @@ import java.util.function.Function;
 
 //TODO: REMOVE BEFORE PR
 /**
- * A no-op phase used as a placeholder for testing.
+ * A no-op action used as a placeholder for testing.
  */
 public class NoopAction implements DlmAction {
     @Override

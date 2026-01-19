@@ -1427,15 +1427,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
         Source source = source(ctx);
+
         Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
-
-        var queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
-
+        Expression queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
         Expression limitValue = expression(ctx.limitValue);
-        return input -> (applyMMROptions(
-            new MMR(source, input, diversifyField, limitValue, queryVector, null),
-            ctx.commandNamedParameters()
-        ));
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+
+        return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
     }
 
     private Expression visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
@@ -1458,32 +1456,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
-    }
-
-    private MMR applyMMROptions(MMR mmrCommand, EsqlBaseParser.CommandNamedParametersContext ctx) {
-        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
-
-        if (optionsExpression == null) {
-            return mmrCommand;
-        }
-
-        Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
-
-        Expression lambdaValue = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-        if (lambdaValue != null) {
-            mmrCommand.setLambdaValue(lambdaValue);
-        }
-
-        if (optionsMap.isEmpty() == false) {
-            throw new ParsingException(
-                source(ctx),
-                "Invalid option [{}] in <MMR>, expected one of [{}]",
-                optionsMap.keySet().stream().findAny().get(),
-                mmrCommand.validOptionNames()
-            );
-        }
-
-        return mmrCommand;
     }
 
     /**

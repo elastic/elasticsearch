@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -37,7 +39,9 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVector;
-    private Expression lambdaValue;
+    private final Expression options;
+
+    private Double lambdaValue;
 
     public MMR(
         Source source,
@@ -45,13 +49,13 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         Attribute diversifyField,
         Expression limit,
         @Nullable Expression queryVector,
-        @Nullable Expression lambdaValue
+        @Nullable Expression options
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
         this.queryVector = queryVector;
-        this.lambdaValue = lambdaValue;
+        this.options = options;
     }
 
     public MMR(StreamInput in) throws IOException {
@@ -77,22 +81,22 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         return queryVector;
     }
 
-    public void setLambdaValue(Expression lambdaValue) {
-        this.lambdaValue = lambdaValue;
+    public Expression options() {
+        return options;
     }
 
-    public Expression lambdaValue() {
+    public Double lambdaValue() {
         return lambdaValue;
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new MMR(source(), newChild, diversifyField, limit, queryVector, lambdaValue);
+        return new MMR(source(), newChild, diversifyField, limit, queryVector, options);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, MMR::new, child(), diversifyField, limit, queryVector, lambdaValue);
+        return NodeInfo.create(this, MMR::new, child(), diversifyField, limit, queryVector, options);
     }
 
     @Override
@@ -112,7 +116,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         out.writeNamedWriteable(this.diversifyField);
         out.writeNamedWriteable(limit);
         out.writeOptionalNamedWriteable(queryVector);
-        out.writeOptionalNamedWriteable(lambdaValue);
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override
@@ -124,12 +128,12 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         return Objects.equals(this.diversifyField, mmr.diversifyField)
             && Objects.equals(this.limit, mmr.limit)
             && Objects.equals(this.queryVector, mmr.queryVector)
-            && Objects.equals(this.lambdaValue, mmr.lambdaValue);
+            && Objects.equals(this.options, mmr.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, lambdaValue);
+        return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, options);
     }
 
     public List<String> validOptionNames() {
@@ -160,15 +164,43 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
 
         // ensure lambda, if given, is between 0.0 and 1.0
-        if (lambdaValue != null) {
-            if (lambdaValue instanceof Literal litLambdaValue) {
-                Double lambda = (Double) litLambdaValue.value();
-                if (lambda == null || lambda < 0.0 || lambda > 1.0) {
+        postAnalysisOptionsVerification(failures);
+    }
+
+    private void postAnalysisOptionsVerification(Failures failures) {
+        if (options == null) {
+            return;
+        }
+
+        if ((options instanceof MapExpression) == false) {
+            failures.add(fail(this, "MMR options must be a map expression"));
+            return;
+        }
+
+        Map<String, Expression> optionsMap = ((MapExpression) options).keyFoldedMap();
+
+        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
+        if (lambdaValueExpression != null) {
+            if (lambdaValueExpression instanceof Literal litLambdaValue) {
+                this.lambdaValue = (Double) litLambdaValue.value();
+
+                if (this.lambdaValue == null || this.lambdaValue < 0.0 || this.lambdaValue > 1.0) {
                     failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
                 }
             } else {
                 failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
             }
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            failures.add(
+                fail(
+                    this,
+                    "Invalid option [{}] in <MMR>, expected one of [{}]",
+                    optionsMap.keySet().stream().findAny().get(),
+                    this.validOptionNames()
+                )
+            );
         }
     }
 }

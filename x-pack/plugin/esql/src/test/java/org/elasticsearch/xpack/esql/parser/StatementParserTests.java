@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -4335,7 +4336,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
         assertThat(limitValue, equalTo(10));
         assertNull(mmrCmd.queryVector());
-        assertNull(mmrCmd.lambdaValue());
+        verifyMMRLambdaValue(mmrCmd, null);
     }
 
     public void testMMRCommandWithLimitAndLambda() {
@@ -4351,9 +4352,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
         assertThat(limitValue, equalTo(10));
 
-        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
-        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
-        assertThat(lambdaValue, equalTo(0.5));
+        verifyMMRLambdaValue(mmrCmd, 0.5);
 
         assertNull(mmrCmd.queryVector());
     }
@@ -4368,9 +4367,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
         assertThat(limitValue, equalTo(10));
 
-        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
-        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
-        assertThat(lambdaValue, equalTo(0.5));
+        verifyMMRLambdaValue(mmrCmd, 0.5);
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof Literal litExpression) {
@@ -4398,9 +4395,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
         assertThat(limitValue, equalTo(10));
 
-        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
-        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
-        assertThat(lambdaValue, equalTo(0.5));
+        verifyMMRLambdaValue(mmrCmd, 0.5);
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof Literal litExpression) {
@@ -4429,9 +4424,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
         assertThat(limitValue, equalTo(10));
 
-        assertThat(mmrCmd.lambdaValue().dataType(), equalTo(DOUBLE));
-        double lambdaValue = (Double) (((Literal) mmrCmd.lambdaValue()).value());
-        assertThat(lambdaValue, equalTo(0.5));
+        verifyMMRLambdaValue(mmrCmd, 0.5);
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
@@ -4442,6 +4435,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
+        if (value == null) {
+            assertNull(mmrCmd.options());
+            return;
+        }
+
+        assertTrue(mmrCmd.options() instanceof MapExpression);
+        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
+    }
+
+    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
+        if (options == null) {
+            return null;
+        }
+
+        Map<String, Expression> optionsMap = options.keyFoldedMap();
+
+        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
+        assertNotNull(lambdaValueExpression);
+        Literal litLambdaValue = (Literal) lambdaValueExpression;
+        assertNotNull(litLambdaValue);
+        assertEquals(DOUBLE, litLambdaValue.dataType());
+        return (Double) litLambdaValue.value();
+    }
+
     public void testInvalidMMRCommands() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
@@ -4450,10 +4468,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "row a = 1 | mmr some_field limit 5 {\"unknown\": true}",
             "line 1:36: mismatched input '{' expecting {<EOF>, '|', 'with'}"
-        );
-        expectError(
-            "row a = 1 | mmr some_field limit 5 with {\"unknown\": true}",
-            "line 1:36: Invalid option [unknown] in <MMR>, expected one of [[lambda]]"
         );
     }
 
@@ -4475,4 +4489,5 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
         );
     }
+
 }

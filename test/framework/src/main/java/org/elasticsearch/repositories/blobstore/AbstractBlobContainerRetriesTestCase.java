@@ -287,7 +287,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"), exchange -> {
             // Sometimes handle the head, then do not respond to the GET
             if (exchange.getRequestMethod().equals("HEAD") && randomBoolean()) {
-                handleHeadRequest(exchange, bytes);
+                try (exchange) {
+                    handleHeadRequest(exchange, bytes);
+                }
             }
         });
 

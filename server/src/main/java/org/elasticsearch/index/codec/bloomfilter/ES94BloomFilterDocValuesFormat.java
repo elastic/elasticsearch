@@ -334,10 +334,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 return;
             }
 
-            mergeBloomFiltersWithOr(mergeState);
-        }
-
-        private void mergeBloomFiltersWithOr(MergeState mergeState) throws IOException {
             for (int readerIdx = 0; readerIdx < mergeState.docValuesProducers.length; readerIdx++) {
                 final FieldInfo fieldInfo = mergeState.fieldInfos[readerIdx].fieldInfo(bloomFilterFieldName);
                 if (fieldInfo == null) {

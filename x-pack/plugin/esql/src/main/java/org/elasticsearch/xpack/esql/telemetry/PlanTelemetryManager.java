@@ -74,7 +74,7 @@ public class PlanTelemetryManager {
         );
         functionsCounterAll = meterRegistry.registerLongCounter(FUNCTION_METRICS_ALL, "ESQL functions, total usage", "unit");
         linkedProjectsHistogram = meterRegistry.registerLongCounter(
-            ESQL_PREFIX + "projects.linked.histogram",
+            ESQL_PREFIX + "linked_projects.histogram",
             "Histogram of linked projects per esql query",
             "unit"
         );
@@ -86,7 +86,7 @@ public class PlanTelemetryManager {
     public void publish(PlanTelemetry metrics, boolean success) {
         metrics.commands().forEach((key, value) -> incCommand(key, value, success));
         metrics.functions().forEach((key, value) -> incFunction(key, value, success));
-        linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.projects()));
+        linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
     }
 
     private void incCommand(String name, int count, boolean success) {

@@ -141,7 +141,7 @@ public class ViewResolver {
                     return fork;
                 }
                 case UnresolvedRelation ur -> {
-                    List<LogicalPlan> subqueries = new ArrayList<>();
+                    List<ViewPlan> subqueries = new ArrayList<>();
                     List<String> indexes = new ArrayList<>();
                     IndexPatterns patterns = extractViewAndIndexNames(views, ur, nonViewNames, seenWildcards);
                     if (patterns.views().isEmpty()) {
@@ -157,7 +157,10 @@ public class ViewResolver {
                             throw viewError("The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: ", seen);
                         }
                         subqueries.add(
-                            replaceViewsInSubplan(resolve(view, parser), parser, views, nonViewNames, seen, seenWildcards, depth + 1)
+                            new ViewPlan(
+                                view.name(),
+                                replaceViewsInSubplan(resolve(view, parser), parser, views, nonViewNames, seen, seenWildcards, depth + 1)
+                            )
                         );
                     }
                     indexes.addAll(patterns.indexNames());
@@ -165,18 +168,21 @@ public class ViewResolver {
                     if (indexes.isEmpty()) {
                         if (subqueries.size() == 1) {
                             // only one view, no need for union, return view plan directly
-                            return subqueries.getFirst();
+                            return subqueries.getFirst().plan;
                         }
                     } else {
                         // We have non-view indexes, so we need an UnresolvedRelation for them too
                         subqueries.addFirst(
-                            new UnresolvedRelation(
-                                ur.source(),
-                                new IndexPattern(ur.indexPattern().source(), String.join(",", indexes)),
-                                ur.frozen(),
-                                ur.metadataFields(),
-                                ur.indexMode(),
-                                ur.unresolvedMessage()
+                            new ViewPlan(
+                                null,
+                                new UnresolvedRelation(
+                                    ur.source(),
+                                    new IndexPattern(ur.indexPattern().source(), String.join(",", indexes)),
+                                    ur.frozen(),
+                                    ur.metadataFields(),
+                                    ur.indexMode(),
+                                    ur.unresolvedMessage()
+                                )
                             )
                         );
                     }
@@ -245,14 +251,16 @@ public class ViewResolver {
         return new IndexPatterns(views, indexNames, wildCards);
     }
 
-    private LogicalPlan createTopPlan(UnresolvedRelation ur, List<LogicalPlan> subqueries, int depth) {
+    record ViewPlan(String name, LogicalPlan plan) {}
+
+    private LogicalPlan createTopPlan(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
         List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
         List<LogicalPlan> otherPlans = new ArrayList<>();
-        for (LogicalPlan lp : subqueries) {
-            if (lp instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
+        for (ViewPlan lp : subqueries) {
+            if (lp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 unresolvedRelations.add(urp);
             } else {
-                otherPlans.add(new Subquery(ur.source(), lp));
+                otherPlans.add(new Subquery(ur.source(), lp.plan, lp.name));
             }
         }
         if (unresolvedRelations.isEmpty() == false) {
@@ -282,10 +290,11 @@ public class ViewResolver {
         return new UnionAll(ur.source(), otherPlans, List.of());
     }
 
-    private static LogicalPlan resolve(View view, Function<String, LogicalPlan> parser) {
+    private LogicalPlan resolve(View view, Function<String, LogicalPlan> parser) {
         // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
         // this will make super-wrong Source. the _source should be the view.
         // if there's a `filter` it applies "under" the view. that's weird. right?
+        log.debug("Resolving view '{}'", view.name());
         return parser.apply(view.query());
     }
 

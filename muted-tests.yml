@@ -354,9 +354,9 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
   method: testFailsOnCopyAfterWrite
   issue: https://github.com/elastic/elasticsearch/issues/140819
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupByNothing
-  issue: https://github.com/elastic/elasticsearch/issues/139639
+- class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
+  method: test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/140890
 
 # Examples:
 #

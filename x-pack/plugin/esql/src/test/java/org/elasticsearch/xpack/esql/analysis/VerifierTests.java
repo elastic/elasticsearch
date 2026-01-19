@@ -3573,7 +3573,8 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 0.5, \"unknown_extra\": true }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with "
+                    + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
                 defaultAnalyzer,
                 VerificationException.class
             ),

@@ -240,6 +240,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         private void addToBloomFilter(BytesRef value) {
+            // TODO: consider merging the hashing with the bit array population
             var valueHashes = hashValue(value, hashes);
             for (int hash : valueHashes) {
                 final int posInBitArray = hash & (bitsetSizeInBits - 1);
@@ -563,6 +564,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         public boolean mayContainValue(String field, BytesRef value) throws IOException {
             var valueHashes = hashValue(value, hashes);
+            // TODO: consider merging the hashing with the bit array reads
 
             for (int hash : valueHashes) {
                 final int posInBitArray = hash & (bloomFilterBitSetSizeInBits - 1);

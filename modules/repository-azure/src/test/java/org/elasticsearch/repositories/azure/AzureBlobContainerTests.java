@@ -42,8 +42,7 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
             } else if ("GET".equals(exchange.getRequestMethod())) {
                 sendBlobHeaders(exchange, bytes);
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), bytes.length);
-                // Begin to write the response body then stop (this is required to trigger the read timeout)
-                exchange.getResponseBody().write(bytes[0]);
+                // Send the response headers back then stop (this is required to trigger the read timeout)
                 exchange.getResponseBody().flush();
             }
         });

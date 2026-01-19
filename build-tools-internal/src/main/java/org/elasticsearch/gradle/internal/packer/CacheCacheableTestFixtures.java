@@ -50,7 +50,6 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
      */
     @TaskAction
     public void checkForbidden() {
-        getClasspath().getFiles().forEach(f -> System.out.println("classpath file: " + f.getAbsolutePath()));
         WorkQueue workQueue = getWorkerExecutor().classLoaderIsolation(spec -> spec.getClasspath().from(getClasspath()));
         workQueue.submit(CacheTestFixtureWorkAction.class, params -> params.getClasspath().setFrom(getClasspath()));
     }
@@ -79,9 +78,8 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
                 Class<?> ifClass = Class.forName("org.elasticsearch.test.fixtures.CacheableTestFixture");
                 Set<Class<?>> classes = (Set<Class<?>>) reflections.getSubTypesOf(ifClass);
 
-                System.out.println("fixtures found: " + classes.size());
+                System.out.println("Fixtures found: " + classes.size());
                 for (Class<?> cacheableTestFixtureClazz : classes) {
-                    System.out.println("cacheableTestFixtureClazz = " + cacheableTestFixtureClazz);
                     if (Modifier.isAbstract(cacheableTestFixtureClazz.getModifiers()) == false) {
                         try {
                             Constructor<?> declaredConstructor = cacheableTestFixtureClazz.getDeclaredConstructor();

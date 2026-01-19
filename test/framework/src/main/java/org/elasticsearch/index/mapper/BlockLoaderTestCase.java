@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
-    private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
+    protected static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
@@ -90,9 +90,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), new TestContext(false, false));
 
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperServiceForParams(mappingXContent);
 
         runner.runTest(mapperService, document, expected, fieldName);
     }
@@ -134,9 +132,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
 
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperServiceForParams(mappingXContent);
 
         Object expected = expected(
             mapping.lookup().get(fullFieldName.toString()),
@@ -201,11 +197,16 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         Object expected = expected(fieldMapping, getFieldValue(document, "parent"), new TestContext(false, true));
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperServiceForParams(mappingXContent);
 
         runner.runTest(mapperService, document, expected, "parent.mf");
+    }
+
+    protected MapperService createMapperServiceForParams(XContentBuilder mappings) throws IOException {
+        if (params.syntheticSource) {
+            return createSytheticSourceMapperService(mappings);
+        }
+        return createMapperService(mappings);
     }
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {

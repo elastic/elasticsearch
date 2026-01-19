@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -97,21 +96,19 @@ public class PromqlAstTests extends ESTestCase {
     }
 
     public void testUnsupportedQueries() throws Exception {
+        PromqlParser parser = new PromqlParser();
         List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
                 log.trace("Testing invalid query {}", q);
-                PromqlParser parser = new PromqlParser();
-                Exception pe = expectThrowsAnyOf(
-                    asList(QlClientException.class, UnsupportedOperationException.class),
-                    () -> parser.createStatement(q)
-                );
                 parser.createStatement(q);
-                log.trace("{}", pe.getMessage());
             } catch (QlClientException | UnsupportedOperationException ex) {
                 // Expected
+                log.trace("{}", ex.getMessage());
+                continue;
             }
+            fail("Expected exception for line " + line.v2() + ": [" + q + "] but none was thrown");
         }
     }
 

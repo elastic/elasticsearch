@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,7 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -67,60 +65,11 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
-    private final AtomicInteger activePageCount = new AtomicInteger();
-
-    private final Recycler<BytesRef> recycler = new Recycler<>() {
-
-        @Override
-        public V<BytesRef> obtain() {
-            activePageCount.incrementAndGet();
-            final var bufferPool = randomByteArrayOfLength(between(pageSize(), pageSize() * 4));
-            final var offset = randomBoolean()
-                // align to a multiple of pageSize(), which is the usual case in production
-                ? between(0, bufferPool.length / pageSize() - 1) * pageSize()
-                // no alignment, to detect cases where alignment is assumed
-                : between(0, bufferPool.length - pageSize());
-            final var bytesRef = new BytesRef(bufferPool, offset, pageSize());
-
-            final var bufferPoolCopy = ArrayUtil.copyArray(bufferPool); // keep for a later check for out-of-bounds writes
-            final var dummyByte = randomByte();
-            Arrays.fill(bufferPoolCopy, offset, offset + pageSize(), dummyByte);
-
-            return new V<>() {
-                @Override
-                public BytesRef v() {
-                    return bytesRef;
-                }
-
-                @Override
-                public boolean isRecycled() {
-                    throw new AssertionError("shouldn't matter");
-                }
-
-                @Override
-                public void close() {
-                    // page must not be changed
-                    assertSame(bufferPool, bytesRef.bytes);
-                    assertEquals(offset, bytesRef.offset);
-                    assertEquals(pageSize(), bytesRef.length);
-
-                    Arrays.fill(bufferPool, offset, offset + pageSize(), dummyByte); // overwrite buffer contents to detect use-after-free
-                    assertArrayEquals(bufferPoolCopy, bufferPool); // remainder of pool must be unmodified
-
-                    activePageCount.decrementAndGet();
-                }
-            };
-        }
-
-        @Override
-        public int pageSize() {
-            return PageCacheRecycler.BYTE_PAGE_SIZE;
-        }
-    };
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
 
     @After
-    public void ensureClosed() {
-        assertEquals(0, activePageCount.getAndSet(0));
+    public void closeRecycler() {
+        recycler.close();
     }
 
     public void testEmpty() throws Exception {
@@ -1261,24 +1210,29 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testMoveToBytesReference() throws IOException {
-        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        byte[] testData = randomizedByteArrayWithSize(100);
-        out.writeBytes(testData);
+        final var testData = randomByteArrayOfLength(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final ReleasableBytesReference releasableBytesReference;
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(testData);
 
-        ReleasableBytesReference ref = out.moveToBytesReference();
-        assertArrayEquals(testData, BytesReference.toBytes(ref));
+            releasableBytesReference = out.moveToBytesReference();
+            assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
 
-        // Verify that pages are nulled after move
-        assertEquals(0, out.size());
+            // Verify that pages are nulled after move
+            assertEquals(0, out.size());
 
-        // ISE after close
-        expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
-        expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
+            // ISE after close
+            expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
+            expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
 
-        // Verify that close becomes noop after move
-        out.close(); // Should not throw
+            assertThat(recycler.activePageCount(), greaterThan(0));
 
-        ref.close();
+        } // Verifies that closing after move does not throw
+
+        assertThat(recycler.activePageCount(), greaterThan(0));
+        assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
+        releasableBytesReference.close();
+        assertThat(recycler.activePageCount(), equalTo(0));
     }
 
     public void testMultipleCloseOperations() throws IOException {

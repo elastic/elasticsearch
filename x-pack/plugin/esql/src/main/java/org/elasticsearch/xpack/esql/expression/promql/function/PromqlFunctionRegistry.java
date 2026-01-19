@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -114,7 +114,9 @@ public class PromqlFunctionRegistry {
         valueTransformationFunction("tan", Tan::new),
         valueTransformationFunction("tanh", Tanh::new),
 
-        vector() };
+        vector(),
+
+        scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI)) };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -216,8 +218,13 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
-    protected interface ValueTransformationFunction<T extends UnaryScalarFunction> {
+    protected interface ValueTransformationFunction<T extends ScalarFunction> {
         T build(Source source, Expression value);
+    }
+
+    @FunctionalInterface
+    protected interface ScalarFunctionBuilder {
+        Expression build(Source source);
     }
 
     private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder) {
@@ -287,7 +294,21 @@ public class PromqlFunctionRegistry {
     }
 
     private static FunctionDefinition vector() {
-        return new FunctionDefinition("vector", FunctionType.VECTOR, Arity.ONE, (source, target, timestamp, window, extraParams) -> target);
+        return new FunctionDefinition(
+            "vector",
+            FunctionType.VECTOR_CONVERSION,
+            Arity.ONE,
+            (source, target, timestamp, window, extraParams) -> target
+        );
+    }
+
+    private static FunctionDefinition scalarFunction(String name, ScalarFunctionBuilder builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.SCALAR,
+            Arity.NONE,
+            (source, target, timestamp, window, extraParams) -> builder.build(source)
+        );
     }
 
     // PromQL function names not yet implemented
@@ -341,7 +362,7 @@ public class PromqlFunctionRegistry {
         "label_join",
         "label_replace",
 
-        // Special functions
+        // Histogram functions
         "histogram_avg",
         "histogram_count",
         "histogram_fraction",
@@ -349,8 +370,9 @@ public class PromqlFunctionRegistry {
         "histogram_stddev",
         "histogram_stdvar",
         "histogram_sum",
-        "pi",
+        // Scalar functions
         "time"
+
     );
 
     private String normalize(String name) {

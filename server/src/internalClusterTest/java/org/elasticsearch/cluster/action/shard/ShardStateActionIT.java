@@ -66,7 +66,11 @@ public class ShardStateActionIT extends ESIntegTestCase {
             // Assigning the shards of the index for the first time does not block on any NORMAL/LOW tasks:
             final var indexName = randomIndexName();
             createIndex(indexName, indexSettings(2, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode0).build());
-            ensureGreen(indexName);
+            awaitClusterState(
+                cs -> cs.getRoutingNodes().node(cs.nodes().resolveNode(dataNode0).getId()).size() == 2
+                    && cs.getRoutingNodes().node(cs.nodes().resolveNode(dataNode1).getId()).isEmpty()
+                    && cs.routingTable(ProjectId.DEFAULT).index(indexName).allShardsActive()
+            );
 
             // But moving the shards to the other node does block:
             updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode1));

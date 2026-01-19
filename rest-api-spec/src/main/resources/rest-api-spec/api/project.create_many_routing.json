@@ -1,7 +1,7 @@
 {
-  "project_routing.create_many": {
+  "project.create_many_routing": {
     "documentation": {
-      "url": null,
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Create or update named project routing expressions"
     },
     "stability": "experimental",
@@ -13,7 +13,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_project_routing/",
+          "path": "/_project_routing",
           "methods": ["PUT"]
         }
       ]

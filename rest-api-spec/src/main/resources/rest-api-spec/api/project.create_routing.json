@@ -1,7 +1,7 @@
 {
-  "project_routing.create": {
+  "project.create_routing": {
     "documentation": {
-      "url": null,
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Create or update named project routing expression"
     },
     "stability": "experimental",

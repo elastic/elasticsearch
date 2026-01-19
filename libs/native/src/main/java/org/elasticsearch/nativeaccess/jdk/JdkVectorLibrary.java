@@ -26,6 +26,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
@@ -46,6 +47,37 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     public static final JdkVectorSimilarityFunctions INSTANCE;
 
+    /**
+     * Native functions in the native simdvec library can have multiple implementations, one for each "capability level".
+     * A capability level of "0" means that there is no native function for that platform.
+     * Functions for the base ("1") level are exposed with a simple function name (e.g. "vec_dot7u")
+     * Functions for the more advanced levels (2, 3, ...) are exported with a name "decorated" by adding the capability level as
+     * a suffix: if the capability level is N, the suffix will be "_N" (e.g. "vec_dot7u_2").
+     * Capability levels maps to the availability of advanced vector instructions sets for a platform. For example, for x64 we currently
+     * define 2 capability levels, 1 (base, processor supports AVX2) and 2 (processor supports AVX-512 with VNNI and VPOPCNT).
+     * <p>
+     * This function binds the function with the highest capability level exported by the native library by performing fallback lookups:
+     * starting from the supported capability level N, it looks up function_N, function_{N-1}... function.
+     *
+     * @param functionName          the base function name, as exported by the native library
+     * @param capability            the capability level supported by this platform, as returned by `int vec_caps()`
+     * @param functionDescriptor    the function descriptor for the function(s) starting with `functionName`
+     * @return a {@link MethodHandle} to the native function
+     */
+    private static MethodHandle bindFunction(String functionName, int capability, FunctionDescriptor functionDescriptor) {
+        for (int caps = capability; caps > 0; --caps) {
+            var suffix = caps > 1 ? "_" + caps : "";
+            var fullFunctionName = functionName + suffix;
+            logger.trace("Lookup for {}", fullFunctionName);
+            var function = functionAddressOrNull(functionName + suffix);
+            if (function != null) {
+                logger.debug("Binding {}", fullFunctionName);
+                return downcallHandle(function, functionDescriptor, LinkerHelperUtil.critical());
+            }
+        }
+        throw new LinkageError("Native function [" + functionName + "] could not be found");
+    }
+
     static {
         LoaderHelper.loadLibrary("vec");
         final MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
@@ -54,7 +86,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int caps = (int) vecCaps$mh.invokeExact();
             logger.info("vec_caps=" + caps);
             if (caps > 0) {
-                String suffix = caps == 2 ? "_2" : "";
                 FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
@@ -68,18 +99,18 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS
                 );
 
-                dot7u$mh = downcallHandle("vec_dot7u" + suffix, intSingle, LinkerHelperUtil.critical());
-                dot7uBulk$mh = downcallHandle("vec_dot7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
-                dot7uBulkWithOffsets$mh = downcallHandle("vec_dot7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
-                sqr7u$mh = downcallHandle("vec_sqr7u" + suffix, intSingle, LinkerHelperUtil.critical());
-                sqr7uBulk$mh = downcallHandle("vec_sqr7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
-                sqr7uBulkWithOffsets$mh = downcallHandle("vec_sqr7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
-                dotf32$mh = downcallHandle("vec_dotf32" + suffix, floatSingle, LinkerHelperUtil.critical());
-                dotf32Bulk$mh = downcallHandle("vec_dotf32_bulk" + suffix, bulk, LinkerHelperUtil.critical());
-                dotf32BulkWithOffsets$mh = downcallHandle("vec_dotf32_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
-                sqrf32$mh = downcallHandle("vec_sqrf32" + suffix, floatSingle, LinkerHelperUtil.critical());
-                sqrf32Bulk$mh = downcallHandle("vec_sqrf32_bulk" + suffix, bulk, LinkerHelperUtil.critical());
-                sqrf32BulkWithOffsets$mh = downcallHandle("vec_sqrf32_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+                dot7u$mh = bindFunction("vec_dot7u", caps, intSingle);
+                dot7uBulk$mh = bindFunction("vec_dot7u_bulk", caps, bulk);
+                dot7uBulkWithOffsets$mh = bindFunction("vec_dot7u_bulk_offsets", caps, bulkOffsets);
+                sqr7u$mh = bindFunction("vec_sqr7u", caps, intSingle);
+                sqr7uBulk$mh = bindFunction("vec_sqr7u_bulk", caps, bulk);
+                sqr7uBulkWithOffsets$mh = bindFunction("vec_sqr7u_bulk_offsets", caps, bulkOffsets);
+                dotf32$mh = bindFunction("vec_dotf32", caps, floatSingle);
+                dotf32Bulk$mh = bindFunction("vec_dotf32_bulk", caps, bulk);
+                dotf32BulkWithOffsets$mh = bindFunction("vec_dotf32_bulk_offsets", caps, bulkOffsets);
+                sqrf32$mh = bindFunction("vec_sqrf32", caps, floatSingle);
+                sqrf32Bulk$mh = bindFunction("vec_sqrf32_bulk", caps, bulk);
+                sqrf32BulkWithOffsets$mh = bindFunction("vec_sqrf32_bulk_offsets", caps, bulkOffsets);
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {

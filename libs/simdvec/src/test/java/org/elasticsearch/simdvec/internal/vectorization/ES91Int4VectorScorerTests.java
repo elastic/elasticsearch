@@ -18,7 +18,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
-import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.IOException;
 
@@ -29,6 +28,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
     public void testInt4DotProduct() throws Exception {
         // only even dimensions are supported
         final int dimensions = random().nextInt(1, 1000) * 2;
+        final int bulkSize = 16;
         final int numVectors = random().nextInt(1, 100);
         final byte[] vector = new byte[dimensions];
         try (Directory dir = new MMapDirectory(createTempDir())) {
@@ -50,8 +50,8 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) dimensions * numVectors);
                 final IndexInput slice2 = in.slice("test2", 0, (long) dimensions * numVectors);
-                final ES91Int4VectorsScorer defaultScorer = defaultProvider().newES91Int4VectorsScorer(slice, dimensions);
-                final ES91Int4VectorsScorer panamaScorer = maybePanamaProvider().newES91Int4VectorsScorer(slice2, dimensions);
+                final ES91Int4VectorsScorer defaultScorer = defaultProvider().newES91Int4VectorsScorer(slice, dimensions, bulkSize);
+                final ES91Int4VectorsScorer panamaScorer = maybePanamaProvider().newES91Int4VectorsScorer(slice2, dimensions, bulkSize);
                 for (int i = 0; i < numVectors; i++) {
                     in.readBytes(vector, 0, dimensions);
                     long val = VectorUtil.int4DotProduct(vector, query);
@@ -69,6 +69,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
         // only even dimensions are supported
         final int dimensions = random().nextInt(1, 1000) * 2;
         final int numVectors = random().nextInt(1, 100);
+        final int bulkSize = 16;
         final byte[] vector = new byte[dimensions];
         final byte[] corrections = new byte[14];
         try (Directory dir = new MMapDirectory(createTempDir())) {
@@ -99,8 +100,8 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 14) * numVectors);
-                final ES91Int4VectorsScorer defaultScorer = defaultProvider().newES91Int4VectorsScorer(in, dimensions);
-                final ES91Int4VectorsScorer panamaScorer = maybePanamaProvider().newES91Int4VectorsScorer(slice, dimensions);
+                final ES91Int4VectorsScorer defaultScorer = defaultProvider().newES91Int4VectorsScorer(in, dimensions, bulkSize);
+                final ES91Int4VectorsScorer panamaScorer = maybePanamaProvider().newES91Int4VectorsScorer(slice, dimensions, bulkSize);
                 for (int i = 0; i < numVectors; i++) {
                     float scoreDefault = defaultScorer.score(
                         query,
@@ -131,7 +132,8 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
     public void testInt4ScoreBulk() throws Exception {
         // only even dimensions are supported
         final int dimensions = random().nextInt(1, 1000) * 2;
-        final int numVectors = random().nextInt(1, 10) * ES91Int4VectorsScorer.BULK_SIZE;
+        final int bulkSize = 16;
+        final int numVectors = random().nextInt(1, 10) * bulkSize;
         final float[][] vectors = new float[numVectors][dimensions];
         final int[] quantizedScratch = new int[dimensions];
         final byte[] quantizeVector = new byte[dimensions];
@@ -148,10 +150,9 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
         float[] scratch = new float[dimensions];
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
-                OptimizedScalarQuantizer.QuantizationResult[] results =
-                    new OptimizedScalarQuantizer.QuantizationResult[ES91Int4VectorsScorer.BULK_SIZE];
-                for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
-                    for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
+                OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
+                for (int i = 0; i < numVectors; i += bulkSize) {
+                    for (int j = 0; j < bulkSize; j++) {
                         for (int k = 0; k < dimensions; k++) {
                             vectors[i + j][k] = random().nextFloat();
                         }
@@ -192,11 +193,11 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 14) * numVectors);
-                final ES91Int4VectorsScorer defaultScorer = defaultProvider().newES91Int4VectorsScorer(in, dimensions);
-                final ES91Int4VectorsScorer panamaScorer = maybePanamaProvider().newES91Int4VectorsScorer(slice, dimensions);
-                float[] scoresDefault = new float[ES91Int4VectorsScorer.BULK_SIZE];
-                float[] scoresPanama = new float[ES91Int4VectorsScorer.BULK_SIZE];
-                for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
+                final ES91Int4VectorsScorer defaultScorer = defaultProvider().newES91Int4VectorsScorer(in, dimensions, bulkSize);
+                final ES91Int4VectorsScorer panamaScorer = maybePanamaProvider().newES91Int4VectorsScorer(slice, dimensions, bulkSize);
+                float[] scoresDefault = new float[bulkSize];
+                float[] scoresPanama = new float[bulkSize];
+                for (int i = 0; i < numVectors; i += bulkSize) {
                     defaultScorer.scoreBulk(
                         quantizeQuery,
                         queryCorrections.lowerInterval(),
@@ -217,7 +218,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                         centroidDp,
                         scoresPanama
                     );
-                    for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
+                    for (int j = 0; j < bulkSize; j++) {
                         assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
                         float realSimilarity = similarityFunction.compare(vectors[i + j], query);
                         float accuracy = realSimilarity > scoresDefault[j]

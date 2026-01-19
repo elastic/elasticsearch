@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -52,21 +51,21 @@ public class IndexReshardServiceTests extends ESTestCase {
         String indexName = randomAlphaOfLength(5);
 
         var noReshardingMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        assertFalse(IndexReshardService.isShardSnapshotImpactedByResharding(noReshardingMetadata, new ShardId(indexName, "uuid", 0)));
+        assertFalse(IndexReshardService.isShardSnapshotImpactedByResharding(noReshardingMetadata, 0));
 
         var withReshardingMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), 1, 0))
             .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
             .build();
-        assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(withReshardingMetadata, new ShardId(indexName, "uuid", 0)));
+        assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(withReshardingMetadata, 0));
         // The shard doesn't matter if there is resharding metadata.
-        assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(withReshardingMetadata, new ShardId(indexName, "uuid", 50)));
+        assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(withReshardingMetadata, 50));
 
         var manyShards = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 4, 0)).build();
         // When shard 3 is present in the snapshot it means that index metadata is up-to-date with the snapshot
         // and therefore the result is false.
-        assertFalse(IndexReshardService.isShardSnapshotImpactedByResharding(manyShards, new ShardId(indexName, "uuid", 3)));
+        assertFalse(IndexReshardService.isShardSnapshotImpactedByResharding(manyShards, 3));
         // But emulating a split 2 -> 4, a snapshot now only contains shard 1 which means the result is true.
-        assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(manyShards, new ShardId(indexName, "uuid", 1)));
+        assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(manyShards, 1));
     }
 }

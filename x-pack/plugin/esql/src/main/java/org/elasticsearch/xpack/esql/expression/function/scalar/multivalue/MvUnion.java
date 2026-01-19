@@ -189,12 +189,32 @@ public class MvUnion extends MvSetOperationFunction {
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
-        processSetOperation(builder, position, field1, field2, (p, b) -> ((IntBlock) b).getInt(p), builder::appendInt, Set::addAll, false, false);
+        processSetOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((IntBlock) b).getInt(p),
+            builder::appendInt,
+            Set::addAll,
+            false,
+            false
+        );
     }
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
-        processSetOperation(builder, position, field1, field2, (p, b) -> ((LongBlock) b).getLong(p), builder::appendLong, Set::addAll, false, false);
+        processSetOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((LongBlock) b).getLong(p),
+            builder::appendLong,
+            Set::addAll,
+            false,
+            false
+        );
     }
 
     @Evaluator(extraName = "Double")

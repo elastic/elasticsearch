@@ -716,7 +716,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
-        assertConstantResult("time()", closeTo(Instant.now().getEpochSecond(), 10));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
     }
 

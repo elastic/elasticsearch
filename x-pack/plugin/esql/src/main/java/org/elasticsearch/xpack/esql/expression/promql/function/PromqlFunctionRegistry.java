@@ -116,8 +116,7 @@ public class PromqlFunctionRegistry {
 
         vector(),
 
-        scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI)),
-        scalarFunction("time", (source) -> Literal.fromDouble(source, System.currentTimeMillis() / 1000.0)) };
+        scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI)) };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -370,7 +369,10 @@ public class PromqlFunctionRegistry {
         "histogram_quantile",
         "histogram_stddev",
         "histogram_stdvar",
-        "histogram_sum"
+        "histogram_sum",
+        // scalar functions
+        "time"
+
     );
 
     private String normalize(String name) {

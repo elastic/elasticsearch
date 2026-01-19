@@ -112,7 +112,7 @@ setup:
         task_id: $deleteTaskId
       catch: missing
   - match: { error.type: resource_not_found_exception }
-  - match: { error.reason: '/reindex\ task\ \[.*?]\ either\ not\ found\ or\ completed*/' }
+  - match: { error.reason: '/^reindex\ task\ \[.*?]\ either\ not\ found\ or\ completed$/' }
 
   # cleanup
   - do:

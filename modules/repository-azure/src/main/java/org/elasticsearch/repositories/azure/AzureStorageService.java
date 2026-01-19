@@ -186,7 +186,7 @@ public class AzureStorageService {
 
         // The Azure client complains if you try to set timeout < 1s, round anything below that up
         final TimeValue configuredTimeout = azureStorageSettings.getTimeout();
-        final Duration timeout = configuredTimeout.equals(TimeValue.MINUS_ONE)
+        final Duration timeout = configuredTimeout.duration() == -1
             ? Duration.ofSeconds(Integer.MAX_VALUE)
             : Duration.ofMillis(Math.max(1_000, configuredTimeout.millis()));
         return new RequestRetryOptions(

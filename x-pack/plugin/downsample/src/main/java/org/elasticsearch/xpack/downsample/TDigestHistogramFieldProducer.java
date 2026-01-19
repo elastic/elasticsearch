@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -61,7 +62,11 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), COMPRESSION);
+                    tDigestState = TDigestState.createOfType(
+                        new NoopCircuitBreaker("downsampling-histograms"),
+                        TDigestState.Type.MERGING,
+                        COMPRESSION
+                    );
                 }
                 final HistogramValue sketch = docValues.histogram();
                 while (sketch.next()) {
@@ -79,18 +84,16 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
-                Iterator<Centroid> centroids = tDigestState.uniqueCentroids();
-                List<Centroid> sortedCentroids = new ArrayList<>(tDigestState.centroidCount());
-                while (centroids.hasNext()) {
-                    sortedCentroids.add(centroids.next());
-                }
-                sortedCentroids.sort(Centroid::compareTo);
-                double[] values = new double[sortedCentroids.size()];
-                long[] counts = new long[sortedCentroids.size()];
-                for (int i = 0; i < sortedCentroids.size(); i++) {
-                    Centroid centroid = sortedCentroids.get(i);
+                Collection<Centroid> centroids = tDigestState.centroids();
+                final double[] values = new double[centroids.size()];
+                final long[] counts = new long[centroids.size()];
+                Iterator<Centroid> it = centroids.iterator();
+                int i = 0;
+                while (it.hasNext()) {
+                    Centroid centroid = it.next();
                     values[i] = centroid.mean();
                     counts[i] = centroid.count();
+                    i++;
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
                 tDigestState.close();

@@ -317,7 +317,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 pointInTimeBuilder,
                 results,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                TransportVersionUtils.randomCompatibleVersion(random()),
+                TransportVersionUtils.randomCompatibleVersion(),
                 searchTransportService,
                 nodes,
                 logger
@@ -352,7 +352,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 pointInTimeBuilder,
                 results,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                TransportVersionUtils.randomCompatibleVersion(random()),
+                TransportVersionUtils.randomCompatibleVersion(),
                 searchTransportService,
                 nodes,
                 logger
@@ -395,7 +395,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 pointInTimeBuilder,
                 results,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                TransportVersionUtils.randomCompatibleVersion(random()),
+                TransportVersionUtils.randomCompatibleVersion(),
                 searchTransportService,
                 nodes,
                 logger

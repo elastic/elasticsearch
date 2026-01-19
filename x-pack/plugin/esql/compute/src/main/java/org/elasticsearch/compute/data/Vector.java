@@ -14,19 +14,29 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
- * A dense Vector of single values.
+ * A dense Vector of single values. This is effectively a kind of {@link Block} so it
+ * is reference counted in the same way.
+ *
+ * <p>
+ *     The usual way to read a block looks like:
+ * </p>
+ * <pre>{@code
+ * for (int p = 0; p < block.getPositionCount(); p++) {
+ *     // Do stuff with single valued data
+ *     int v = block.getInt(p);
+ * }
+ * }</pre>
  */
 public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a new Block containing this vector.}
+     * {@return a new Block containing this vector}
      */
     Block asBlock();
 
     /**
-     * The number of positions in this vector.
-     *
-     * @return the number of positions
+     * {@return the number of positions (rows) in this vector}
+     * See class javadoc for the usual way to iterate these positions.
      */
     int getPositionCount();
 

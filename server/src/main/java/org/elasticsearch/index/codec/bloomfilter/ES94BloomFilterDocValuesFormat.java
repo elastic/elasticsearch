@@ -260,7 +260,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             if (buffer.hasArray()) {
                 bloomFilterDataOut.writeBytes(buffer.array(), 0, bitSetSizeInBytes);
             } else {
-                BytesReference.fromByteArray(buffer, bitSetSizeInBytes).writeTo(new IndexOutputOutputStream(bloomFilterDataOut));
+                BytesReference.fromByteArray(buffer, bitSetSizeInBytes)
+                    .writeTo(
+                        // do not close the stream as it would close bloomFilterDataOut
+                        new IndexOutputOutputStream(bloomFilterDataOut)
+                    );
             }
             CodecUtil.writeFooter(bloomFilterDataOut);
 

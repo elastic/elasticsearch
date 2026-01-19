@@ -365,8 +365,52 @@ static inline void dotf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
+    const int32_t vec_size = pitch / sizeof(f32_t);
+    int c = 0;
+    for (; c + 3 < count; c += 4) {
+        const f32_t *a0 = a + mapper(c + 0, offsets) * vec_size;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * vec_size;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * vec_size;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * vec_size;
+
+        __m512 sum0 = _mm512_setzero_ps();
+        __m512 sum1 = _mm512_setzero_ps();
+        __m512 sum2 = _mm512_setzero_ps();
+        __m512 sum3 = _mm512_setzero_ps();
+
+        int32_t i = 0;
+        int32_t unrolled_limit = dims & ~15UL;
+        // do 4 vectors at a time, iterating through the dimensions in parallel
+        // Each __m512 holds 16 floats
+        for (; i < unrolled_limit; i += 16) {
+            __m512 bi = _mm512_loadu_ps(b + i);
+            sum0 = _mm512_fmadd_ps(_mm512_loadu_ps(a0 + i), bi, sum0);
+            sum1 = _mm512_fmadd_ps(_mm512_loadu_ps(a1 + i), bi, sum1);
+            sum2 = _mm512_fmadd_ps(_mm512_loadu_ps(a2 + i), bi, sum2);
+            sum3 = _mm512_fmadd_ps(_mm512_loadu_ps(a3 + i), bi, sum3);
+        }
+
+        f32_t result0 = _mm512_reduce_add_ps(sum0);
+        f32_t result1 = _mm512_reduce_add_ps(sum1);
+        f32_t result2 = _mm512_reduce_add_ps(sum2);
+        f32_t result3 = _mm512_reduce_add_ps(sum3);
+
+        // dimensions tail
+        for (; i < dims; i++) {
+            result0 += a0[i] * b[i];
+            result1 += a1[i] * b[i];
+            result2 += a2[i] * b[i];
+            result3 += a3[i] * b[i];
+        }
+
+        results[c + 0] = result0;
+        results[c + 1] = result1;
+        results[c + 2] = result2;
+        results[c + 3] = result3;
+    }
+
+    // vectors tail
+    for (; c < count; c++) {
         const f32_t *a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_dotf32_2(a0, b, dims);
     }
@@ -433,8 +477,62 @@ static inline void sqrf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
+    const int32_t vec_size = pitch / sizeof(f32_t);
+    int c = 0;
+    for (; c + 3 < count; c += 4) {
+        const f32_t *a0 = a + mapper(c + 0, offsets) * vec_size;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * vec_size;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * vec_size;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * vec_size;
+
+        __m512 sum0 = _mm512_setzero_ps();
+        __m512 sum1 = _mm512_setzero_ps();
+        __m512 sum2 = _mm512_setzero_ps();
+        __m512 sum3 = _mm512_setzero_ps();
+
+        int32_t i = 0;
+        int32_t unrolled_limit = dims & ~15UL;
+        // do 4 vectors at a time, iterating through the dimensions in parallel
+        // Each __m512 holds 16 floats
+        for (; i < unrolled_limit; i += 16) {
+            __m512 bi = _mm512_loadu_ps(b + i);
+            __m512 d0 = _mm512_sub_ps(_mm512_loadu_ps(a0 + i), bi);
+            __m512 d1 = _mm512_sub_ps(_mm512_loadu_ps(a1 + i), bi);
+            __m512 d2 = _mm512_sub_ps(_mm512_loadu_ps(a2 + i), bi);
+            __m512 d3 = _mm512_sub_ps(_mm512_loadu_ps(a3 + i), bi);
+
+            sum0 = _mm512_fmadd_ps(d0, d0, sum0);
+            sum1 = _mm512_fmadd_ps(d1, d1, sum1);
+            sum2 = _mm512_fmadd_ps(d2, d2, sum2);
+            sum3 = _mm512_fmadd_ps(d3, d3, sum3);
+        }
+
+        f32_t result0 = _mm512_reduce_add_ps(sum0);
+        f32_t result1 = _mm512_reduce_add_ps(sum1);
+        f32_t result2 = _mm512_reduce_add_ps(sum2);
+        f32_t result3 = _mm512_reduce_add_ps(sum3);
+
+        // dimensions tail
+        for (; i < dims; i++) {
+            f32_t diff0 = a0[i] - b[i];
+            f32_t diff1 = a1[i] - b[i];
+            f32_t diff2 = a2[i] - b[i];
+            f32_t diff3 = a3[i] - b[i];
+
+            result0 += diff0 * diff0;
+            result1 += diff1 * diff1;
+            result2 += diff2 * diff2;
+            result3 += diff3 * diff3;
+        }
+
+        results[c + 0] = result0;
+        results[c + 1] = result1;
+        results[c + 2] = result2;
+        results[c + 3] = result3;
+    }
+
+    // vectors tail
+    for (; c < count; c++) {
         const f32_t *a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_sqrf32_2(a0, b, dims);
     }

@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.ERROR;
@@ -657,18 +658,16 @@ public class ShardStateAction {
             this.allocationService = allocationService;
             this.rerouteService = rerouteService;
 
-            if (clusterSettings.isDynamicSetting(SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY.getKey())) {
-                // setting only registered in some tests today
-                clusterSettings.initializeAndWatch(SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY, v -> rerouteSomeUnassignedPriority = v);
-            } else {
-                rerouteSomeUnassignedPriority = SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY.get(Settings.EMPTY);
-            }
+            watchPrioritySetting(clusterSettings, SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY, v -> rerouteSomeUnassignedPriority = v);
+            watchPrioritySetting(clusterSettings, SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY, v -> rerouteAllAssignedPriority = v);
+        }
 
-            if (clusterSettings.isDynamicSetting(SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY.getKey())) {
+        private static void watchPrioritySetting(ClusterSettings clusterSettings, Setting<Priority> setting, Consumer<Priority> consumer) {
+            if (clusterSettings.isDynamicSetting(setting.getKey())) {
                 // setting only registered in some tests today
-                clusterSettings.initializeAndWatch(SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY, v -> rerouteAllAssignedPriority = v);
+                clusterSettings.initializeAndWatch(setting, consumer);
             } else {
-                rerouteSomeUnassignedPriority = SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY.get(Settings.EMPTY);
+                consumer.accept(setting.get(Settings.EMPTY));
             }
         }
 

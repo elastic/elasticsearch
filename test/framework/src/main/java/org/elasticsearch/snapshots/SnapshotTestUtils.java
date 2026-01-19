@@ -55,12 +55,16 @@ public class SnapshotTestUtils {
      * sets the shutdown metadata for the specified node. The metadata is built using the provided
      * {@link SingleNodeShutdownMetadata.Builder}. Upon completion, the provided {@link ActionListener}
      * is notified.
-     * </p>
-     * Note: At the beginning of each test, the test cluster is reset. Therefore, node names can be reused between tests if they manually
-     * start nodes. When a test adds shutdown metadata for its manually started node, <i>it must be cleared at the end of the test by
+     * <p>
+     * NB: If using {@code ESIntegTestCase.Scope.SUITE}, at the beginning of each test, the test cluster is reset.
+     * Therefore, node names can be reused between tests if they manually start nodes.
+     * When a test adds shutdown metadata for its manually started node, <i>it must be cleared at the end of the test by
      * calling {@link #clearShutdownMetadata(ClusterService)}</i>.
      * Otherwise, the subsequent test can start a node with the same name which is still shutting down and cannot accept
      * shards which leads to create index timeout.
+     * <p>
+     * NB If using {@code ESIntegTestCase.Scope.TEST}, the test cluster exists only for the duration of the test, and so
+     * calling {@link #clearShutdownMetadata(ClusterService)} is not strictly required.
      *
      * @param clusterService the {@link ClusterService} used to submit the state update task
      * @param shutdownMetadataBuilder the builder for the node's shutdown metadata

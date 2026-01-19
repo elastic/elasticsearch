@@ -44,8 +44,8 @@ public class ESVectorUtil {
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
 
-    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
@@ -53,17 +53,19 @@ public class ESVectorUtil {
         byte queryBits,
         byte indexBits,
         int dimension,
-        int dataLength
+        int dataLength,
+        int bulkSize
     ) throws IOException {
-        return ESVectorizationProvider.getInstance().newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+        return ESVectorizationProvider.getInstance()
+            .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
-    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension, bulkSize);
     }
 
-    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension) throws IOException {
-        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension);
+    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {

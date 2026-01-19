@@ -17,35 +17,29 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.List;
 
 /**
- * Represents a PromQL function call that creates a vector from a scalar.
+ * Represents the {@code vector(s scalar)} PromQL function call that creates a vector from a scalar.
  * <p>
- * These functions take a scalar as input and return an instant vector.
- * This corresponds to PromQL syntax:
- * <pre>
- * vector(1)
- * </pre>
- *
  * The result is a vector with a single element, with the given scalar value and no labels.
  */
-public final class VectorFunction extends PromqlFunctionCall {
+public final class VectorConversionFunction extends PromqlFunctionCall {
 
-    public VectorFunction(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
+    public VectorConversionFunction(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child, functionName, parameters);
     }
 
     @Override
     public FunctionType functionType() {
-        return FunctionType.VECTOR;
+        return FunctionType.VECTOR_CONVERSION;
     }
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, VectorFunction::new, child(), functionName(), parameters());
+        return NodeInfo.create(this, VectorConversionFunction::new, child(), functionName(), parameters());
     }
 
     @Override
-    public VectorFunction replaceChild(LogicalPlan newChild) {
-        return new VectorFunction(source(), newChild, functionName(), parameters());
+    public VectorConversionFunction replaceChild(LogicalPlan newChild) {
+        return new VectorConversionFunction(source(), newChild, functionName(), parameters());
     }
 
     @Override

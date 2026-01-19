@@ -111,8 +111,7 @@ final class CanMatchPreFilterSearchPhase {
         possibleMatches = new FixedBitSet(size);
         minAndMaxes = new MinAndMax<?>[size];
         // we compute a shard index based on the order of the shards
-        // that participate in the search request. This means that this number is
-        // consistent between two requests that target the same shards.
+        // that participate in the search request.
         final SearchShardIterator[] shardOrder = new SearchShardIterator[size];
         int i = 0;
         for (SearchShardIterator shardsIt : shardsIts) {

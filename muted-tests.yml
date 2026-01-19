@@ -60,9 +60,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
-  issue: https://github.com/elastic/elasticsearch/issues/122102
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -282,9 +279,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/139974
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
-  method: testReadBlobWithReadTimeouts
-  issue: https://github.com/elastic/elasticsearch/issues/139995
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
@@ -333,9 +327,33 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testRecoveredOperations
   issue: https://github.com/elastic/elasticsearch/issues/140665
-- class: org.elasticsearch.xpack.esql.parser.SetParserTests
-  method: testSetUnmappedFieldsWrongValue
-  issue: https://github.com/elastic/elasticsearch/issues/140673
+- class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/140763
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/46_downsample/Stats from downsampled and non-downsampled index simultaneously with implicit casting}
+  issue: https://github.com/elastic/elasticsearch/issues/140774
+- class: org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampGroupingAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/140784
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
+  issue: https://github.com/elastic/elasticsearch/issues/140802
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/139213
+- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/140804
+- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/140805
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140809
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
+  method: testFailsOnCopyAfterWrite
+  issue: https://github.com/elastic/elasticsearch/issues/140819
 
 # Examples:
 #

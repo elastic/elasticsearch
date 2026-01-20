@@ -659,109 +659,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    /// Adjusts metadata that will be stored in a new (non-clone) snapshot.
-     /// This is needed because some functionality like resharding uses transient index metadata in the implementation.
-     /// Due to the async nature of the snapshot logic, such metadata can be out of sync with the shard data captured in the
-     /// snapshot.
-     /// As such we don't want to have it in the snapshot since it would be incorrect to make decisions based on it
-     /// after the snapshot is restored.
-     ///
-     /// This is a no-op for majority of indices since the shards in the snapshot will always match index metadata.
-     ///
-     /// Visible for tests.
-    static Metadata adjustNewSnapshotMetadata(Metadata metadata, SnapshotsInProgress.Entry entry) {
-        Metadata.Builder builder = Metadata.builder(metadata);
-
-        var indicesInTheSnapshot = new HashSet<Index>();
-        for (String indexName : entry.indices().keySet()) {
-            indicesInTheSnapshot.add(entry.indexByName(indexName));
-        }
-
-        // We'll rebuild the entire metadata project by project to avoid the need to re-build it after processing every index.
-        // This also means we'll automatically skip indices not present in the metadata.
-        for (var project : metadata.projects().values()) {
-            var indicesBuilder = ImmutableOpenMap.<String, IndexMetadata>builder();
-            for (Map.Entry<String, IndexMetadata> indexNameAndMetadata : project.indices().entrySet()) {
-                final String indexName = indexNameAndMetadata.getKey();
-                final IndexMetadata indexMetadata = indexNameAndMetadata.getValue();
-
-                if (indicesInTheSnapshot.contains(indexMetadata.getIndex()) == false) {
-                    // This index is not in the snapshot, leave the metadata as is.
-                    indicesBuilder.put(indexName, indexMetadata);
-                    continue;
-                }
-
-                if (indexMetadata.getReshardingMetadata() != null) {
-                    logger.info(
-                        "{} removing resharding metadata from index metadata to be included in the snapshot",
-                        indexMetadata.getIndex()
-                    );
-
-                    // This index is being resharded, strip the resharding metadata
-                    // so that resharding does not (possibly incorrectly) resume after a snapshot restore.
-                    IndexMetadata.Builder newMetadataBuilder = IndexMetadata.builder(indexMetadata).reshardingMetadata(null);
-
-                    // We always check if we need to reset the number of shards
-                    // since multiple reshard operations could have happened.
-                    int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(entry, indexMetadata.getIndex());
-                    if (numberOfShards != indexMetadata.getNumberOfShards()) {
-                        logger.info(
-                            "{} - resetting the number of shards {} -> {} in index metadata to be included in the snapshot",
-                            indexMetadata.getIndex(),
-                            indexMetadata.getNumberOfShards(),
-                            numberOfShards
-                        );
-                        // This should always succeed given that the only way the number of shards can change
-                        // is resharding.
-                        // Therefore, there previously was a successful transition from `numberOfShards` to current state
-                        // and `numberOfShards` is a valid number of shards.
-                        newMetadataBuilder = newMetadataBuilder.reshardRemoveShards(numberOfShards);
-                    }
-
-                    indicesBuilder.put(indexName, newMetadataBuilder.build());
-                } else {
-                    // Even if resharding metadata is not present it is still possible that resharding has happened
-                    // while the snapshot was running and impacted it.
-                    int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(entry, indexMetadata.getIndex());
-                    if (numberOfShards != indexMetadata.getNumberOfShards()) {
-                        logger.info(
-                            "{} - resetting only the number of shards {} -> {} in index metadata to be included in the snapshot",
-                            indexMetadata.getIndex(),
-                            indexMetadata.getNumberOfShards(),
-                            numberOfShards
-                        );
-                        var newMetadata = IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShards).build();
-                        indicesBuilder.put(indexName, newMetadata);
-                    } else {
-                        // No changes.
-                        indicesBuilder.put(indexName, indexMetadata);
-                    }
-                }
-            }
-            builder = builder.put(ProjectMetadata.builder(project).indices(indicesBuilder.build()));
-        }
-
-        return builder.build();
-    }
-
-    /**
-     * We simply trust the snapshot to tell us what the number of shards was when this snapshot was created.
-     * It is in theory possible that multiple reshard operations were executed during the snapshot, and therefore
-     * we can't make any assumptions here and calculate it based on the index metadata.
-     */
-    private static int calculateNumberOfShardsAccordingToSnapshot(SnapshotsInProgress.Entry entry, Index index) {
-        int maxPresentShardId = 0;
-        assert entry.shards().get(new ShardId(index, 0)) != null;
-
-        int i = 1;
-        while (entry.shards().get(new ShardId(index, i)) != null) {
-            maxPresentShardId = i;
-            i++;
-        }
-
-        return maxPresentShardId + 1;
-    }
-
     private Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata, ProjectId projectId) {
         final ProjectMetadata snapshotProject = SnapshotsServiceUtils.projectForSnapshot(snapshot, metadata.getProject(projectId));
         final Metadata.Builder builder;
@@ -1248,7 +1145,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     return Metadata.builder(existingMetadata).put(projBuilder).build();
                 }));
             } else {
-                metadataListener.onResponse(adjustNewSnapshotMetadata(metadata, entry));
+                metadataListener.onResponse(metadata);
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);

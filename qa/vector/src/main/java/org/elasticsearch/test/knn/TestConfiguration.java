@@ -553,7 +553,7 @@ record TestConfiguration(
         }
 
         public void setPostFilteringThresholds(List<Float> floats) {
-                this.postFilteringThresholds = floats;
+            this.postFilteringThresholds = floats;
         }
     }
 }

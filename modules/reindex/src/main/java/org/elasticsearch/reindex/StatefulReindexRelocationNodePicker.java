@@ -32,7 +32,7 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
     public String pickNode(DiscoveryNodes nodes) {
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
-            logger.debug(
+            logger.warn(
                 "Trying to pick a node to relocate a reindex task to, but the current node ID is unexpectedly unknown:"
                     + " the relocation attempt will be aborted"
             );

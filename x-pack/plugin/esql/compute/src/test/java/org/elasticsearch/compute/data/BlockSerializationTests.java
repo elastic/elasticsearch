@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -424,7 +423,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
@@ -486,7 +485,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock, equalTo(origBlock));
@@ -514,6 +513,6 @@ public class BlockSerializationTests extends SerializationTestCase {
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
     protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
-        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance());
+        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance(), null);
     }
 }

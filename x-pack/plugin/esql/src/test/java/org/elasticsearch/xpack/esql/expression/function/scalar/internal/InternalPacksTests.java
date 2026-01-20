@@ -78,7 +78,7 @@ public class InternalPacksTests extends ComputeTestCase {
 
     public void testKeyword() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         int positionCount = between(1, 100);
         List<List<?>> values1 = new ArrayList<>();
         List<List<?>> values2 = new ArrayList<>();
@@ -117,7 +117,7 @@ public class InternalPacksTests extends ComputeTestCase {
 
     public void testLongs() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         int positionCount = between(1, 100);
         List<List<?>> values1 = new ArrayList<>();
         List<List<?>> values2 = new ArrayList<>();
@@ -155,7 +155,7 @@ public class InternalPacksTests extends ComputeTestCase {
 
     public void testInts() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         int positionCount = between(1, 100);
         List<List<?>> values1 = new ArrayList<>();
         List<List<?>> values2 = new ArrayList<>();
@@ -193,7 +193,7 @@ public class InternalPacksTests extends ComputeTestCase {
 
     public void testBoolean() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         int positionCount = between(1, 100);
         List<List<?>> values1 = new ArrayList<>();
         List<List<?>> values2 = new ArrayList<>();
@@ -231,7 +231,7 @@ public class InternalPacksTests extends ComputeTestCase {
 
     public void testOrdinal() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         int dictPosition = between(1, 100);
         final BytesRefVector dict;
         try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(dictPosition)) {

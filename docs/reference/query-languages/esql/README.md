@@ -67,6 +67,16 @@ There are two subdirectories, one static and one generated:
 
 Including generated examples in the command documentation is done by using the include directive.
 
+#### Settings
+
+Query settings (see [SET](commands/set.md) command) are documented in the `_snippets/commands/settings` directory.
+The `toc.md` file contains the list of all settings.
+The `setting_name.md` files contain the description of each setting.
+
+To regenerate the settings documentation, run the `QuerySettingsTests` test in the `x-pack/plugin/esql` module.
+
+Documentation is generated only for settings that have `snapshot=false` (See `QuerySettings` class).
+
 ### images
 
 The `images` directory contains `functions` and `operators` subdirectories with
@@ -108,7 +118,7 @@ To help differentiate between the static and generated content, the generated co
 ## Version differentiation in Docs V3
 
 > [!IMPORTANT]
-> Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.). 
+> Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.).
 > This means there won't be a different page for `9.1`, `9.2`, and so on. Instead, all changes landing in subsequent minor releases **will appear on the same page**.
 
 Because we now publish just one docs set off of the `main` branch, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions. This is a [cumulative approach](https://elastic.github.io/docs-builder/contribute/#cumulative-docs): instead of creating separate pages for each product and release, we update a **single page** with product- and version-specific details over time.
@@ -174,13 +184,13 @@ For example, the second item in this list is in technical preview as of version 
 ### Supported lifecycles
 
 - `PREVIEW` - Feature is in technical preview
-- `GA` - Feature is generally available  
+- `GA` - Feature is generally available
 - `DEPRECATED` - Feature is deprecated and will be removed in a future release
 - `UNAVAILABLE` - Feature is not available in the current version, but may be available in future releases
 
-> [!NOTE] 
-> Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`: 
-> - Before `9.3.0` is released, the live documentation will display "Planned for a future release" instead of the specific version number. 
+> [!NOTE]
+> Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`:
+> - Before `9.3.0` is released, the live documentation will display "Planned for a future release" instead of the specific version number.
 >  - This will be updated automatically when the version is released.
 
 ## Tutorials

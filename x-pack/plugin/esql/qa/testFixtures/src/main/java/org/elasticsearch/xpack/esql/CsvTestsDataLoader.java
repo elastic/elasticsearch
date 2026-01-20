@@ -191,6 +191,11 @@ public class CsvTestsDataLoader {
         "tdigest_timeseries_index-mappings.json",
         "tdigest_standard_index.csv"
     ).withSetting("tdigest_timeseries_index-settings.json");
+    private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
+        "histogram_timeseries_index",
+        "mapping-histogram_time_series_index.json",
+        "histogram_standard_index.csv"
+    ).withSetting("settings-histogram_time_series_index.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -267,7 +272,8 @@ public class CsvTestsDataLoader {
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
         Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
         Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
-        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX)
+        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
+        Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

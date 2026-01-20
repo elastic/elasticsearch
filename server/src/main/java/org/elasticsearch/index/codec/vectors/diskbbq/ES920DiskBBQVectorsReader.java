@@ -32,7 +32,7 @@ import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectors
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
-import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
 import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
 
 /**
@@ -77,7 +77,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         for (int i = 0; i < quantized.length; i++) {
             quantized[i] = (byte) scratch[i];
         }
-        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
+        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension(), BULK_SIZE);
         centroids.seek(0L);
         int numParents = centroids.readVInt();
 
@@ -137,7 +137,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             postingListOffset,
             postingListLength,
             globalCentroid,
-            globalCentroidDp
+            globalCentroidDp,
+            BULK_SIZE
         );
     }
 
@@ -160,7 +161,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             queryParams,
             globalCentroidDp,
             fieldInfo.getVectorSimilarityFunction(),
-            new float[ES92Int7VectorsScorer.BULK_SIZE]
+            new float[BULK_SIZE]
         );
         long offset = centroids.getFilePointer();
         return new CentroidIterator() {
@@ -198,7 +199,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         final int bufferSize = (int) Math.min(Math.max(centroidRatio * numCentroids, 1), numCentroids);
         final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
         // score the parents
-        final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
+        final float[] scores = new float[BULK_SIZE];
         score(
             parentsQueue,
             numParents,
@@ -320,9 +321,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         VectorSimilarityFunction similarityFunction,
         float[] scores
     ) throws IOException {
-        int limit = size - ES92Int7VectorsScorer.BULK_SIZE + 1;
+        int limit = size - BULK_SIZE + 1;
         int i = 0;
-        for (; i < limit; i += ES92Int7VectorsScorer.BULK_SIZE) {
+        for (; i < limit; i += BULK_SIZE) {
             scorer.scoreBulk(
                 quantizeQuery,
                 queryCorrections.lowerInterval(),
@@ -332,9 +333,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                 similarityFunction,
                 centroidDp,
                 scores,
-                ES92Int7VectorsScorer.BULK_SIZE
+                BULK_SIZE
             );
-            for (int j = 0; j < ES92Int7VectorsScorer.BULK_SIZE; j++) {
+            for (int j = 0; j < BULK_SIZE; j++) {
                 neighborQueue.add(scoresOffset + i + j, scores[j]);
             }
         }
@@ -409,7 +410,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             quantizedByteLength = discretizedDimensions / 8 + (Float.BYTES * 3) + Short.BYTES;
             quantizedVectorByteSize = (discretizedDimensions / 8);
             quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
-            osqVectorsScorer = ESVectorUtil.getES91OSQVectorsScorer(indexInput, fieldInfo.getVectorDimension());
+            osqVectorsScorer = ESVectorUtil.getES91OSQVectorsScorer(indexInput, fieldInfo.getVectorDimension(), BULK_SIZE);
         }
 
         @Override
@@ -471,8 +472,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
         private static int docToBulkScore(int[] docIds, Bits acceptDocs) {
             assert acceptDocs != null : "acceptDocs must not be null";
-            int docToScore = ES91OSQVectorsScorer.BULK_SIZE;
-            for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
+            int docToScore = BULK_SIZE;
+            for (int i = 0; i < BULK_SIZE; i++) {
                 if (acceptDocs.get(docIds[i]) == false) {
                     docIds[i] = -1;
                     docToScore--;
@@ -482,7 +483,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         private void collectBulk(KnnCollector knnCollector, float[] scores) {
-            for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
+            for (int i = 0; i < BULK_SIZE; i++) {
                 final int doc = docIdsScratch[i];
                 if (doc != -1) {
                     knnCollector.collect(doc, scores[i]);

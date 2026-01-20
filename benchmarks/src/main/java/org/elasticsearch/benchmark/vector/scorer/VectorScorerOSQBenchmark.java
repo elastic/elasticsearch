@@ -19,7 +19,6 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -71,13 +70,15 @@ public class VectorScorerOSQBenchmark {
     @Param({ "1", "2", "4" })
     public int bits;
 
+    int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
+
     @Param
     public VectorImplementation implementation;
 
     @Param
     public DirectoryType directoryType;
 
-    public int numVectors = ES91OSQVectorsScorer.BULK_SIZE * 10;
+    public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
     int numQueries = 10;
 
     int length;
@@ -120,9 +121,9 @@ public class VectorScorerOSQBenchmark {
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            byte[] correctionBytes = new byte[14 * ES91OSQVectorsScorer.BULK_SIZE];
-            for (int i = 0; i < numVectors; i += ES91OSQVectorsScorer.BULK_SIZE) {
-                for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
+            byte[] correctionBytes = new byte[14 * bulkSize];
+            for (int i = 0; i < numVectors; i += bulkSize) {
+                for (int j = 0; j < bulkSize; j++) {
                     output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
                 }
                 random.nextBytes(correctionBytes);
@@ -169,9 +170,9 @@ public class VectorScorerOSQBenchmark {
         scorer = switch (implementation) {
             case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
+                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
         };
-        scratchScores = new float[16];
+        scratchScores = new float[bulkSize];
         corrections = new float[3];
     }
 

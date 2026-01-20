@@ -109,6 +109,27 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoMetricNameMatcherNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+            containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
+        );
+    }
+
+    public void testWithoutNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
+            containsString("'without' grouping is not supported at this time")
+        );
+    }
+
+    public void groupModifiersNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+            containsString("queries with group modifiers are not supported at this time")
+        );
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());

@@ -123,9 +123,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp,
-        long preconditionerOffset,
-        long preconditionerLength
+        float globalCentroidDp
     ) {
         // nothing more to read
         return new FieldEntry(
@@ -140,9 +138,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            BULK_SIZE,
-            preconditionerOffset,
-            preconditionerLength
+            BULK_SIZE
         );
     }
 

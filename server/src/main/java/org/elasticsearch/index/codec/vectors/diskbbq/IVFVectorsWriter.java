@@ -331,14 +331,16 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
             ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
-        ivfMeta.writeLong(preconditionerLength);
-        if (preconditionerLength > 0) {
-            ivfMeta.writeLong(preconditionerOffset);
-        }
-        doWriteMeta(ivfMeta, field, numCentroids);
+        doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength);
     }
 
-    protected abstract void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException;
+    protected abstract void doWriteMeta(
+        IndexOutput metaOutput,
+        FieldInfo field,
+        int numCentroids,
+        long preconditionerOffset,
+        long preconditionerLength
+    ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {

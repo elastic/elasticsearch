@@ -55,8 +55,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int numCands;
     protected final Query filter;
     protected int vectorOpsCount;
+    protected boolean doPrecondition;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -71,6 +72,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
+        this.doPrecondition = doPrecondition;
     }
 
     @Override
@@ -146,7 +148,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
-            preconditionQuery(context);
+            if (doPrecondition) {
+                preconditionQuery(context);
+            }
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);

@@ -472,9 +472,19 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
+    protected void doWriteMeta(
+        IndexOutput metaOutput,
+        FieldInfo field,
+        int numCentroids,
+        long preconditionerOffset,
+        long preconditionerLength
+    ) throws IOException {
         metaOutput.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());
+        metaOutput.writeLong(preconditionerLength);
+        if (preconditionerLength > 0) {
+            metaOutput.writeLong(preconditionerOffset);
+        }
     }
 
     @Override

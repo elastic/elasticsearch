@@ -184,11 +184,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
-        long preconditionerLength = input.readLong();
-        long preconditionerOffset = -1;
-        if (preconditionerLength > 0) {
-            preconditionerOffset = input.readLong();
-        }
         return doReadField(
             input,
             rawVectorFormat,
@@ -201,9 +196,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             postingListOffset,
             postingListLength,
             globalCentroid,
-            globalCentroidDp,
-            preconditionerOffset,
-            preconditionerLength
+            globalCentroidDp
         );
     }
 
@@ -219,9 +212,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp,
-        long preconditionerOffset,
-        long preconditionerLength
+        float globalCentroidDp
     ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
@@ -403,8 +394,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
         protected final int bulkSize;
-        protected final long preconditionerOffset;
-        protected final long preconditionerLength;
 
         protected FieldEntry(
             String rawVectorFormatName,
@@ -418,9 +407,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            int bulkSize,
-            long preconditionerOffset,
-            long preconditionerLength
+            int bulkSize
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
             this.useDirectIOReads = useDirectIOReads;
@@ -434,8 +421,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
             this.bulkSize = bulkSize;
-            this.preconditionerOffset = preconditionerOffset;
-            this.preconditionerLength = preconditionerLength;
         }
 
         @Override

@@ -190,12 +190,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp,
-        long preconditionerStartOffset,
-        long preconditionerLength
+        float globalCentroidDp
     ) throws IOException {
         int bulkSize = input.readInt();
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        long preconditionerLength = input.readLong();
+        long preconditionerOffset = -1;
+        if (preconditionerLength > 0) {
+            preconditionerOffset = input.readLong();
+        }
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -210,7 +213,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             globalCentroidDp,
             quantEncoding,
             bulkSize,
-            preconditionerStartOffset,
+            preconditionerOffset,
             preconditionerLength
         );
     }
@@ -227,6 +230,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
 
     static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        protected final long preconditionerOffset;
+        protected final long preconditionerLength;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -257,11 +262,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 postingListLength,
                 globalCentroid,
                 globalCentroidDp,
-                bulkSize,
-                preconditionerOffset,
-                preconditionerLength
+                bulkSize
             );
             this.quantEncoding = quantEncoding;
+            this.preconditionerOffset = preconditionerOffset;
+            this.preconditionerLength = preconditionerLength;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {

@@ -1737,7 +1737,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
-                boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
+                boolean doPrecondition = false;
+                if (Build.current().isSnapshot()) {
+                    doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
+                }
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion, doPrecondition);
@@ -2954,9 +2957,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         parentFilter,
-                        visitRatio
+                        visitRatio,
+                        bbqIndexOptions.doPrecondition()
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, visitRatio);
+                    : new IVFKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        visitRatio,
+                        bbqIndexOptions.doPrecondition()
+                    );
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

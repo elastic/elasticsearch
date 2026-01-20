@@ -39,8 +39,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
      */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
-        super(field, visitRatio, k, numCands, filter);
+    public IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        boolean doPrecondition
+    ) {
+        super(field, visitRatio, k, numCands, filter, doPrecondition);
         this.query = query;
     }
 

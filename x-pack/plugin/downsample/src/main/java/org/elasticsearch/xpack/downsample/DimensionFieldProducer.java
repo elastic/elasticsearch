@@ -75,9 +75,4 @@ public class DimensionFieldProducer extends LastValueFieldProducer {
             return;
         }
     }
-
-    @Override
-    public void writeSecondaryValue(XContentBuilder builder) throws IOException {
-        write(builder);
-    }
 }

@@ -135,7 +135,7 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
     static final class AggregateCounter extends NumericMetricFieldProducer {
         private double firstValue = Double.NaN;
         private double lastValue = Double.NaN;
-        private double resetOffset = 0;
+        private double delta = 0;
 
         AggregateCounter(String name) {
             super(name);
@@ -148,11 +148,12 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
             isEmpty = true;
             firstValue = Double.NaN;
             lastValue = Double.NaN;
-            resetOffset = 0;
+            delta = 0;
         }
 
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+           double currentLastValue = Double.NaN;
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
                 if (docValues.advanceExact(docId) == false) {
@@ -166,15 +167,18 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
                 if (Double.isNaN(lastValue)) {
                     firstValue = currentValue;
                     lastValue = currentValue;
+                    currentLastValue = currentValue;
                     continue;
                 }
 
                 // check for reset
                 if (currentValue > firstValue) {
-                    resetOffset += firstValue;
+                    delta += currentLastValue;
+                    currentLastValue = currentValue;
                 }
                 firstValue = currentValue;
             }
+            delta += currentLastValue - firstValue;
         }
 
         @Override
@@ -184,16 +188,28 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
             }
         }
 
-        @Override
-        public void writeSecondaryValue(XContentBuilder builder) throws IOException {
-            if (hasSecondaryValue()) {
+        public void writeLastValue(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
                 builder.field(name(), lastValue);
             }
         }
 
-        @Override
-        public boolean hasSecondaryValue() {
-            return isEmpty() == false && firstValue != lastValue;
+        public void writeResetOffsetValue(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), resetValue());
+            }
+        }
+
+        double firstValue() {
+            return firstValue;
+        }
+
+        double lastValue() {
+            return lastValue;
+        }
+
+        double resetValue() {
+            return firstValue + delta - lastValue;
         }
     }
 }

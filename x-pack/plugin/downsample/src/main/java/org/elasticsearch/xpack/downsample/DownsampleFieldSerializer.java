@@ -17,15 +17,4 @@ public interface DownsampleFieldSerializer {
      * Serialize the downsampled value of the field.
      */
     void write(XContentBuilder builder) throws IOException;
-
-    /**
-     * Serialized a secondary value for the field.
-     */
-    default void writeSecondaryValue(XContentBuilder builder) throws IOException {
-
-    }
-
-    default boolean hasSecondaryValue() {
-        return false;
-    }
 }

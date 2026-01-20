@@ -58,7 +58,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors,
+        DenseVectorBinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) {
@@ -74,7 +74,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors,
+        DenseVectorBinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) throws IOException {

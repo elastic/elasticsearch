@@ -18,7 +18,13 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.junit.BeforeClass;
 
@@ -26,6 +32,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -347,6 +354,105 @@ public class PromqlParserTests extends ESTestCase {
     public void testRangeVectorExpected() {
         ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(foo)"));
         assertThat(e.getMessage(), containsString("expected type range vector in call to function [rate], got instant vector"));
+    }
+
+    public void testCaseInsensitivityOperators() {
+        var promql = parse("PROMQL index=test step=5m foo OR bar");
+        assertThat(as(promql.promqlPlan(), VectorBinarySet.class).op(), equalTo(VectorBinarySet.SetOp.UNION));
+
+        promql = parse("PROMQL index=test step=5m foo And bar");
+        assertThat(as(promql.promqlPlan(), VectorBinarySet.class).op(), equalTo(VectorBinarySet.SetOp.INTERSECT));
+
+        promql = parse("PROMQL index=test step=5m foo unless bar");
+        assertThat(as(promql.promqlPlan(), VectorBinarySet.class).op(), equalTo(VectorBinarySet.SetOp.SUBTRACT));
+    }
+
+    public void testCaseInsensitivityAggregators() {
+        List.of("Sum", "Avg", "Count", "Min", "Max", "Stddev", "Stdvar").forEach(func -> {
+            var promql = parse("promql index=test step=5m " + func.toUpperCase(Locale.ROOT) + "(foo)");
+            String upper = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+
+            promql = parse("promql index=test step=5m " + func.toLowerCase(Locale.ROOT) + "(foo)");
+            String lower = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+
+            promql = parse("promql index=test step=5m " + func + "(foo)");
+            String camel = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+
+            assertThat(upper, equalTo(func.toLowerCase(Locale.ROOT)));
+            assertThat(lower, equalTo(func.toLowerCase(Locale.ROOT)));
+            assertThat(camel, equalTo(func.toLowerCase(Locale.ROOT)));
+        });
+    }
+
+    public void testCaseInsensitivityKeywords() {
+        var promql = parse("PROMQL index=test step=5m avg(foo) BY (pod)");
+        assertThat(as(promql.promqlPlan(), AcrossSeriesAggregate.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
+
+        promql = parse("PROMQL index=test step=5m foo OfFsEt 5m");
+        assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().offset().value(), equalTo(Duration.ofMinutes(5)));
+    }
+
+    public void testCaseInsensitivityVectorMatchingKeywords() {
+
+        var promql = parse("PROMQL index=test step=5m foo > Bool On(job) bar");
+        VectorBinaryComparison binaryComp = as(promql.promqlPlan(), VectorBinaryComparison.class);
+        assertThat(binaryComp.boolMode(), equalTo(true));
+        assertThat(binaryComp.match().filter(), equalTo(VectorMatch.Filter.ON));
+
+        promql = parse("PROMQL index=test step=5m foo < IGNORING (job) bar");
+        binaryComp = as(promql.promqlPlan(), VectorBinaryComparison.class);
+        assertThat(binaryComp.boolMode(), equalTo(false));
+        assertThat(binaryComp.match().filter(), equalTo(VectorMatch.Filter.IGNORING));
+
+        promql = parse("PROMQL index=test step=5m foo / ON (job) GROUP_LEFT bar");
+        VectorBinaryArithmetic binaryArith = as(promql.promqlPlan(), VectorBinaryArithmetic.class);
+        assertThat(binaryArith.match().grouping(), equalTo(VectorMatch.Joining.LEFT));
+        assertThat(binaryArith.match().filter(), equalTo(VectorMatch.Filter.ON));
+
+        promql = parse("PROMQL index=test step=5m foo / ON (job) GROUP_RIGHT bar");
+        binaryArith = as(promql.promqlPlan(), VectorBinaryArithmetic.class);
+        assertThat(binaryArith.match().grouping(), equalTo(VectorMatch.Joining.RIGHT));
+        assertThat(binaryArith.match().filter(), equalTo(VectorMatch.Filter.ON));
+    }
+
+    public void testCaseInsensitivityModifier() {
+        // @ start()
+        var promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ START()");
+        assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.start().value()));
+
+        // @ end()
+        promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ END()");
+        assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.end().value()));
+    }
+
+    public void testCaseInsensitivityScalars() {
+        var promql = parse("PROMQL index=test step=5m nan");
+        assertThat(as(promql.promqlPlan(), LiteralSelector.class).literal().value(), equalTo(Double.NaN));
+
+        promql = parse("PROMQL index=test step=5m Inf");
+        assertThat(as(promql.promqlPlan(), LiteralSelector.class).literal().value(), equalTo(Double.POSITIVE_INFINITY));
+    }
+
+    public void testMatchSameLabelMultipleTimesSuccess() {
+        var plan = parse("PROMQL index=test step=5m foo{host!=\"host-1\", host!=\"host-2\"}");
+        List<LabelMatcher> matchers = as(plan.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(3));
+        assertThat(matchers.get(0).name(), equalTo("__name__"));
+        assertThat(matchers.get(0).value(), equalTo("foo"));
+        assertThat(matchers.get(0).isNegation(), equalTo(false));
+
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).value(), equalTo("host-1"));
+        assertThat(matchers.get(1).isNegation(), equalTo(true));
+
+        assertThat(matchers.get(2).name(), equalTo("host"));
+        assertThat(matchers.get(2).value(), equalTo("host-2"));
+        assertThat(matchers.get(2).isNegation(), equalTo(true));
+    }
+
+    public void testMatchMetricNameMultipleTimesError() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo{__name__=\"bar\"}"));
+        assertThat(e.getMessage(), containsString("Metric name must not be defined twice: [foo] or [bar]"));
     }
 
     private static PromqlCommand parse(String query) {

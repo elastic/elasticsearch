@@ -414,7 +414,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         var pages = this.pages;
         closeFields();
 
-        return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
+        return new ReleasableBytesReference(bytes, pages.size() == 1 ? pages.getFirst() : Releasables.wrap(pages));
     }
 
     private void closeFields() {
@@ -440,34 +440,32 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public BytesReference bytes() {
-        int position = (int) position();
+        final int position = (int) position();
         if (position == 0) {
             return BytesArray.EMPTY;
+        } else if (position <= pageSize) {
+            final var page = pages.getFirst().v();
+            return new BytesArray(page.bytes, page.offset, position);
         } else {
-            final int adjustment;
-            final int bytesInLastPage;
-            final int remainder = position % pageSize;
-            if (remainder != 0) {
-                adjustment = 1;
-                bytesInLastPage = remainder;
+            return bytesMultiPage(position);
+        }
+    }
+
+    private BytesReference bytesMultiPage(int position) {
+        final int pageCount = (position + pageSize - 1) / pageSize;
+        assert pageCount > 1;
+        final BytesReference[] references = new BytesReference[pageCount];
+        int pageIndex = 0;
+        for (var page : pages) {
+            if (pageIndex < pageCount - 1) {
+                references[pageIndex++] = new BytesArray(page.v());
             } else {
-                adjustment = 0;
-                bytesInLastPage = pageSize;
-            }
-            final int pageCount = (position / pageSize) + adjustment;
-            if (pageCount == 1) {
-                BytesRef page = pages.get(0).v();
-                return new BytesArray(page.bytes, page.offset, bytesInLastPage);
-            } else {
-                BytesReference[] references = new BytesReference[pageCount];
-                for (int i = 0; i < pageCount - 1; ++i) {
-                    references[i] = new BytesArray(this.pages.get(i).v());
-                }
-                BytesRef last = this.pages.get(pageCount - 1).v();
-                references[pageCount - 1] = new BytesArray(last.bytes, last.offset, bytesInLastPage);
-                return CompositeBytesReference.of(references);
+                final var pageBytes = page.v();
+                references[pageIndex] = new BytesArray(pageBytes.bytes, pageBytes.offset, position - pageIndex * pageSize);
+                break;
             }
         }
+        return CompositeBytesReference.of(references);
     }
 
     private void ensureCapacity(int bytesNeeded) {

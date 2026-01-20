@@ -84,4 +84,11 @@ public class MockBytesRefRecycler implements Recycler<BytesRef>, Releasable {
     public void close() {
         assertEquals(0, activePageCount.get());
     }
+
+    /**
+     * @return number of currently-active pages
+     */
+    public int activePageCount() {
+        return activePageCount.get();
+    }
 }

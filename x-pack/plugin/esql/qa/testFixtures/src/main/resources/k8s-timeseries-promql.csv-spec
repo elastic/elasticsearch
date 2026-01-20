@@ -39,6 +39,14 @@ cost:double | step:datetime            | cluster:keyword
 10277.0     | 2024-05-10T00:00:00.000Z | prod
 ;
 
+equals_filter_case_sensitive
+required_capability: promql_pre_tech_preview_v14
+PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster="PROD"}))
+| SORT cluster;
+
+cost:double | step:datetime            | cluster:keyword
+;
+
 not_regex_filter
 required_capability: promql_pre_tech_preview_v14
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!~"pr.d"}))
@@ -56,6 +64,15 @@ PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster=
 
 cost:double | step:datetime            | cluster:keyword
 10277.0     | 2024-05-10T00:00:00.000Z | prod
+;
+
+filter_same_label_multiple_times
+required_capability: promql_pre_tech_preview_v14
+required_capability: promql_multiple_filters_for_same_label
+PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}));
+
+cost:double | step:datetime            | cluster:keyword
+7403.0      | 2024-05-10T00:00:00.000Z | staging
 ;
 
 range_selector_different_from_step

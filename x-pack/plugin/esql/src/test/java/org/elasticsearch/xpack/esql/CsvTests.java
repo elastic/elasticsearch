@@ -426,7 +426,7 @@ public class CsvTests extends ESTestCase {
         CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
     }
 
-    private static Map<IndexPattern, IndexResolution> loadIndexResolution(
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
     ) {
         Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
@@ -436,7 +436,7 @@ public class CsvTests extends ESTestCase {
         return indexResolutions;
     }
 
-    private static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+    public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
@@ -592,7 +592,7 @@ public class CsvTests extends ESTestCase {
         return plan;
     }
 
-    private Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
+    public static Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         if (preAnalysis.indexes().isEmpty()) {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
@@ -706,6 +706,7 @@ public class CsvTests extends ESTestCase {
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
                         new ActualResults(
+                            configuration,
                             result.schema().stream().map(Attribute::name).toList(),
                             result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
                             result.schema().stream().map(Attribute::dataType).toList(),
@@ -867,7 +868,7 @@ public class CsvTests extends ESTestCase {
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         runner.runToCompletion(
             drivers,
-            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, configuration, DriverCompletionInfo.EMPTY, null))
         );
     }
 }

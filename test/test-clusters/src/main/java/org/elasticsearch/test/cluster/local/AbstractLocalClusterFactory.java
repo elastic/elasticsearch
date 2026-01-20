@@ -217,7 +217,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 int lastColonIndex = httpAddress.lastIndexOf(':');
                 String host = httpAddress.substring(0, lastColonIndex);
                 String port = httpAddress.substring(lastColonIndex + 1);
-                return "[" + host + "]:" + port;
+                return (host.contains("[") ? "" : "[") + host + (host.contains("]") ? "" : "]") + ":" + port;
             }
 
             return httpAddress;

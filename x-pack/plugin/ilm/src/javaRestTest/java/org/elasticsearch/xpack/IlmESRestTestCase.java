@@ -10,6 +10,7 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.SkipInFIPSMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
@@ -56,7 +57,7 @@ public abstract class IlmESRestTestCase extends ESRestTestCase {
         .build();
 
     @ClassRule
-    public static RuleChain ruleChain = RuleChain.outerRule(repoDir).around(cluster);
+    public static RuleChain ruleChain = RuleChain.outerRule(new SkipInFIPSMode()).around(repoDir).around(cluster);
 
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

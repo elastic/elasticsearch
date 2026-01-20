@@ -8,22 +8,22 @@
  */
 package org.elasticsearch.logstashbridge.plugins;
 
-import org.elasticsearch.ingest.useragent.IngestUserAgentPlugin;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
 import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
+import org.elasticsearch.useragent.UserAgentPlugin;
 
 import java.util.Map;
 
 /**
- * An external bridge for {@link IngestUserAgentPlugin}
+ * An external bridge for {@link UserAgentPlugin}
  */
 public final class IngestUserAgentPluginBridge implements IngestPluginBridge {
 
-    private final IngestUserAgentPlugin delegate;
+    private final UserAgentPlugin delegate;
 
     public IngestUserAgentPluginBridge() {
-        delegate = new IngestUserAgentPlugin();
+        delegate = new UserAgentPlugin();
     }
 
     public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {

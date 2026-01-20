@@ -1,7 +1,11 @@
 setup:
   - requires:
-      cluster_features: "search.vectors.knn_query_vector_base64"
-      reason: "query_vector_base64 is only supported in 9.4.0+"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
 
   - do:
       indices.create:
@@ -26,6 +30,18 @@ setup:
                 index: true
                 element_type: byte
                 similarity: l2_norm
+              vector_bfloat16:
+                type: dense_vector
+                dims: 3
+                index: true
+                element_type: bfloat16
+                similarity: l2_norm
+              vector_bit:
+                type: dense_vector
+                dims: 8
+                index: true
+                element_type: bit
+                similarity: l2_norm
 
   - do:
       index:
@@ -35,6 +51,8 @@ setup:
           name: doc1
           vector_float: [0.1, 0.2, 0.3]
           vector_byte: [10, 20, 30]
+          vector_bfloat16: [0.1, 0.2, 0.3]
+          vector_bit: [3]
 
   - do:
       index:
@@ -44,6 +62,8 @@ setup:
           name: doc2
           vector_float: [0.2, 0.3, 0.4]
           vector_byte: [20, 30, 40]
+          vector_bfloat16: [0.2, 0.3, 0.4]
+          vector_bit: [5]
 
   - do:
       index:
@@ -53,6 +73,8 @@ setup:
           name: doc3
           vector_float: [0.4, 0.5, 0.6]
           vector_byte: [40, 50, 60]
+          vector_bfloat16: [0.4, 0.5, 0.6]
+          vector_bit: [7]
 
   - do:
       indices.refresh: {}
@@ -68,7 +90,7 @@ setup:
           query:
             knn:
               field: vector_float
-              query_vector_base64: "PczMzT5MzM0+mZma"
+              query_vector: "PczMzT5MzM0+mZma"
               k: 2
               num_candidates: 3
 
@@ -89,7 +111,7 @@ setup:
           query:
             knn:
               field: vector_byte
-              query_vector_base64: "ChQe"
+              query_vector: "ChQe"
               k: 2
               num_candidates: 3
 
@@ -125,7 +147,7 @@ setup:
           query:
             knn:
               field: vector_float
-              query_vector_base64: "PczMzT5MzM0+mZma"
+              query_vector: "PczMzT5MzM0+mZma"
               k: 2
               num_candidates: 3
 
@@ -133,19 +155,70 @@ setup:
   - match: { hits.hits.1._id: $array_result_2 }
 
 ---
-"Cannot use both query_vector and query_vector_base64":
+"kNN query with base64 produces same results as bfloat16 array":
   - do:
-      catch: bad_request
       search:
         index: knn_query_base64_index
         body:
+          fields: [ "name" ]
           query:
             knn:
-              field: vector_float
+              field: vector_bfloat16
               query_vector: [0.1, 0.2, 0.3]
-              query_vector_base64: "PczMzT5MzM0+mZma"
               k: 2
               num_candidates: 3
+
+  - set: { hits.hits.0._id: bfloat16_result_1 }
+  - set: { hits.hits.1._id: bfloat16_result_2 }
+
+  # [0.1, 0.2, 0.3] is encoded as 'PczMzT5MzM0+mZma'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bfloat16
+              query_vector: "PczMzT5MzM0+mZma"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $bfloat16_result_1 }
+  - match: { hits.hits.1._id: $bfloat16_result_2 }
+
+---
+"kNN query with base64 produces same results as bit array":
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bit
+              query_vector: [3]
+              k: 2
+              num_candidates: 3
+
+  - set: { hits.hits.0._id: bit_result_1 }
+  - set: { hits.hits.1._id: bit_result_2 }
+
+  # [3] is encoded as 'Aw=='
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bit
+              query_vector: "Aw=="
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $bit_result_1 }
+  - match: { hits.hits.1._id: $bit_result_2 }
 
 ---
 "Invalid base64 encoding fails":
@@ -157,7 +230,7 @@ setup:
           query:
             knn:
               field: vector_float
-              query_vector_base64: "not-valid-base64!!!"
+              query_vector: "not-valid-base64!!!"
               k: 2
               num_candidates: 3
 
@@ -172,7 +245,7 @@ setup:
             knn:
               field: vector_float
               # [0.1, 0.2] - only 2 dimensions instead of 3
-              query_vector_base64: "PczMzT5MzM0="
+              query_vector: "PczMzT5MzM0="
               k: 2
               num_candidates: 3
 

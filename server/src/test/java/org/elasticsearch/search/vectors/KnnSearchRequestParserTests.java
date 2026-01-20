@@ -167,14 +167,17 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 3)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 5)
-            .field(KnnSearch.QUERY_VECTOR_BASE64_FIELD.getPreferredName(), encodeToBase64(new float[] { 1f, 2f, 3f }))
+            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), encodeToBase64(new float[] { 1f, 2f, 3f }))
             .endObject()
             .endObject();
 
         SearchRequestBuilder searchRequestBuilder = parseSearchRequest(builder);
         KnnVectorQueryBuilder query = (KnnVectorQueryBuilder) searchRequestBuilder.request().source().query();
 
-        assertEquals(new KnnVectorQueryBuilder("field", encodeToBase64(new float[] { 1f, 2f, 3f }), 3, 5, null, null, null), query);
+        assertEquals(
+            new KnnVectorQueryBuilder("field", VectorData.fromBase64(encodeToBase64(new float[] { 1f, 2f, 3f })), 3, 5, null, null, null),
+            query
+        );
     }
 
     public void testMissingKnnSection() throws IOException {
@@ -295,7 +298,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
         Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
-        return new KnnSearch(field, vector, null, k, numCands, visitPercentage);
+        return new KnnSearch(field, VectorData.fromFloats(vector), k, numCands, visitPercentage);
     }
 
     private List<QueryBuilder> randomFilterQueries() {

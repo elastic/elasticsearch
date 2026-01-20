@@ -21,6 +21,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -41,6 +42,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -346,22 +348,28 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             encoded = encodeToBase64(expectedVector);
         }
 
+        int k = randomIntBetween(1, Math.max(1, vectorDimensions));
+        int numCands = randomIntBetween(k, Math.max(k, vectorDimensions + 10));
+
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject(KnnVectorQueryBuilder.NAME)
             .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
-            .field(KnnVectorQueryBuilder.QUERY_VECTOR_BASE64_FIELD.getPreferredName(), encoded)
-            .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), Math.min(5, vectorDimensions))
-            .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), Math.max(10, vectorDimensions))
+            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), encoded)
+            .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), k)
+            .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), numCands)
             .endObject()
             .endObject();
 
         try (XContentParser parser = createParser(builder)) {
+            SearchExecutionContext context = createSearchExecutionContext();
             KnnVectorQueryBuilder parsed = (KnnVectorQueryBuilder) parseQuery(parser);
-            KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) parsed.rewrite(createSearchExecutionContext());
+            KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) parsed.rewrite(context);
 
-            assertArrayEquals(expectedVector, rewritten.queryVector().asFloatVector(), 0f);
-            assertNull("base64 should be consumed during rewrite", rewritten.queryVectorBuilder());
+            DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+            VectorData resolved = rewritten.queryVector().resolveBase64(vectorFieldType);
+            assertArrayEquals(expectedVector, resolved.asFloatVector(), 0f);
+            assertNull("base64 should be resolved without a query_vector_builder", rewritten.queryVectorBuilder());
         }
     }
 
@@ -370,16 +378,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             .startObject()
             .startObject(KnnVectorQueryBuilder.NAME)
             .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
-            .field(KnnVectorQueryBuilder.QUERY_VECTOR_BASE64_FIELD.getPreferredName(), "not-base64###")
+            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), "not-base64###")
             .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), 3)
             .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), 5)
             .endObject()
             .endObject();
 
         try (XContentParser parser = createParser(builder)) {
+            SearchExecutionContext context = createSearchExecutionContext();
             KnnVectorQueryBuilder parsed = (KnnVectorQueryBuilder) parseQuery(parser);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parsed.rewrite(createSearchExecutionContext()));
-            assertThat(e.getMessage(), containsString("query_vector_base64"));
+            DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> parsed.queryVector().resolveBase64(vectorFieldType)
+            );
+            assertThat(e.getMessage(), containsString("query_vector"));
             assertThat(e.getMessage(), containsString("base64"));
         }
     }
@@ -400,48 +413,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             .startObject()
             .startObject(KnnVectorQueryBuilder.NAME)
             .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
-            .field(KnnVectorQueryBuilder.QUERY_VECTOR_BASE64_FIELD.getPreferredName(), encoded)
+            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), encoded)
             .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), 3)
             .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), 5)
             .endObject()
             .endObject();
 
         try (XContentParser parser = createParser(builder)) {
+            SearchExecutionContext context = createSearchExecutionContext();
             KnnVectorQueryBuilder parsed = (KnnVectorQueryBuilder) parseQuery(parser);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parsed.rewrite(createSearchExecutionContext()));
+            DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> parsed.queryVector().resolveBase64(vectorFieldType)
+            );
             assertThat(e.getMessage(), containsString("different number of dimensions"));
-        }
-    }
-
-    public void testQueryVectorBase64ConflictsWithQueryVector() throws Exception {
-        String encoded;
-        if (elementType() == DenseVectorFieldMapper.ElementType.BYTE) {
-            // For byte vectors
-            byte[] vector = new byte[] { 1, 2, 3 };
-            encoded = encodeToBase64(vector);
-        } else {
-            // For float vectors
-            encoded = encodeToBase64(new float[] { 1f, 2f, 3f });
-        }
-
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject(KnnVectorQueryBuilder.NAME)
-            .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
-            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1f, 2f, 3f })
-            .field(KnnVectorQueryBuilder.QUERY_VECTOR_BASE64_FIELD.getPreferredName(), encoded)
-            .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), 3)
-            .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), 5)
-            .endObject()
-            .endObject();
-
-        try (XContentParser parser = createParser(builder)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(parser));
-            // The parser wraps the constructor's IllegalArgumentException in an XContentParseException,
-            // so we need to check the cause message
-            String message = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-            assertThat(message, containsString("only one of"));
-            assertThat(message, containsString("query_vector_base64"));
         }
     }
 
@@ -635,7 +621,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     }
 
     protected String encodeToBase64(float[] vector) {
-        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * vector.length);
+        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * vector.length).order(ByteOrder.BIG_ENDIAN);
         buffer.asFloatBuffer().put(vector);
         return Base64.getEncoder().encodeToString(buffer.array());
     }

@@ -44,10 +44,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -76,7 +73,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
     public static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
-    public static final ParseField QUERY_VECTOR_BASE64_FIELD = new ParseField("query_vector_base64");
     public static final ParseField VECTOR_SIMILARITY_FIELD = new ParseField("similarity");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
@@ -87,14 +83,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         args -> new KnnVectorQueryBuilder(
             (String) args[0],
             (VectorData) args[1],
-            (String) args[2],
-            (QueryVectorBuilder) args[7],
+            (QueryVectorBuilder) args[6],
             null,
+            (Integer) args[2],
             (Integer) args[3],
-            (Integer) args[4],
-            (Float) args[5],
-            (RescoreVectorBuilder) args[8],
-            (Float) args[6]
+            (Float) args[4],
+            (RescoreVectorBuilder) args[7],
+            (Float) args[5]
         )
     );
 
@@ -113,7 +108,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             QUERY_VECTOR_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
         );
-        PARSER.declareString(optionalConstructorArg(), QUERY_VECTOR_BASE64_FIELD);
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
@@ -143,11 +137,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     public static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
-    public static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
     private final String fieldName;
     private final VectorData queryVector;
-    private final String queryVectorBase64;
     private final Integer k;
     private final Integer numCands;
     private final Float visitPercentage;
@@ -176,7 +168,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             VectorData.fromFloats(queryVector),
             null,
             null,
-            null,
             k,
             numCands,
             visitPercentage,
@@ -193,7 +184,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Float visitPercentage,
         Float vectorSimilarity
     ) {
-        this(fieldName, null, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity);
+        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity);
     }
 
     public KnnVectorQueryBuilder(
@@ -208,7 +199,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this(
             fieldName,
             VectorData.fromBytes(queryVector),
-            null,
             null,
             null,
             k,
@@ -228,25 +218,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(fieldName, queryVector, null, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity);
-    }
-
-    public KnnVectorQueryBuilder(
-        String fieldName,
-        String queryVectorBase64,
-        Integer k,
-        Integer numCands,
-        Float visitPercentage,
-        RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
-    ) {
-        this(fieldName, null, queryVectorBase64, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity);
+        this(fieldName, queryVector, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity);
     }
 
     private KnnVectorQueryBuilder(
         String fieldName,
         VectorData queryVector,
-        String queryVectorBase64,
         QueryVectorBuilder queryVectorBuilder,
         Supplier<float[]> queryVectorSupplier,
         Integer k,
@@ -271,31 +248,27 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         int vectorSourceCount = 0;
         if (queryVector != null) vectorSourceCount++;
-        if (queryVectorBase64 != null) vectorSourceCount++;
         if (queryVectorBuilder != null) vectorSourceCount++;
 
         if (vectorSourceCount == 0) {
             throw new IllegalArgumentException(
                 format(
-                    "either [%s], [%s], or [%s] must be provided",
+                    "either [%s] or [%s] must be provided",
                     QUERY_VECTOR_FIELD.getPreferredName(),
-                    QUERY_VECTOR_BASE64_FIELD.getPreferredName(),
                     QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
                 )
             );
         } else if (vectorSourceCount > 1) {
             throw new IllegalArgumentException(
                 format(
-                    "only one of [%s], [%s], and [%s] must be provided",
+                    "only one of [%s] and [%s] must be provided",
                     QUERY_VECTOR_FIELD.getPreferredName(),
-                    QUERY_VECTOR_BASE64_FIELD.getPreferredName(),
                     QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
                 )
             );
         }
         this.fieldName = fieldName;
         this.queryVector = queryVector;
-        this.queryVectorBase64 = queryVectorBase64;
         this.k = k;
         this.numCands = numCands;
         this.visitPercentage = visitPercentage;
@@ -316,11 +289,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.visitPercentage = null;
         }
         this.queryVector = in.readOptionalWriteable(VectorData::new);
-        if (in.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
-            this.queryVectorBase64 = in.readOptionalString();
-        } else {
-            this.queryVectorBase64 = null;
-        }
         this.filterQueries.addAll(readQueries(in));
         this.vectorSimilarity = in.readOptionalFloat();
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
@@ -406,9 +374,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             out.writeOptionalFloat(visitPercentage);
         }
         out.writeOptionalWriteable(queryVector);
-        if (out.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
-            out.writeOptionalString(queryVectorBase64);
-        }
         writeQueries(out, filterQueries);
         out.writeOptionalFloat(vectorSimilarity);
         out.writeOptionalNamedWriteable(queryVectorBuilder);
@@ -427,9 +392,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         if (queryVector != null) {
             builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
-        }
-        if (queryVectorBase64 != null) {
-            builder.field(QUERY_VECTOR_BASE64_FIELD.getPreferredName(), queryVectorBase64);
         }
         if (k != null) {
             builder.field(K_FIELD.getPreferredName(), k);
@@ -483,24 +445,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 vectorSimilarity
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
-        if (queryVectorBase64 != null && ctx instanceof SearchExecutionContext) {
-            DenseVectorFieldType vectorFieldType = getVectorFieldType(ctx);
-            if (vectorFieldType != null) {
-                VectorData decodedVector = decodeBase64Vector(queryVectorBase64, vectorFieldType);
-                return new KnnVectorQueryBuilder(
-                    fieldName,
-                    decodedVector,
-                    null,
-                    queryVectorBuilder,
-                    queryVectorSupplier,
-                    k,
-                    numCands,
-                    visitPercentage,
-                    rescoreVectorBuilder,
-                    vectorSimilarity
-                ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
-            }
-        }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
             ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), v -> {
@@ -518,7 +462,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,
-                queryVectorBase64,
                 queryVectorBuilder,
                 toSet::get,
                 k,
@@ -544,7 +487,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,
-                queryVectorBase64,
                 queryVectorBuilder,
                 queryVectorSupplier,
                 k,
@@ -556,8 +498,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
             VectorData vectorForInnerHits = queryVector;
-            if (vectorForInnerHits == null && queryVectorBase64 != null) {
-                vectorForInnerHits = decodeBase64Vector(queryVectorBase64, getVectorFieldType(ctx));
+            if (vectorForInnerHits != null && vectorForInnerHits.isBase64()) {
+                vectorForInnerHits = vectorForInnerHits.resolveBase64(getVectorFieldType(ctx));
             }
             if (vectorForInnerHits == null) {
                 throw new IllegalStateException("missing a rewriteAndFetch?");
@@ -605,10 +547,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
-        // If queryVectorBase64 is set, decode it based on the field's element type
         VectorData effectiveQueryVector = queryVector;
-        if (effectiveQueryVector == null && queryVectorBase64 != null) {
-            effectiveQueryVector = decodeBase64Vector(queryVectorBase64, vectorFieldType);
+        if (effectiveQueryVector != null && effectiveQueryVector.isBase64()) {
+            effectiveQueryVector = effectiveQueryVector.resolveBase64(vectorFieldType);
         }
 
         List<Query> filtersInitial = doFiltersToQuery(context);
@@ -727,75 +668,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return (DenseVectorFieldType) fieldType;
     }
 
-    /**
-     * Decodes a Base64-encoded query vector based on the field's element type.
-     * For FLOAT/BFLOAT16: expects big-endian IEEE-754 32-bit floats (4 bytes per element)
-     * For BYTE/BIT: expects raw bytes (1 byte per element)
-     */
-    private static byte[] decodeBase64Bytes(String base64String) {
-        try {
-            return Base64.getDecoder().decode(base64String);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                "[" + QUERY_VECTOR_BASE64_FIELD.getPreferredName() + "] must be a valid base64 string: " + e.getMessage(),
-                e
-            );
-        }
-    }
-
-    private static VectorData decodeBase64Vector(String base64String, DenseVectorFieldType vectorFieldType) {
-        byte[] bytes = decodeBase64Bytes(base64String);
-
-        final DenseVectorFieldMapper.ElementType elementType;
-        if (vectorFieldType != null) {
-            elementType = vectorFieldType.getElementType();
-        } else {
-            elementType = bytes.length % Float.BYTES == 0
-                ? DenseVectorFieldMapper.ElementType.FLOAT
-                : DenseVectorFieldMapper.ElementType.BYTE;
-        }
-
-        final VectorData decoded = switch (elementType) {
-            case FLOAT, BFLOAT16 -> {
-                if (bytes.length % Float.BYTES != 0) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + QUERY_VECTOR_BASE64_FIELD.getPreferredName()
-                            + "] must contain a valid Base64-encoded float vector, "
-                            + "but the decoded bytes length ["
-                            + bytes.length
-                            + "] is not a multiple of "
-                            + Float.BYTES
-                    );
-                }
-                int numFloats = bytes.length / Float.BYTES;
-                float[] floats = new float[numFloats];
-                ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-                for (int i = 0; i < numFloats; i++) {
-                    floats[i] = buffer.getFloat();
-                }
-                yield VectorData.fromFloats(floats);
-            }
-            case BYTE, BIT -> VectorData.fromBytes(bytes);
-        };
-
-        if (vectorFieldType != null) {
-            DenseVectorFieldMapper.Element element = DenseVectorFieldMapper.Element.getElement(elementType);
-            int dims = decoded.isFloat() ? decoded.asFloatVector().length : decoded.asByteVector().length;
-            element.checkDimensions(vectorFieldType.getVectorDimensions(), dims);
-            if (decoded.isFloat()) {
-                element.checkVectorBounds(decoded.asFloatVector());
-            }
-        }
-        return decoded;
-    }
-
     @Override
     protected int doHashCode() {
         return Objects.hash(
             fieldName,
             Objects.hashCode(queryVector),
-            queryVectorBase64,
             k,
             numCands,
             visitPercentage,
@@ -811,7 +688,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected boolean doEquals(KnnVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(queryVector, other.queryVector)
-            && Objects.equals(queryVectorBase64, other.queryVectorBase64)
             && Objects.equals(k, other.k)
             && Objects.equals(numCands, other.numCands)
             && Objects.equals(visitPercentage, other.visitPercentage)

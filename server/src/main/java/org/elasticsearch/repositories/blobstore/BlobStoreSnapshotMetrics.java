@@ -29,7 +29,7 @@ public class BlobStoreSnapshotMetrics {
     private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
     private final CounterMetric numberOfBlobsUploaded = new CounterMetric();
     private final CounterMetric numberOfBytesUploaded = new CounterMetric();
-    private final CounterMetric uploadTimeInMillis = new CounterMetric();
+    private final CounterMetric uploadTimeInNanos = new CounterMetric();
     private final CounterMetric uploadReadTimeInNanos = new CounterMetric();
     private final CounterMetric numberOfShardSnapshotsStarted = new CounterMetric();
     private final CounterMetric numberOfShardSnapshotsCompleted = new CounterMetric();
@@ -56,11 +56,12 @@ public class BlobStoreSnapshotMetrics {
         restoreRateLimitingTimeInNanos.inc(throttleTimeNanos);
     }
 
-    public void incrementCountersForPartUpload(long partSizeInBytes, long partWriteTimeMillis) {
+    // TODO - CHECK ALL USAGES OF THIS FUNCTION
+    public void incrementCountersForPartUpload(long partSizeInBytes, long partWriteTimeNanos) {
         snapshotMetrics.bytesUploadedCounter().incrementBy(partSizeInBytes, metricAttributes);
-        snapshotMetrics.uploadDurationCounter().incrementBy(partWriteTimeMillis, metricAttributes);
+        snapshotMetrics.uploadDurationCounter().incrementBy(partWriteTimeNanos, metricAttributes);
         numberOfBytesUploaded.inc(partSizeInBytes);
-        uploadTimeInMillis.inc(partWriteTimeMillis);
+        uploadTimeInNanos.inc(partWriteTimeNanos);
     }
 
     public void incrementNumberOfBlobsUploaded() {
@@ -100,7 +101,7 @@ public class BlobStoreSnapshotMetrics {
             snapshotRateLimitingTimeInNanos.count(),
             numberOfBlobsUploaded.count(),
             numberOfBytesUploaded.count(),
-            uploadTimeInMillis.count(),
+            uploadTimeInNanos.count(),
             uploadReadTimeInNanos.count()
         );
     }

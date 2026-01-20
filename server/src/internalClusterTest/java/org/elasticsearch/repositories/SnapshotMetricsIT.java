@@ -80,6 +80,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
+    // TODO
     public void testSnapshotAPMMetrics() throws Exception {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
@@ -151,11 +152,11 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
 
         // sanity check duration values
-        final long upperBoundTimeSpentOnSnapshotThingsMillis = internalCluster().numDataNodes() * maximumPerNodeConcurrency
-            * snapshotElapsedTime.millis();
+        final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * maximumPerNodeConcurrency
+            * snapshotElapsedTime.nanos();
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
         );
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));

@@ -427,7 +427,7 @@ null           |1985           |null           |abc            |fork3
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
-required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
 
 SET unmapped_fields="nullify"\;
 ROW x = 1

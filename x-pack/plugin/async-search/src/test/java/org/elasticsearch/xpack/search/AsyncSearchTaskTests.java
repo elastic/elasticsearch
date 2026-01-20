@@ -160,7 +160,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     assertThat(numSkippedShards, equalTo(resp.getSearchResponse().getSkippedShards()));
                     assertThat(0, equalTo(resp.getSearchResponse().getFailedShards()));
                     latch.countDown();
-                }), TimeValue.timeValueMillis(1)));
+                }), TimeValue.timeValueMillis(1), true));
                 thread.start();
             }
             assertFalse(latch.await(numThreads * 2, TimeUnit.MILLISECONDS));
@@ -180,7 +180,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     assertNotNull(resp.getFailure());
                     assertTrue(resp.isPartial());
                     latch.countDown();
-                }), TimeValue.timeValueMillis(1)));
+                }), TimeValue.timeValueMillis(1), true));
                 thread.start();
             }
             assertFalse(latch.await(numThreads * 2, TimeUnit.MILLISECONDS));
@@ -228,7 +228,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     throw new AssertionError("onFailure should not be called");
                 }
-            }, TimeValue.timeValueMillis(10L));
+            }, TimeValue.timeValueMillis(10L), true);
             assertTrue(latch.await(1, TimeUnit.SECONDS));
         }
         AsyncSearchResponse asyncSearchResponse = response.get();
@@ -282,6 +282,24 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testCompletionTimeoutAndSuppressPartialResults() throws InterruptedException {
+        InternalAggregations aggs = InternalAggregations.from(
+            Collections.singletonList(
+                new StringTerms(
+                    "name",
+                    BucketOrder.key(true),
+                    BucketOrder.key(true),
+                    1,
+                    1,
+                    Collections.emptyMap(),
+                    DocValueFormat.RAW,
+                    1,
+                    false,
+                    1,
+                    Collections.emptyList(),
+                    0L
+                )
+            )
+        );
         try (AsyncSearchTask task = createAsyncSearchTask()) {
             int numShards = randomIntBetween(0, 10);
             List<SearchShard> shards = new ArrayList<>();
@@ -298,17 +316,17 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {
                 task.getSearchProgressActionListener()
-                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), aggs, 0);
                 assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false, true);
             }
             task.getSearchProgressActionListener()
-                .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+                .onFinalReduce(shards, new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), aggs, 0);
             assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, true);
             ActionListener.respondAndRelease(
                 (AsyncSearchTask.Listener) task.getProgressListener(),
                 newSearchResponse(totalShards, totalShards, numSkippedShards)
             );
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, true);
         }
     }
 
@@ -435,7 +453,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     assertTrue(failure.compareAndSet(null, e));
                     latch.countDown();
                 }
-            }, TimeValue.timeValueMillis(500L));
+            }, TimeValue.timeValueMillis(500L), true);
             asyncSearchTask.getSearchProgressActionListener()
                 .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             assertTrue(latch.await(1000, TimeUnit.SECONDS));
@@ -463,7 +481,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     assertTrue(failure.compareAndSet(null, e));
                     latch.countDown();
                 }
-            }, TimeValue.timeValueMillis(500L));
+            }, TimeValue.timeValueMillis(500L), true);
             assertTrue(latch.await(1000, TimeUnit.SECONDS));
         }
         assertThat(failure.get(), instanceOf(RuntimeException.class));
@@ -554,13 +572,15 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     assertNull(resp.getFailure());
                 }
                 if (partialResultsSuppressed && resp.isPartial()) {
-                    assertThat(resp.getSearchResponse().getHits().getTotalHits().value(), equalTo(0L));
+                    assertThat(resp.getSearchResponse().getHits().getHits().length, equalTo(0));
+                    assertThat(resp.getSearchResponse().getAggregations(), equalTo(null));
                 } else if (partialResultsSuppressed) {
-                    // if we're asserting this way, we're also injecting hits during partial reduces
+                    // if partial results are suppressed but the response is not partial, we have all results
                     assertThat(resp.getSearchResponse().getHits().getTotalHits().value(), equalTo(1L));
                 }
+
                 latch.countDown();
-            }), TimeValue.timeValueMillis(1)));
+            }), TimeValue.timeValueMillis(1), partialResultsSuppressed == false));
             thread.start();
         }
         latch.await();

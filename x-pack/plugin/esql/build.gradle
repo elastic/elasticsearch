@@ -628,3 +628,9 @@ tasks.named("test").configure {
   systemProperty "policy.directory", file("${projectDir}").absolutePath
   systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
 }
+
+tasks.register("analyzePromqlQueries", JavaExec) {
+  mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
+  classpath = sourceSets.test.runtimeClasspath
+  args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
+}

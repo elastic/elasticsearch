@@ -373,10 +373,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 if (tsIdOrd == termTsIdOrd) {
                     long timestamp = docValues.docTimestamp(nextDocID);
                     if (timestamp == termTimestamp) {
-                        assert Objects.equals(
-                            docValues.docRoutingHash(nextDocID),
-                            docValues.docRoutingHash(docID)
-                        );
+                        assert Objects.equals(docValues.docRoutingHash(nextDocID), docValues.docRoutingHash(docID));
                         docID = nextDocID;
                         return docID;
                     }

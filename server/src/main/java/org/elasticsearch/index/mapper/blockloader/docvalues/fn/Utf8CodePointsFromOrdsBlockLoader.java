@@ -20,10 +20,10 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -55,10 +55,12 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     private final Warnings warnings;
 
     private final String fieldName;
+    private final long byteSize;
 
-    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName) {
-        this.fieldName = fieldName;
+    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue byteSize) {
         this.warnings = warnings;
+        this.fieldName = fieldName;
+        this.byteSize = byteSize.getBytes();
     }
 
     @Override
@@ -68,7 +70,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE, "load blocks");
+        breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
         SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
         if (docValues != null) {
             if (docValues.getValueCount() > LOW_CARDINALITY) {
@@ -94,7 +96,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
             return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, binary);
         }
-        breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+        breaker.addWithoutBreaking(-byteSize);
         return ConstantNull.READER;
     }
 
@@ -119,7 +121,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      *     ordinals and look them up in the cache immediately.
      * </p>
      */
-    private static class Singleton extends BlockDocValuesReader {
+    private class Singleton extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
         private final int[] cache;
 
@@ -136,7 +138,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 success = true;
             } finally {
                 if (success == false) {
-                    breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+                    breaker.addWithoutBreaking(-byteSize);
                 }
             }
             this.cache = new int[cacheSize];
@@ -271,7 +273,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + sizeOfArray(cache.length)));
+            breaker.addWithoutBreaking(-(byteSize + sizeOfArray(cache.length)));
         }
     }
 
@@ -279,7 +281,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      * Loads low cardinality non-singleton ordinals in using a cache of code point counts.
      * See {@link Singleton} for the process
      */
-    private static class SortedSet extends BlockDocValuesReader {
+    private class SortedSet extends BlockDocValuesReader {
         private final Warnings warnings;
         private final SortedSetDocValues ordinals;
         private final int[] cache;
@@ -298,7 +300,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 success = true;
             } finally {
                 if (success == false) {
-                    breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+                    breaker.addWithoutBreaking(-byteSize);
                 }
             }
             this.cache = new int[cacheSize];
@@ -421,7 +423,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + sizeOfArray(cache.length)));
+            breaker.addWithoutBreaking(-(byteSize + sizeOfArray(cache.length)));
         }
     }
 
@@ -442,7 +444,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      *     </li>
      * </ul>
      */
-    private static class ImmediateOrdinals extends BlockDocValuesReader {
+    private class ImmediateOrdinals extends BlockDocValuesReader {
         private final Warnings warnings;
         private final SortedSetDocValues ordinals;
 
@@ -574,11 +576,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE);
+            breaker.addWithoutBreaking(-byteSize);
         }
     }
 
-    private static class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
+    private class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
         private final Warnings warnings;
         private final NumericDocValues counts;
         private final BinaryDocValues values;
@@ -662,7 +664,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         @Override
         public void close() {
             breaker.addWithoutBreaking(
-                -(AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE)
+                -(byteSize + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE)
             );
         }
     }

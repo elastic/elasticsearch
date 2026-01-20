@@ -44,7 +44,7 @@ public class MvMaxBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         return "MvMaxBytesRefsFromOrds[" + fieldName + "]";
     }
 
-    private static class MvMaxSortedSet extends BytesRefsBlockDocValuesReader {
+    private class MvMaxSortedSet extends BytesRefsBlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
         MvMaxSortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {

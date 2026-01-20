@@ -44,7 +44,7 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         return "MvMinBytesRefsFromOrds[" + fieldName + "]";
     }
 
-    private static class MvMinSortedSet extends BytesRefsBlockDocValuesReader {
+    private class MvMinSortedSet extends BytesRefsBlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
         MvMinSortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {

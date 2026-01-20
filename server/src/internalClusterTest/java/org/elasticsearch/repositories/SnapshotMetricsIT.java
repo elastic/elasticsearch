@@ -80,7 +80,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    // TODO
     public void testSnapshotAPMMetrics() throws Exception {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);

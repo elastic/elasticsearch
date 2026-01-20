@@ -56,7 +56,6 @@ public class BlobStoreSnapshotMetrics {
         restoreRateLimitingTimeInNanos.inc(throttleTimeNanos);
     }
 
-    // TODO - CHECK ALL USAGES OF THIS FUNCTION
     public void incrementCountersForPartUpload(long partSizeInBytes, long partWriteTimeNanos) {
         snapshotMetrics.bytesUploadedCounter().incrementBy(partSizeInBytes, metricAttributes);
         snapshotMetrics.uploadDurationCounter().incrementBy(partWriteTimeNanos, metricAttributes);

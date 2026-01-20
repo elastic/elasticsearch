@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializatio
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CompletionSerializationTests extends AbstractLogicalPlanSerializationTests<Completion> {
@@ -55,12 +56,22 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
     }
 
     private MapExpression randomTaskSettings() {
-        return randomBoolean()
-            ? new MapExpression(Source.EMPTY, List.of())
-            : new MapExpression(
-                Source.EMPTY,
-                List.of(Literal.keyword(Source.EMPTY, randomIdentifier()), Literal.fromDouble(Source.EMPTY, randomDouble()))
-            );
+        int numEntries = randomIntBetween(0, 5);
+        if (numEntries == 0) {
+            return new MapExpression(Source.EMPTY, List.of());
+        }
+
+        List<Expression> entries = new ArrayList<>();
+        for (int i = 0; i < numEntries; i++) {
+            Expression key = Literal.keyword(Source.EMPTY, randomIdentifier());
+            Expression value = randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier())
+                : randomBoolean() ? Literal.fromDouble(Source.EMPTY, randomDouble())
+                : new Literal(Source.EMPTY, randomInt(), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
+            entries.add(key);
+            entries.add(value);
+        }
+
+        return new MapExpression(Source.EMPTY, entries);
     }
 
     private Literal randomInferenceId() {

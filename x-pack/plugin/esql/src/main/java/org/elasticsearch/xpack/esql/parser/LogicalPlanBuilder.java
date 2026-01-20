@@ -1127,7 +1127,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
-                "Inavalid option [{}] in RERANK, expected one of [{}]",
+                "Invalid option [{}] in RERANK, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 rerank.validOptionNames()
             );
@@ -1192,7 +1192,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
-                "Inavalid option [{}] in COMPLETION, expected one of [{}]",
+                "Invalid option [{}] in COMPLETION, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 completion.validOptionNames()
             );

@@ -107,7 +107,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
+                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input, taskSettings));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -165,10 +165,27 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             );
         }
 
-        private InferenceServiceResults makeChatCompletionResults(List<String> inputs) {
+        private InferenceServiceResults makeChatCompletionResults(List<String> inputs, Map<String, Object> taskSettings) {
             List<ChatCompletionResults.Result> results = new ArrayList<>();
+            boolean reverseOutput = false;
+            
+            // Check if temperature == 1.0, then reverse the output
+            if (taskSettings != null && taskSettings.containsKey("temperature")) {
+                Object tempValue = taskSettings.get("temperature");
+                if (tempValue instanceof Number) {
+                    double temperature = ((Number) tempValue).doubleValue();
+                    if (temperature == 1.0) {
+                        reverseOutput = true;
+                    }
+                }
+            }
+            
             for (String text : inputs) {
-                results.add(new ChatCompletionResults.Result(text.toUpperCase(Locale.ROOT)));
+                String result = text.toUpperCase(Locale.ROOT);
+                if (reverseOutput) {
+                    result = new StringBuilder(result).reverse().toString();
+                }
+                results.add(new ChatCompletionResults.Result(result));
             }
 
             return new ChatCompletionResults(results);

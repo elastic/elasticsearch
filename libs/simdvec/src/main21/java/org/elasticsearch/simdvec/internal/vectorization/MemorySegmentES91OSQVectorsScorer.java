@@ -48,8 +48,8 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private final MemorySegment memorySegment;
 
-    public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions);
+    public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize);
         this.memorySegment = memorySegment;
     }
 
@@ -411,8 +411,8 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScore128Bulk(q, BULK_SIZE, scores);
-        int limit = FLOAT_SPECIES_128.loopBound(BULK_SIZE);
+        quantizeScore128Bulk(q, this.bulkSize, scores);
+        int limit = FLOAT_SPECIES_128.loopBound(this.bulkSize);
         int i = 0;
         long offset = in.getFilePointer();
         float ay = queryLowerInterval;
@@ -424,19 +424,19 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 4 * BULK_SIZE + i * Float.BYTES,
+                offset + 4 * this.bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES_128,
                 memorySegment,
-                offset + 8 * BULK_SIZE + i * Short.BYTES,
+                offset + 8 * this.bulkSize + i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 10 * BULK_SIZE + i * Float.BYTES,
+                offset + 10 * this.bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
@@ -472,7 +472,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 }
             }
         }
-        in.seek(offset + 14L * BULK_SIZE);
+        in.seek(offset + 14L * this.bulkSize);
         return maxScore;
     }
 
@@ -486,8 +486,8 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScore256Bulk(q, BULK_SIZE, scores);
-        int limit = FLOAT_SPECIES_256.loopBound(BULK_SIZE);
+        quantizeScore256Bulk(q, this.bulkSize, scores);
+        int limit = FLOAT_SPECIES_256.loopBound(this.bulkSize);
         int i = 0;
         long offset = in.getFilePointer();
         float ay = queryLowerInterval;
@@ -499,19 +499,19 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 4 * BULK_SIZE + i * Float.BYTES,
+                offset + 4 * this.bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES_256,
                 memorySegment,
-                offset + 8 * BULK_SIZE + i * Short.BYTES,
+                offset + 8 * this.bulkSize + i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 10 * BULK_SIZE + i * Float.BYTES,
+                offset + 10 * this.bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
@@ -547,7 +547,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 }
             }
         }
-        in.seek(offset + 14L * BULK_SIZE);
+        in.seek(offset + 14L * this.bulkSize);
         return maxScore;
     }
 }

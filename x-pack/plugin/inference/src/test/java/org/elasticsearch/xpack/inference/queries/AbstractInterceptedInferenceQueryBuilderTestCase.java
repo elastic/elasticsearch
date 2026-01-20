@@ -164,7 +164,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     public void testBwCSerialization() throws Exception {
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
             serializationTestCase(transportVersion);
         }
     }
@@ -267,7 +267,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
 
             QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
                 Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),

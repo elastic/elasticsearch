@@ -754,7 +754,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         }
     }
 
-    protected String getEndpointForServer(HttpServer server, String accountName) {
+    private String getEndpointForServer(HttpServer server, String accountName) {
         InetSocketAddress address = server.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
     }

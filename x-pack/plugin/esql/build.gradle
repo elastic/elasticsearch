@@ -170,6 +170,9 @@ tasks.named("test").configure {
     def snippetsTree = fileTree(snippetsFolder).matching {
       include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
     }
+    def settingsTree = fileTree(snippetsFolder).matching {
+      include "**/settings/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
     def commandsExamplesTree = fileTree(snippetsFolder).matching {
       include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
     }
@@ -183,9 +186,11 @@ tasks.named("test").configure {
     doLast {
       def snippets = snippetsTree.files.collect { it.name }
       int countSnippets = snippets.size()
+      def querySettings = settingsTree.files.collect { it.name }
+      int countQuerySettings = querySettings.size()
       def commandsExamples = commandsExamplesTree.files.collect { it.name }
       int countCommandsExamples = commandsExamples.size()
-      if (countSnippets == 0 && countCommandsExamples == 0) {
+      if (countSnippets == 0 && countCommandsExamples == 0 && countQuerySettings == 0) {
         logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
       } else {
         logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
@@ -620,4 +625,24 @@ tasks.named('stringTemplates').configure {
     it.inputFile = roundToInput
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
+}
+
+tasks.named("test").configure {
+  if (System.getProperty("golden.noactual") != null || project.hasProperty("golden.noactual")) {
+    systemProperty "golden.noactual", "true"
+  }
+  if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
+    systemProperty "golden.cleanactual", "true"
+  }
+  if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
+    systemProperty "golden.overwrite", "true"
+  }
+  systemProperty "policy.directory", file("${projectDir}").absolutePath
+  systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
+}
+
+tasks.register("analyzePromqlQueries", JavaExec) {
+  mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
+  classpath = sourceSets.test.runtimeClasspath
+  args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
 }

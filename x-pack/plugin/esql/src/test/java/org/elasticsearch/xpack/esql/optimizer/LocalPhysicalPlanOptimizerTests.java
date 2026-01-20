@@ -1161,7 +1161,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));
             case TEXT -> randomAlphaOfLength(50);
-            case VERSION -> VersionUtils.randomVersion(random()).toString();
+            case VERSION -> VersionUtils.randomVersion().toString();
             default -> throw new IllegalArgumentException("Unexpected type: " + dataType);
         };
     }

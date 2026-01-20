@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -160,12 +160,10 @@ public class FoldNullTests extends ESTestCase {
         assertNullLiteral(foldNull(new Cos(EMPTY, NULL)));
         // string functions
         assertNullLiteral(foldNull(new LTrim(EMPTY, NULL)));
-        // spatial
-        assertNullLiteral(foldNull(new SpatialCentroid(EMPTY, NULL)));
         // ip
         assertNullLiteral(foldNull(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
         // conversion
-        assertNullLiteral(foldNull(new ToString(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, NULL, TEST_CFG)));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
@@ -182,50 +180,34 @@ public class FoldNullTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAggregate() throws Exception {
-        List<Class<? extends AggregateFunction>> items = List.of(Max.class, Min.class);
+        List<Class<? extends AggregateFunction>> items = List.of(
+            Avg.class,
+            Count.class,
+            Max.class,
+            Median.class,
+            MedianAbsoluteDeviation.class,
+            Min.class,
+            Sum.class,
+            Values.class
+        );
         for (Class<? extends AggregateFunction> clazz : items) {
             Constructor<? extends AggregateFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AggregateFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
             assertEquals(conditionalFunction, foldNull(conditionalFunction));
 
             conditionalFunction = ctor.newInstance(EMPTY, NULL);
-            assertEquals(NULL, foldNull(conditionalFunction));
+            assertEquals(conditionalFunction, foldNull(conditionalFunction));
         }
-
-        Avg avg = new Avg(EMPTY, getFieldAttribute("a"));
-        assertEquals(avg, foldNull(avg));
-        avg = new Avg(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(avg));
-
-        Count count = new Count(EMPTY, getFieldAttribute("a"));
-        assertEquals(count, foldNull(count));
-        count = new Count(EMPTY, NULL);
-        assertEquals(count, foldNull(count));
 
         CountDistinct countd = new CountDistinct(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
         assertEquals(countd, foldNull(countd));
         countd = new CountDistinct(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, LONG), foldNull(countd));
-
-        Median median = new Median(EMPTY, getFieldAttribute("a"));
-        assertEquals(median, foldNull(median));
-        median = new Median(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(median));
-
-        MedianAbsoluteDeviation medianad = new MedianAbsoluteDeviation(EMPTY, getFieldAttribute("a"));
-        assertEquals(medianad, foldNull(medianad));
-        medianad = new MedianAbsoluteDeviation(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(medianad));
+        assertEquals(countd, foldNull(countd));
 
         Percentile percentile = new Percentile(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
         assertEquals(percentile, foldNull(percentile));
         percentile = new Percentile(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(percentile));
-
-        Sum sum = new Sum(EMPTY, getFieldAttribute("a"));
-        assertEquals(sum, foldNull(sum));
-        sum = new Sum(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(sum));
+        assertEquals(percentile, foldNull(percentile));
     }
 
     public void testNullFoldableDoesNotApplyToIsNullAndNotNull() {

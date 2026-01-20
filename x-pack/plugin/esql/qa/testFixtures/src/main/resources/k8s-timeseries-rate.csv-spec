@@ -21,7 +21,7 @@ rate_bytes_in:double | time_bucket:datetime
 ;
 
 rate_of_long_no_grouping_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in[1m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step
@@ -63,7 +63,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_of_long_grouping_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=5m rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[5m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -138,7 +138,7 @@ rate_cost:double | time_bucket:datetime
 ;
 
 rate_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=1m rate_cost=(sum(rate(network.total_cost[1m])))
 | EVAL rate_cost=ROUND(rate_cost, 6), step=step
@@ -179,7 +179,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_with_filtering_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=10m rate_bytes_in=(sum by (cluster) (rate(network.total_bytes_in{pod="one"}[10m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -259,7 +259,7 @@ sum_bytes:double | max_bytes:double | min_bytes:double | avg_bytes:double | time
 ;
 
 rate_of_aggregate_metric_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
@@ -428,7 +428,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 trange_absolute_with_rate_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_pre_tech_preview_v14
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -507,3 +507,165 @@ max_rate:double
 13.173725
 ;
 
+
+rateOnNulls
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| EVAL null_col = null
+| STATS
+    rate = rate(network.total_bytes_in),
+    null_literal = rate(null),
+    null_propagated = rate(null_col)
+| EVAL rate=ROUND(rate, 4)
+| KEEP null_literal, null_propagated, rate
+| SORT rate DESC
+| LIMIT 2;
+
+null_literal:double | null_propagated:double | rate:double
+null                | null                   | 13.1737
+null                | null                   | 10.6491
+;
+
+rateOnNullsWithOnlyNullResults
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| EVAL null_col = null
+| STATS
+    null_literal = rate(null),
+    null_propagated = rate(null_col)
+| KEEP null_literal, null_propagated
+| LIMIT 2;
+
+null_literal:double | null_propagated:double
+null                | null
+null                | null
+;
+
+rateOnNullsWithTimeseriesColumn
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| STATS null_literal = rate(null)
+;
+ignoreOrder:true
+
+null_literal:double | _timeseries:keyword
+null                | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+null                | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+null                | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+null                | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+null                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+null                | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+null                | "{""cluster"":""qa"",""pod"":""three""}"
+null                | "{""cluster"":""qa"",""pod"":""one""}"
+null                | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+rateOnNullsSecondStats
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| STATS null_literal = rate(null)
+| STATS row_count = COUNT(1)
+;
+
+row_count:long
+9
+;
+
+rateOnNullsGrouping
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| EVAL null_col = null
+| STATS
+    rate = rate(network.total_bytes_in),
+    null_literal = rate(null),
+    null_propagated = rate(null_col)
+  BY bucket = tbucket(1 hour)
+| EVAL rate=ROUND(rate, 4)
+| KEEP null_literal, null_propagated, bucket, rate
+| SORT rate DESC
+| LIMIT 2;
+ignoreOrder:true
+
+null_literal:double | null_propagated:double | bucket:datetime          | rate:double
+null                | null                   | 2024-05-10T00:00:00.000Z | 4.3799
+null                | null                   | 2024-05-10T00:00:00.000Z | 3.9598
+;
+
+rateOnNullsWithOnlyNullResultsGrouping
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| EVAL null_col = null
+| STATS
+    null_literal = rate(null),
+    null_propagated = rate(null_col)
+  BY bucket = tbucket(1 hour)
+| KEEP null_literal, null_propagated, bucket
+| LIMIT 2;
+
+null_literal:double | null_propagated:double | bucket:datetime
+null                | null                   | 2024-05-10T00:00:00.000Z
+null                | null                   | 2024-05-10T00:00:00.000Z
+;
+
+rateOnNullsWithTimeseriesColumnGrouping
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| STATS null_literal = rate(null) BY bucket = tbucket(1 hour)
+;
+ignoreOrder:true
+
+null_literal:double | _timeseries:keyword                                                   | bucket:datetime
+null                | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+null                | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+;
+
+rateOnNullsSecondStatsGrouping
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+TS k8s
+| STATS null_literal = rate(null)
+  BY bucket = tbucket(1 hour)
+| STATS row_count = COUNT(1)
+;
+
+row_count:long
+9
+;

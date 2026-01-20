@@ -62,6 +62,8 @@ public class CsvTestsDataLoader {
         "mapping-default-incompatible.json",
         "employees_incompatible.csv"
     ).noSubfields();
+    // Note: this index currently has no data, and is only used by the golden tests.
+    private static final TestDataset ALL_TYPES = new TestDataset("all_types", "mapping-all-types.json", "all-types.csv");
     private static final TestDataset HOSTS = new TestDataset("hosts");
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
@@ -189,10 +191,16 @@ public class CsvTestsDataLoader {
         "tdigest_timeseries_index-mappings.json",
         "tdigest_standard_index.csv"
     ).withSetting("tdigest_timeseries_index-settings.json");
+    private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
+        "histogram_timeseries_index",
+        "mapping-histogram_time_series_index.json",
+        "histogram_standard_index.csv"
+    ).withSetting("settings-histogram_time_series_index.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
+        Map.entry(ALL_TYPES.indexName, ALL_TYPES),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
@@ -264,7 +272,8 @@ public class CsvTestsDataLoader {
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
         Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
         Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
-        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX)
+        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
+        Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

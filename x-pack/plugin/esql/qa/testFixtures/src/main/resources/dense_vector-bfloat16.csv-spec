@@ -14,6 +14,7 @@ id:l | bfloat16_vector:dense_vector
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
 3    | [0.5390625, 0.3203125, 0.01202392578125]
+4    | null
 ;
 
 denseBFloat16VectorWithEval
@@ -32,6 +33,7 @@ id:l | v:dense_vector
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
 3    | [0.5390625, 0.3203125, 0.01202392578125]
+4    | null
 ;
 
 denseBFloat16VectorWithRenameAndDrop
@@ -51,4 +53,28 @@ id:l | new_vector:dense_vector
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
 3    | [0.5390625, 0.3203125, 0.01202392578125]
+4    | null
+;
+
+
+denseVectorAggregationFunctions
+required_capability: dense_vector_agg_functions
+
+from dense_vector_bfloat16
+| stats count_all = count(*), count_vectors = count(bfloat16_vector), present = present(bfloat16_vector), absent = absent(bfloat16_vector)
+;
+
+count_all:long | count_vectors:long | present:boolean | absent:boolean
+5              | 4                  | true            | false
+;
+
+denseVectorCount
+required_capability: dense_vector_agg_functions
+
+from dense_vector_bfloat16
+| stats count_vectors = count(bfloat16_vector)
+;
+
+count_vectors:long
+4               
 ;

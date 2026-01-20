@@ -123,6 +123,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -525,7 +526,7 @@ public final class EsqlTestUtils {
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static TransportVersion randomMinimumVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -1260,6 +1261,14 @@ public final class EsqlTestUtils {
 
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
+    public static QueryParams paramsAsConstant(String key, Object value) {
+        return new QueryParams(List.of(paramAsConstant(key, value)));
+    }
+
+    public static QueryParams paramsAsConstant(Map<String, Object> params) {
+        return new QueryParams(params.entrySet().stream().map(e -> paramAsConstant(e.getKey(), e.getValue())).toList());
     }
 
     public static QueryParam paramAsConstant(String name, Object value) {

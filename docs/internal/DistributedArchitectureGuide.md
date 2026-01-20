@@ -671,23 +671,233 @@ There are several more Decider Services, implementing the `AutoscalingDeciderSer
 
 # Snapshot / Restore
 
-(We've got some good package level documentation that should be linked here in the intro)
+Snapshot copies index data files from node local storage to a remote repository. These files can later be restored
+from the repository back to local storage to re-create the index. In addition to indices, it can also backup and
+restore the cluster state [Metadata][] so that settings, templates, pipelines and other configurations can be preserved.
 
-(copy a sketch of the file system here, with explanation -- good reference)
+Snapshots are incremental in that it does not copy a data file if it has already been copied in a previous snapshot.
+Instead, it adds a reference to the existing file in the metadata stored in the repository, effectively a ref-counting
+system for the data files. This also means we can freely delete any snapshot without worrying about affecting other
+snapshots.
+
+This [snapshots Java package documentation][] provides a good explanation on how snapshot operations work.
+
+Restoring a snapshot is a process largely relies on [index recoveries](#Recovery). The restore service initializes
+the process by preparing shards of restore indices as unassigned with snapshot as their recovery source in the cluster
+state. These shards go through the regular allocation process to be allocated. They then recover on the target nodes
+by copying data files from the snapshot repository to local storage.
+
+Both snapshot and restore are coordinated by the master node, while index data transfer is done by the data nodes.
+The communications from the master node to data nodes are always cluster state updates. Data nodes send transport
+requests to the master node to update the status. These requests, at the end, also triggers cluster state updates
+which can be further reacted upon by the data nodes until the processes are complete.
+
+[Metadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+[snapshots Java package documentation]: https://github.com/elastic/elasticsearch/blob/8ccbdd553b096465a282297332d2389328ed665a/server/src/main/java/org/elasticsearch/snapshots/package-info.java#L11
 
 ### Snapshot Repository
 
+A [Repository][] must be created before any snapshot operation can take place. There are different types of
+repositories. The most common ones are file system based (FS) and cloud storage based (S3, GCS, Azure) which
+all extend the [BlobStoreRepository][] class. A repository must be registered as writeable with a single
+cluster while registered as readable with multiple clusters. NOTE registering a repository as writeable
+with multiple clusters can lead to data corruption. We try our best to detect such situation, but it's not
+completely foolproof.
+
+The content structure of a repository is similar to the local index storage structure, with `indices` folder
+holding indices data separate by their UUID and shard ID. Here is a simple example of a repository structure:
+
+```
+my-repository/
+├── index-2       <-- The root blob file of the repository, also called repository generation file
+├── index.latest
+├── indices
+│   └── 8K9JNuqjTnygrjKY8qmsiA   <-- UUID of the snapshotted index. Not the same index UUID in the cluster
+│       ├── 0                    <-- shard 0
+│       │   ├── __I0e0reaMQzuXv8fY1GYD2w           <-- data file
+│       │   ├── __XqE3EVhOREWBnCHASLALtw           <-- another data file
+│       │   ├── index-pPXvvdFWSmajXZcfrIwggA       <-- shard level generation file
+│       │   └── snap-3kXOuTRmTFm6VMcEqPkKNQ.dat    <-- shard level snapshot info
+│       └── meta-tdTzfI8BkmhGlJ2SvOok.dat          <-- index metadata
+├── meta-3kXOuTRmTFm6VMcEqPkKNQ.dat    <-- cluster metadata
+└── snap-3kXOuTRmTFm6VMcEqPkKNQ.dat    <-- snapshot information
+```
+See also the [blobstore Java package documentation][] for more details on the repository structure.
+
+The most important file in the repository is the `index-N` file, where `N` is a numeric generation number starting
+from 0. This file holds the global state of the repository, including all valid snapshots and their corresponding
+indices, shards and index metadata. Every mutable operation on the repository, such as creating or deleting a snapshot,
+results in a new `index-N` file being created with an incremented generation number. The `index.latest` file stores
+the latest repository generation and is effectively a pointer to the latest `index-N` file.
+
+The repository is not rescuable if the repository generation file is corrupted. This is the reason that we are
+very careful when updating this file by leveraging cluster consensus to ensure only the latest master node update
+it to a generation that is accepted by the rest of the cluster members. The updating process also attempts to
+detect concurrent writes to avoid multiple clusters writing to the same repository. This is done by comparing
+the expected repository generation to the actual generation files in the repository. If this file is corrupted,
+as reported occasionally on SDHs, it is almost certain that some other external process has modified it.
+
+If other files in the repository are corrupted, we can usually delete the broken snapshots and retain the good ones.
+The broken snapshots usually lead to exception being thrown when accessed by APIs like the [GetSnapshot API][].
+Since v8.16.0, there is also [VerifyRepositoryIntegrity API][] that can be used to actively scan the repository
+and identify any corrupted snapshots.
+
+[Repository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/Repository.java#L53
+[BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
+[blobstore Java package documentation]: https://github.com/elastic/elasticsearch/blob/24fad8fac774983bb231da34321108abef102745/server/src/main/java/org/elasticsearch/repositories/blobstore/package-info.java#L11
+[GetSnapshot API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-get
+[VerifyRepositoryIntegrity API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-verify-integrity
+
+#### Repository Management
+
+A snapshot repository has two components: (1) a `RepositoryMetadata` containing the configuration stored
+as a `Metadata.ProjectCustom` in the cluster state; (2) the actual repository object created on the master
+node and each data node. A series of APIs are available to create, update, get and delete repositories.
+Each of these APIs is backed by a `TransportMasterNodeAction` which publishes a cluster state for the
+`RepositoryMetadata` change so that relevant nodes can update their local repository objects accordingly.
+The API call will only return after the repository object has been updated on all relevant nodes.
+For creating a repository, it also performs extra verification steps which (1) attempts to create a temporary
+repository directly on the master node as well as write and read a test file before proceeding with the
+cluster state update and (2) performs another write and read test after repository objects are created on all
+relevant nodes. This verification steps are enabled by default and can be disabled per request.
+
+The core service class is [RepositoriesService][] which all APIs eventually delegate to. It also implements
+`ClusterStateApplier` which performs the actual repository object creation, update and deletion.
+
+Besides the APIs, reserved repositories are managed via file based settings. These repositories are managed
+by Elasticsearch service providers, such as the Elastic Cloud. File based settings is effectively a way
+to publish cluster state based on file contents. Hence, they also go through the same code path as the APIs
+under the hood. Reserved repositories cannot be modified via APIs.
+
+While new repository can be created at any time, deleting a repository has some restrictions. In general,
+a repository cannot be deleted if it is in use by either ongoing snapshots or restores or hosting mounted
+searchable snapshots. Since v9.4.0, the default snapshot repository cannot be deleted either. A default
+repository is meant to be the repository used by ILM and SLM when no repository is explicitly specified.
+Updating a repository usually involves closing the existing repository first and creating a new one.
+Therefore, they often subject to the same restrictions as deletion.
+
+Cloud storage backed (S3, GCS, Azure) repositories requires network access to the storage services. Hence,
+they have concept of clients which manages the network requests. At least the `default` client must be
+configured for a cluster which is used by a repository if no client is explicitly specified. Multiple
+clients can be added, via `elasticsecrh.yml` to the same cluster and used by different repositories to
+spread snapshots to difficult locations if so desired.
+
+We allow different implementations of the same cloud storage type to be used as long as they are compatible
+in both APIs and performance characteristics. For example, many storage service claims S3 compatibility.
+But they may fall short under heavy load. The [RepositoryAnalyze API][] can be used to proactively test the
+compatibility which we suggest on SDHs from time to time.
+
+[RepositoriesService]: https://github.com/elastic/elasticsearch/blob/f55a90c941f5ca80fff4978be7b15e97614ce55f/server/src/main/java/org/elasticsearch/repositories/RepositoriesService.java#L98
+[PutRepository API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository
+[RepositoryAnalyze API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-analyze
+
 ### Creation of a Snapshot
 
-(Include an overview of the coordination between data and master nodes, which writes what and when)
+Creating a snapshot is the most involved snapshot operation because it requires work to be done on
+both master and data nodes. In contrast, cloning snapshot, deleting snapshot and cleaning repository
+all happen entirely on the master node.
 
-(Concurrency control: generation numbers, pending generation number, etc.)
+The following Java classes are mostly responsible for the snapshot creation process:
+1. [SnapshotsService][] - runs on the master node and coordinates the overall snapshot process.
+2. [SnapshotsServiceUtils][] - utility class separated from `SnapshotsService` to reduce file length.
+3. [SnapshotShardsService][] - runs on data node and manages the actual snapshot of individual shards.
+4. [BlobStoreRepository][] - used by both master and data nodes to read and write snapshot data and metadata.
 
-(partial snapshots)
+As discussed earlier, a snapshot operation always starts with a cluster state triggered by a transport request.
+Such is the case for snapshot creation. When `SnapshotsService` receives the request, it computes all indices
+and their shards required for the snapshot and creates an object representing this snapshot and stores it in the
+cluster state. The overarching object representing snapshot creation in the cluster state is[SnapshotsInProgress][]
+which is essentially a map keyed by repository name with values being a list of ongoing snapshots(`SnapshotsInProgress.Entry`)
+for that repository. Each ongoing snapshot further tracks its overall state (`SnapshotsInProgress#State`)
+as well states (`SnapshotsInProgress#ShardState`) of each shard required for the snapshot.
+
+When the snapshot creation entry (`SnapshotsInProgress.Entry`) is first added to the cluster state, its shard states
+can be in different `ShardState` depending on the shard's status and snapshot activities:
+* If the shard is started and has no other active snapshot activity, its state is set to `INIT` indicating
+  it is ready to be snapshotted by the data node hosting it. Shards in this state cannot relocate due to
+  `SnapshotInProgressAllocationDecider`.
+* If the shard is started but is still running another snapshot, its state is set to `QUEUED` indicating it
+  will be snapshotted later when the ongoing snapshots and any other snapshots queued before it are finished.
+* If the shard is relocating or initializing, its state is set to `WAITING` which will be changed to a new state
+  once the shard finishes relocation or initialization.
+* If the index no longer exists or the shard is unassigned, the shard state is set to `MISSING`. This state
+  is final. A snapshot creation fails on shard with this state if it is issued with `partial=false`. Note
+  snapshot creation is always issued with `partial=true` in Elastic Cloud so that snapshot does not fail
+  entirely for temporary shard unavailability.
+* If the node hosting the shard is being shutdown, the shard state is set to `PAUSED_FOR_NODE_REMOVAL`.
+  This state will be updated once the node finishes the shutdown process.
+
+When a data node (`SnapshotShardsService`) receives the updated cluster state with a new snapshot entry,
+it takes the shards with the `INIT` state and hosted on itself and creates a shard snapshot task for each
+of them. The shard state is computed for all shards involved in the snapshot at once when the snapshot entry
+is created. A large snapshot can easily have thousands of shards with `INIT` state indicating ready to be snapshotted.
+To avoid overwhelming the data nodes, a dedicated snapshot thread pool as well as `ThrottledTaskRunner` are
+used to keep concurrent running shard snapshots under control.
+
+The lifecycle of each shard snapshot is also tracked in-memory on the data node with `IndexShardSnapshotStatus`.
+The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.
+When a shard snapshot task runs, it first writes a new shard level generation file (`index-<UUID>.data`). This
+is basically a shard level catalog file pointing to all the valid shard snapshots. Each snapshot creates a new
+one. The UUID is used to avoid name collision. Previous shard generation files are not deleted because they
+may still be needed if the current shard snapshot fails. It then copies shard level data files to the repository
+with `BlobStoreRepository#doSnapshotShard`, `BlobStoreRepository#snapshotFile` etc. After all data files are
+uploaded, it writes a shard level snapshot file (`snap-<UUID>.dat`) indicating what data files should be included
+in this shard snapshot. Note the data file's physical name is replaced with double underscore (`__`) followed by
+an UUID to avoid name collision. The actual name is mapped and stored in the shard level snapshot file.
+
+Once the shard snapshot is completed successfully, the data node sends a transport request
+(`UpdateIndexShardSnapshotStatusRequest`) with the new shard generation (`ShardGeneration`) to the master node
+to update its shard status (`SnapshotsInProgress#ShardState`) in the cluster state. If there is any
+`QUEUED` shard snapshot for the same shard, the master node (`SnapshotsService`) update one such shard snapshot
+status to `INIT` so that it can run. The master responds to the data node only after the cluster state is published.
+
+When all shards in a snapshot are completed, the master node performs a finalization step
+(`SnapshotsService#SnapshotFinalization` and `BlobStoreRepository#finalizeSnapshot`) which does the following:
+1. Creates a `SnapshotInfo` object representing the completed snapshot for serialization.
+2. Collect and write the latest `Metadata` and `IndexMetadata` relevant to this snapshot.
+3. Write the snapshot metadata file `snap-<UUID>.dat`.
+4. Create a new root blob (repository generation file, `index-N`) with incremented generation number
+   and updated content including the new snapshot and publish a cluster state to accept this new
+   generation as the current/safe (`BlobStoreRepository#writeIndexGen`).
+
+Step 4 is the most critical one. The root blob is intentionally written at the very last so that
+failure before it only leaves some redundant files in the repository which will be cleaned up in due time.
+A snapshot is not successfully until the root blob is successfully updated. To ensure consistency,
+it is a 3-steps process leveraging cluster consensus:
+1. Picks a new pending repository generation number which is greater than the current pending generation
+   and publishes a cluster state update for it.
+2. If previous step is successful, writes the new root blob with the pending generation number.
+3. Publishes another cluster state to set the current/safe repository generation to the new pending generation.
+
+When master fails over during snapshot creation, the above steps ensures that only the new master can
+successfully update the root blob to avoid data corruption.
+
+Multiple snapshots can run concurrently in the same repository. But the process is sequential at shard level,
+i.e. only one shard snapshot for the same shard can be in the `INIT` state at any time.
+Snapshot deletions and creations are mutually exclusive. There can only be a single running deletion at any
+time in a repository. Repository clean up is cluster wide exclusive and must run by itself.
+
+
+[SnapshotsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java#L133
+[SnapshotsServiceUtils]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsServiceUtils.java#L83
+[SnapshotShardsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotShardsService.java#L81
+[BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
+[SnapshotsInProgress]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java#L78
+
+#### Shard snapshot pausing
 
 ### Deletion of a Snapshot
 
+### Clone of a Snapshot
+
 ### Restoring a Snapshot
+
+[RestoreService][] is responsible for handling the initial restore request and prepare the unassigned shards
+with snapshot as their recovery source in the cluster state. Once the shard is allocated on a data node, the
+recovery process kicks in and eventually calls into `IndexShard#restoreFromSnapshot` which delegates to
+`BlobStoreRepository#restoreShard` to copy data files from the repository to local storage.
+
+[RestoreService]: https://github.com/elastic/elasticsearch/blob/1b7e99ee7a4ec92d20846be639fa4c3d15f20abc/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L149
 
 ### Detecting Multiple Writers to a Single Repository
 

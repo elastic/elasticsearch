@@ -3542,10 +3542,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         var targetIndex = randomFrom(".hidden-open", ".hidden-closed");
         var request = new SearchRequest().indices(targetIndex);
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
-        var resolvedIndices = resolveIndices(
-            request,
-            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())
-        );
+        var resolvedIndices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
 
         assertThat(resolvedIndices.getLocal(), contains(targetIndex));
         assertThat(resolvedIndices.getRemote(), empty());

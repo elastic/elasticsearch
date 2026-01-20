@@ -52,7 +52,7 @@ T-Digest fields accept two field-specific configuration parameters:
   In general, the higher this number, the more space on disk the field will use
   but the more accurate the sketch approximations will be.  Default is `100`
 * `digest_type`, which selects the merge strategy to use with the sketch.  Valid
-  values are `hybrid`, `avl_tree`, and `merging`. The default is `hybrid`.
+  values are `default` and `high_accuracy`.  The default is `default`.
 
 ## Use cases [tdigest-use-cases]
 
@@ -61,8 +61,16 @@ efficient for aggregations, the data are stored as compact [doc
 values](/reference/elasticsearch/mapping-reference/doc-values.md) and not
 indexed.
 
-`tdigest` fields are supported in ES|QL; see the
-[ES|QL reference](/reference/query-languages/esql.md) for details.
+`tdigest` fields are supported in the following [ES|QL](/reference/query-languages/esql.md) aggregation functions:
+
+* [Avg](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-avg)
+* [Max](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-max)
+  and
+  [Min](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-min)
+* [Percentile](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile)
+* [Present](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-present) and
+  [Absent](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-absent)
+
 
 ## Synthetic `_source` [tdigest-synthetic-source]
 
@@ -90,6 +98,7 @@ PUT my-index-000001
 ```
 
 ### Index a simple document
+
 ```console
 PUT my-index-000001/_doc/1
 {
@@ -99,4 +108,13 @@ PUT my-index-000001/_doc/1
   }
 }
 ```
+
+### Query via ES|QL
+
+```console
+POST /_query?format=txt
+{
+	"query": "FROM test | STATS Percentile(99, latency)"
+}
+
 

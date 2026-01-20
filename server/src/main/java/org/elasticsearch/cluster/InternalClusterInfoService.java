@@ -474,7 +474,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             });
             final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
                 nodeThreadPoolUsageStatsPerNode,
-                writeLoadConstraintSettings.getQueueLatencyThreshold().millis()
+                writeLoadConstraintSettings.getQueueLatencyThreshold()
             );
 
             final var newClusterInfo = new ClusterInfo(
@@ -494,15 +494,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             return newClusterInfo;
         }
 
-        public static Set<String> buildNodeIdsWriteLoadHotspottingSet(
+        private static Set<String> buildNodeIdsWriteLoadHotspottingSet(
             Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
-            long queueLatencyThreshold
+            TimeValue queueLatencyThreshold
         ) {
             final Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(nodeThreadPoolUsageStatsPerNode.size());
             nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
                 NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats.threadPoolUsageStatsMap()
                     .get(ThreadPool.Names.WRITE);
-                if (threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= queueLatencyThreshold) {
+                if (threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= queueLatencyThreshold.millis()) {
                     nodeIdsWriteLoadHotspotting.add(nodeId);
                 }
             });

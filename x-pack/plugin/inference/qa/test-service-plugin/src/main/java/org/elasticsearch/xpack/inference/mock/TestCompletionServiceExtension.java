@@ -168,7 +168,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
         private InferenceServiceResults makeChatCompletionResults(List<String> inputs, Map<String, Object> taskSettings) {
             List<ChatCompletionResults.Result> results = new ArrayList<>();
             boolean reverseOutput = false;
-            
+
             // Check if temperature == 1.0, then reverse the output
             if (taskSettings != null && taskSettings.containsKey("temperature")) {
                 Object tempValue = taskSettings.get("temperature");
@@ -179,7 +179,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
                     }
                 }
             }
-            
+
             for (String text : inputs) {
                 String result = text.toUpperCase(Locale.ROOT);
                 if (reverseOutput) {

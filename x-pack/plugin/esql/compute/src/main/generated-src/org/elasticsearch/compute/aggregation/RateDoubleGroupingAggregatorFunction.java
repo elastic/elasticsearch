@@ -517,7 +517,9 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         var prevValue = lastValue;
         long secondNextTimestamp = flushQueue.secondNextTimestamp();
         while (flushQueue.size() > 1) {
-            // batch processing
+            // If the last timestamp is greater than the maximum timestamp of the next two candidate slices,
+            // there is no overlap with subsequent slices, so batch merging can be performed without comparing
+            // timestamps from the buffer.
             if (top.lastTimestamp() > secondNextTimestamp) {
                 for (int p = top.start; p < top.end; p++) {
                     var val = values.get(p);

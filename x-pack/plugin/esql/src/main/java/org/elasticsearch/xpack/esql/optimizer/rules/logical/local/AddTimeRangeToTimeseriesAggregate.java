@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+
 public class AddTimeRangeToTimeseriesAggregate extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
@@ -33,7 +35,7 @@ public class AddTimeRangeToTimeseriesAggregate extends ParameterizedRule<Logical
         // Nothing explodes catastrophically if we can't apply this optimization, but we still want to make sure it applies always in tests
         // therefore we check with asserts that the optimization is applicable, but still code defensively with ifs for production
         assert agg.timestamp() instanceof FieldAttribute;
-        if (agg.timestamp() instanceof FieldAttribute timestampField) {
+        if (agg.timestamp() instanceof FieldAttribute timestampField && isDateTime(timestampField.dataType())) {
             FieldAttribute.FieldName fieldName = timestampField.fieldName();
             Object minTimestamp = searchStats.min(fieldName);
             Object maxTimestamp = searchStats.max(fieldName);

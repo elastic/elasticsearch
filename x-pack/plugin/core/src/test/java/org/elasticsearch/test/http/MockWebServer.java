@@ -137,6 +137,10 @@ public class MockWebServer implements Closeable {
             try {
                 MockResponse response = responses.poll();
                 MockRequest request = createRequest(s);
+
+                // Update the response body based on the request if a body generator function was specified in the response
+                response.setBodyFromRequest(request);
+
                 requests.add(request);
 
                 if (logger.isDebugEnabled()) {

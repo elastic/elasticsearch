@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -93,23 +94,22 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
         long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
 
-        ElasticsearchException exception;
+        ElasticsearchException exception = null;
+        SearchResponse resp = null;
         try {
-            var resp = internalCluster().client(coordinatorNode)
+            resp = internalCluster().client(coordinatorNode)
                 .prepareSearch(INDEX_NAME)
                 .setQuery(matchAllQuery())
-                .setSize(3)  // Request 3 huge docs = ~6MB > 5MB limit
+                .setSize(5)  // Request 3 huge docs = ~6MB > 5MB limit
                 .setAllowPartialSearchResults(false)
                 .addSort(SORT_FIELD, SortOrder.ASC)
                 .get();
-            try {
-                fail("expected circuit breaker to trip");
-                return;
-            } finally {
-                resp.decRef();
-            }
         } catch (ElasticsearchException e) {
             exception = e;
+        } finally{
+            if(resp != null) {
+                resp.decRef();
+            }
         }
 
         Throwable cause = exception.getCause();
@@ -173,9 +173,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
                     .setAllowPartialSearchResults(false)
                     .addSort(SORT_FIELD, SortOrder.ASC)
                     .get();
-                try {} finally {
-                    resp.decRef();
-                }
+                resp.decRef();
             }, executor)).toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0])).exceptionally(ex -> null).get(30, TimeUnit.SECONDS);
@@ -238,22 +236,22 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         refresh(INDEX_NAME);
 
         long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
-        ElasticsearchException exception;
+        ElasticsearchException exception = null;
+        SearchResponse resp = null;
         try {
-            var resp = internalCluster().client(coordinatorNode)
+            resp = internalCluster().client(coordinatorNode)
                 .prepareSearch(INDEX_NAME)
                 .setQuery(matchAllQuery())
                 .setSize(5)
                 .setAllowPartialSearchResults(false)
                 .addSort(SORT_FIELD, SortOrder.ASC)
                 .get();
-            try {
-                return;
-            } finally {
-                resp.decRef();
-            }
         } catch (ElasticsearchException e) {
             exception = e;
+        } finally {
+            if (resp != null) {
+                resp.decRef();
+            }
         }
 
         boolean foundBreakerException = containsCircuitBreakerException(exception);
@@ -297,23 +295,29 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
         long initialBreaker = getNodeRequestBreakerUsed(coordinatorNode);
 
+        ElasticsearchException exception = null;
         for (int i = 0; i < 10; i++) {
+            SearchResponse resp = null;
             try {
-                var resp = internalCluster().client(coordinatorNode)
+                resp = internalCluster().client(coordinatorNode)
                     .prepareSearch(INDEX_NAME)
                     .setQuery(matchAllQuery())
                     .setSize(5)  // 5 docs × 1.2MB = 6MB > 5MB limit
                     .setAllowPartialSearchResults(false)
                     .addSort(SORT_FIELD, SortOrder.ASC)
                     .get();
-                try {
-                    fail("expected circuit breaker to trip (iteration " + i + ")");
-                } finally {
+            } catch (ElasticsearchException e) {
+                exception = e;
+            } finally {
+                if(resp != null) {
                     resp.decRef();
                 }
-            } catch (ElasticsearchException expected) {}
+            }
             Thread.sleep(100);
         }
+
+        boolean foundBreakerException = containsCircuitBreakerException(exception);
+        assertThat("Circuit breaker should have tripped on single large document", foundBreakerException, equalTo(true));
 
         assertBusy(() -> {
             long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);

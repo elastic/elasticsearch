@@ -14,9 +14,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -29,7 +32,11 @@ import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.Semaphore;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -43,22 +50,27 @@ import java.util.function.Supplier;
  *   <li><b>Non-streaming mode</b> ({@link #iterate}): Documents are sorted by doc ID for
  *       efficient sequential Lucene access, then results are mapped back to their original
  *       score-based order. All hits are collected in memory and returned at once.</li>
- *   <li><b>Streaming mode</b> ({@link #iterateAsync}): Documents are fetched in small batches,
- *       serialized immediately to byte buffers from Netty's pool, and streamed when the buffer
- *       exceeds a byte threshold. SearchHit objects are released immediately after serialization
- *       to minimize heap usage.</li>
+ *   <li><b>Streaming mode</b> ({@link #iterateAsync}): Uses a producer-consumer pattern where:
+ *       <ul>
+ *         <li><b>Producer (Lucene thread)</b>: Reads documents, serializes hits into byte chunks,
+ *             and enqueues them. Reserves memory on the circuit breaker for each chunk.</li>
+ *         <li><b>Consumer (sender)</b>: Drains the queue and sends chunks with backpressure via
+ *             {@link ThrottledIterator}. Releases circuit breaker memory when chunks are acknowledged.</li>
+ *       </ul>
+ *   </li>
  * </ul>
- * <b>Threading:</b> All Lucene operations execute on a single thread to satisfy
- * Lucene's thread-affinity requirements. In streaming mode, only network transmission
- * and ACK handling occur asynchronously.
+ * <b>Threading:</b> All Lucene operations execute on the calling thread to satisfy
+ * Lucene's thread-affinity requirements. Network transmission and ACK handling occur
+ * asynchronously via the consumer.
  * <p>
- * <b>Cancellation:</b> Streaming mode supports responsive task cancellation by polling
- * a cancellation flag at chunk boundaries and during backpressure waits.
+ * <b>Memory Management:</b> The circuit breaker tracks accumulated chunk bytes (data node). If the
+ * breaker trips, the producer fails immediately with a {@link CircuitBreakingException},
+ * preventing unbounded memory growth when the consumer is slow.
+ * <p>
+ * <b>Cancellation:</b> Both producer and consumer check the cancellation flag, ensuring
+ * responsive cancellation even under heavy load.
  */
 abstract class FetchPhaseDocsIterator {
-
-    // Timeout interval
-    private static final long CANCELLATION_CHECK_INTERVAL_MS = 200;
 
     /**
      * Default target chunk size in bytes (256KB).
@@ -67,7 +79,17 @@ abstract class FetchPhaseDocsIterator {
     static final int DEFAULT_TARGET_CHUNK_BYTES = 256 * 1024;
 
     /**
-     * Accounts for FetchPhase memory usage
+     * Label for circuit breaker reservations.
+     */
+    static final String CIRCUIT_BREAKER_LABEL = "fetch_phase_streaming_chunks";
+
+    /**
+     * Sentinel value indicating the producer has finished producing chunks.
+     */
+    private static final PendingChunk POISON_PILL = new PendingChunk(null, 0, 0, 0, 0, true);
+
+    /**
+     * Accounts for FetchPhase memory usage.
      * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
      */
     private long requestBreakerBytes;
@@ -106,6 +128,7 @@ abstract class FetchPhaseDocsIterator {
      * @param docIds              document IDs to fetch (in score order)
      * @param allowPartialResults if true, return partial results on timeout instead of failing
      * @param querySearchResult   query result for recording timeout state
+     *
      * @return IterateResult containing fetched hits in original score order
      * @throws SearchTimeoutException       if timeout occurs and partial results not allowed
      * @throws FetchPhaseExecutionException if fetch fails for a document
@@ -180,22 +203,28 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
-     * Asynchronous iteration with byte-based chunking for streaming mode.
+     * Asynchronous iteration using producer-consumer pattern for streaming mode.
      * <p>
-     * <b>Threading model:</b> All Lucene operations (setNextReader, nextDoc) execute on the
-     * calling thread to maintain Lucene's thread-affinity requirements. Only the network
-     * send and ACK handling occur asynchronously.
-     * <p>
-     * <b>Chunk handling:</b>
+     * <b>Architecture:</b>
      * <ul>
-     *   <li>Non-last chunks are sent immediately and tracked via semaphore permits</li>
-     *   <li>The last chunk is held back and returned via the listener for the caller to send</li>
-     *   <li>Each chunk includes a sequence number for reassembly at the coordinator</li>
+     *   <li><b>Producer (this thread)</b>: Iterates through documents, fetches and serializes
+     *       each hit into chunks, and enqueues them. Runs synchronously on the calling thread
+     *       to maintain Lucene's thread-affinity requirements.</li>
+     *   <li><b>Consumer (separate thread)</b>: Uses {@link ThrottledIterator} to drain the queue
+     *       and send chunks with backpressure, limiting to {@code maxInFlightChunks} concurrent sends.</li>
      * </ul>
      * <p>
-     * <b>Cancellation:</b> The method periodically checks the cancellation flag between chunks
-     * and while waiting for backpressure permits, ensuring responsive cancellation even under
-     * heavy backpressure.
+     * <b>Memory Management:</b>
+     * The producer reserves memory on the circuit breaker when creating chunks (dataNode). The consumer
+     * releases memory when chunks are acknowledged. If the circuit breaker trips, the producer
+     * fails immediately with a {@link CircuitBreakingException}.
+     * <p>
+     * <b>Coordination:</b>
+     * <ul>
+     *   <li>A poison pill signals producer completion to the consumer</li>
+     *   <li>Send failures are captured and checked by both producer and consumer</li>
+     *   <li>The last chunk is held back and returned via the listener</li>
+     * </ul>
      *
      * @param shardTarget         the shard being fetched from
      * @param indexReader         the index reader
@@ -204,8 +233,10 @@ abstract class FetchPhaseDocsIterator {
      * @param targetChunkBytes    target size in bytes for each chunk
      * @param chunkCompletionRefs ref-counting listener for tracking chunk ACKs
      * @param maxInFlightChunks   maximum concurrent unacknowledged chunks
+     * @param circuitBreaker      circuit breaker for memory management (trips if accumulated chunks exceed threshold)
      * @param sendFailure         atomic reference to capture send failures
      * @param isCancelled         supplier for cancellation checking
+     * @param executor            executor for running the consumer thread
      * @param listener            receives the result with the last chunk bytes
      */
     void iterateAsync(
@@ -216,8 +247,10 @@ abstract class FetchPhaseDocsIterator {
         int targetChunkBytes,
         RefCountingListener chunkCompletionRefs,
         int maxInFlightChunks,
+        CircuitBreaker circuitBreaker,
         AtomicReference<Throwable> sendFailure,
         Supplier<Boolean> isCancelled,
+        Executor executor,
         ActionListener<IterateResult> listener
     ) {
         if (docIds == null || docIds.length == 0) {
@@ -225,26 +258,119 @@ abstract class FetchPhaseDocsIterator {
             return;
         }
 
-        // Semaphore controls backpressure, each in-flight chunk holds one permit.
-        // When maxInFlightChunks are in flight, we block until an ACK releases a permit.
-        Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
         ShardId shardId = shardTarget.getShardId();
         int totalDocs = docIds.length;
 
-        // Last chunk state
-        ReleasableBytesReference lastChunkBytes = null;
-        int lastChunkHitCount = 0;
-        long lastChunkSeqStart = -1;
+        BlockingQueue<PendingChunk> chunkQueue = new LinkedBlockingQueue<>();
+        //AtomicBoolean producerDone = new AtomicBoolean(false);
+        AtomicReference<PendingChunk> lastChunkHolder = new AtomicReference<>();
+        AtomicReference<Throwable> producerError = new AtomicReference<>();
 
-        RecyclerBytesStreamOutput chunkBuffer = null;
+        ChunkConsumer consumer = new ChunkConsumer(
+            chunkQueue,
+            chunkWriter,
+            shardId,
+            totalDocs,
+            maxInFlightChunks,
+            circuitBreaker,
+            sendFailure,
+            chunkCompletionRefs,
+            isCancelled
+        );
+
+        // Consumer completion handler
+        ActionListener<Void> consumerListener = ActionListener.wrap(
+            v -> {
+                // Check for producer
+                Throwable pError = producerError.get();
+                if (pError != null) {
+                    cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                    listener.onFailure(pError instanceof Exception ? (Exception) pError : new RuntimeException(pError));
+                    return;
+                }
+
+                // Check for send failure
+                Throwable sError = sendFailure.get();
+                if (sError != null) {
+                    cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                    listener.onFailure(sError instanceof Exception ? (Exception) sError : new RuntimeException(sError));
+                    return;
+                }
+
+                // Return the last chunk
+                PendingChunk lastChunk = lastChunkHolder.get();
+                if (lastChunk != null && lastChunk.bytes != null) {
+                    listener.onResponse(new IterateResult(
+                        lastChunk.bytes,
+                        lastChunk.hitCount,
+                        lastChunk.sequenceStart,
+                        lastChunk.byteSize,
+                        circuitBreaker
+                    ));
+                } else {
+                    listener.onResponse(new IterateResult(new SearchHit[0]));
+                }
+            },
+            e -> {
+                cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                listener.onFailure(e);
+            }
+        );
+
+        // Start consumer on separate thread
+        executor.execute(() -> consumer.start(consumerListener));
+
+        // Producer runs on this thread (Lucene thread-affinity)
         try {
-            // Allocate from Netty's pool via the writer
+            produceChunks(
+                indexReader,
+                docIds,
+                chunkWriter,
+                targetChunkBytes,
+                chunkQueue,
+                lastChunkHolder,
+                circuitBreaker,
+                sendFailure,
+                isCancelled
+            );
+        } catch (Exception e) {
+            producerError.set(e);
+            drainAndCleanup(chunkQueue, circuitBreaker);
+        } finally {
+            //producerDone.set(true);
+            // Signal consumer that production is complete
+            chunkQueue.offer(POISON_PILL);
+        }
+    }
+
+    /**
+     * Producer: Iterates through documents, fetches hits, serializes into chunks, and enqueues.
+     * Runs on the Lucene thread to maintain thread-affinity.
+     * <p>
+     * Reserves memory on the circuit breaker for each chunk. If the breaker trips,
+     * throws {@link CircuitBreakingException} to fail fast.
+     */
+    private void produceChunks(
+        IndexReader indexReader,
+        int[] docIds,
+        FetchPhaseResponseChunk.Writer chunkWriter,
+        int targetChunkBytes,
+        BlockingQueue<PendingChunk> chunkQueue,
+        AtomicReference<PendingChunk> lastChunkHolder,
+        CircuitBreaker circuitBreaker,
+        AtomicReference<Throwable> sendFailure,
+        Supplier<Boolean> isCancelled
+    ) throws Exception {
+        int totalDocs = docIds.length;
+        RecyclerBytesStreamOutput chunkBuffer = null;
+
+        try {
             chunkBuffer = chunkWriter.newNetworkBytesStream();
             int chunkStartIndex = 0;
             int hitsInChunk = 0;
 
             for (int scoreIndex = 0; scoreIndex < totalDocs; scoreIndex++) {
-                // Periodic cancellation check
+                // Periodic checks - every 64 docs
                 if (scoreIndex % 64 == 0) {
                     if (isCancelled.get()) {
                         throw new TaskCancelledException("cancelled");
@@ -272,160 +398,301 @@ abstract class FetchPhaseDocsIterator {
                 }
                 hitsInChunk++;
 
-                // Check if chunk is ready to send
+                // Check if chunk is ready
                 boolean isLast = (scoreIndex == totalDocs - 1);
                 boolean bufferFull = chunkBuffer.size() >= targetChunkBytes;
 
                 if (bufferFull || isLast) {
-                    if (isLast == false) {
-                        acquirePermitWithCancellationCheck(transmitPermits, isCancelled);
-                    }
+                    final ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
+                    chunkBuffer = null;
 
-                    ReleasableBytesReference chunkBytes = null;
+                    final long byteSize = chunkBytes.length();
+                    boolean reserved = false;
+
                     try {
-                        chunkBytes = chunkBuffer.moveToBytesReference();
-                        chunkBuffer = null;
+                        // Reserve memory on circuit breaker - may throw
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(byteSize, CIRCUIT_BREAKER_LABEL);
+                        reserved = true;
+
+                        PendingChunk chunk = new PendingChunk(
+                            chunkBytes,
+                            hitsInChunk,
+                            chunkStartIndex,
+                            chunkStartIndex,
+                            byteSize,
+                            isLast
+                        );
 
                         if (isLast) {
-                            lastChunkBytes = chunkBytes;
-                            lastChunkHitCount = hitsInChunk;
-                            lastChunkSeqStart = chunkStartIndex;
-                            chunkBytes = null; // ownership transferred to lastChunkBytes
+                            lastChunkHolder.set(chunk);
                         } else {
-                            sendChunk(
-                                chunkBytes,
-                                hitsInChunk,
-                                chunkStartIndex,
-                                chunkStartIndex,
-                                totalDocs,
-                                chunkWriter,
-                                shardId,
-                                sendFailure,
-                                chunkCompletionRefs.acquire(),
-                                transmitPermits
-                            );
-                            chunkBytes = null;
+                            chunkQueue.put(chunk);
                         }
-                    } finally {
-                        Releasables.closeWhileHandlingException(chunkBytes);
-                    }
 
-                    if (isLast == false) {
-                        chunkBuffer = chunkWriter.newNetworkBytesStream();
-                        chunkStartIndex = scoreIndex + 1;
-                        hitsInChunk = 0;
+                        if (isLast == false) {
+                            chunkBuffer = chunkWriter.newNetworkBytesStream();
+                            chunkStartIndex = scoreIndex + 1;
+                            hitsInChunk = 0;
+                        }
+                    } catch (Exception e) {
+                        // We created chunkBytes; if we fail before handing it off, we MUST close it.
+                        Releasables.closeWhileHandlingException(chunkBytes);
+                        if (reserved) {
+                            circuitBreaker.addWithoutBreaking(-byteSize);
+                        }
+                        throw e;
                     }
                 }
             }
-
-            // Wait for all in-flight chunks to be acknowledged
-            waitForAllPermits(transmitPermits, maxInFlightChunks, isCancelled);
-
-            // Final failure check after all chunks sent
-            Throwable failure = sendFailure.get();
-            if (failure != null) {
-                Releasables.closeWhileHandlingException(lastChunkBytes);
-                throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
-            }
-
-            listener.onResponse(new IterateResult(lastChunkBytes, lastChunkHitCount, lastChunkSeqStart));
-        } catch (Exception e) {
+        } finally {
             if (chunkBuffer != null) {
                 Releasables.closeWhileHandlingException(chunkBuffer);
             }
-            Releasables.closeWhileHandlingException(lastChunkBytes);
-            listener.onFailure(e);
         }
     }
 
     /**
-     * Sends a chunk of search hits to the coordinator.
-     * <p>
-     * Wraps the hits in a {@link FetchPhaseResponseChunk} message and writes it via the
-     * chunk writer. Handles reference counting and permit management for both success
-     * and failure cases.
+     * Consumer: Drains chunks from the queue and sends them with backpressure.
+     * Uses {@link ThrottledIterator} to limit concurrent in-flight chunks.
+     * Releases circuit breaker memory when chunks are acknowledged.
      */
-    private void sendChunk(
-        ReleasableBytesReference chunkBytes,
-        int hitCount,
-        long sequenceStart,
-        int fromIndex,
-        int totalDocs,
-        FetchPhaseResponseChunk.Writer writer,
-        ShardId shardId,
-        AtomicReference<Throwable> sendFailure,
-        ActionListener<Void> ackListener,
-        Semaphore transmitPermits
-    ) {
-        FetchPhaseResponseChunk chunk = null;
-        try {
-            chunk = new FetchPhaseResponseChunk(
-                System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.HITS,
-                shardId,
-                chunkBytes,
-                hitCount,
-                fromIndex,
-                totalDocs,
-                sequenceStart
-            );
+    private static class ChunkConsumer {
+        private final BlockingQueue<PendingChunk> queue;
+        private final FetchPhaseResponseChunk.Writer writer;
+        private final ShardId shardId;
+        private final int totalDocs;
+        private final int maxInFlightChunks;
+        private final CircuitBreaker circuitBreaker;
+        private final AtomicReference<Throwable> sendFailure;
+        private final RefCountingListener chunkCompletionRefs;
+        private final Supplier<Boolean> isCancelled;
 
-            final FetchPhaseResponseChunk chunkToClose = chunk;
-            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                chunkToClose.close();
-                ackListener.onResponse(null);
-                transmitPermits.release();
-            }, e -> {
-                chunkToClose.close();
-                sendFailure.compareAndSet(null, e);
-                ackListener.onFailure(e);
-                transmitPermits.release();
-            }));
-
-            chunk = null;
-        } catch (Exception e) {
-            if (chunk != null) {
-                chunk.close();
-            } else {
-                Releasables.closeWhileHandlingException(chunkBytes);
-            }
-            sendFailure.compareAndSet(null, e);
-            ackListener.onFailure(e);
-            transmitPermits.release();
+        ChunkConsumer(
+            BlockingQueue<PendingChunk> queue,
+            FetchPhaseResponseChunk.Writer writer,
+            ShardId shardId,
+            int totalDocs,
+            int maxInFlightChunks,
+            CircuitBreaker circuitBreaker,
+            AtomicReference<Throwable> sendFailure,
+            RefCountingListener chunkCompletionRefs,
+            Supplier<Boolean> isCancelled
+        ) {
+            this.queue = queue;
+            this.writer = writer;
+            this.shardId = shardId;
+            this.totalDocs = totalDocs;
+            this.maxInFlightChunks = maxInFlightChunks;
+            this.circuitBreaker = circuitBreaker;
+            this.sendFailure = sendFailure;
+            this.chunkCompletionRefs = chunkCompletionRefs;
+            this.isCancelled = isCancelled;
         }
-    }
 
-    /**
-     * Acquires a single permit from the semaphore, polling for task cancellation
-     * between acquisition attempts.
-     */
-    private void acquirePermitWithCancellationCheck(Semaphore semaphore, Supplier<Boolean> isCancelled) throws InterruptedException {
-        while (semaphore.tryAcquire(CANCELLATION_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS) == false) {
-            if (isCancelled.get()) {
-                throw new TaskCancelledException("cancelled");
-            }
-        }
-    }
+        void start(ActionListener<Void> listener) {
+            // Create an iterator that pulls from the queue
+            Iterator<PendingChunk> chunkIterator = new QueueDrainingIterator(queue, isCancelled);
 
-    /**
-     * Waits for all permits to become available (indicating all chunks have been ACKed),
-     * polling for task cancellation between attempts. Permits are re-released after acquisition
-     * since we're just checking that all async work has completed.
-     */
-    private void waitForAllPermits(Semaphore semaphore, int totalPermits, Supplier<Boolean> isCancelled) throws InterruptedException {
-        int acquired = 0;
-        try {
-            while (acquired < totalPermits) {
-                while (semaphore.tryAcquire(CANCELLATION_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS) == false) {
-                    if (isCancelled.get()) {
-                        throw new TaskCancelledException("cancelled");
+            // Use ThrottledIterator for backpressure control
+            ThrottledIterator.run(
+                chunkIterator,
+                (releasable, chunk) -> sendChunk(chunk, releasable),
+                maxInFlightChunks,
+                () -> {
+                    drainAndCleanup(queue, circuitBreaker);
+
+                    // Completion callback - check for errors and notify listener
+                    Throwable failure = sendFailure.get();
+                    if (failure != null) {
+                        listener.onFailure(failure instanceof Exception ? (Exception) failure : new RuntimeException(failure));
+                    } else if (isCancelled.get()) {
+                        listener.onFailure(new TaskCancelledException("cancelled"));
+                    } else {
+                        listener.onResponse(null);
                     }
                 }
-                acquired++;
+            );
+        }
+
+        private void sendChunk(PendingChunk chunk, Releasable releasable) {
+            // Check for cancellation before sending
+            if (isCancelled.get()) {
+                releaseChunk(chunk);
+                releasable.close();
+                return;
             }
-        } finally {
-            if (acquired > 0) {
-                semaphore.release(acquired);
+
+            // Check for prior send failure
+            Throwable failure = sendFailure.get();
+            if (failure != null) {
+                releaseChunk(chunk);
+                releasable.close();
+                return;
+            }
+
+            FetchPhaseResponseChunk responseChunk = null;
+            try {
+                responseChunk = new FetchPhaseResponseChunk(
+                    System.currentTimeMillis(),
+                    FetchPhaseResponseChunk.Type.HITS,
+                    shardId,
+                    chunk.bytes,
+                    chunk.hitCount,
+                    chunk.fromIndex,
+                    totalDocs,
+                    chunk.sequenceStart
+                );
+
+                final FetchPhaseResponseChunk chunkToClose = responseChunk;
+                final long chunkByteSize = chunk.byteSize;
+                ActionListener<Void> ackListener = chunkCompletionRefs.acquire();
+
+                writer.writeResponseChunk(responseChunk, ActionListener.wrap(
+                    ack -> {
+                        chunkToClose.close();
+                        // Release circuit breaker memory after successful send
+                        circuitBreaker.addWithoutBreaking(-chunkByteSize);
+                        ackListener.onResponse(null);
+                        releasable.close();  // Signal ThrottledIterator that this item is done
+                    },
+                    e -> {
+                        chunkToClose.close();
+                        // Release circuit breaker memory even on failure
+                        circuitBreaker.addWithoutBreaking(-chunkByteSize);
+                        sendFailure.compareAndSet(null, e);
+                        ackListener.onFailure(e);
+                        releasable.close();  // Signal ThrottledIterator that this item is done
+                    }
+                ));
+
+                responseChunk = null; // ownership transferred
+            } catch (Exception e) {
+                if (responseChunk != null) {
+                    responseChunk.close();
+                    // Release circuit breaker memory
+                    circuitBreaker.addWithoutBreaking(-chunk.byteSize);
+                } else {
+                    releaseChunk(chunk);
+                }
+                sendFailure.compareAndSet(null, e);
+                releasable.close();  // Signal ThrottledIterator that this item is done
+            }
+        }
+
+        private void releaseChunk(PendingChunk chunk) {
+            chunk.close();
+            circuitBreaker.addWithoutBreaking(-chunk.byteSize);
+        }
+    }
+
+    /**
+     * Iterator that drains chunks from the queue, blocking when empty but not done.
+     * Returns null (ending iteration) when the poison pill is received or cancelled.
+     */
+    private static class QueueDrainingIterator implements Iterator<PendingChunk> {
+        private final BlockingQueue<PendingChunk> queue;
+        private final Supplier<Boolean> isCancelled;
+        private PendingChunk nextChunk;
+        private boolean exhausted = false;
+
+        QueueDrainingIterator(
+            BlockingQueue<PendingChunk> queue,
+            Supplier<Boolean> isCancelled
+        ) {
+            this.queue = queue;
+            this.isCancelled = isCancelled;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (exhausted) {
+                return false;
+            }
+            if (nextChunk != null) {
+                return true;
+            }
+
+            try {
+                // Poll with timeout to allow cancellation checks
+                while (nextChunk == null) {
+                    if (isCancelled.get()) {
+                        exhausted = true;
+                        return false;
+                    }
+
+                    nextChunk = queue.poll(100, TimeUnit.MILLISECONDS);
+
+                    // Check for poison pill
+                    if (nextChunk == POISON_PILL) {
+                        exhausted = true;
+                        nextChunk = null;
+                        return false;
+                    }
+                }
+                return true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                exhausted = true;
+                return false;
+            }
+        }
+
+        @Override
+        public PendingChunk next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            PendingChunk result = nextChunk;
+            nextChunk = null;
+            return result;
+        }
+    }
+
+    /**
+     * Represents a chunk ready to be sent.
+     * Tracks byte size for circuit breaker accounting.
+     */
+    private static class PendingChunk implements AutoCloseable {
+        final ReleasableBytesReference bytes;
+        final int hitCount;
+        final int fromIndex;
+        final long sequenceStart;
+        final long byteSize;
+        final boolean isLast;
+
+        PendingChunk(ReleasableBytesReference bytes, int hitCount, int fromIndex, long sequenceStart, long byteSize, boolean isLast) {
+            this.bytes = bytes;
+            this.hitCount = hitCount;
+            this.fromIndex = fromIndex;
+            this.sequenceStart = sequenceStart;
+            this.byteSize = byteSize;
+            this.isLast = isLast;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeWhileHandlingException(bytes);
+        }
+    }
+
+    private static void cleanupLastChunk(AtomicReference<PendingChunk> lastChunkHolder, CircuitBreaker circuitBreaker) {
+        PendingChunk lastChunk = lastChunkHolder.getAndSet(null);
+        if (lastChunk != null) {
+            lastChunk.close();
+            if (lastChunk.byteSize > 0) {
+                circuitBreaker.addWithoutBreaking(-lastChunk.byteSize);
+            }
+        }
+    }
+
+    private static void drainAndCleanup(BlockingQueue<PendingChunk> queue, CircuitBreaker circuitBreaker) {
+        PendingChunk chunk;
+        while ((chunk = queue.poll()) != null) {
+            if (chunk != POISON_PILL) {
+                chunk.close();
+                if (chunk.byteSize > 0) {
+                    circuitBreaker.addWithoutBreaking(-chunk.byteSize);
+                }
             }
         }
     }
@@ -485,6 +752,8 @@ abstract class FetchPhaseDocsIterator {
         final ReleasableBytesReference lastChunkBytes;  // Streaming mode only
         final int lastChunkHitCount;
         final long lastChunkSequenceStart;
+        final long lastChunkByteSize;  // For circuit breaker release
+        final CircuitBreaker circuitBreaker;  // For releasing last chunk bytes
         private boolean closed = false;
         private boolean bytesOwnershipTransferred = false;
 
@@ -494,23 +763,45 @@ abstract class FetchPhaseDocsIterator {
             this.lastChunkBytes = null;
             this.lastChunkHitCount = 0;
             this.lastChunkSequenceStart = -1;
+            this.lastChunkByteSize = 0;
+            this.circuitBreaker = null;
         }
 
         // Streaming constructor
-        IterateResult(ReleasableBytesReference lastChunkBytes, int hitCount, long seqStart) {
+        IterateResult(ReleasableBytesReference lastChunkBytes, int hitCount, long seqStart, long byteSize, CircuitBreaker circuitBreaker) {
             this.hits = null;
             this.lastChunkBytes = lastChunkBytes;
             this.lastChunkHitCount = hitCount;
             this.lastChunkSequenceStart = seqStart;
+            this.lastChunkByteSize = byteSize;
+            this.circuitBreaker = circuitBreaker;
         }
 
         /**
          * Takes ownership of the last chunk bytes.
-         * After calling, close() will not release the bytes.
+         * After calling, close() will not release the bytes, but the caller
+         * becomes responsible for releasing circuit breaker memory.
+         *
+         * @return the last chunk bytes, or null if none
          */
         ReleasableBytesReference takeLastChunkBytes() {
             bytesOwnershipTransferred = true;
             return lastChunkBytes;
+        }
+
+        /**
+         * Returns the byte size of the last chunk for circuit breaker accounting.
+         * Caller must release this from the circuit breaker after sending.
+         */
+        long getLastChunkByteSize() {
+            return lastChunkByteSize;
+        }
+
+        /**
+         * Returns the circuit breaker used for this result's memory accounting.
+         */
+        CircuitBreaker getCircuitBreaker() {
+            return circuitBreaker;
         }
 
         @Override
@@ -520,6 +811,9 @@ abstract class FetchPhaseDocsIterator {
 
             if (bytesOwnershipTransferred == false) {
                 Releasables.closeWhileHandlingException(lastChunkBytes);
+                if (circuitBreaker != null && lastChunkByteSize > 0) {
+                    circuitBreaker.addWithoutBreaking(-lastChunkByteSize);
+                }
             }
         }
     }

@@ -47,6 +47,7 @@ import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -422,6 +423,7 @@ public final class FetchPhase {
             final AtomicReference<ReleasableBytesReference> lastChunkBytesRef = new AtomicReference<>();
             final AtomicLong lastChunkHitCountRef = new AtomicLong(0);
             final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
+            final AtomicLong lastChunkByteSizeRef = new AtomicLong(0);
 
             final int targetChunkBytes = FetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
 
@@ -439,10 +441,12 @@ public final class FetchPhase {
                     }
 
                     // Deserialize and return last chunk as SearchHits
+                    long lastSize = lastChunkByteSizeRef.getAndSet(0L);
                     long countLong = lastChunkHitCountRef.get();
                     if (lastChunkBytes != null && countLong > 0) {
                         int hitCount = Math.toIntExact(countLong);
                         context.fetchResult().setLastChunkBytes(lastChunkBytes, hitCount);
+                        context.circuitBreaker().addWithoutBreaking(-lastSize);
                         lastChunkBytes = null;
                     }
 
@@ -464,8 +468,10 @@ public final class FetchPhase {
                 targetChunkBytes,
                 chunkCompletionRefs,
                 3, // maxInFlightChunks - TODO make configurable
+                context.circuitBreaker(),
                 sendFailure,
                 context::isCancelled,
+                context.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(FetchPhaseDocsIterator.IterateResult result) {
@@ -479,6 +485,7 @@ public final class FetchPhase {
                                 lastChunkBytesRef.set(result.takeLastChunkBytes());
                                 lastChunkHitCountRef.set(result.lastChunkHitCount);
                                 lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
+                                lastChunkByteSizeRef.set(result.lastChunkByteSize);
                             }
 
                             // Signal main build listener to decrement RefCountingListener
@@ -497,7 +504,14 @@ public final class FetchPhase {
                     @Override
                     public void onFailure(Exception e) {
                         ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
-                        Releasables.closeWhileHandlingException(lastChunkBytes);
+                        try {
+                            Releasables.closeWhileHandlingException(lastChunkBytes);
+                        } finally {
+                            long bytesSize = lastChunkByteSizeRef.getAndSet(0);
+                            if (bytesSize > 0) {
+                                context.circuitBreaker().addWithoutBreaking(-bytesSize);
+                            }
+                        }
 
                         if (buildListener != null) {
                             buildListener.onFailure(e);

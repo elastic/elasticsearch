@@ -816,6 +816,50 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code mmrQueryVectorParameter}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code mmrQueryVectorParameter}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code mmrQueryVectorExpression}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code mmrQueryVectorExpression}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

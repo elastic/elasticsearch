@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
@@ -210,6 +211,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
             case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context);
+            case ScalarFunction functionCall -> mapScalarFunction(functionCall);
             case VectorBinaryArithmetic vectorBinaryArithmetic -> mapVectorBinaryArithmetic(
                 promqlCommand,
                 vectorBinaryArithmetic,
@@ -291,6 +293,10 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             window,
             extraParams
         );
+    }
+
+    private static Expression mapScalarFunction(ScalarFunction function) {
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function.functionName(), function.source(), null, null, null, List.of());
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {

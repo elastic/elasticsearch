@@ -476,7 +476,7 @@ public class OperatorTests extends MapperServiceTestCase {
      */
     protected final DriverContext driverContext() {
         var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()));
+        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

@@ -1366,8 +1366,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testSearchWithRemoteAndLocalIndices() {
         SearchRequest request = new SearchRequest("remote:indexName", "bar", "bar2");
-        boolean expandToOpenIndices = randomBoolean();
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), expandToOpenIndices, randomBoolean()));
+        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         final ResolvedIndices resolved = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
         assertThat(resolved.getLocal(), containsInAnyOrder("bar"));
         assertThat(resolved.getRemote(), containsInAnyOrder("remote:indexName"));
@@ -1377,7 +1376,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(
             actual.expressions(),
             contains(
-                resolvedIndexExpression("bar", Set.of("bar"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
+                resolvedIndexExpression("bar", Set.of("bar"), SUCCESS),
                 resolvedIndexExpression("bar2", Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED)
             )
         );
@@ -3509,6 +3508,51 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolvedIndexExpression(excludeExpression, Set.of(), NONE, Set.of(expectedExcludeRemoteIndices))
             )
         );
+    }
+
+    public void testCpsResolveImplicitHiddenIndexUsingConcreteExpression() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var targetIndex = randomFrom(".hidden-open", ".hidden-closed");
+        var request = new SearchRequest().indices(targetIndex);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(targetIndex));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:" + targetIndex, "P2:" + targetIndex));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS, Set.of("P1:" + targetIndex, "P2:" + targetIndex)))
+        );
+    }
+
+    public void testResolveImplicitHiddenIndexUsingConcreteExpression() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
+        var targetIndex = randomFrom(".hidden-open", ".hidden-closed");
+        var request = new SearchRequest().indices(targetIndex);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var resolvedIndices = resolveIndices(
+            request,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(targetIndex));
+        assertThat(resolvedIndices.getRemote(), empty());
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS)));
     }
 
     private void assertIndicesMatch(IndicesRequest.Replaceable request, String expression, List<String> indices, String[] expectedIndices) {

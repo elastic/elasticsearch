@@ -365,14 +365,19 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
-        if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
+        if (Regex.isSimpleMatchPattern(expression)) {
+            IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
+                return true;
+            }
+            if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
+                return true;
+            }
+            return false;
+        } else {
+            // for concrete expressions, i.e. no wildcards, don't check wildcard options as they aren't relevant
             return true;
         }
-        if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
-            return true;
-        }
-        return false;
     }
 
     private static boolean isSystemIndexVisible(IndexNameExpressionResolver resolver, IndexAbstraction indexAbstraction) {

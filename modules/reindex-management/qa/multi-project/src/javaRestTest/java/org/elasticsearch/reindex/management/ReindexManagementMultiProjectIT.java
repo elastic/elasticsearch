@@ -127,6 +127,9 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         assertThat(gettingFromOtherProjectException.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         final String reason = ObjectPath.createFromResponse(gettingFromOtherProjectException.getResponse()).evaluate("error.reason");
         assertThat(reason, equalTo(Strings.format("task [%s] isn't running and hasn't stored its results", taskId)));
+
+        // assert the task is still running
+        assertTrue(runningTaskExistsInProject(taskId, projectWithReindex));
     }
 
     public void testListingReindexOnlyWorksForCorrectProject() throws Exception {

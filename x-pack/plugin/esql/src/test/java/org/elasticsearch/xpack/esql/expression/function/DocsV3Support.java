@@ -1154,9 +1154,9 @@ public abstract class DocsV3Support {
 
             org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
             MapParam mapParam = mapParam(setting);
-            assert param != null || mapParam != null;
-
-            Example[] examples = examples(setting);
+            if (param == null && mapParam == null) {
+                throw new IllegalStateException("Setting " + setting.name() + " is missing @Param or @MapParam annotation");
+            }
 
             StringBuilder builder = new StringBuilder();
 
@@ -1203,10 +1203,8 @@ public abstract class DocsV3Support {
                 builder.append("\n   \n");
             }
 
-            if (examples != null) {
-                for (Example value : examples) {
-                    renderExample(value, builder);
-                }
+            for (Example value : examples(setting)) {
+                renderExample(value, builder);
             }
 
             String rendered = builder.toString();
@@ -1302,7 +1300,7 @@ public abstract class DocsV3Support {
                     // do nothing
                 }
             }
-            return null;
+            return new Example[0];
         }
     }
 

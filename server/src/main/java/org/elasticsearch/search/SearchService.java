@@ -161,6 +161,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -2003,7 +2004,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         shardSearchRequest.nowInMillis()
                     );
                 } else if (canMatchContext.getTimeRangeFilterFromMillis() != null
-                    && searchRequestAttributes.containsKey("time_range_filter_from") == false) {
+                    && searchRequestAttributes.containsKey(TIME_RANGE_FILTER_FROM_ATTRIBUTE) == false) {
                         // Add in the time_range_filter_from attribute if it was missing before due to skipped empty shards
                         SearchRequestAttributesExtractor.addTimeRangeAttribute(
                             canMatchContext.getTimeRangeFilterFromMillis(),

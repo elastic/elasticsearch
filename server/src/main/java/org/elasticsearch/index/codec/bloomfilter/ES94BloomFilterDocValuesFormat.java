@@ -160,7 +160,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final int bitsetSizeInBits;
         private final int bitSetSizeInBytes;
         private final ByteArray buffer;
-        private final int[] hashes;
         private boolean closed;
 
         Writer(
@@ -176,7 +175,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
             this.numHashFunctions = numHashFunctions;
-            this.hashes = new int[numHashFunctions];
             this.bloomFilterFieldName = bloomFilterFieldName;
 
             boolean success = false;
@@ -240,9 +238,15 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         private void addToBloomFilter(BytesRef value) {
-            // TODO: consider merging the hashing with the bit array population
-            var valueHashes = hashValue(value, hashes);
-            for (int hash : valueHashes) {
+            long hash64 = hash64(value.bytes, value.offset, value.length);
+            // First use output splitting to get two hash values out of a single hash function
+            int upperHalf = (int) (hash64 >> Integer.SIZE);
+            int lowerHalf = (int) hash64;
+            // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Use prime numbers as the constant for the KM technique so these don't have a common gcd
+                final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
+
                 final int posInBitArray = hash & (bitsetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
@@ -554,19 +558,24 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class BloomFilterFieldReader extends BinaryDocValues implements BloomFilter {
         private final RandomAccessInput bloomFilterIn;
         private final int bloomFilterBitSetSizeInBits;
-        private final int[] hashes;
+        private final int numHashFunctions;
 
         private BloomFilterFieldReader(RandomAccessInput bloomFilterIn, int bloomFilterBitSetSizeInBits, int numHashFunctions) {
             this.bloomFilterIn = bloomFilterIn;
             this.bloomFilterBitSetSizeInBits = bloomFilterBitSetSizeInBits;
-            this.hashes = new int[numHashFunctions];
+            this.numHashFunctions = numHashFunctions;
         }
 
         public boolean mayContainValue(String field, BytesRef value) throws IOException {
-            var valueHashes = hashValue(value, hashes);
-            // TODO: consider merging the hashing with the bit array reads
+            long hash64 = hash64(value.bytes, value.offset, value.length);
+            // First use output splitting to get two hash values out of a single hash function
+            int upperHalf = (int) (hash64 >> Integer.SIZE);
+            int lowerHalf = (int) hash64;
+            // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Use prime numbers as the constant for the KM technique so these don't have a common gcd
+                final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
 
-            for (int hash : valueHashes) {
                 final int posInBitArray = hash & (bloomFilterBitSetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
@@ -637,19 +646,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final int numOfHashFunctions = in.readVInt();
             return new BloomFilterMetadata(fileOffset, bloomFilterSizeInBits, numOfHashFunctions);
         }
-    }
-
-    private static int[] hashValue(BytesRef value, int[] outputs) {
-        long hash64 = hash64(value.bytes, value.offset, value.length);
-        // First use output splitting to get two hash values out of a single hash function
-        int upperHalf = (int) (hash64 >> Integer.SIZE);
-        int lowerHalf = (int) hash64;
-        // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
-        for (int i = 0; i < outputs.length; i++) {
-            // Use prime numbers as the constant for the KM technique so these don't have a common gcd
-            outputs[i] = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
-        }
-        return outputs;
     }
 
     private static boolean isPowerOfTwo(int value) {

@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Optional;
 

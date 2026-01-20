@@ -21,7 +21,6 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
 public class StatelessReindexRelocationNodePickerTests extends ESTestCase {

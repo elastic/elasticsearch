@@ -121,6 +121,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
@@ -485,6 +486,9 @@ public class EsqlDataTypeConverter {
         if (isString(left) && isString(right)) {
             // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
             return KEYWORD;
+        }
+        if ((left == DENSE_VECTOR && right.isNumeric()) || (right == DENSE_VECTOR && left.isNumeric())) {
+            return DENSE_VECTOR;
         }
         if (left.isNumeric() && right.isNumeric()) {
             int lsize = left.estimatedSize();

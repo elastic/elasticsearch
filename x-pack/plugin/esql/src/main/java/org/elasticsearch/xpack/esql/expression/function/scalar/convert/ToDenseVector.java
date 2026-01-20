@@ -101,7 +101,7 @@ public class ToDenseVector extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromInt")
-    static float fromInt(int i) {
+    public static float fromInt(int i) {
         return i;
     }
 

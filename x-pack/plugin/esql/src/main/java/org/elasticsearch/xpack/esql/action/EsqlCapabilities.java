@@ -1674,6 +1674,13 @@ public class EsqlCapabilities {
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
+         * this allows for type conversion functions with no further computation to be
+         * evaluated inside default wrapping _over_time functions.
+         */
+        ALLOW_CASTING_IN_DEFAULT_TS_AGGS,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */

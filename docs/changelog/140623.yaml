@@ -1,5 +1,0 @@
-pr: 140623
-summary: Refactor MV_UNION and MV_INTERSECTION to use abstract base class
-area: ES|QL
-type: tech debt
-issues: []

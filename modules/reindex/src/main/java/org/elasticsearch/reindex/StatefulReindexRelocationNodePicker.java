@@ -46,13 +46,13 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
             .filter(id -> id.equals(currentNodeId) == false)
             .toList();
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
-            String newNodeId = randomNodeId(eligibleDedicatedCoordinatingNodes);
+            String newNodeId = selectRandomNodeIdFrom(eligibleDedicatedCoordinatingNodes);
             logger.debug("Chose dedicated coordinating node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
             return newNodeId;
         }
         List<String> eligibleDataNodes = nodes.getDataNodes().keySet().stream().filter(id -> id.equals(currentNodeId) == false).toList();
         if (eligibleDataNodes.isEmpty() == false) {
-            String newNodeId = randomNodeId(eligibleDataNodes);
+            String newNodeId = selectRandomNodeIdFrom(eligibleDataNodes);
             logger.debug(
                 "Chose data node ID {} for relocating a reindex task from node {}"
                     + " (there are no dedicated coordinating nodes, perhaps excluding the current node)",
@@ -68,7 +68,7 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
         return null;
     }
 
-    private String randomNodeId(List<String> nodeIds) {
+    private String selectRandomNodeIdFrom(List<String> nodeIds) {
         return nodeIds.get(random.nextInt(nodeIds.size()));
     }
 }

@@ -48,7 +48,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
             .filter(id -> id.equals(currentNodeId) == false)
             .toList();
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
-            String newNodeId = randomNodeId(eligibleDedicatedCoordinatingNodes);
+            String newNodeId = selectRandomNodeIdFrom(eligibleDedicatedCoordinatingNodes);
             logger.debug("Chose dedicated coordinating node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
             return newNodeId;
         }
@@ -60,7 +60,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
             .filter(id -> id.equals(currentNodeId) == false)
             .toList();
         if (eligibleIndexingNodes.isEmpty() == false) {
-            String newNodeId = randomNodeId(eligibleIndexingNodes);
+            String newNodeId = selectRandomNodeIdFrom(eligibleIndexingNodes);
             logger.debug("Chose indexing node node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
             return newNodeId;
         }

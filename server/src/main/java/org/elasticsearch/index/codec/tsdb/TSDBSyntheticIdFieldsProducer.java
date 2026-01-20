@@ -346,6 +346,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private int docID = -1;
 
         private SyntheticIdPostingsEnum(int docID, int termTsIdOrd, long termTimestamp) {
+            assert docID < maxDocs : docID + " >= " + maxDocs;
             this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
             this.termTsIdOrd = termTsIdOrd;
             this.termTimestamp = termTimestamp;
@@ -362,7 +363,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             if (docID == DocIdSetIterator.NO_MORE_DOCS) {
                 return docID;
             }
-            int nextDocID = (docID == -1) ? startDocId : docID + 1;
+            if (docID == -1) {
+                docID = startDocId;
+                return docID;
+            }
+            int nextDocID = docID + 1;
             if (nextDocID < maxDocs) {
                 int tsIdOrd = docValues.docTsIdOrdinal(nextDocID);
                 if (tsIdOrd == termTsIdOrd) {
@@ -370,7 +375,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     if (timestamp == termTimestamp) {
                         assert Objects.equals(
                             docValues.docRoutingHash(nextDocID),
-                            docValues.docRoutingHash((docID == -1) ? startDocId : docID)
+                            docValues.docRoutingHash(docID)
                         );
                         docID = nextDocID;
                         return docID;

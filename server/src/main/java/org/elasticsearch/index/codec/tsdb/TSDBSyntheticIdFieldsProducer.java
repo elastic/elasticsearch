@@ -240,7 +240,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             var skipper = docValues.docValuesSkipperForTimestamp();
             if (timestamp > skipper.maxValue()) {
                 // timestamp is greater than the global maximum value in the segment, so the first docID matching the _tsid is guaranteed to
-                // have a smaller timestamp that the one we're looking for and we can early exit at the current docID position.
+                // have a smaller timestamp that the one we're looking for and we can early exit at the current docID position. Note that
+                // synthetic ids are generated so that the resulting array of bytes has a natural order that reflects the order of docs in
+                // the segment (_tsid asc then @timestamp desc). So if timestamp > skipper.maxValue(), it means that the next doc has a
+                // @timestamp smaller than what we're looking for.
                 docID = firstDocID;
                 docTsIdOrd = tsIdOrd;
                 docTimestamp = null;

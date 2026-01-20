@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -18,8 +19,10 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TextStructureNestedJsonIT extends ESRestTestCase {
@@ -45,15 +48,35 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
 
         Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
-        assertThat(mappings, hasKey("properties"));
+        assertKeyValue("timestamp", "date", responseMap);
+        assertKeyValue("id", "long", responseMap);
+        assertKeyValue("message", "keyword", responseMap);
+    }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        assertThat(properties, hasKey("timestamp"));
-        assertThat(properties, hasKey("id"));
-        assertThat(properties, hasKey("message"));
+    public void testJsonObjectWithArrayDetection() throws IOException {
+        String nestedJsonSample = """
+            {"timestamp": "1478261151445", "id": [1, 2, 3], "message": "Connection established"}
+            {"timestamp": "1478261151446", "id": [1, 2, 3], "message": "Request processed"}
+            {"timestamp": "1478261151447", "id": [1, 2, 3.1], "message": "Data written"}
+            """;
+
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
+
+        assertKeyValue("timestamp", "date", responseMap);
+        assertKeyValue("id", "double", responseMap);
+        assertKeyValue("message", "keyword", responseMap);
+    }
+
+    public void testJsonObjectWithMixedArrayOfObjectsAndPrimitives() throws IOException {
+        String nestedJsonSample = """
+            {"timestamp": "1478261151445", "host": [1, {"id": 1}], "message": "Connection established"}
+            {"timestamp": "1478261151446", "host": [2, {"id": 2}], "message": "Request processed"}
+            {"timestamp": "1478261151447", "host": [3, {"id": 3}], "message": "Data written"}
+            """;
+
+        ResponseException e = expectThrows(ResponseException.class, () -> executeAndVerifyRequest(nestedJsonSample));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("[host] has both object and non-object values"));
     }
 
     /**
@@ -68,152 +91,36 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
 
         Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
 
-        // Verify format is detected as NDJSON
-        assertThat(responseMap.get("format"), equalTo("ndjson"));
-
-        // Verify mappings contain nested structure
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
-        assertThat(mappings, hasKey("properties"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-
-        // Verify 'host' is detected as an object type (nested)
-        assertThat(properties, hasKey("host"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> hostMapping = (Map<String, Object>) properties.get("host");
-        assertThat(hostMapping, notNullValue());
-        assertThat(hostMapping.get("type"), equalTo("object"));
-
-        // Verify 'host' has nested properties
-        assertThat(hostMapping, hasKey("properties"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> hostProperties = (Map<String, Object>) hostMapping.get("properties");
-        assertThat(hostProperties, hasKey("id"));
-        assertThat(hostProperties, hasKey("category"));
-
-        // Verify nested field types
-        @SuppressWarnings("unchecked")
-        Map<String, Object> idMapping = (Map<String, Object>) hostProperties.get("id");
-        assertThat(idMapping.get("type"), equalTo("long"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> categoryMapping = (Map<String, Object>) hostProperties.get("category");
-        assertThat(categoryMapping.get("type"), equalTo("keyword"));
-
-        // Verify flat fields are also present
-        assertThat(properties, hasKey("message"));
-        assertThat(properties, hasKey("timestamp"));
+        assertKeyValue("host.id", "long", responseMap);
+        assertKeyValue("host.category", "keyword", responseMap);
+        assertKeyValue("timestamp", "date", responseMap);
+        assertKeyValue("message", "keyword", responseMap);
     }
 
-    /**
-     * Test deeply nested JSON structures (3+ levels)
-     */
-    public void testDeeplyNestedJsonStructure() throws IOException {
-        String deeplyNestedSample = """
-            {"server": {"location": {"datacenter": {"name": "DC1", "region": "US-WEST"}, "rack": "A1"}, "hostname": "srv001"}, "status": "online"}
-            {"server": {"location": {"datacenter": {"name": "DC2", "region": "US-EAST"}, "rack": "B2"}, "hostname": "srv002"}, "status": "online"}
+    public void testNestedJsonObjectWithArrayOfObjects() throws IOException {
+        String nestedJsonSample = """
+            {"hosts": [{"id": 1, "name": "host1"}, {"id": 2, "name": "host2"}, {"id": 3, "name": "host3"}], "timestamp": "1478261151445"}
+            {"hosts": [{"id": 4, "name": "host1"}, {"id": 5, "name": "host5"}], "timestamp": "1478261151446"}
+            {"hosts": [{"id": 6, "name": "host6"}], "timestamp": "1478261151446"}
             """;
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(deeplyNestedSample);
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-
-        // Navigate through nested structure: server -> location -> datacenter
-        assertThat(properties, hasKey("server"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> serverMapping = (Map<String, Object>) properties.get("server");
-        assertThat(serverMapping.get("type"), equalTo("object"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> serverProps = (Map<String, Object>) serverMapping.get("properties");
-        assertThat(serverProps, hasKey("location"));
-        assertThat(serverProps, hasKey("hostname"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> locationMapping = (Map<String, Object>) serverProps.get("location");
-        assertThat(locationMapping.get("type"), equalTo("object"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> locationProps = (Map<String, Object>) locationMapping.get("properties");
-        assertThat(locationProps, hasKey("datacenter"));
-        assertThat(locationProps, hasKey("rack"));
-
-        // Verify deepest level
-        @SuppressWarnings("unchecked")
-        Map<String, Object> datacenterMapping = (Map<String, Object>) locationProps.get("datacenter");
-        assertThat(datacenterMapping.get("type"), equalTo("object"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> datacenterProps = (Map<String, Object>) datacenterMapping.get("properties");
-        assertThat(datacenterProps, hasKey("name"));
-        assertThat(datacenterProps, hasKey("region"));
+        assertKeyValue("hosts.id", "long", responseMap);
+        assertKeyValue("hosts.name", "keyword", responseMap);
+        assertKeyValue("timestamp", "date", responseMap);
     }
 
-    /**
-     * Test mixed flat and nested fields in the same document
-     */
-    public void testMixedFlatAndNestedFields() throws IOException {
-        String mixedSample = """
-            {"id": 1, "user": {"name": "Alice", "email": "alice@example.com"}, "action": "login", "timestamp": "2024-01-01T10:00:00Z"}
-            {"id": 2, "user": {"name": "Bob", "email": "bob@example.com"}, "action": "logout", "timestamp": "2024-01-01T10:05:00Z"}
+    public void testNestedJsonObjectEmptyObjectsMappedToObject() throws IOException {
+        String nestedJsonSample = """
+            {"host": {}, "timestamp": "1478261151445", "message": { "id" : 1, "message" : {}}}
+            {"host": {}, "timestamp": "1478261151446", "message": { "id" : 2, "message" : {}}}
+            {"host": {}, "timestamp": "1478261151446", "message": { "id" : 3, "message" : {}}}
             """;
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(mixedSample);
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-
-        // Verify flat fields
-        assertThat(properties, hasKey("id"));
-        assertThat(properties, hasKey("action"));
-        assertThat(properties, hasKey("timestamp"));
-
-        // Verify nested field
-        assertThat(properties, hasKey("user"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> userMapping = (Map<String, Object>) properties.get("user");
-        assertThat(userMapping.get("type"), equalTo("object"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> userProps = (Map<String, Object>) userMapping.get("properties");
-        assertThat(userProps, hasKey("name"));
-        assertThat(userProps, hasKey("email"));
-    }
-
-    /**
-     * Test that field stats are calculated for nested fields
-     */
-    public void testNestedFieldStats() throws IOException {
-        String sample = """
-            {"host": {"id": 1, "name": "server1"}, "count": 100}
-            {"host": {"id": 2, "name": "server2"}, "count": 200}
-            {"host": {"id": 3, "name": "server3"}, "count": 300}
-            """;
-
-        Map<String, Object> responseMap = executeAndVerifyRequest(sample);
-
-        // Verify field_stats are present
-        assertThat(responseMap, hasKey("field_stats"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fieldStats = (Map<String, Object>) responseMap.get("field_stats");
-
-        // Field stats should exist for both flat and nested fields
-        assertThat(fieldStats, hasKey("count"));
-        assertThat(fieldStats, hasKey("host.id"));
-        assertThat(fieldStats, hasKey("host.name"));
-
-        // Verify sample stats for a numeric field
-        @SuppressWarnings("unchecked")
-        Map<String, Object> countStats = (Map<String, Object>) fieldStats.get("count");
-        assertThat(countStats, hasKey("count"));
-        assertThat(countStats.get("count"), equalTo(3));
+        assertKeyValue("host", "object", responseMap);
     }
 
     /**
@@ -247,5 +154,20 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         assertOK(response);
         return entityAsMap(response);
     }
-}
 
+    private void assertKeyValue(String expectedKey, String expectedType, Map<String, Object> responseMap) {
+        assertThat(responseMap.get("format"), equalTo("ndjson"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
+        assertThat(mappings, hasKey("properties"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+
+        assertThat(properties, hasKey(expectedKey));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> timestampMapping = (Map<String, Object>) properties.get(expectedKey);
+        assertThat(timestampMapping.get("type"), equalTo(expectedType));
+    }
+}

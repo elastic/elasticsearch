@@ -1123,15 +1123,35 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean ecsCompatibility,
         String timestampFormatOverride
     ) {
-        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> recordsMap = List.of(Map.of(fieldName, fieldValues));
+        var mappings = TextStructureUtils.guessMappingsAndCalculateFieldStats(
             explanation,
-            fieldName,
-            fieldValues,
+            recordsMap,
             NOOP_TIMEOUT_CHECKER,
             ecsCompatibility,
             timestampFormatOverride
         );
-        return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
+
+        if (mappings.v1().isEmpty()) {
+            return null;
+        }
+
+        var fieldMapping = Map.ofEntries(mappings.v1().firstEntry());
+        @SuppressWarnings("unchecked")
+        var fieldMapping2 = (Map<String, String>) fieldMapping.get(fieldName);
+        return fieldMapping2;
+
+        // Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
+        // explanation,
+        // fieldName,
+        // fieldValues,
+        // NOOP_TIMEOUT_CHECKER,
+        // ecsCompatibility,
+        // timestampFormatOverride
+        // );
+        // return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
     }
 
     private Map<String, String> guessMapping(
@@ -1140,14 +1160,32 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         List<Object> fieldValues,
         boolean ecsCompatibility
     ) {
-        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> recordsMap = List.of(Map.of(fieldName, fieldValues));
+        var mappings = TextStructureUtils.guessMappingsAndCalculateFieldStats(
             explanation,
-            fieldName,
-            fieldValues,
+            recordsMap,
             NOOP_TIMEOUT_CHECKER,
             ecsCompatibility
         );
-        return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
+
+        if (mappings.v1().isEmpty()) {
+            return null;
+        }
+
+        var fieldMapping = Map.ofEntries(mappings.v1().firstEntry());
+        @SuppressWarnings("unchecked")
+        var fieldMapping2 = (Map<String, String>) fieldMapping.get(fieldName);
+        return fieldMapping2;
+        //
+        // Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
+        // explanation,
+        // fieldName,
+        // fieldValues,
+        // NOOP_TIMEOUT_CHECKER,
+        // ecsCompatibility
+        // );
+        // return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
     }
 
     private List<Map<String, Object>> makeTopHits(Object value1, int count1, Object value2, int count2) {

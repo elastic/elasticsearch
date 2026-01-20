@@ -294,8 +294,7 @@ public final class TextStructureUtils {
      * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
      * @return A map of field name to mapping settings.
      */
-    // used in test only
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
@@ -314,86 +313,39 @@ public final class TextStructureUtils {
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
      * @return A map of field name to mapping settings.
      */
-    private static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
         boolean ecsCompatibility,
         String timestampFormatOverride
     ) {
-        return guessMappingsAndCalculateFieldStatsWithPrefix(
-            "",  // Start with empty prefix
-            explanation,
-            sampleRecords,
-            timeoutChecker,
-            ecsCompatibility,
-            timestampFormatOverride
-        );
-    }
-
-    /**
-     * Internal recursive method that tracks the field name prefix for dot notation.
-     */
-    private static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStatsWithPrefix(
-        String prefix,
-        List<String> explanation,
-        List<Map<String, ?>> sampleRecords,
-        TimeoutChecker timeoutChecker,
-        boolean ecsCompatibility,
-        String timestampFormatOverride
-    ) {
-
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        Set<String> uniqueFieldNames = sampleRecords.stream()
-            .flatMap(record -> record.keySet().stream())
-            .collect(Collectors.toSet());
+        List<Map<String, Object>> flattenedRecords = sampleRecords.stream().map(TextStructureUtils::flattenRecord).toList();
+        Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
 
         for (String fieldName : uniqueFieldNames) {
-            // Build the full dotted field name
-            String fullFieldName = prefix.isEmpty() ? fieldName : prefix + "." + fieldName;
-
-            List<Object> fieldValues = sampleRecords.stream()
+            List<Object> fieldValues = flattenedRecords.stream()
                 .map(record -> record.get(fieldName))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-            if (isNestedField(fieldValues)) {
-                // Recursively process nested fields with the dotted prefix
-                List<Map<String, ?>> nestedFieldValues = extractNestedFieldValues(sampleRecords, fieldName);
-
-                Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> nestedResult =
-                    guessMappingsAndCalculateFieldStatsWithPrefix(
-                        fullFieldName,  // Pass the dotted prefix
-                        explanation,
-                        nestedFieldValues,
-                        timeoutChecker,
-                        ecsCompatibility,
-                        timestampFormatOverride
-                    );
-
-                // Merge flattened nested mappings directly (no nesting wrapper)
-                mappings.putAll(nestedResult.v1());
-                fieldStats.putAll(nestedResult.v2());
-
-            } else {
-                // For non-nested fields, use the full dotted name
-                Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
-                    explanation,
-                    fullFieldName,
-                    fieldValues,
-                    timeoutChecker,
-                    ecsCompatibility,
-                    timestampFormatOverride
-                );
-                if (mappingAndFieldStats != null) {
-                    if (mappingAndFieldStats.v1() != null) {
-                        mappings.put(fullFieldName, mappingAndFieldStats.v1());
-                    }
-                    if (mappingAndFieldStats.v2() != null) {
-                        fieldStats.put(fullFieldName, mappingAndFieldStats.v2());
-                    }
+            Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
+                explanation,
+                fieldName,
+                fieldValues,
+                timeoutChecker,
+                ecsCompatibility,
+                timestampFormatOverride
+            );
+            if (mappingAndFieldStats != null) {
+                if (mappingAndFieldStats.v1() != null) {
+                    mappings.put(fieldName, mappingAndFieldStats.v1());
+                }
+                if (mappingAndFieldStats.v2() != null) {
+                    fieldStats.put(fieldName, mappingAndFieldStats.v2());
                 }
             }
         }
@@ -402,41 +354,95 @@ public final class TextStructureUtils {
     }
 
     /**
-     * Extracts the nested field values for a given field from a list of sample records.
-     *
-     * @param sampleRecords The list of records, where each record is a map containing field names as keys.
-     * @param fieldName The name of the field whose values are to be extracted from each record.
-     * @return A list of Maps representing the nested field values for the specified field.
+     * Flattens a map with nested objects into a flat map with dot-notation keys.
+     * For example, {"host": {"id": 1}, "name": "test"} becomes {"host.id": 1, "name": "test"}
+     * @param record The record with potentially nested objects.
+     * @return A flattened map with dot-notation keys.
      */
-    private static List<Map<String, ?>> extractNestedFieldValues(List<Map<String, ?>> sampleRecords, String fieldName) {
-        @SuppressWarnings("unchecked")
-        List<Map<String, ?>> extractedFieldValue = sampleRecords.stream()
-            .map(record -> record.get(fieldName))
-            .filter(Objects::nonNull)
-            .filter(val -> val instanceof Map)
-            .map(val -> (Map<String, ?>) val)
-            .collect(Collectors.toList());
-        return extractedFieldValue;
+    private static Map<String, Object> flattenRecord(Map<String, ?> record) {
+        Map<String, Object> flattened = new LinkedHashMap<>();
+        flattenRecordRecursive("", record, flattened);
+        return flattened;
+    }
+
+    private static void flattenRecordRecursive(String prefix, Map<String, ?> record, Map<String, Object> flattenedResult) {
+        for (Map.Entry<String, ?> entry : record.entrySet()) {
+            String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> nestedMap = (Map<String, ?>) value;
+                if (nestedMap.isEmpty()) {
+                    // Empty nested objects are kept as-is (will be mapped as "object" type). Maybe it shouldn't?
+                    flattenedResult.put(key, value);
+                } else {
+                    flattenRecordRecursive(key, nestedMap, flattenedResult);
+                }
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                flattenListValues(key, list, flattenedResult);
+            } else {
+                flattenedResult.put(key, value);
+            }
+        }
     }
 
     /**
-     * @param fieldValues value of a field in the sample records
-     * @return boolean for whether the field is nested (i.e., Map or List of Maps)
+     * Flattens values from a list, handling nested maps within the list.
+     * For lists of maps like [{"id": 1}, {"id": 2}], this merges them into a map with arrays: {"id": [1, 2]}
+     * @param prefix The current field prefix for dot notation.
+     * @param list The list to process.
+     * @param flattenedResult The output map to add flattened fields to.
      */
-    private static boolean isNestedField(List<Object> fieldValues) {
-        return fieldValues.stream().anyMatch(val -> val instanceof Map || val instanceof List);
-    }
+    private static void flattenListValues(String prefix, List<Object> list, Map<String, Object> flattenedResult) {
+        boolean hasNestedMaps = list.stream().anyMatch(item -> item instanceof Map);
+        if (hasNestedMaps == false) {
+            flattenedResult.put(prefix, list);
+            return;
+        }
 
-//    /**
-//     * @param nestedFieldValues value of a nested field in the sample records
-//     * @return "nested" or "object" based on the data structure
-//     * @TODO: If the field values contain a List of Maps and need to be queried independently, set as "nested"
-//     *        If not, treat it as a regular "object"
-//     */
-//    static String determineNestedFieldType(List<Map<String, ?>> nestedFieldValues) {
-//        // just supports object for now
-//        return "object";
-//    }
+        boolean hasNonMaps = list.stream().anyMatch(item -> item != null && (item instanceof Map) == false);
+        if (hasNestedMaps && hasNonMaps) {
+            // Mixed content - this will be caught later as an error
+            // TODO maybe throw here
+            throw new IllegalArgumentException(
+                "Field [" + prefix + "] has both object and non-object values - this is not supported by Elasticsearch"
+            );
+            // flattenedResult.put(prefix, list);
+            // return;
+        }
+
+        Map<String, List<Object>> collectedValues = new LinkedHashMap<>();
+        for (Object item : list) {
+            if (item instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> nestedMap = (Map<String, ?>) item;
+                Map<String, Object> flattenedItem = flattenRecord(nestedMap);
+                for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {
+                    String fieldKey = prefix + "." + entry.getKey();
+                    collectedValues.computeIfAbsent(fieldKey, k -> new ArrayList<>()).add(entry.getValue());
+                }
+            }
+        }
+
+        // Add collected values to the flattened map
+        for (Map.Entry<String, List<Object>> entry : collectedValues.entrySet()) {
+            List<Object> values = entry.getValue();
+            // If all values are singles, keep as list; if any are lists, flatten them
+            List<Object> flattenedValues = new ArrayList<>();
+            for (Object val : values) {
+                if (val instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> innerList = (List<Object>) val;
+                    flattenedValues.addAll(innerList);
+                } else {
+                    flattenedValues.add(val);
+                }
+            }
+            flattenedResult.put(entry.getKey(), flattenedValues);
+        }
+    }
 
     /**
      * Given the sampled records, guess appropriate Elasticsearch mappings.
@@ -451,8 +457,7 @@ public final class TextStructureUtils {
      * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
      * @return A tuple comprised of the field mappings and field stats.
      */
-    // Used in test only
-    static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
+    private static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
         List<String> explanation,
         String fieldName,
         List<Object> fieldValues,
@@ -476,7 +481,7 @@ public final class TextStructureUtils {
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
      * @return A tuple comprised of the field mappings and field stats.
      */
-    public static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
+    private static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
         List<String> explanation,
         String fieldName,
         List<Object> fieldValues,
@@ -490,13 +495,13 @@ public final class TextStructureUtils {
             return null;
         }
 
-        if (fieldValues.stream().anyMatch(value -> value instanceof Map)) { // will this ever happen?
+        if (fieldValues.stream().anyMatch(value -> value instanceof Map)) {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
-                return new Tuple<>(Collections.singletonMap(MAPPING_TYPE_SETTING, "object"), null); // this will probably not happen; this should actually be "isNested"
+                return new Tuple<>(Collections.singletonMap(MAPPING_TYPE_SETTING, "object"), null);
             }
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] has both object and non-object values - this is not supported by Elasticsearch"
-            );
+            // throw new IllegalArgumentException(
+            // "Field [" + fieldName + "] has both object and non-object values - this is not supported by Elasticsearch"
+            // );
         }
 
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {
@@ -552,7 +557,7 @@ public final class TextStructureUtils {
      * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
      * @return The sub-section of the index mappings most appropriate for the field.
      */
-    public static Map<String, String> findTimestampMapping(
+    static Map<String, String> findTimestampMapping(
         List<String> explanation,
         Collection<String> fieldValues,
         TimeoutChecker timeoutChecker,
@@ -587,7 +592,7 @@ public final class TextStructureUtils {
      * @return The sub-section of the index mappings most appropriate for the field,
      *         for example <code>{ "type" : "keyword" }</code>.
      */
-    public static Map<String, String> guessScalarMapping(
+    static Map<String, String> guessScalarMapping(
         List<String> explanation,
         String fieldName,
         Collection<String> fieldValues,
@@ -613,7 +618,7 @@ public final class TextStructureUtils {
      * @return The sub-section of the index mappings most appropriate for the field,
      *         for example <code>{ "type" : "keyword" }</code>.
      */
-    public static Map<String, String> guessScalarMapping(
+    static Map<String, String> guessScalarMapping(
         List<String> explanation,
         String fieldName,
         Collection<String> fieldValues,
@@ -670,7 +675,7 @@ public final class TextStructureUtils {
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The stats calculated from the field values.
      */
-    public static FieldStats calculateFieldStats(Map<String, String> mapping, Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
+    static FieldStats calculateFieldStats(Map<String, String> mapping, Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
 
         FieldStatsCalculator calculator = new FieldStatsCalculator(mapping);
         calculator.accept(fieldValues);
@@ -682,7 +687,7 @@ public final class TextStructureUtils {
      * The thinking is that the longer the field value and the more spaces it contains,
      * the more likely it is that it should be indexed as text rather than keyword.
      */
-    public static boolean isMoreLikelyTextThanKeyword(String str) {
+    static boolean isMoreLikelyTextThanKeyword(String str) {
         int length = str.length();
         return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
     }

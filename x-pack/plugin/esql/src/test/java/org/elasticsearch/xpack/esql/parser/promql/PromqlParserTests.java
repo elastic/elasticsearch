@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.junit.BeforeClass;
@@ -430,6 +431,28 @@ public class PromqlParserTests extends ESTestCase {
 
         promql = parse("PROMQL index=test step=5m Inf");
         assertThat(as(promql.promqlPlan(), LiteralSelector.class).literal().value(), equalTo(Double.POSITIVE_INFINITY));
+    }
+
+    public void testMatchSameLabelMultipleTimesSuccess() {
+        var plan = parse("PROMQL index=test step=5m foo{host!=\"host-1\", host!=\"host-2\"}");
+        List<LabelMatcher> matchers = as(plan.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(3));
+        assertThat(matchers.get(0).name(), equalTo("__name__"));
+        assertThat(matchers.get(0).value(), equalTo("foo"));
+        assertThat(matchers.get(0).isNegation(), equalTo(false));
+
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).value(), equalTo("host-1"));
+        assertThat(matchers.get(1).isNegation(), equalTo(true));
+
+        assertThat(matchers.get(2).name(), equalTo("host"));
+        assertThat(matchers.get(2).value(), equalTo("host-2"));
+        assertThat(matchers.get(2).isNegation(), equalTo(true));
+    }
+
+    public void testMatchMetricNameMultipleTimesError() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo{__name__=\"bar\"}"));
+        assertThat(e.getMessage(), containsString("Metric name must not be defined twice: [foo] or [bar]"));
     }
 
     private static PromqlCommand parse(String query) {

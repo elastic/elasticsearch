@@ -652,7 +652,7 @@ public class LocalExecutionPlanner {
                     EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
                 );
             }
-            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
+            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(configuration.zoneId(), rerankFieldsEvaluatorSuppliers);
         } else {
             rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
         }
@@ -668,7 +668,14 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
+            new RerankOperator.Factory(
+                inferenceService,
+                inferenceId,
+                queryText,
+                rowEncoderFactory,
+                scoreChannel,
+                RerankOperator.DEFAULT_BATCH_SIZE
+            ),
             outputLayout
         );
     }
@@ -1126,7 +1133,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

@@ -36,7 +36,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -245,7 +244,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
         // In case of stored source we expect bytes based block source loader (this loads source from _source)
-        assertThat(blockLoader, instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
+        assertThat(blockLoader.loader(), instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
     }
 
     public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
@@ -254,7 +253,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
         var blockLoader = constructBlockLoader();
         // In case of synthetic source we expect bytes based block source loader (this loads source from _ignored_source)
-        assertThat(blockLoader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+        assertThat(blockLoader.loader(), instanceOf(FallbackSyntheticSourceBlockLoader.class));
     }
 
     public void testTimeSeries() throws IOException {
@@ -297,7 +296,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         }
     }
 
-    private BlockLoader constructBlockLoader() throws IOException {
+    private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             EsIndexGenerator.esIndex("test").name(),
@@ -319,7 +318,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         var plan = planner().plan("test", FoldContext.small(), TEST_PLANNER_SETTINGS, fieldExtractExec, EmptyIndexedByShardId.instance());
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.blockLoader().apply(0);
+        return fieldInfo.loaderAndConverter().apply(0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {

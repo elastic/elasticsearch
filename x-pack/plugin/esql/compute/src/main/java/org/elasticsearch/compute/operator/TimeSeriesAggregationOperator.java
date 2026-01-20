@@ -311,6 +311,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         final BytesRefLongBlockHash hash = (BytesRefLongBlockHash) blockHash;
 
         final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(timestamps);
         // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
             @Override
@@ -320,7 +321,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return timeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
+                return optimizedTimeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
             }
 
             @Override
@@ -330,7 +331,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 List<Integer> results = new ArrayList<>();
                 results.add(startingGroupId);
                 long endTimestamp = bucket + timeResolution.convert(window.toMillis());
-                while ((bucket = timeBucket.nextRoundingValue(bucket)) < endTimestamp) {
+                while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
                     long nextGroupId = hash.getGroupId(tsid, bucket);
                     if (nextGroupId != -1) {
                         results.add(Math.toIntExact(nextGroupId));
@@ -343,7 +344,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             public int previousGroupId(int currentGroupId) {
                 long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
                 long currentBucketTs = timestamps.getLong(currentGroupId);
-                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
+                long nextBucketTs = optimizedTimeBucket.nextRoundingValue(currentBucketTs);
                 long previousBucketTS = currentBucketTs - (nextBucketTs - currentBucketTs);
                 return Math.toIntExact(hash.getGroupId(tsid, previousBucketTS));
             }
@@ -352,10 +353,40 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             public int nextGroupId(int currentGroupId) {
                 long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
                 long currentBucketTs = timestamps.getLong(currentGroupId);
-                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
+                long nextBucketTs = optimizedTimeBucket.nextRoundingValue(currentBucketTs);
                 return Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
             }
         };
+    }
+
+    /**
+     * When running queries from timezones with daylight savings, we by default use the slow JavaTime-based rounding,
+     * because when collecting the partial results we initially have no information about the time range covered.
+     * As soon as we have the actual populated groups and their timestamps, we can optimize the rounding in case
+     * it does not intersect with any daylight savings transition.
+     */
+    private Rounding.Prepared optimizeRoundingForTimeRange(LongBlock timestamps) {
+        long timeRangeStart = Long.MAX_VALUE;
+        long timeRangeEnd = Long.MIN_VALUE;
+        for (int p = 0; p < timestamps.getPositionCount(); p++) {
+            if (timestamps.isNull(p)) {
+                continue;
+            }
+            int firstIndex = timestamps.getFirstValueIndex(p);
+            int limit = firstIndex + timestamps.getValueCount(p);
+            for (int i = firstIndex; i < limit; i++) {
+                long ts = timestamps.getLong(i);
+                timeRangeStart = Math.min(timeRangeStart, ts);
+                timeRangeEnd = Math.max(timeRangeEnd, ts);
+            }
+        }
+        if (timeRangeStart <= timeRangeEnd) {
+            long startMillis = timeResolution.roundDownToMillis(timeRangeStart);
+            long endMillis = timeResolution.roundUpToMillis(timeRangeEnd);
+            return timeBucket.getUnprepared().prepare(startMillis, endMillis);
+        } else {
+            return timeBucket;
+        }
     }
 
     static class ExpandingGroups extends AbstractRefCounted implements Releasable {

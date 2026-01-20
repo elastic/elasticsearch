@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;

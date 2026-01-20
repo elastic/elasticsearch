@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.oneOf;
 
 public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
@@ -40,8 +42,8 @@ public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("dataMaster" + randomIntBetween(1, 3))
             .localNodeId("coordinating2Local")
             .build();
-        String id = picker.pickNode(nodes);
-        assertThat(id, oneOf("coordinating1", "coordinating3"));
+        Optional<String> id = picker.pickNode(nodes);
+        assertThat(id, isPresentWith(oneOf("coordinating1", "coordinating3")));
     }
 
     public void testPickNode_noDedicatedCoordinatingNodes_fallsBackToDataNode() {
@@ -58,8 +60,8 @@ public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("dataMaster" + randomIntBetween(1, 3))
             .localNodeId("data5Local")
             .build();
-        String id = picker.pickNode(nodes);
-        assertThat(id, oneOf("dataMaster1", "dataMaster2", "dataMaster3", "data4", "data6"));
+        Optional<String> id = picker.pickNode(nodes);
+        assertThat(id, isPresentWith(oneOf("dataMaster1", "dataMaster2", "dataMaster3", "data4", "data6")));
     }
 
     public void testPickNode_onlyDedicatedCoordinatingNodeIsLocal_fallsBackToDataNode() {
@@ -75,8 +77,8 @@ public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("dataMaster" + randomIntBetween(1, 3))
             .localNodeId("coordinating1Local")
             .build();
-        String id = picker.pickNode(nodes);
-        assertThat(id, oneOf("dataMaster1", "dataMaster2", "dataMaster3", "data4", "data5", "data6"));
+        Optional<String> id = picker.pickNode(nodes);
+        assertThat(id, isPresentWith(oneOf("dataMaster1", "dataMaster2", "dataMaster3", "data4", "data5", "data6")));
     }
 
     public void testPickNode_noDedicatedCoordinatingNodes_onlyDataNodeIsLocal_returnsNull() {
@@ -86,8 +88,8 @@ public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId(randomFrom("dataMaster1Local", "ingestMaster1"))
             .localNodeId("dataMaster1Local")
             .build();
-        String id = picker.pickNode(nodes);
-        assertThat(id, nullValue());
+        Optional<String> id = picker.pickNode(nodes);
+        assertThat(id, isEmpty());
     }
 
     public void testPickNode_localNodeUnknown_returnsNull() {
@@ -105,8 +107,8 @@ public class StatefulReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("dataMaster" + randomIntBetween(1, 3))
             // We never set the local node
             .build();
-        String id = picker.pickNode(nodes);
-        assertThat(id, nullValue());
+        Optional<String> id = picker.pickNode(nodes);
+        assertThat(id, isEmpty());
     }
 
     private static DiscoveryNode createNode(String id, DiscoveryNodeRole... roles) {

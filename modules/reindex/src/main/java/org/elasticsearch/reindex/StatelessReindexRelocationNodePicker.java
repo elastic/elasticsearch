@@ -17,6 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicker {
@@ -30,14 +31,14 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
     }
 
     @Override
-    public String pickNode(DiscoveryNodes nodes) {
+    public Optional<String> pickNode(DiscoveryNodes nodes) {
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
             logger.warn(
                 "Trying to pick a node to relocate a reindex task to, but the current node ID is unexpectedly unknown:"
                     + " the relocation attempt will be aborted"
             );
-            return null;
+            return Optional.empty();
         }
         // Many stateless configurations won't have dedicated coordinating nodes - but if they exist, we choose them over indexing nodes:
         List<String> eligibleDedicatedCoordinatingNodes = nodes.getNodes()
@@ -50,7 +51,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleDedicatedCoordinatingNodes);
             logger.debug("Chose dedicated coordinating node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
-            return newNodeId;
+            return Optional.of(newNodeId);
         }
         List<String> eligibleIndexingNodes = nodes.getNodes()
             .values()
@@ -62,13 +63,13 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
         if (eligibleIndexingNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleIndexingNodes);
             logger.debug("Chose indexing node node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
-            return newNodeId;
+            return Optional.of(newNodeId);
         }
         logger.debug(
             "Trying to pick a node to relocate a reindex task to, but there are no dedicated coordinating or indexing nodes "
                 + "(perhaps excluding the current node): the relocation attempt will be aborted"
         );
-        return null;
+        return Optional.empty();
     }
 
     private String selectRandomNodeIdFrom(List<String> nodeIds) {

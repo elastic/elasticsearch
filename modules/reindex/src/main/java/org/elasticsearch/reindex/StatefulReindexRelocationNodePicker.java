@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker {
@@ -29,14 +30,14 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
     }
 
     @Override
-    public String pickNode(DiscoveryNodes nodes) {
+    public Optional<String> pickNode(DiscoveryNodes nodes) {
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
             logger.warn(
                 "Trying to pick a node to relocate a reindex task to, but the current node ID is unexpectedly unknown:"
                     + " the relocation attempt will be aborted"
             );
-            return null;
+            return Optional.empty();
         }
         List<String> eligibleDedicatedCoordinatingNodes = nodes.getNodes()
             .values()
@@ -48,7 +49,7 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleDedicatedCoordinatingNodes);
             logger.debug("Chose dedicated coordinating node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
-            return newNodeId;
+            return Optional.of(newNodeId);
         }
         List<String> eligibleDataNodes = nodes.getDataNodes().keySet().stream().filter(id -> id.equals(currentNodeId) == false).toList();
         if (eligibleDataNodes.isEmpty() == false) {
@@ -59,13 +60,13 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
                 newNodeId,
                 currentNodeId
             );
-            return newNodeId;
+            return Optional.of(newNodeId);
         }
         logger.debug(
             "Trying to pick a node to relocate a reindex task to, but there are no dedicated coordinating or data nodes"
                 + " (perhaps excluding the current node): the relocation attempt will be aborted"
         );
-        return null;
+        return Optional.empty();
     }
 
     private String selectRandomNodeIdFrom(List<String> nodeIds) {

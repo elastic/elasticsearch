@@ -11,7 +11,7 @@ plugins {
   id 'elasticsearch.internal-yaml-rest-test'
   id 'elasticsearch.internal-java-rest-test'
   id 'elasticsearch.internal-cluster-test'
-  id('com.google.protobuf') version '0.9.5'
+  id('com.google.protobuf') version '0.9.6'
 }
 
 esplugin {

@@ -1209,7 +1209,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
-                        entry.shards().keySet(),
+                        entry.isClone() ? Set.of() : entry.shards().keySet(),
                         ActionListener.wrap(updatedRepositoryData -> {
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used
                             // by the snapshot info callback below and won't be failed needlessly if #runNextQueuedOperation runs into

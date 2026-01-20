@@ -43,8 +43,7 @@ public interface ProjectRoutingResolver {
     /** No-op router - just returns the provided target projects. */
     ProjectRoutingResolver NOOP = new ProjectRoutingResolver() {
         @Override
-        public void validate(String projectRouting, ProjectMetadata projectMetadata) {
-        }
+        public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
 
         @Override
         public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects targetProjects) {

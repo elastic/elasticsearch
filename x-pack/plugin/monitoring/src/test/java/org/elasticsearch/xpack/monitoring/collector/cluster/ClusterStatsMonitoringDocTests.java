@@ -436,7 +436,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             ClusterSnapshotStats.EMPTY,
             null,
             false,
-            10
+            ClusterStatsResponse.IndexLimitTier.PASS
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);

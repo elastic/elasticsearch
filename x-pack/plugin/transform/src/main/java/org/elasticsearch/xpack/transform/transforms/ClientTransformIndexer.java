@@ -299,13 +299,20 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
-        ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
-            ClientHelper.TRANSFORM_ORIGIN,
+        InternalPrepareCps.execute(
             client,
-            TransportSearchAction.TYPE,
-            request,
-            responseListener
+            transformConfig,
+            ActionListener.wrap(
+                r -> ClientHelper.executeWithHeadersAsync(
+                    transformConfig.getHeaders(),
+                    ClientHelper.TRANSFORM_ORIGIN,
+                    client,
+                    TransportSearchAction.TYPE,
+                    request,
+                    responseListener
+                ),
+                responseListener::onFailure
+            )
         );
     }
 
@@ -329,9 +336,10 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void validate(ActionListener<ValidateTransformAction.Response> listener) {
-        ClientHelper.executeAsyncWithOrigin(
-            client,
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
+            client,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
             listener
@@ -547,7 +555,10 @@ class ClientTransformIndexer extends TransformIndexer {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
         // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit
+            || searchRequest.indices().length == 0
+            || transformConfig.getSource().requiresRemoteCluster()
+            || searchRequest.indicesOptions().resolveCrossProjectIndexExpression()) {
             listener.onResponse(namedSearchRequest);
             return;
         }
@@ -615,6 +626,14 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
+        InternalPrepareCps.execute(
+            client,
+            transformConfig,
+            ActionListener.wrap(v -> doSearchInternal(namedSearchRequest, listener), listener::onFailure)
+        );
+    }
+
+    private void doSearchInternal(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
         String name = namedSearchRequest.v1();
         SearchRequest originalRequest = namedSearchRequest.v2();
         // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices

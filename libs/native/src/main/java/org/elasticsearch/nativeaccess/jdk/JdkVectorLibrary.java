@@ -257,74 +257,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
-        private static final Map<OperationSignature, MethodHandle> HANDLES_WITH_CHECKS;
-
-        static {
-            MethodHandles.Lookup lookup = MethodHandles.lookup();
-
-            try {
-                Map<OperationSignature, MethodHandle> handlesWithChecks = new HashMap<>();
-
-                for (var op : HANDLES.entrySet()) {
-                    switch (op.getKey().operation()) {
-                        case SINGLE:
-                            // don't access through the handles map, use specialized methods below
-                            continue;
-                        case BULK: {
-                            MethodHandle checkMethod = lookup.findStatic(
-                                JdkVectorSimilarityFunctions.class,
-                                "checkBulk",
-                                MethodType.methodType(
-                                    boolean.class,
-                                    int.class,
-                                    MemorySegment.class,
-                                    MemorySegment.class,
-                                    int.class,
-                                    int.class,
-                                    MemorySegment.class
-                                )
-                            );
-                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
-                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
-                                op.getValue(),
-                                MethodHandles.empty(op.getValue().type())
-                            );
-                            handlesWithChecks.put(op.getKey(), handleWithChecks);
-                            break;
-                        }
-                        case BULK_OFFSETS: {
-                            MethodHandle checkMethod = lookup.findStatic(
-                                JdkVectorSimilarityFunctions.class,
-                                "checkBulkOffsets",
-                                MethodType.methodType(
-                                    boolean.class,
-                                    int.class,
-                                    MemorySegment.class,
-                                    MemorySegment.class,
-                                    int.class,
-                                    int.class,
-                                    MemorySegment.class,
-                                    int.class,
-                                    MemorySegment.class
-                                )
-                            );
-                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
-                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
-                                op.getValue(),
-                                MethodHandles.empty(op.getValue().type())
-                            );
-                            handlesWithChecks.put(op.getKey(), handleWithChecks);
-                            break;
-                        }
-                    }
-                }
-
-                HANDLES_WITH_CHECKS = Collections.unmodifiableMap(handlesWithChecks);
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        }
-
         private static final MethodHandle dot7uHandle = HANDLES.get(
             new OperationSignature(Function.DOT_PRODUCT, DataType.INT7, Operation.SINGLE)
         );
@@ -371,35 +303,109 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static final Map<OperationSignature, MethodHandle> HANDLES_WITH_CHECKS;
+
+        static {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+
+            try {
+                Map<OperationSignature, MethodHandle> handlesWithChecks = new HashMap<>();
+
+                for (var op : HANDLES.entrySet()) {
+                    switch (op.getKey().operation()) {
+                        case SINGLE -> {
+                            // Single score methods are called once for each vector,
+                            // this means we need to reduce the overheads as much as possible.
+                            // So have specific hard-coded check methods rather than use guardWithTest
+                            // to create the check-and-call methods dynamically
+                            MethodHandle handle = switch (op.getKey().dataType()) {
+                                case INT7 -> {
+                                    MethodType type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", type);
+                                        case SQUARE_DISTANCE -> lookup.findStatic(
+                                            JdkVectorSimilarityFunctions.class,
+                                            "squareDistance7u",
+                                            type
+                                        );
+                                    };
+                                }
+                                case FLOAT32 -> {
+                                    MethodType type = MethodType.methodType(
+                                        float.class,
+                                        MemorySegment.class,
+                                        MemorySegment.class,
+                                        int.class
+                                    );
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", type);
+                                        case SQUARE_DISTANCE -> lookup.findStatic(
+                                            JdkVectorSimilarityFunctions.class,
+                                            "squareDistanceF32",
+                                            type
+                                        );
+                                    };
+                                }
+                            };
+
+                            handlesWithChecks.put(op.getKey(), handle);
+                        }
+                        case BULK -> {
+                            MethodHandle checkMethod = lookup.findStatic(
+                                JdkVectorSimilarityFunctions.class,
+                                "checkBulk",
+                                MethodType.methodType(
+                                    boolean.class,
+                                    int.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    int.class,
+                                    int.class,
+                                    MemorySegment.class
+                                )
+                            );
+                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
+                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                op.getValue(),
+                                MethodHandles.empty(op.getValue().type())
+                            );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
+                        case BULK_OFFSETS -> {
+                            MethodHandle checkMethod = lookup.findStatic(
+                                JdkVectorSimilarityFunctions.class,
+                                "checkBulkOffsets",
+                                MethodType.methodType(
+                                    boolean.class,
+                                    int.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    int.class,
+                                    int.class,
+                                    MemorySegment.class,
+                                    int.class,
+                                    MemorySegment.class
+                                )
+                            );
+                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
+                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                op.getValue(),
+                                MethodHandles.empty(op.getValue().type())
+                            );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
+                    }
+                }
+
+                HANDLES_WITH_CHECKS = Collections.unmodifiableMap(handlesWithChecks);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError(e);
+            }
+        }
+
         @Override
         public MethodHandle getHandle(Function function, DataType dataType, Operation operation) {
-            if (operation == Operation.SINGLE) {
-                // single score methods are called once for each vector,
-                // this means we need to reduce the overheads as much as possible
-                var lookup = MethodHandles.lookup();
-                try {
-                    return switch (dataType) {
-                        case INT7 -> {
-                            MethodType type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
-                            yield switch (function) {
-                                case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", type);
-                                case SQUARE_DISTANCE -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", type);
-                            };
-                        }
-                        case FLOAT32 -> {
-                            MethodType type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
-                            yield switch (function) {
-                                case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", type);
-                                case SQUARE_DISTANCE -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", type);
-                            };
-                        }
-                    };
-                } catch (NoSuchMethodException | IllegalAccessException e) {
-                    throw new AssertionError(e);
-                }
-            } else {
-                return HANDLES_WITH_CHECKS.get(new OperationSignature(function, dataType, operation));
-            }
+            return HANDLES_WITH_CHECKS.get(new OperationSignature(function, dataType, operation));
         }
     }
 }

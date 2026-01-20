@@ -77,7 +77,7 @@ class AbstractRateGroupingFunction {
                 return new FlushQueues(this, minGroupId, maxGroupId, null, null);
             }
             final int numGroups = maxGroupId - minGroupId + 1;
-            // count the number of slices each group
+            // count the number of slices in each group
             int[] runningOffsets = new int[numGroups];
             for (int i = 0; i < sliceCount; i++) {
                 int groupIndex = sliceGroupIds.get(i) - minGroupId;

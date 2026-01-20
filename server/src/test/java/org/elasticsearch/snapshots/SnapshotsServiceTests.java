@@ -13,9 +13,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -647,114 +645,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             ),
             empty()
         );
-    }
-
-    public void testAdjustNewSnapshotMetadata() {
-        String indexWithReshardingMetadata = randomIndexName();
-        var indexMetadataWithReshardingMetadata = IndexMetadata.builder(indexWithReshardingMetadata)
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
-            .build();
-
-        String indexWithoutReshardingMetadata = randomIndexName();
-        var indexMetadataWithoutReshardingMetadata = IndexMetadata.builder(indexWithoutReshardingMetadata)
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
-            .build();
-
-        // Should always remain the same.
-        var indexMetadataNotInSnapshot = IndexMetadata.builder(randomIndexName())
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfShards(5)
-            .numberOfReplicas(0)
-            .build();
-
-        var metadata = Metadata.builder(Metadata.EMPTY_METADATA)
-            .put(
-                ProjectMetadata.builder(randomProjectIdOrDefault())
-                    .put(indexMetadataWithReshardingMetadata, false)
-                    .put(indexMetadataWithoutReshardingMetadata, false)
-                    .put(indexMetadataNotInSnapshot, false)
-            )
-            .build();
-
-        // An index that is not in the metadata, should not break the logic (e.g. the index was deleted during the snapshot).
-        String someIndex = randomIndexName();
-
-        // This how an entry would look like if the snapshot started after resharding.
-        var entryWithPostReshardState = snapshotEntry(
-            snapshot("test-repo", "snapshot1"),
-            Map.of(
-                indexWithReshardingMetadata,
-                indexId(indexWithReshardingMetadata),
-                indexWithoutReshardingMetadata,
-                indexId(indexWithoutReshardingMetadata),
-                // An index that is not in metadata, should not break the logic (e.g. the index was deleted during the snapshot).
-                someIndex,
-                indexId(someIndex)
-            ),
-            // Shard status doesn't matter for this logic so we use whatever is shorter to type.
-            Map.of(
-                new ShardId(indexMetadataWithReshardingMetadata.getIndex(), 0),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING,
-                new ShardId(indexMetadataWithReshardingMetadata.getIndex(), 1),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING,
-                new ShardId(indexMetadataWithoutReshardingMetadata.getIndex(), 0),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING,
-                new ShardId(indexMetadataWithoutReshardingMetadata.getIndex(), 1),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING,
-                new ShardId(someIndex, randomUUID(), 0),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING
-            )
-        );
-
-        var adjustedMetadata1 = SnapshotsService.adjustNewSnapshotMetadata(metadata, entryWithPostReshardState);
-        // We should strip resharding metadata from the index that has it.
-        // But number of shards doesn't change since the snapshot entry has post-reshard number of shards.
-        assertNull(adjustedMetadata1.indexMetadata(indexMetadataWithReshardingMetadata.getIndex()).getReshardingMetadata());
-        assertEquals(2, adjustedMetadata1.indexMetadata(indexMetadataWithReshardingMetadata.getIndex()).getNumberOfShards());
-
-        // Unaffected since the number of shard matches and there is no resharding metadata.
-        assertEquals(
-            indexMetadataWithoutReshardingMetadata,
-            adjustedMetadata1.indexMetadata(indexMetadataWithoutReshardingMetadata.getIndex())
-        );
-        // Unaffected - not in the snapshot entry.
-        assertEquals(indexMetadataNotInSnapshot, adjustedMetadata1.indexMetadata(indexMetadataNotInSnapshot.getIndex()));
-
-        // This how an entry would look like if the snapshot started before resharding.
-        // Note how shards with id 1 are not present.
-        // That is because (emulated here) index metadata had 1 shard when this snapshot was started.
-        var entryWithPreReshardState = snapshotEntry(
-            snapshot("test-repo", "snapshot1"),
-            Map.of(
-                indexWithReshardingMetadata,
-                indexId(indexWithReshardingMetadata),
-                indexWithoutReshardingMetadata,
-                indexId(indexWithoutReshardingMetadata)
-            ),
-            // Shard status doesn't matter for this logic so we use whatever is shorter to type.
-            Map.of(
-                new ShardId(indexMetadataWithReshardingMetadata.getIndex(), 0),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING,
-                new ShardId(indexMetadataWithoutReshardingMetadata.getIndex(), 0),
-                SnapshotsInProgress.ShardSnapshotStatus.MISSING
-            )
-        );
-
-        var adjustedMetadata2 = SnapshotsService.adjustNewSnapshotMetadata(metadata, entryWithPreReshardState);
-        // We should strip resharding metadata from the index that has it.
-        // Number of shards also changes for all indices that have different number of shards in the snapshot entry.
-        assertNull(adjustedMetadata2.indexMetadata(indexMetadataWithReshardingMetadata.getIndex()).getReshardingMetadata());
-        assertEquals(1, adjustedMetadata2.indexMetadata(indexMetadataWithReshardingMetadata.getIndex()).getNumberOfShards());
-
-        assertEquals(1, adjustedMetadata2.indexMetadata(indexMetadataWithoutReshardingMetadata.getIndex()).getNumberOfShards());
-
-        // Unaffected - not in the snapshot entry.
-        assertEquals(indexMetadataNotInSnapshot, adjustedMetadata1.indexMetadata(indexMetadataNotInSnapshot.getIndex()));
     }
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
@@ -44,6 +45,10 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final IndexVersion repositoryMetaVersion;
 
+    /// Needed for [org.elasticsearch.repositories.blobstore.BlobStoreRepository#adjustIndexMetadataIfNeeded];
+    /// `updatedShardGenerations` does not include information about failed shards and can't be used because of that.
+    private final Set<ShardId> allShards;
+
     private final Runnable onDone;
 
     /**
@@ -53,6 +58,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
      * @param clusterMetadata         cluster metadata
      * @param snapshotInfo            SnapshotInfo instance to write for this snapshot
      * @param repositoryMetaVersion   version of the updated repository metadata to write
+     * @param allShards               shard ids of all shards included in the snapshot
      * @param listener                listener to be invoked with the new {@link RepositoryData} after the snapshot has been successfully
      *                                added to the repository
      * @param onDone                  consumer of the new {@link SnapshotInfo} for the snapshot that is invoked after the {@code listener}
@@ -65,6 +71,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         IndexVersion repositoryMetaVersion,
+        Set<ShardId> allShards,
         ActionListener<RepositoryData> listener,
         Runnable onDone
     ) {
@@ -75,6 +82,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         this.clusterMetadata = clusterMetadata;
         this.snapshotInfo = snapshotInfo;
         this.repositoryMetaVersion = repositoryMetaVersion;
+        this.allShards = allShards;
         this.onDone = onDone;
     }
 
@@ -105,6 +113,11 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteShardGenerations() {
         assert obsoleteGenerations.get() != null : "must only be called after #updatedClusterState";
         return obsoleteGenerations.get();
+    }
+
+    /// Returns a set of shards that are included in the snapshot no matter what the status of the shard snapshot is.
+    public Set<ShardId> allShards() {
+        return allShards;
     }
 
     /**

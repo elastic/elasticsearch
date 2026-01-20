@@ -55,6 +55,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -199,6 +200,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         IndexVersion.current(),
+                        Set.of(shardId),
                         listener,
                         () -> {}
                     )

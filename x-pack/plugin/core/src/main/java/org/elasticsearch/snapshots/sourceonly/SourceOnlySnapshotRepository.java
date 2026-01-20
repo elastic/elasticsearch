@@ -109,6 +109,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 ),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext.allShards(),
                 finalizeSnapshotContext,
                 finalizeSnapshotContext::onDone
             )

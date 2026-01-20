@@ -95,6 +95,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -1949,17 +1950,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 if (metaUUID == null) {
                                     // We don't yet have this version of the metadata so we write it
                                     metaUUID = UUIDs.base64UUID();
-                                    INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                    IndexMetadata adjustedMetadata = adjustIndexMetadataIfNeeded(
+                                        indexMetaData,
+                                        finalizeSnapshotContext.allShards()
+                                    );
+                                    INDEX_METADATA_FORMAT.write(adjustedMetadata, indexContainer(index), metaUUID, compress);
                                     metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
                                 } // else this task was largely a no-op - TODO no need to fork in that case
                                 metadataWriteResult.indexMetas().put(index, identifiers);
                             } else {
-                                INDEX_METADATA_FORMAT.write(
+                                IndexMetadata adjustedMetadata = adjustIndexMetadataIfNeeded(
                                     clusterMetadata.getProject(getProjectId()).index(index.getName()),
-                                    indexContainer(index),
-                                    snapshotId.getUUID(),
-                                    compress
+                                    finalizeSnapshotContext.allShards()
                                 );
+                                INDEX_METADATA_FORMAT.write(adjustedMetadata, indexContainer(index), snapshotId.getUUID(), compress);
                             }
                         }));
                     }
@@ -2025,6 +2029,85 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (l, e) -> l.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))
                 )
             );
+    }
+
+    /// Adjusts metadata that will be stored in a snapshot.
+    /// This is needed because some functionality like resharding uses transient index metadata in the implementation.
+    /// Due to the async nature of the snapshot logic, such metadata can be out of sync with the shard data captured in the
+    /// snapshot.
+    /// As such we don't want to have it in the snapshot since it would be incorrect to make decisions based on it
+    /// after the snapshot is restored.
+    ///
+    /// This is a no-op for majority of indices since the shards in the snapshot will always match index metadata.
+    ///
+    /// Visible for tests.
+    static IndexMetadata adjustIndexMetadataIfNeeded(IndexMetadata indexMetadata, Set<ShardId> allShards) {
+        if (indexMetadata.getReshardingMetadata() != null) {
+            logger.debug("{} removing resharding metadata from index metadata to be included in the snapshot", indexMetadata.getIndex());
+
+            // This index is being resharded, strip the resharding metadata
+            // so that resharding does not (possibly incorrectly) resume after a snapshot restore.
+            IndexMetadata.Builder newMetadataBuilder = IndexMetadata.builder(indexMetadata).reshardingMetadata(null);
+
+            // We always check if we need to reset the number of shards
+            // since multiple reshard operations could have happened.
+            int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(allShards, indexMetadata.getIndex());
+            // We currently only expect resharding to increase the number of shards.
+            assert numberOfShards <= indexMetadata.getNumberOfShards();
+
+            if (numberOfShards != indexMetadata.getNumberOfShards()) {
+                logger.debug(
+                    "{} - resetting the number of shards {} -> {} in index metadata to be included in the snapshot",
+                    indexMetadata.getIndex(),
+                    indexMetadata.getNumberOfShards(),
+                    numberOfShards
+                );
+                // This should always succeed given that the only way the number of shards can change
+                // is resharding.
+                // Therefore, there previously was a successful transition from `numberOfShards` to current state
+                // and `numberOfShards` is a valid number of shards.
+                newMetadataBuilder = newMetadataBuilder.reshardRemoveShards(numberOfShards);
+            }
+
+            return newMetadataBuilder.build();
+        }
+
+        // Even if resharding metadata is not present it is still possible that resharding has happened
+        // while the snapshot was running and impacted it.
+        int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(allShards, indexMetadata.getIndex());
+        // We currently only expect resharding to increase the number of shards.
+        assert numberOfShards <= indexMetadata.getNumberOfShards();
+
+        if (numberOfShards != indexMetadata.getNumberOfShards()) {
+            logger.debug(
+                "{} - resetting only the number of shards {} -> {} in index metadata to be included in the snapshot",
+                indexMetadata.getIndex(),
+                indexMetadata.getNumberOfShards(),
+                numberOfShards
+            );
+            return IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShards).build();
+        }
+
+        // No changes.
+        return indexMetadata;
+    }
+
+    /**
+     * We simply trust the snapshot to tell us what the number of shards was when this snapshot was created.
+     * It is in theory possible that multiple reshard operations were executed during the snapshot, and therefore
+     * we can't make any assumptions here and calculate it based on the index metadata.
+     */
+    private static int calculateNumberOfShardsAccordingToSnapshot(Set<ShardId> snapshotShards, Index index) {
+        int maxPresentShardId = 0;
+        assert snapshotShards.contains(new ShardId(index, 0));
+
+        int i = 1;
+        while (snapshotShards.contains(new ShardId(index, i))) {
+            maxPresentShardId = i;
+            i++;
+        }
+
+        return maxPresentShardId + 1;
     }
 
     // Delete all old shard gen and root level index blobs that aren't referenced any longer as a result from moving to updated

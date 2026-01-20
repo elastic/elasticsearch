@@ -260,6 +260,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
                 fsc.clusterMetadata(),
                 fsc.snapshotInfo(),
                 fsc.repositoryMetaVersion(),
+                fsc.allShards(),
                 fsc,
                 () -> {
                     // run the passed lambda before calling the usual callback

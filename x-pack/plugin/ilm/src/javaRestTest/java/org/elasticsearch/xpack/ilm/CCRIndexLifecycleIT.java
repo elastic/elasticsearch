@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SkipInFIPSMode;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressForbidden(reason = "TemporaryFolder uses java.io.File")
 public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);

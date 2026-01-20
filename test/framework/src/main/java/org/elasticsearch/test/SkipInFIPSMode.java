@@ -16,6 +16,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.core.Booleans;
 import org.junit.AssumptionViolatedException;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -36,7 +37,7 @@ public class SkipInFIPSMode implements TestRule {
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
-                if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled", "false"))) {
+                if (Booleans.parseBoolean(System.getProperty("tests.fips.enabled"), false)) {
                     throw new AssumptionViolatedException("Skipping " + description.getClassName() + " when running with FIPS enabled");
                 }
                 base.evaluate();

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate.TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE;
 
@@ -190,5 +191,21 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             throw new EsqlIllegalArgumentException("expected TBUCKET; got ", timeBucket);
         }
         return rounding;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof TimeSeriesAggregateExec that) {
+            if (false == super.equals(o)) {
+                return false;
+            }
+            return Objects.equals(timeBucket, that.timeBucket) && Objects.equals(timeRange, that.timeRange);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeBucket, timeRange);
     }
 }

@@ -65,7 +65,8 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         AggregatorMode mode = instance.getMode();
         Integer estimatedRowSize = instance.estimatedRowSize();
         TimeSeriesAggregate.TimeRange timeRange = instance instanceof TimeSeriesAggregateExec tse ? tse.timeRange() : null;
-        switch (between(0, 6)) {
+        int mutation = between(0, instance instanceof TimeSeriesAggregateExec ? 6 : 5);
+        switch (mutation) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(groupings, () -> randomFieldAttributes(0, 5, false));
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);

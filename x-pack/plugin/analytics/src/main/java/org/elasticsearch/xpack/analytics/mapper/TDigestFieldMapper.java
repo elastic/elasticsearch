@@ -52,7 +52,6 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tdigest.parsing.TDigestParser;

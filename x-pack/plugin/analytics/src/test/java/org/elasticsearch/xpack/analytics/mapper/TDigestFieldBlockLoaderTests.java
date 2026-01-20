@@ -15,7 +15,6 @@ import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 

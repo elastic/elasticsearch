@@ -189,7 +189,7 @@ public class ArrayStateTests extends ESTestCase {
         List<Object> values = randomList(valueCount, valueCount, this::randomValue);
         setAll(state, values, 0);
         Block[] intermediate = new Block[2];
-        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         state.toIntermediate(intermediate, 0, IntVector.range(0, valueCount, ctx.blockFactory()), ctx);
         try {
             assertThat(intermediate[0].elementType(), equalTo(elementType));
@@ -222,7 +222,7 @@ public class ArrayStateTests extends ESTestCase {
         List<Object> values = randomList(valueCount, valueCount, this::randomValue);
         setAll(state, values, 0);
         Block[] intermediate = new Block[2];
-        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         state.toIntermediate(intermediate, 0, IntVector.range(0, end, ctx.blockFactory()), ctx);
         try {
             assertThat(intermediate[0].elementType(), equalTo(elementType));

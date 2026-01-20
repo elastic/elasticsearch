@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.http.ConnectionClosedException;
@@ -134,41 +135,35 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final byte[] bytes = randomBlobContent();
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).readTimeout(readTimeout).build();
-        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), interceptGetBlobRequest(exchange -> {
             Streams.readFully(exchange.getRequestBody());
-            if (exchange.getRequestMethod().equals("HEAD")) {
-                try (exchange) {
-                    handleHeadRequest(exchange, bytes);
-                }
-            } else {
-                if (countDown.countDown()) {
-                    final int rangeStart = getRangeStart(exchange);
-                    assertThat(rangeStart, lessThan(bytes.length));
-                    addSuccessfulDownloadHeaders(exchange, bytes);
-                    exchange.getResponseHeaders().add("Content-Type", bytesContentType());
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
-                    exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
-                    exchange.close();
-                    return;
-                }
-                if (randomBoolean()) {
-                    exchange.sendResponseHeaders(
-                        randomFrom(
-                            HttpStatus.SC_INTERNAL_SERVER_ERROR,
-                            HttpStatus.SC_BAD_GATEWAY,
-                            HttpStatus.SC_SERVICE_UNAVAILABLE,
-                            HttpStatus.SC_GATEWAY_TIMEOUT
-                        ),
-                        -1
-                    );
-                } else if (randomBoolean()) {
-                    sendIncompleteContent(exchange, bytes);
-                }
-                if (randomBoolean()) {
-                    exchange.close();
-                }
+            if (countDown.countDown()) {
+                final int rangeStart = getRangeStart(exchange);
+                assertThat(rangeStart, lessThan(bytes.length));
+                addSuccessfulDownloadHeaders(exchange, bytes);
+                exchange.getResponseHeaders().add("Content-Type", bytesContentType());
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
+                exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
+                exchange.close();
+                return;
             }
-        });
+            if (randomBoolean()) {
+                exchange.sendResponseHeaders(
+                    randomFrom(
+                        HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                        HttpStatus.SC_BAD_GATEWAY,
+                        HttpStatus.SC_SERVICE_UNAVAILABLE,
+                        HttpStatus.SC_GATEWAY_TIMEOUT
+                    ),
+                    -1
+                );
+            } else if (randomBoolean()) {
+                sendIncompleteContent(exchange, bytes);
+            }
+            if (randomBoolean()) {
+                exchange.close();
+            }
+        }, bytes));
 
         try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             final int readLimit;
@@ -199,12 +194,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).readTimeout(readTimeout).build();
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_range_blob_max_retries"), exchange -> {
-            if (exchange.getRequestMethod().equals("HEAD")) {
-                try (exchange) {
-                    handleHeadRequest(exchange, bytes);
-                }
-            } else {
+        httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, "read_range_blob_max_retries"),
+            interceptGetBlobRequest(exchange -> {
                 Streams.readFully(exchange.getRequestBody());
                 if (countDown.countDown()) {
                     final int rangeStart = getRangeStart(exchange);
@@ -238,8 +230,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 if (randomBoolean()) {
                     exchange.close();
                 }
-            }
-        });
+            }, bytes)
+        );
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
@@ -284,14 +276,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // HTTP server does not send a response
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"), exchange -> {
-            // Sometimes handle the head, then do not respond to the GET
-            if (exchange.getRequestMethod().equals("HEAD") && randomBoolean()) {
-                try (exchange) {
-                    handleHeadRequest(exchange, bytes);
-                }
-            }
-        });
+        httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"),
+            interceptGetBlobRequest(exchange -> {}, bytes)
+        );
 
         Exception exception = expectThrows(
             unresponsiveExceptionType(),
@@ -308,15 +296,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final List<Long> retryContentSizes = Collections.synchronizedList(new ArrayList<>());
 
         // HTTP server sends a partial response
-        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
-            if (exchange.getRequestMethod().equals("HEAD")) {
-                try (exchange) {
-                    handleHeadRequest(exchange, bytes);
-                }
-            } else {
-                retryContentSizes.add((long) sendIncompleteContent(exchange, bytes));
-            }
-        });
+        httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
+            interceptGetBlobRequest(exchange -> retryContentSizes.add((long) sendIncompleteContent(exchange, bytes)), bytes)
+        );
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
@@ -382,19 +365,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent(1);
-        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
-            if (exchange.getRequestMethod().equals("HEAD")) {
-                try (exchange) {
-                    handleHeadRequest(exchange, bytes);
-                }
-            } else {
-                sendIncompleteContent(exchange, bytes);
-                if (alwaysFlushBody) {
-                    exchange.getResponseBody().flush();
-                }
-                exchange.close();
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), interceptGetBlobRequest(exchange -> {
+            sendIncompleteContent(exchange, bytes);
+            if (alwaysFlushBody) {
+                exchange.getResponseBody().flush();
             }
-        });
+            exchange.close();
+        }, bytes));
 
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
@@ -648,9 +625,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     /**
-     * Azure always sends a HEAD as a prelude to getting a blob, this is overridden just for the Azure case
+     * All calls to the blob endpoint should pass through here. This allows e.g. Azure to handle the pre-flight HEAD request
+     *
+     * @param handler The actual handler
+     * @param blobContents The blob contents being simulated
+     * @return The original handler with any necessary wrapping
      */
-    protected void handleHeadRequest(HttpExchange exchange, byte[] blobContents) throws IOException {
-        throw new IllegalStateException("Unexpected HEAD request");
+    protected HttpHandler interceptGetBlobRequest(HttpHandler handler, byte[] blobContents) {
+        return handler;
     }
 }

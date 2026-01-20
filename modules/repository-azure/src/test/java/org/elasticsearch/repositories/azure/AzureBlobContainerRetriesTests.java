@@ -769,6 +769,18 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     @Override
+    protected HttpHandler interceptGetBlobRequest(HttpHandler handler, byte[] blobContents) {
+        return exchange -> {
+            if (exchange.getRequestMethod().equals("HEAD")) {
+                try (exchange) {
+                    handleHeadRequest(exchange, blobContents);
+                }
+            } else {
+                handler.handle(exchange);
+            }
+        };
+    }
+
     protected void handleHeadRequest(HttpExchange exchange, byte[] blobContents) throws IOException {
         if (exchange.getRequestHeaders().containsKey("X-ms-range")) {
             ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Shouldn't send a HEAD request for a range"));

@@ -324,7 +324,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var attributes = mappingAsAttributes(
                 plan.source(),
                 esIndex.mapping(),
-                false,
                 context.minimumVersion(),
                 context.useAggregateMetricDoubleWhenNotSupported(),
                 context.useDenseVectorWhenNotSupported()
@@ -353,7 +352,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static List<Attribute> mappingAsAttributes(
         Source source,
         Map<String, EsField> mapping,
-        boolean isEnrichPolicy,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported
@@ -364,7 +362,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             source,
             null,
             mapping,
-            isEnrichPolicy,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported
@@ -378,7 +375,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Source source,
         String parentName,
         Map<String, EsField> mapping,
-        boolean isEnrichPolicy,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported
@@ -413,28 +409,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (typeSupported == false) {
                     // this data type is not supported by the minimum transport version
                     type = UNSUPPORTED;
-                    if (isEnrichPolicy) {
-                        // EnrichPolicyResolver.mergeLookupResults create the mapping with EsField instead of UnsupportedEsField even
-                        // if the data type is UNSUPPORTED, keep it as is otherwise enrich.enrichDecadesStats fail in MultiClusterSpecIT
-                        EsField unsupportedEnrichField = new EsField(
-                            t.getName(),
-                            type,
-                            t.getProperties(),
-                            t.isAggregatable(),
-                            t.isAlias(),
-                            t.getTimeSeriesFieldType()
-                        );
-                        attribute = new FieldAttribute(source, parentName, null, name, unsupportedEnrichField);
-                    } else {
-                        UnsupportedEsField unsupportedEsField = new UnsupportedEsField(
-                            t.getName(),
-                            List.of(t.getDataType().esType()),
-                            parentName,  // qualifier is not supported yet, this is the parent name of the nested field
-                            t.getProperties(),
-                            t.getTimeSeriesFieldType()
-                        );
-                        attribute = new UnsupportedAttribute(source, name, unsupportedEsField);
-                    }
+
+                    UnsupportedEsField unsupportedEsField = new UnsupportedEsField(
+                        t.getName(),
+                        List.of(t.getDataType().esType()),
+                        parentName,  // qualifier is not supported yet, this is the parent name of the nested field
+                        t.getProperties(),
+                        t.getTimeSeriesFieldType()
+                    );
+                    attribute = new UnsupportedAttribute(source, name, unsupportedEsField);
                 }
 
                 // primitive branch
@@ -449,7 +432,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         source,
                         attribute.name(),
                         fieldProperties,
-                        isEnrichPolicy,
                         minimumVersion,
                         useAggregateMetricDoubleWhenNotSupported,
                         useDenseVectorWhenNotSupported
@@ -480,7 +462,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     mappingAsAttributes(
                         plan.source(),
                         resolved.mapping(),
-                        true,
                         context.minimumVersion(),
                         context.useAggregateMetricDoubleWhenNotSupported(),
                         context.useDenseVectorWhenNotSupported()

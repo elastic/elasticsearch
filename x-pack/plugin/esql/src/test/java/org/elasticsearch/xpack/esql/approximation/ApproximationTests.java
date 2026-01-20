@@ -138,7 +138,7 @@ public class ApproximationTests extends ESTestCase {
                 numResults = (long) (numResults * (double) ((Literal) ((Sample) sample).probability()).value());
             }
             LongBlock block = blockFactory.newConstantLongBlockWith(numResults, 1);
-            listener.onResponse(new Result(null, List.of(new Page(block)), null, null));
+            listener.onResponse(new Result(null, List.of(new Page(block)), null, null, null));
         }
     }
 

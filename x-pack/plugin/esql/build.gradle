@@ -615,8 +615,7 @@ tasks.named('stringTemplates').configure {
   }
 }
 
-
-test {
+tasks.named("test").configure {
   if (System.getProperty("golden.noactual") != null || project.hasProperty("golden.noactual")) {
     systemProperty "golden.noactual", "true"
   }

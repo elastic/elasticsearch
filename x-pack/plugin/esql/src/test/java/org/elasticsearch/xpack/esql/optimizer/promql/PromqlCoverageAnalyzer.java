@@ -30,6 +30,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -110,11 +111,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
 
             var lineCounter = new AtomicInteger(0);
             try (Stream<String> lines = Files.lines(inputFile)) {
-                var results = lines.map(query -> query.replaceAll("\\[\\$\\w+\\]", "[1m]"))
-                    .map(query -> query.replaceAll("\\$(\\w+)", "$1"))
-                    .map(query -> query.replaceAll("\\$\\{(\\w+)\\}", "$1"))
-                    .map(query -> analyzer.tryParse(lineCounter.incrementAndGet(), query))
-                    .toList();
+                var results = lines.map(query -> analyzer.tryParse(lineCounter.incrementAndGet(), query)).toList();
                 analyzer.writeSummary(results);
                 analyzer.writeErrorGroupStats(results);
             }
@@ -128,9 +125,11 @@ public class PromqlCoverageAnalyzer implements Closeable {
         String[] split = line.split(";", 2);
         String dashboardId = split[0];
         String query = split[1];
+        // replace control variables with concrete values
+        String adjustedQuery = query.replaceAll("\\[\\$\\w+\\]", "[1m]").replaceAll("\\$(\\w+)", "$1").replaceAll("\\$\\{(\\w+)\\}", "$1");
         LogicalPlan plan = null;
         try {
-            plan = parser.parseQuery("PROMQL step=10s (" + query + ")");
+            plan = parser.parseQuery("PROMQL step=10s (" + adjustedQuery + ")");
             try {
                 plan = analyzer.analyze(resolver.apply(plan));
                 try {
@@ -177,7 +176,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
             lineNumber,
             Stream.of(parseError, analyzerError, optimizerError).allMatch(Optional::isEmpty),
             dashboardId,
-            line,
+            query,
             errors,
             errorGroups,
             parseError.orElse(null),
@@ -212,12 +211,16 @@ public class PromqlCoverageAnalyzer implements Closeable {
     }
 
     private void writeErrorGroupStats(List<QueryResult> results) {
-        writeLine("| Error Group | Total | Dashboards | Only error |");
-        writeLine("|-------------|------:|-----------:|-----------:|");
+        writeLine("| Error Group | Total | Dashboards | Only error | Example Query |");
+        writeLine("|-------------|------:|-----------:|-----------:|---------------|");
         Map<String, Integer> countByGroup = results.stream()
             .flatMap(q -> q.errorGroups().stream())
             .filter(Objects::nonNull)
             .collect(groupingBy(e -> e, summingInt(e -> 1)));
+        Map<String, List<String>> queriesByErrorGroup = results.stream()
+            .filter(not(QueryResult::success))
+            .flatMap(r -> r.errorGroups().stream().map(g -> Map.entry(g, r.query())))
+            .collect(groupingBy(Map.Entry::getKey, Collectors.mapping(Map.Entry::getValue, toList())));
         Map<String, List<String>> errorGroupsByDashboard = results.stream()
             .collect(
                 groupingBy(
@@ -240,11 +243,17 @@ public class PromqlCoverageAnalyzer implements Closeable {
                 entry -> writeLine(
                     String.format(
                         Locale.ROOT,
-                        "| %s | %d | %d | %d |",
+                        "| %s | %d | %d | %d | `%s` |",
                         entry.getKey(),
                         entry.getValue(),
                         distinctErrorGroupsByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
-                        onlyErrorGroupByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count()
+                        onlyErrorGroupByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
+                        // get shortest example query
+                        queriesByErrorGroup.get(entry.getKey())
+                            .stream()
+                            .min(Comparator.comparingInt(String::length))
+                            .orElse("")
+                            .replace("|", "\\|")
                     )
                 )
             );

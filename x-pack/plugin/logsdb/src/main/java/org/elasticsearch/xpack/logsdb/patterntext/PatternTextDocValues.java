@@ -27,7 +27,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
         this.argsInfoDocValues = argsInfoDocValues;
     }
 
-    static PatternTextDocValues from(
+    static BinaryDocValues from(
         LeafReader leafReader,
         String templateFieldName,
         String argsFieldName,

@@ -459,10 +459,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         void maybeResizeAndAppend(long timestamp, $type$ value) {
             timestamps = bigArrays.grow(timestamps, valueCount + 1);
             values = bigArrays.grow(values, valueCount + 1);
-
-            timestamps.set(valueCount, timestamp);
-            values.set(valueCount, value);
-            valueCount++;
+            appendWithoutResize(timestamp, value);
         }
 
         void appendRange(int fromPosition, int toPosition, $Type$Vector valueVector, LongVector timestampVector) {

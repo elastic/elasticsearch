@@ -459,10 +459,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         void maybeResizeAndAppend(long timestamp, double value) {
             timestamps = bigArrays.grow(timestamps, valueCount + 1);
             values = bigArrays.grow(values, valueCount + 1);
-
-            timestamps.set(valueCount, timestamp);
-            values.set(valueCount, value);
-            valueCount++;
+            appendWithoutResize(timestamp, value);
         }
 
         void appendRange(int fromPosition, int toPosition, DoubleVector valueVector, LongVector timestampVector) {

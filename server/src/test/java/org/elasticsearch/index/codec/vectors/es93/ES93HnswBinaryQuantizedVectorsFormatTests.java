@@ -28,23 +28,23 @@ import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
-import static java.lang.String.format;
+import static org.apache.lucene.tests.util.TestUtil.alwaysKnnVectorsFormat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.is;
 
 public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat();
     }
 
     @Override
@@ -69,22 +69,59 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         );
     }
 
-    public void testToString() {
-        String expected = "ES93HnswBinaryQuantizedVectorsFormat("
-            + "name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
-        expected = format(
-            Locale.ROOT,
-            expected,
-            "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
-                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))"
+    protected KnnVectorsFormat createFormat(
+        int maxConn,
+        int beamWidth,
+        int numMergeWorkers,
+        ExecutorService service,
+        int hnswGraphThreshold
+    ) {
+        return new ES93HnswBinaryQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            random().nextBoolean(),
+            numMergeWorkers,
+            service,
+            hnswGraphThreshold
         );
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
-        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())");
-        String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
-        String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+    }
 
-        KnnVectorsFormat format = createFormat(10, 20, 1, null);
-        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
+    public void testDefaultHnswGraphThreshold() {
+        KnnVectorsFormat format = createFormat(16, 100);
+        assertThat(
+            format,
+            hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD))
+        );
+    }
+
+    public void testHnswGraphThresholdWithCustomValue() {
+        int customThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, customThreshold);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + customThreshold)));
+    }
+
+    public void testHnswGraphThresholdWithZeroValue() {
+        // When threshold is 0, hnswGraphThreshold is omitted from toString (always build graph)
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, 0);
+        assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
+    }
+
+    public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
+        assertThat(
+            format,
+            hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD))
+        );
+    }
+
+    public void testToString() {
+        int hnswGraphThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
+        assertThat(format, hasToString(containsString("name=ES93HnswBinaryQuantizedVectorsFormat")));
+        assertThat(format, hasToString(containsString("maxConn=10")));
+        assertThat(format, hasToString(containsString("beamWidth=20")));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + hnswGraphThreshold)));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -101,6 +138,17 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
+        // Use threshold=0 to ensure HNSW graph is always built
+        var format = new ES93HnswBinaryQuantizedVectorsFormat(
+            16,
+            100,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            random().nextBoolean(),
+            1,
+            null,
+            0
+        );
+        config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap
             ? allOf(
                 aMapWithSize(3),

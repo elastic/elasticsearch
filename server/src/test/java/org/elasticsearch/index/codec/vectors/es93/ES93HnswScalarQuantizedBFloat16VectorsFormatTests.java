@@ -10,7 +10,9 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -19,21 +21,21 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
         return new ES93HnswScalarQuantizedVectorsFormat(
-            DEFAULT_MAX_CONN,
-            DEFAULT_BEAM_WIDTH,
+            16,
+            100,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             null,
             7,
@@ -75,12 +77,34 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         throw new AssumptionViolatedException("Scalar quantization changes the score significantly for MAXIMUM_INNER_PRODUCT");
     }
 
+    public void testToString() {
+        KnnVectorsFormat format = createFormat(10, 20, 1, null);
+        assertThat(format, hasToString(containsString("name=ES93HnswScalarQuantizedVectorsFormat")));
+        assertThat(format, hasToString(containsString("maxConn=10")));
+        assertThat(format, hasToString(containsString("beamWidth=20")));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD)));
+    }
+
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
+        // Use threshold=0 to ensure HNSW graph is always built
+        var format = new ES93HnswScalarQuantizedVectorsFormat(
+            16,
+            100,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
+            random().nextBoolean(),
+            1,
+            null,
+            0
+        );
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {
             testSimpleOffHeapSize(
                 dir,
-                newIndexWriterConfig(),
+                config,
                 vector,
                 allOf(
                     aMapWithSize(3),

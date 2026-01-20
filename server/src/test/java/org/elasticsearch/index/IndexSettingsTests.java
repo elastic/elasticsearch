@@ -926,4 +926,59 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
 
+    public void testHnswGraphThreshold() {
+        // Test default value
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(-1, settings.getHnswGraphThreshold());
+
+        // Test custom value
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put("index.dense_vector.hnsw_graph_threshold", 500)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(500, settings.getHnswGraphThreshold());
+
+        // Test dynamic update
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put("index.dense_vector.hnsw_graph_threshold", 200).build()));
+        assertEquals(200, settings.getHnswGraphThreshold());
+
+        // Test update back to default
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(-1, settings.getHnswGraphThreshold());
+    }
+
+    public void testHnswGraphThresholdWithZeroValue() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put("index.dense_vector.hnsw_graph_threshold", 0)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(0, settings.getHnswGraphThreshold());
+    }
+
+    public void testHnswGraphThresholdRejectsInvalidNegativeValues() {
+        // Values less than -1 should be rejected
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put("index.dense_vector.hnsw_graph_threshold", -2)
+                .build()
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), containsString("Failed to parse value [-2]"));
+        assertThat(e.getMessage(), containsString("must be >= -1"));
+    }
+
 }

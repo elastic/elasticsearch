@@ -112,6 +112,7 @@ public class PerFieldFormatSupplier {
     private static KnnVectorsFormat getDefaultKnnVectorsFormat(final MapperService mapperService, final ThreadPool threadPool) {
         ExecutorService mergingExecutorService = null;
         int maxMergingWorkers = 1;
+        int hnswGraphThreshold = -1;
         if (threadPool != null
             && mapperService != null
             && mapperService.getIndexSettings().isIntraMergeParallelismEnabled()
@@ -121,12 +122,16 @@ public class PerFieldFormatSupplier {
                 mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
             }
         }
+        if (mapperService != null) {
+            hnswGraphThreshold = mapperService.getIndexSettings().getHnswGraphThreshold();
+        }
         return new ES93HnswVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
-            mergingExecutorService
+            mergingExecutorService,
+            hnswGraphThreshold
         );
     }
 

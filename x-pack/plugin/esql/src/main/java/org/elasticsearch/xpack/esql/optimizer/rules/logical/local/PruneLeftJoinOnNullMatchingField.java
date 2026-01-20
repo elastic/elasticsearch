@@ -13,10 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.isGuaranteedNull;
@@ -38,11 +38,15 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
     protected LogicalPlan rule(Join join, LogicalOptimizerContext ctx) {
         LogicalPlan plan = join;
         // Other join types will have different replacement logic.
-        // This rule only applies to LOOKUP JOIN (where join.right() is EsRelation). For INLINE STATS, the right
-        // side can be Aggregate or LocalRelation (when optimized), and the join key is always the grouping. Since
-        // STATS supports GROUP BY null, pruning the join when the join key (grouping) is null would incorrectly
-        // change the query results.
-        if (join.config().type() == LEFT && join.right() instanceof EsRelation) {
+        // This rule should only apply to LOOKUP JOIN, not INLINE STATS. For INLINE STATS, the join key is always
+        // the grouping, and since STATS supports GROUP BY null, pruning the join when the join key (grouping) is
+        // null would incorrectly change the query results.
+        // Note: We use `instanceof InlineJoin == false` rather than `instanceof LookupJoin` because LookupJoin is
+        // converted to a regular Join during analysis (via LookupJoin.surrogate()). By the time this optimizer rule
+        // runs, the LookupJoin has already become a plain Join instance, so checking for LookupJoin would fail to
+        // match the intended targets. The negative check correctly excludes InlineJoin while accepting all other
+        // LEFT joins, including those originally created as LookupJoin.
+        if (join.config().type() == LEFT && join instanceof InlineJoin == false) {
             AttributeMap<Expression> attributeMap = RuleUtils.foldableReferences(join, ctx);
 
             for (var attr : AttributeSet.of(join.config().leftFields())) {

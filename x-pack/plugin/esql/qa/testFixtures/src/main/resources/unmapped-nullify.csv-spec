@@ -434,9 +434,8 @@ ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-# `c` should be just 0 : https://github.com/elastic/elasticsearch/issues/139887
 x:integer      |does_not_exist:null|c:long         |s:double       |d:null
-1              |null               |null           |null           |null
+1              |null               |1              |null           |null
 ;
 
 lookupJoin

@@ -71,7 +71,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
         return null;
     }
 
-    private String randomNodeId(List<String> nodeIds) {
+    private String selectRandomNodeIdFrom(List<String> nodeIds) {
         return nodeIds.get(random.nextInt(nodeIds.size()));
     }
 }

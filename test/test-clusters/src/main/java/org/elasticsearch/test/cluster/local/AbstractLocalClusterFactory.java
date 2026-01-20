@@ -210,7 +210,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             if (Files.notExists(portFile)) {
                 waitUntilReady();
             }
-            return readPortsFile(portFile).get(0);
+            String httpAddress = readPortsFile(portFile).get(0);
+
+            // If the host has multiple colons, it's probably an IPv6 address
+            if (httpAddress.chars().filter(ch -> ch == ':').count() > 1) {
+                int lastColonIndex = httpAddress.lastIndexOf(':');
+                String host = httpAddress.substring(0, lastColonIndex);
+                String port = httpAddress.substring(lastColonIndex + 1);
+                return "[" + host + "]:" + port;
+            }
+
+            return httpAddress;
         }
 
         public String getTransportEndpoint() {

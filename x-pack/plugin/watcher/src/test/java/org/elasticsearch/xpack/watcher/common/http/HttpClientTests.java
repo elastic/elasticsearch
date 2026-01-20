@@ -846,6 +846,12 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        String host = webServer.getHostName();
+        if (host.contains(":")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
+        return Strings.format("http://%s:%s", host, webServer.getPort());
     }
 }

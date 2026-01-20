@@ -891,7 +891,13 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private String getFormattedAddress(MockWebServer server) {
-        return server.getHostName() + ":" + server.getPort();
+        String host = server.getHostName();
+        if (host.contains(":")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
+        return host + ":" + server.getPort();
     }
 
     private MockWebServer createMockWebServer() throws IOException {

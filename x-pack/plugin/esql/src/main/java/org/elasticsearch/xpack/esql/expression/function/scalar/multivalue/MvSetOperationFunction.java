@@ -84,8 +84,7 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
         Block field2,
         BiFunction<Integer, Block, T> getValue,
         Consumer<T> addValue,
-        BiConsumer<Set<T>, Set<T>> combineOp,
-        boolean nullIfResultEmpty
+        BiConsumer<Set<T>, Set<T>> combineOp
     ) {
         int firstCount = field1.getValueCount(position);
         int secondCount = field2.getValueCount(position);
@@ -105,7 +104,7 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
 
         combineOp.accept(firstSet, secondSet);
 
-        if (nullIfResultEmpty && firstSet.isEmpty()) {
+        if (firstSet.isEmpty()) {
             builder.appendNull();
             return;
         }

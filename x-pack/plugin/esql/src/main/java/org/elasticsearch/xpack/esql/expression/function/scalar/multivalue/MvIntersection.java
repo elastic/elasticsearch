@@ -141,8 +141,7 @@ public class MvIntersection extends MvSetOperationFunction {
             field2,
             (p, b) -> ((BooleanBlock) b).getBoolean(p),
             builder::appendBoolean,
-            Set::retainAll,
-            true
+            Set::retainAll
         );
     }
 
@@ -155,8 +154,7 @@ public class MvIntersection extends MvSetOperationFunction {
             field2,
             (p, b) -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()),
             builder::appendBytesRef,
-            Set::retainAll,
-            true
+            Set::retainAll
         );
     }
 
@@ -169,8 +167,7 @@ public class MvIntersection extends MvSetOperationFunction {
             field2,
             (p, b) -> ((IntBlock) b).getInt(p),
             builder::appendInt,
-            Set::retainAll,
-            true
+            Set::retainAll
         );
     }
 
@@ -183,8 +180,7 @@ public class MvIntersection extends MvSetOperationFunction {
             field2,
             (p, b) -> ((LongBlock) b).getLong(p),
             builder::appendLong,
-            Set::retainAll,
-            true
+            Set::retainAll
         );
     }
 
@@ -197,8 +193,7 @@ public class MvIntersection extends MvSetOperationFunction {
             field2,
             (p, b) -> ((DoubleBlock) b).getDouble(p),
             builder::appendDouble,
-            Set::retainAll,
-            true
+            Set::retainAll
         );
     }
 

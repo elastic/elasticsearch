@@ -166,8 +166,7 @@ public class MvUnion extends MvSetOperationFunction {
             field2,
             (p, b) -> ((BooleanBlock) b).getBoolean(p),
             builder::appendBoolean,
-            Set::addAll,
-            true
+            Set::addAll
         );
     }
 
@@ -180,14 +179,13 @@ public class MvUnion extends MvSetOperationFunction {
             field2,
             (p, b) -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()),
             builder::appendBytesRef,
-            Set::addAll,
-            true
+            Set::addAll
         );
     }
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
-        processSetOperation(builder, position, field1, field2, (p, b) -> ((IntBlock) b).getInt(p), builder::appendInt, Set::addAll, true);
+        processSetOperation(builder, position, field1, field2, (p, b) -> ((IntBlock) b).getInt(p), builder::appendInt, Set::addAll);
     }
 
     @Evaluator(extraName = "Long")
@@ -199,8 +197,7 @@ public class MvUnion extends MvSetOperationFunction {
             field2,
             (p, b) -> ((LongBlock) b).getLong(p),
             builder::appendLong,
-            Set::addAll,
-            true
+            Set::addAll
         );
     }
 
@@ -213,8 +210,7 @@ public class MvUnion extends MvSetOperationFunction {
             field2,
             (p, b) -> ((DoubleBlock) b).getDouble(p),
             builder::appendDouble,
-            Set::addAll,
-            true
+            Set::addAll
         );
     }
 

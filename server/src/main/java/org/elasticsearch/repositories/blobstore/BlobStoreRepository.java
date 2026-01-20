@@ -2042,6 +2042,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ///
     /// Visible for tests.
     static IndexMetadata adjustIndexMetadataIfNeeded(IndexMetadata indexMetadata, Set<ShardId> allShards) {
+        int numberOfShardsAccordingToSnapshot = calculateNumberOfShardsAccordingToSnapshot(allShards, indexMetadata.getIndex());
+        // We currently only expect resharding to increase the number of shards.
+        assert numberOfShardsAccordingToSnapshot <= indexMetadata.getNumberOfShards() : "Snapshot shards diverge from index metadata";
+
         if (indexMetadata.getReshardingMetadata() != null) {
             logger.debug("{} removing resharding metadata from index metadata to be included in the snapshot", indexMetadata.getIndex());
 
@@ -2049,43 +2053,35 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // so that resharding does not (possibly incorrectly) resume after a snapshot restore.
             IndexMetadata.Builder newMetadataBuilder = IndexMetadata.builder(indexMetadata).reshardingMetadata(null);
 
-            // We always check if we need to reset the number of shards
-            // since multiple reshard operations could have happened.
-            int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(allShards, indexMetadata.getIndex());
-            // We currently only expect resharding to increase the number of shards.
-            assert numberOfShards <= indexMetadata.getNumberOfShards();
-
-            if (numberOfShards != indexMetadata.getNumberOfShards()) {
+            // We always check if we need to reset the number of shards since multiple reshard operations could have happened,
+            // and we would need to reset the shard count beyond what is in the resharding metadata.
+            if (numberOfShardsAccordingToSnapshot != indexMetadata.getNumberOfShards()) {
                 logger.debug(
                     "{} - resetting the number of shards {} -> {} in index metadata to be included in the snapshot",
                     indexMetadata.getIndex(),
                     indexMetadata.getNumberOfShards(),
-                    numberOfShards
+                    numberOfShardsAccordingToSnapshot
                 );
                 // This should always succeed given that the only way the number of shards can change
                 // is resharding.
-                // Therefore, there previously was a successful transition from `numberOfShards` to current state
-                // and `numberOfShards` is a valid number of shards.
-                newMetadataBuilder = newMetadataBuilder.reshardRemoveShards(numberOfShards);
+                // Therefore, there previously was a successful transition from `numberOfShardsAccordingToSnapshot` to current state
+                // and `numberOfShardsAccordingToSnapshot` is a valid number of shards.
+                newMetadataBuilder = newMetadataBuilder.reshardRemoveShards(numberOfShardsAccordingToSnapshot);
             }
 
             return newMetadataBuilder.build();
         }
 
-        // Even if resharding metadata is not present it is still possible that resharding has happened
+        // Even if resharding metadata is not present it is still possible that resharding has happened and completed
         // while the snapshot was running and impacted it.
-        int numberOfShards = calculateNumberOfShardsAccordingToSnapshot(allShards, indexMetadata.getIndex());
-        // We currently only expect resharding to increase the number of shards.
-        assert numberOfShards <= indexMetadata.getNumberOfShards();
-
-        if (numberOfShards != indexMetadata.getNumberOfShards()) {
+        if (numberOfShardsAccordingToSnapshot != indexMetadata.getNumberOfShards()) {
             logger.debug(
                 "{} - resetting only the number of shards {} -> {} in index metadata to be included in the snapshot",
                 indexMetadata.getIndex(),
                 indexMetadata.getNumberOfShards(),
-                numberOfShards
+                numberOfShardsAccordingToSnapshot
             );
-            return IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShards).build();
+            return IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShardsAccordingToSnapshot).build();
         }
 
         // No changes.

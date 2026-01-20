@@ -122,11 +122,12 @@ public class Reindexer {
 
         if (request.getRemoteInfo() == null && crossProjectModeDecider.crossProjectEnabled()) {
             logger.info("--> enable CPS for search request");
-            request.getSearchRequest().indicesOptions(
-                IndicesOptions.builder(request.getSearchRequest().indicesOptions())
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build()
-            );
+            request.getSearchRequest()
+                .indicesOptions(
+                    IndicesOptions.builder(request.getSearchRequest().indicesOptions())
+                        .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                        .build()
+                );
         }
 
         BulkByScrollParallelizationHelper.executeSlicedAction(

@@ -41,9 +41,6 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
 
     @Override
     protected void doExecute(Task task, ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
-        logger.info("--> now clearing with [{}], transient [{}]",
-            clusterService.threadPool().getThreadContext().getHeaders().keySet(),
-            clusterService.threadPool().getThreadContext().getTransientHeaders().keySet());
         Runnable runnable = new ClearScrollController(request, listener, clusterService.state().nodes(), logger, searchTransportService);
         runnable.run();
     }

@@ -90,9 +90,6 @@ public final class ClearScrollController implements Runnable {
     }
 
     void cleanScrollIds(List<SearchContextIdForNode> contextIds) {
-        logger.info("--> cleanScrollIds with [{}], transient [{}]",
-            searchTransportService.transportService().getThreadPool().getThreadContext().getHeaders().keySet(),
-            searchTransportService.transportService().getThreadPool().getThreadContext().getTransientHeaders().keySet());
         SearchScrollAsyncAction.collectNodesAndRun(
             contextIds,
             nodes,
@@ -106,10 +103,6 @@ public final class ClearScrollController implements Runnable {
                         } else {
                             try {
                                 Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
-                                logger.info("--> each clearing for [{}] with [{}/{}], transient [{}]",
-                                    target.getClusterAlias(), node,
-                                    searchTransportService.transportService().getThreadPool().getThreadContext().getHeaders().keySet(),
-                                    searchTransportService.transportService().getThreadPool().getThreadContext().getTransientHeaders().keySet());
                                 searchTransportService.sendFreeContext(
                                     connection,
                                     target.getSearchContextId(),

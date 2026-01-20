@@ -71,11 +71,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                 isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
             );
         }
-        logger.info(
-            "--> before initial search request headers [{}], Transient headers [{}]",
-            threadPool.getThreadContext().getHeaders().keySet(),
-            threadPool.getThreadContext().getTransientHeaders().keySet()
-        );
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
@@ -84,7 +79,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
         request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
-        logger.info("--> scroll request with scroll id [{}]", scrollId);
         client.searchScroll(request, wrapListener(searchListener));
     }
 
@@ -114,8 +108,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
          * Unwrap the client so we don't set our task as the parent. If we *did* set our ID then the clear scroll would be cancelled as
          * if this task is cancelled. But we want to clear the scroll regardless of whether or not the main request was cancelled.
          */
-        logger.info("--> clearScroll [{}], transient [{}]", threadPool.getThreadContext().getHeaders().keySet(),
-            threadPool.getThreadContext().getTransientHeaders().keySet());
         client.unwrap().clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
             @Override
             public void onResponse(ClearScrollResponse response) {

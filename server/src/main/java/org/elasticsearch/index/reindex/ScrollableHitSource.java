@@ -93,10 +93,6 @@ public abstract class ScrollableHitSource {
 
     private void onResponse(Response response) {
         logger.trace("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-        logger.info("--> search succeeded with {} hits, scroll [{}], {}", response.getHits().size(), response.getScrollId(),
-            response.getHits());
-        logger.info("--> headers [{}]", threadPool.getThreadContext().getHeaders().keySet());
-        logger.info("--> T headers [{}]", threadPool.getThreadContext().getTransientHeaders().keySet());
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();

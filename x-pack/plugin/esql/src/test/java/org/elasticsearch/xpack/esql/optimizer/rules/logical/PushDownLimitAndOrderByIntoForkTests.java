@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -354,6 +355,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
      * }</pre>
      */
     public void testWithSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             from (from employees | where emp_no > 100),
                  (from employees | where emp_no < 10)

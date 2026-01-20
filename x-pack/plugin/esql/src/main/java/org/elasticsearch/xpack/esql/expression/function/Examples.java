@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import java.lang.annotation.ElementType;
-import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -18,31 +17,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.CONSTRUCTOR, ElementType.FIELD })
-@Repeatable(Examples.class)
-public @interface Example {
+public @interface Examples {
 
-    /**
-     * The description that will appear before the example
-     */
-    String description() default "";
-
-    /**
-     * The test file that contains the example.
-     */
-    String file();
-
-    /**
-     * The tag that fences this example.
-     */
-    String tag();
-
-    /**
-     * If the example is applicable to only a capability available in a specific version
-     */
-    String applies_to() default "";
-
-    /**
-     * The explanation that will appear after the example.
-     */
-    String explanation() default "";
+    Example[] value();
 }

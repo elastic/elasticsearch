@@ -78,11 +78,15 @@ public final class PatternTextDocValues extends BinaryDocValues {
     }
 
     @Override
-    public boolean advanceExact(int i) throws IOException {
-        argsDocValues.advanceExact(i);
-        argsInfoDocValues.advanceExact(i);
-        // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
-        return templateDocValues.advanceExact(i);
+    public boolean advanceExact(int target) throws IOException {
+        if (templateDocValues.advanceExact(target)) {
+            // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
+            argsDocValues.advanceExact(target);
+            argsInfoDocValues.advanceExact(target);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -96,7 +100,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
     }
 
     @Override
-    public int advance(int i) throws IOException {
+    public int advance(int target) throws IOException {
         throw new UnsupportedOperationException();
     }
 

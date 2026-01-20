@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
@@ -74,6 +73,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.StepResources;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1846,13 +1846,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         @Override
-        public void execute(
-            Index index,
-            ProjectState projectState,
-            ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator
-        ) {
+        public void execute(StepResources stepResources) {
             executeCount++;
-            executedIndices.add(index.getName());
+            executedIndices.add(stepResources.indexName());
             if (throwOnExecute) {
                 throw new RuntimeException("Test exception from DlmStep execute");
             }

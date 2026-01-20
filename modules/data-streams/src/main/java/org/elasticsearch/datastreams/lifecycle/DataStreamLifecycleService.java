@@ -73,6 +73,7 @@ import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDo
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.StepResources;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -516,7 +517,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     if (stepCompleted == false) {
                         // Throttling init
                         try {
-                            step.execute(index, projectState, transportActionsDeduplicator);
+                            step.execute(
+                                new StepResources(
+                                    index,
+                                    projectState,
+                                    transportActionsDeduplicator,
+                                    errorStore,
+                                    signallingErrorRetryInterval,
+                                    client
+                                )
+                            );
                         } catch (Exception ex) {
                             logger.warn(
                                 logger.getMessageFactory()

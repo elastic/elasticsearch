@@ -12,20 +12,17 @@ package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 // TODO: REMOVE BEFORE PR
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.StepResources;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.transport.TransportRequest;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 
 /**
  * A no-op step used as a placeholder for testing.
  */
-public class NoopStep implements DlmStep {
+public final class NoopStep implements DlmStep {
 
     private static final Logger logger = getLogger(NoopStep.class);
     private int iterCount = 0;
@@ -41,12 +38,8 @@ public class NoopStep implements DlmStep {
     }
 
     @Override
-    public void execute(
-        Index index,
-        ProjectState projectState,
-        ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator
-    ) {
-        logger.info("Executing NoopStep for index: {} in project: {}", index.getName(), projectState.projectId());
+    public void execute(StepResources stepResources) {
+        logger.info("Executing NoopStep for index: {} in project: {}", stepResources.indexName(), stepResources.projectId());
         // No-op
     }
 

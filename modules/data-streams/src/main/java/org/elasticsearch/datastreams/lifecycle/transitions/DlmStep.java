@@ -9,22 +9,14 @@
 
 package org.elasticsearch.datastreams.lifecycle.transitions;
 
-import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.transport.TransportRequest;
 
 public interface DlmStep {
 
     boolean stepCompleted(Index index, ProjectState projectState);
 
-    void execute(
-        Index index,
-        ProjectState projectState,
-        ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator
-    );
+    void execute(StepResources stepResources);
 
     String stepName();
 

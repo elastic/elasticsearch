@@ -1,8 +1,8 @@
 {
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
-  "type" : "promql_across_series",
-  "name" : "count",
-  "description" : "Counts the number of elements in the input vector.",
+  "type" : "promql_value_transformation",
+  "name" : "clamp_min",
+  "description" : "Clamps the sample values of all elements to have a lower limit of min.",
   "signatures" : [
     {
       "params" : [
@@ -11,6 +11,12 @@
           "type" : "instant_vector",
           "optional" : false,
           "description" : "Instant vector input."
+        },
+        {
+          "name" : "min",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Minimum value."
         }
       ],
       "variadic" : false,
@@ -18,7 +24,7 @@
     }
   ],
   "examples" : [
-    "count(http_requests_total)"
+    "clamp_min(http_requests_total, 0)"
   ],
   "preview" : true,
   "snapshot_only" : false

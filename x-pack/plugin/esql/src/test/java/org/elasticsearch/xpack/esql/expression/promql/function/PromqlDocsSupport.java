@@ -87,16 +87,17 @@ public class PromqlDocsSupport extends DocsV3Support {
             case WITHIN_SERIES_AGGREGATION -> "promql_within_series";
             case ACROSS_SERIES_AGGREGATION -> "promql_across_series";
             case VALUE_TRANSFORMATION -> "promql_value_transformation";
-            case VECTOR_CONVERSION -> "promql_vector";
+            case VECTOR_CONVERSION -> "promql_vector_conversion";
             case SCALAR -> "promql_scalar";
+            case METADATA_MANIPULATION -> "promql_metadata";
+            case TIME_EXTRACTION -> "promql_time";
+            case HISTOGRAM -> "promql_histogram";
+            case SCALAR_CONVERSION -> "promql_scalar_conversion";
         };
     }
 
     private String mapReturnType(FunctionType type) {
-        return switch (type) {
-            case SCALAR -> "scalar";
-            default -> "instant_vector";
-        };
+        return type.outputType().toString();
     }
 
     public static void generateAll(Callbacks callbacks) throws Exception {

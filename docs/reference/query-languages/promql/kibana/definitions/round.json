@@ -1,8 +1,8 @@
 {
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
-  "type" : "promql_across_series",
-  "name" : "count",
-  "description" : "Counts the number of elements in the input vector.",
+  "type" : "promql_value_transformation",
+  "name" : "round",
+  "description" : "Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.",
   "signatures" : [
     {
       "params" : [
@@ -11,6 +11,12 @@
           "type" : "instant_vector",
           "optional" : false,
           "description" : "Instant vector input."
+        },
+        {
+          "name" : "to_nearest",
+          "type" : "scalar",
+          "optional" : true,
+          "description" : "Round to nearest multiple of this value."
         }
       ],
       "variadic" : false,
@@ -18,7 +24,7 @@
     }
   ],
   "examples" : [
-    "count(http_requests_total)"
+    "round(rate(http_requests_total[5m]))"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -20,7 +20,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "instant_vector"
+      "returnType" : "instant vector"
     }
   ],
   "examples" : [

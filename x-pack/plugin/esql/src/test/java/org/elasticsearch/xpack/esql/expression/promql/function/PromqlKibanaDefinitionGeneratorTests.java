@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
  * <pre>
  * $TMPDIR/promql/kibana/definitions/*.json
  * </pre>
- * </pre>
  */
 public class PromqlKibanaDefinitionGeneratorTests extends ESTestCase {
 

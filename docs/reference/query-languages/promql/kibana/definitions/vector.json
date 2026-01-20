@@ -1,6 +1,6 @@
 {
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
-  "type" : "promql_vector",
+  "type" : "promql_vector_conversion",
   "name" : "vector",
   "description" : "Returns the scalar as a vector with no labels.",
   "signatures" : [
@@ -14,7 +14,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "instant_vector"
+      "returnType" : "instant vector"
     }
   ],
   "examples" : [

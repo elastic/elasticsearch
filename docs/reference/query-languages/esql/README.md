@@ -286,8 +286,9 @@ docs/reference/query-languages/promql/kibana/definitions/*.json
 To generate the PromQL definition files, run:
 
 ```bash
-./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests" -DgenerateDocs=write
+./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
 ```
+The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
 
 ### PromQL Function Types
 

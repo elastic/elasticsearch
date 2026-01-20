@@ -1,8 +1,8 @@
 {
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "promql_value_transformation",
-  "name" : "atan",
-  "description" : "Calculates the arctangent of all elements in the input vector.",
+  "name" : "clamp",
+  "description" : "Clamps the sample values of all elements to be within [min, max].",
   "signatures" : [
     {
       "params" : [
@@ -11,6 +11,18 @@
           "type" : "instant_vector",
           "optional" : false,
           "description" : "Instant vector input."
+        },
+        {
+          "name" : "min",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Minimum value."
+        },
+        {
+          "name" : "max",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Maximum value."
         }
       ],
       "variadic" : false,
@@ -18,7 +30,7 @@
     }
   ],
   "examples" : [
-    "atan(some_metric)"
+    "clamp(http_requests_total, 0, 100)"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -2,12 +2,16 @@
 applies_to:
   stack: preview 9.3
   serverless: preview
-navigation_title: "TDigest"
+navigation_title: "T-digest"
 ---
 
-# T-Digest Field Type [tdigest]
+# T-digest field type [tdigest]
 
-A field to store pre-aggregated numerical data constructed using the [T-Digest](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) algorithm.  This is sent via two arrays:
+A field to store pre-aggregated numerical data constructed using the [T-Digest](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) algorithm.
+
+## Structure of a `tdigest` field
+
+A `tdigest` field requires two arrays:
 
 * A `centroids` array of
   [`double`](/reference/elasticsearch/mapping-reference/number.md), containing
@@ -26,9 +30,9 @@ The field also accepts three optional summary fields:
 * `max`, a [`double`](/reference/elasticsearch/mapping-reference/number.md),
   representing the maximum of the values being summarized by the t-digest
 
-Specifying the summary values has the benefit that they can be calculated at
-higher accuracy from the raw data.  If they are not specified, Elasticsearch
-will compute them based on the given `centroids` and `counts`, with some loss of
+Specifying the summary values enables them to be calculated with
+higher accuracy from the raw data. If not specified, Elasticsearch
+computes them based on the given `centroids` and `counts`, with some loss of
 accuracy.
 
 ::::{important}
@@ -65,12 +69,12 @@ indexed.
 `tdigest` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 
 ::::{note}
-To save space, zero-count buckets are not stored in the tdigest doc values. As a result, when indexing a tdigest field in an index with synthetic source enabled, indexing a tdigest including zero-count buckets will result in missing buckets when fetching back the tdigest.
+To save space, zero-count buckets are not stored in `tdigest` doc values. If you index a `tdigest` field with zero-count buckets and synthetic `_source` is enabled, those buckets won't appear when you retrieve the field.
 ::::
 
 ## Examples
 
-Create an index with a `tdigest` field:
+### Create an index with a `tdigest` field
 
 ```console
 PUT my-index-000001
@@ -85,7 +89,7 @@ PUT my-index-000001
 }
 ```
 
-Indexing a minimal document
+### Index a simple document
 ```console
 PUT my-index-000001/_doc/1
 {

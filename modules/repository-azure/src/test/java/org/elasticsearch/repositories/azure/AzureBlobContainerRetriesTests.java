@@ -20,7 +20,6 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -108,7 +107,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private static final String ACCOUNT = "account";
     private static final String CONTAINER = "container";
 
-    protected boolean serverlessMode;
     private AzureClientProvider clientProvider;
     private ClusterService clusterService;
     private ThreadPool threadPool;
@@ -116,7 +114,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     @Before
     public void setUp() throws Exception {
-        serverlessMode = false;
         threadPool = new TestThreadPool(
             getTestClass().getName(),
             AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
@@ -701,7 +698,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
         secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
         clientSettings.setSecureSettings(secureSettings);
-        clientSettings.put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, serverlessMode);
 
         final AzureStorageService service = new AzureStorageService(
             clientSettings.build(),

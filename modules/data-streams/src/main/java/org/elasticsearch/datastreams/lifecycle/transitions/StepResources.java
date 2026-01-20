@@ -20,31 +20,17 @@ import org.elasticsearch.transport.TransportRequest;
 
 public record StepResources(
     Index index,
-    String indexName,
     ProjectState projectState,
-    ProjectId projectId,
     ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
     DataStreamLifecycleErrorStore errorStore,
     int signallingErrorRetryThreshold,
     Client client
 ) {
-    public StepResources(
-        Index index,
-        ProjectState projectState,
-        ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
-        DataStreamLifecycleErrorStore errorStore,
-        int signallingErrorRetryThreshold,
-        Client client
-    ) {
-        this(
-            index,
-            index.getName(),
-            projectState,
-            projectState.projectId(),
-            transportActionsDeduplicator,
-            errorStore,
-            signallingErrorRetryThreshold,
-            client
-        );
+    public String indexName() {
+        return index.getName();
+    }
+
+    public ProjectId projectId() {
+        return projectState.projectId();
     }
 }

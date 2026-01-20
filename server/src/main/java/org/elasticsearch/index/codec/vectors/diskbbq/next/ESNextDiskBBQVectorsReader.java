@@ -277,12 +277,12 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+            public IVFVectorsReader.CentroidMeta nextPostingListCentroidMeta() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new IVFVectorsReader.CentroidMeta(postingListOffset, postingListLength, centroidOrdinal);
             }
         };
     }
@@ -321,7 +321,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 }
             };
         }
-        final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
+        final float[] scores = new float[BULK_SIZE];
         final NeighborQueue neighborQueue;
         if (acceptCentroids != null && numCentroidsFiltered <= bufferSize) {
             // we are collecting every non-filter centroid, therefore we do not need to score the

@@ -199,8 +199,9 @@ public class LimitOperatorTests extends OperatorTestCase {
     @Override
     protected final void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         var emittedRows = output.stream().mapToInt(Page::getPositionCount).sum();
+        var receivedRows = input.stream().mapToInt(Page::getPositionCount).sum();
 
-        var mapMatcher = matchesMap().entry("rows_received", emittedRows)
+        var mapMatcher = matchesMap().entry("rows_received", receivedRows)
             .entry("pages_processed", output.size())
             .entry("rows_emitted", emittedRows)
             .entry("limit", 100)

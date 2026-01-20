@@ -1,0 +1,5 @@
+pr: 139529
+summary: Format "_query" response dates using the given timezone
+area: ES|QL
+type: enhancement
+issues: []

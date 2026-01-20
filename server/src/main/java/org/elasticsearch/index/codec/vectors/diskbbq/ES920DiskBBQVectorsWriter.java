@@ -556,28 +556,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 -1 // disable SOAR assignments
             );
         }
-        final KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
-        return new Clusters() {
-            @Override
-            public float[] getCentroid(int vectorOrdinal) {
-                return kMeansResult.centroids()[kMeansResult.assignments()[vectorOrdinal]];
-            }
-
-            @Override
-            public CentroidSupplier centroidsSupplier() {
-                return kMeansResult.centroidsSupplier();
-            }
-
-            @Override
-            public int[] assignments() {
-                return kMeansResult.assignments();
-            }
-
-            @Override
-            public int[] secondaryAssignments() {
-                return kMeansResult.secondaryAssignments();
-            }
-        };
+        return hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
     }
 
     private CentroidGroups buildCentroidGroups(CentroidSupplier centroidSupplier) throws IOException {

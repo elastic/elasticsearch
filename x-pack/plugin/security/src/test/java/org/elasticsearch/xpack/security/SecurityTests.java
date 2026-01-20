@@ -527,7 +527,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
@@ -552,7 +552,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(

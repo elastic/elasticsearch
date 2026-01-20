@@ -60,9 +60,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
-  issue: https://github.com/elastic/elasticsearch/issues/122102
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -180,9 +177,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/126748
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test stop transform with force and wait_for_checkpoint true}
   issue: https://github.com/elastic/elasticsearch/issues/135135
@@ -306,9 +300,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/140624
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
@@ -324,75 +315,60 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields
   issue: https://github.com/elastic/elasticsearch/issues/140664
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testRecoveredOperations
-  issue: https://github.com/elastic/elasticsearch/issues/140665
-- class: org.elasticsearch.xpack.esql.parser.SetParserTests
-  method: testSetUnmappedFieldsWrongValue
-  issue: https://github.com/elastic/elasticsearch/issues/140673
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInOrOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140750
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140751
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushDownMetadataTierInAndNotOperator {default}
-  issue: https://github.com/elastic/elasticsearch/issues/140752
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/140753
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeDuringSnapshotWithOtherRunningShardSnapshots
-  issue: https://github.com/elastic/elasticsearch/issues/140755
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testStartRemoveNodeButDoNotComplete
-  issue: https://github.com/elastic/elasticsearch/issues/140759
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testAbortSnapshotWhileRemovingNode
-  issue: https://github.com/elastic/elasticsearch/issues/140760
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testShutdownWhileSuccessInFlight
-  issue: https://github.com/elastic/elasticsearch/issues/140761
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testSnapshotShutdownProgressTracker
-  issue: https://github.com/elastic/elasticsearch/issues/140762
 - class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140763
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeAndFailoverMasterDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/140764
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRestartNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/140765
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140766
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140767
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140768
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/140769
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/140772
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/140773
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/46_downsample/Stats from downsampled and non-downsampled index simultaneously with implicit casting}
   issue: https://github.com/elastic/elasticsearch/issues/140774
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testItemFailures {p0=false p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/140778
 - class: org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140784
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
+  issue: https://github.com/elastic/elasticsearch/issues/140802
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/139213
+- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/140804
+- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/140805
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:string.Url_encode_component tests with table reads}
+  issue: https://github.com/elastic/elasticsearch/issues/140809
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
+  method: testFailsOnCopyAfterWrite
+  issue: https://github.com/elastic/elasticsearch/issues/140819
+- class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
+  method: test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/140890
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testReadBlobWithPrematureConnectionClose
+  issue: https://github.com/elastic/elasticsearch/issues/140954
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/140941
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<small positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/140999
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/141000
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<big positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/141001
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<small positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/141002
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/141003
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<big positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/141004
 
 # Examples:
 #

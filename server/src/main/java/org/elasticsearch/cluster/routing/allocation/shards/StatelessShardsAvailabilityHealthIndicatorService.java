@@ -55,6 +55,7 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
         DiscoveryNodeRole.INDEX_ROLE.roleName()
     );
 
+    // TODO: Revisit whether we want this URL to point to stateless-specific docs in ES-13697
     private static final Map<String, Diagnosis.Definition> ACTION_DEBUG_NODES_LOOKUP = SHARD_ROLES.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -72,6 +73,7 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
             )
         );
 
+    // TODO: Revisit whether we want this URL to point to stateless-specific docs in ES-13697
     private static final Diagnosis.Definition ACTION_ADJUST_SEARCH_CAPACITY = new Diagnosis.Definition(
         NAME,
         "update_shards:role:" + DiscoveryNodeRole.SEARCH_ROLE.roleName(),

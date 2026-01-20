@@ -230,6 +230,10 @@ Which returns:
 % TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 ### Setting the query timezone [esql-timezones]
+```{applies_to}
+stack: preview 9.4
+serverless: preview
+```
 
 To set the default timezone for the query, use the `time_zone` parameter in the request body. If not specified, the default timezone is UTC.
 

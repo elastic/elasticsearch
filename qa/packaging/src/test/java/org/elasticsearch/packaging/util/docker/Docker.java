@@ -81,7 +81,7 @@ public class Docker {
      */
     private static final String ELASTICSEARCH_FULL_CLASSNAME = "org.elasticsearch.bootstrap.Elasticsearch";
     private static final String FIND_ELASTICSEARCH_PROCESS = "for pid in $(ps -eo pid,comm | grep java | awk '\\''{print $1}'\\''); "
-        + "do cmdline=$(tr \"\\0\" \" \" < /proc/$pid/cmdline 2>/dev/null); [[ $cmdline == *"
+        + "do cmdline=$(cat /proc/$pid/cmdline 2>/dev/null | tr \"\\0\" \" \"); [[ $cmdline == *"
         + ELASTICSEARCH_FULL_CLASSNAME
         + "* ]] && echo \"$pid: $cmdline\"; done";
 

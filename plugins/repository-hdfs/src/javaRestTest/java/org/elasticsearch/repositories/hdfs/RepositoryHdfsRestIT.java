@@ -9,27 +9,16 @@
 
 package org.elasticsearch.repositories.hdfs;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
 import org.elasticsearch.test.fixtures.hdfs.HdfsFixture;
-import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.util.Map;
+public class RepositoryHdfsRestIT extends AbstractRepositoryHdfsRestIT {
 
-@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class, TestContainersThreadFilter.class })
-public class RepositoryHdfsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    public static HdfsFixture hdfsFixture = new HdfsFixture();
+    private static final HdfsFixture hdfsFixture = new HdfsFixture();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -41,17 +30,13 @@ public class RepositoryHdfsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(hdfsFixture).around(cluster);
 
-    public RepositoryHdfsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters(Map.of("hdfs_port", hdfsFixture.getPort()), "hdfs_repository");
+    @Override
+    HdfsFixture hdfsFixture() {
+        return hdfsFixture;
     }
 }

@@ -1912,6 +1912,11 @@ public class EsqlCapabilities {
         ENRICH_DENSE_VECTOR_BUGFIX,
 
         /**
+         * Support for dense_vector arithmetic operations (+, -, *, /)
+         */
+        DENSE_VECTOR_ARITHMETIC,
+
+        /**
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,

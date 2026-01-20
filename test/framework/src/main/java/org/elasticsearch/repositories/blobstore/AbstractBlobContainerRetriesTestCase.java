@@ -297,6 +297,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             ) {
                 if (stream instanceof RetryingInputStream<?> ris) {
                     meaningfulProgressSize.set(ris.meaningfulProgressSize());
+                } else if (stream instanceof RetryingInputStreamUnwrappable rius) {
+                    final var wrapped = rius.unwrap();
+                    if (wrapped != null) {
+                        meaningfulProgressSize.set(wrapped.meaningfulProgressSize());
+                    }
                 }
                 Streams.readFully(stream);
             }
@@ -314,7 +319,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         int meaningfulProgressRetries = Math.toIntExact(
             retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
         );
-        assertEquals(exception.getSuppressed().length, maxRetries + meaningfulProgressRetries);
+        assertEquals(maxRetries + meaningfulProgressRetries, exception.getSuppressed().length);
     }
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
@@ -613,5 +618,14 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
      */
     protected final TestBlobContainerBuilder blobContainerBuilder() {
         return new TestBlobContainerBuilder();
+    }
+
+    /**
+     * If we wrap the {@link RetryingInputStream} in tests we can expose it using this interface
+     * so that {@link #testReadBlobWithReadTimeouts()} can determine the meaninful progress size
+     */
+    protected interface RetryingInputStreamUnwrappable {
+        @Nullable
+        RetryingInputStream<?> unwrap();
     }
 }

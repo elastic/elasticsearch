@@ -114,7 +114,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
                                 .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(),
+                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
                             null
                         ),
                         params -> params.service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, params.persistedConfig.config()),
@@ -126,7 +126,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
                                 .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(),
+                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
                             createRandomChunkingSettingsMap(),
                             null
                         ),
@@ -140,7 +140,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             var persistedConfigMap = getPersistedConfigMap(
                                 testConfiguration.commonConfig()
                                     .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
                                 null
                             );
                             persistedConfigMap.config().put("extra_key", "value");
@@ -157,7 +157,11 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                                 .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT);
                             serviceSettings.put("extra_key", "value");
 
-                            return getPersistedConfigMap(serviceSettings, testConfiguration.commonConfig().createTaskSettingsMap(), null);
+                            return getPersistedConfigMap(
+                                serviceSettings,
+                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                null
+                            );
                         },
                         params -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
                         TaskType.COMPLETION
@@ -166,7 +170,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                     new TestCaseBuilder(
                         "Test parsing persisted config does not throw when an extra key exists in task settings",
                         testConfiguration -> {
-                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap();
+                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION);
                             taskSettingsMap.put("extra_key", "value");
 
                             return getPersistedConfigMap(
@@ -186,7 +190,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
                                 .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(),
+                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
                         params -> params.service.parsePersistedConfigWithSecrets(
@@ -204,7 +208,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
                                 .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(),
+                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
                             createRandomChunkingSettingsMap(),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
@@ -223,7 +227,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
                                 .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(),
+                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
                         params -> params.service.parsePersistedConfigWithSecrets(
@@ -240,7 +244,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
                                 .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(),
+                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
                         params -> params.service.parsePersistedConfigWithSecrets(
@@ -258,7 +262,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             var persistedConfigMap = getPersistedConfigMap(
                                 testConfiguration.commonConfig()
                                     .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                             persistedConfigMap.config().put("extra_key", "value");
@@ -282,7 +286,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
 
                             return getPersistedConfigMap(
                                 serviceSettings,
-                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                         },
@@ -298,7 +302,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                     new TestCaseBuilder(
                         "Test parsing persisted config with with secrets does not throw when an extra key exists in task settings",
                         testConfiguration -> {
-                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap();
+                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION);
                             taskSettingsMap.put("extra_key", "value");
 
                             return getPersistedConfigMap(
@@ -326,7 +330,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             return getPersistedConfigMap(
                                 testConfiguration.commonConfig()
                                     .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
                                 secretSettingsMap
                             );
                         },

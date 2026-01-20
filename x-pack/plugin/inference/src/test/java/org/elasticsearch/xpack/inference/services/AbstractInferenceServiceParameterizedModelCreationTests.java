@@ -227,6 +227,6 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
     private void assertSuccessfulModelCreation(SenderService service, Utils.ModelConfigAndSecrets persistedConfig) {
         var model = testCase.modelCreator.buildModel(new ModelCreatorParams(service, persistedConfig, testConfiguration));
 
-        testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, true);
+        testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, true, ConfigurationParseContext.PERSISTENT);
     }
 }

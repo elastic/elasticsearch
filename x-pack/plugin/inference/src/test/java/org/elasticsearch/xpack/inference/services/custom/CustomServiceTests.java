@@ -122,7 +122,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                                 taskType,
                                 CustomService.NAME,
                                 mock(CustomServiceSettings.class),
-                                CustomTaskSettings.fromMap(createTaskSettingsMap())
+                                mock(CustomTaskSettings.class)
                             );
                         }
                         default -> throw new IllegalArgumentException("unexpected task type [" + taskType + "]");

@@ -122,11 +122,19 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
             return createServiceSettingsMap(taskType);
         }
 
+        protected Map<String, Object> createTaskSettingsMap(TaskType taskType) {
+            return createTaskSettingsMap();
+        }
+
         protected abstract Map<String, Object> createTaskSettingsMap();
 
         protected abstract Map<String, Object> createSecretSettingsMap();
 
         protected abstract void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets);
+
+        protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets, ConfigurationParseContext parseContext) {
+            assertModel(model, taskType, modelIncludesSecrets);
+        }
 
         protected void assertModel(Model model, TaskType taskType) {
             assertModel(model, taskType, true);

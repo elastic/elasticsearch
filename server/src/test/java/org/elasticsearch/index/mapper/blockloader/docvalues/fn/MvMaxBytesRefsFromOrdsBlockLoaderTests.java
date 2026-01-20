@@ -45,8 +45,8 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
         try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMaxReader = mvMaxLoader.reader(breaker, ctx);) {
             assertThat(mvMaxReader, readerMatcher());
             try (
-                TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
+                TestBlock strings = read(stringsLoader, stringsReader, docs);
+                TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, docs);
             ) {
                 checkBlocks(strings, maxStrings);
             }
@@ -60,8 +60,8 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
                 }
                 docs = TestBlock.docs(docsArray);
                 try (
-                    TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                    TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
+                    TestBlock strings = read(stringsLoader, stringsReader, docs);
+                    TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, docs);
                 ) {
                     checkBlocks(strings, maxStrings);
                 }

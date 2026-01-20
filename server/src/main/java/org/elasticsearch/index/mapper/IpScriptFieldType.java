@@ -223,7 +223,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         }
-        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
+        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
 
 }

@@ -38,8 +38,8 @@ public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFr
         try (var doublesReader = doublesLoader.reader(breaker, ctx); var mvMaxDoublesReader = mvMaxDoublesLoader.reader(breaker, ctx);) {
             assertThat(mvMaxDoublesReader, readerMatcher());
             try (
-                TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
-                TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, ctx, docs);
+                TestBlock doubles = read(doublesLoader, doublesReader, docs);
+                TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, docs);
             ) {
                 checkBlocks(doubles, maxDoubles);
             }
@@ -53,8 +53,8 @@ public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFr
                 }
                 docs = TestBlock.docs(docsArray);
                 try (
-                    TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
-                    TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, ctx, docs);
+                    TestBlock doubles = read(doublesLoader, doublesReader, docs);
+                    TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, docs);
                 ) {
                     checkBlocks(doubles, maxDoubles);
                 }

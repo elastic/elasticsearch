@@ -19,8 +19,6 @@ import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader.ESTIMATED_SIZE;
-
 /**
  * This block loader should be used for "wildcard-style" binary values, which is to say fields we have encoded into a binary
  * format that supports multivalued via an encoding on our side.  See also {@link BytesRefsFromOrdsBlockLoader} for ordinals

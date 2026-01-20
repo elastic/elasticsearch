@@ -152,7 +152,10 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         } else {
-            return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(leafFactory(blContext.lookup()));
+            return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(
+                leafFactory(blContext.lookup()),
+                blContext.scriptByteSize()
+            );
         }
     }
 

@@ -13,7 +13,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
@@ -63,7 +62,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
             release = 0;
             return new BytesRefsFromBinarySeparateCount(breaker, values, counts);
-        } finally{
+        } finally {
             breaker.addWithoutBreaking(-release);
         }
     }

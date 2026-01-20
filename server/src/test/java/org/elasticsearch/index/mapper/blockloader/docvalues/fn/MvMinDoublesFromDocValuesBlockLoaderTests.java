@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -38,8 +40,8 @@ public class MvMinDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFr
         try (var doublesReader = doublesLoader.reader(breaker, ctx); var mvMinDoublesReader = mvMinDoublesLoader.reader(breaker, ctx);) {
             assertThat(mvMinDoublesReader, readerMatcher());
             try (
-                TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
-                TestBlock minDoubles = read(mvMinDoublesLoader, mvMinDoublesReader, ctx, docs);
+                TestBlock doubles = read(doublesLoader, doublesReader, docs);
+                TestBlock minDoubles = read(mvMinDoublesLoader, mvMinDoublesReader, docs);
             ) {
                 checkBlocks(doubles, minDoubles);
             }
@@ -53,8 +55,8 @@ public class MvMinDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFr
                 }
                 docs = TestBlock.docs(docsArray);
                 try (
-                    TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
-                    TestBlock minDoubles = read(mvMinDoublesLoader, mvMinDoublesReader, ctx, docs);
+                    TestBlock doubles = read(doublesLoader, doublesReader, docs);
+                    TestBlock minDoubles = read(mvMinDoublesLoader, mvMinDoublesReader, docs);
                 ) {
                     checkBlocks(doubles, minDoubles);
                 }

@@ -71,33 +71,43 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-        SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
-        if (docValues != null) {
-            if (docValues.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(breaker, warnings, docValues);
+        long release = byteSize;
+        try {
+            SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
+            if (docValues != null) {
+                release = 0;
+                if (docValues.getValueCount() > LOW_CARDINALITY) {
+                    return new ImmediateOrdinals(breaker, warnings, docValues);
+                }
+                SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return new Singleton(breaker, singleton);
+                }
+                return new SortedSet(breaker, warnings, docValues);
             }
-            SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+            SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
             if (singleton != null) {
+                release = 0;
+                if (singleton.getValueCount() > LOW_CARDINALITY) {
+                    return new ImmediateOrdinals(breaker, warnings, DocValues.singleton(singleton));
+                }
                 return new Singleton(breaker, singleton);
             }
-            return new SortedSet(breaker, warnings, docValues);
-        }
-        SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
-        if (singleton != null) {
-            if (singleton.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(breaker, warnings, DocValues.singleton(singleton));
+            BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
+            if (binary != null) {
+                breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
+                release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                release = 0;
+                return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, binary);
             }
-            return new Singleton(breaker, singleton);
+            return ConstantNull.READER;
+        } finally {
+            if (release > 0) {
+                breaker.addWithoutBreaking(-release);
+            }
         }
-        BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
-        if (binary != null) {
-            breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
-            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-            return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, binary);
-        }
-        breaker.addWithoutBreaking(-byteSize);
-        return ConstantNull.READER;
     }
 
     @Override
@@ -663,9 +673,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(
-                -(byteSize + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE)
-            );
+            breaker.addWithoutBreaking(-(byteSize + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE));
         }
     }
 

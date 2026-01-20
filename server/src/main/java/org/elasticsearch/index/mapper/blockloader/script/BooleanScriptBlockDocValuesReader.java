@@ -11,13 +11,12 @@ package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.BooleanFieldScript;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
 
 /**
  * {@link BlockDocValuesReader} implementation for {@code boolean} scripts.
@@ -25,9 +24,11 @@ import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlo
 public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     public static class BooleanScriptBlockLoader extends DocValuesBlockLoader {
         private final BooleanFieldScript.LeafFactory factory;
+        private final long byteSize;
 
-        public BooleanScriptBlockLoader(BooleanFieldScript.LeafFactory factory) {
+        public BooleanScriptBlockLoader(BooleanFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
+            this.byteSize = byteSize.getBytes();
         }
 
         @Override
@@ -37,17 +38,21 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
 
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-            return new BooleanScriptBlockDocValuesReader(breaker, factory.newInstance(context));
+            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+            // NOCOMMIT tests for creation failing
+            return new BooleanScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final BooleanFieldScript script;
+    private final long byteSize;
     private int docId;
 
-    BooleanScriptBlockDocValuesReader(CircuitBreaker breaker, BooleanFieldScript script) {
+    BooleanScriptBlockDocValuesReader(CircuitBreaker breaker, BooleanFieldScript script, long byteSize) {
         super(breaker);
         this.script = script;
+        this.byteSize = byteSize;
+
     }
 
     @Override
@@ -99,6 +104,6 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public void close() {
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        breaker.addWithoutBreaking(-byteSize);
     }
 }

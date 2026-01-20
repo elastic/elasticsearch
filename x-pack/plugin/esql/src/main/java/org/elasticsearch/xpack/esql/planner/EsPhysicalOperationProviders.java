@@ -38,14 +38,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -66,7 +63,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -565,62 +561,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }
-            BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
-                @Override
-                public String indexName() {
-                    return ctx.getFullyQualifiedIndex().getName();
-                }
-
-                @Override
-                public IndexSettings indexSettings() {
-                    return ctx.getIndexSettings();
-                }
-
-                @Override
-                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                    return fieldExtractPreference;
-                }
-
-                @Override
-                public SearchLookup lookup() {
-                    return ctx.lookup();
-                }
-
-                @Override
-                public Set<String> sourcePaths(String name) {
-                    return ctx.sourcePath(name);
-                }
-
-                @Override
-                public String parentField(String field) {
-                    return ctx.parentPath(field);
-                }
-
-                @Override
-                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                    return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
-                }
-
-                @Override
-                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                    return blockLoaderFunctionConfig;
-                }
-
-                @Override
-                public MappingLookup mappingLookup() {
-                    return ctx.getMappingLookup();
-                }
-
-                @Override
-                public ByteSizeValue ordinalsByteSize() {
-                    return blockLoaderSizeOrdinals;
-                }
-
-                @Override
-                public ByteSizeValue scriptByteSize() {
-                    return blockLoaderSizeScript;
-                }
-            });
+            BlockLoader loader = fieldType.blockLoader(
+                new EsBlockLoaderContext(
+                    ctx,
+                    fieldExtractPreference,
+                    blockLoaderFunctionConfig,
+                    blockLoaderSizeOrdinals,
+                    blockLoaderSizeScript
+                )
+            );
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);
                 return ConstantNull.INSTANCE;

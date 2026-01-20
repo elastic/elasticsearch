@@ -11,13 +11,12 @@ package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.IpFieldScript;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
 
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
@@ -25,9 +24,11 @@ import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlo
 public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
     public static class IpScriptBlockLoader extends DocValuesBlockLoader {
         private final IpFieldScript.LeafFactory factory;
+        private final long byteSize;
 
-        public IpScriptBlockLoader(IpFieldScript.LeafFactory factory) {
+        public IpScriptBlockLoader(IpFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
+            this.byteSize = byteSize.getBytes();
         }
 
         @Override
@@ -37,17 +38,20 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
 
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-            return new IpScriptBlockDocValuesReader(breaker, factory.newInstance(context));
+            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+            // NOCOMMIT tests for creation failing
+            return new IpScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final IpFieldScript script;
+    private final long byteSize;
     private int docId;
 
-    IpScriptBlockDocValuesReader(CircuitBreaker breaker, IpFieldScript script) {
+    IpScriptBlockDocValuesReader(CircuitBreaker breaker, IpFieldScript script, long byteSize) {
         super(breaker);
         this.script = script;
+        this.byteSize = byteSize;
     }
 
     @Override
@@ -97,6 +101,6 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public void close() {
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        breaker.addWithoutBreaking(-byteSize);
     }
 }

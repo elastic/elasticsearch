@@ -17,6 +17,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE;
+import static org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE;
+
 /**
  * Values for cluster level settings used in physical planning.
  */
@@ -65,8 +68,8 @@ public class PlannerSettings {
      * Measured in heap dumps from 3.5kb to 65kb. This is an intentional overestimate.
      */
     public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_ORDINALS = Setting.byteSizeSetting(
-        "esql.block_loader",
-        ByteSizeValue.ofKb(100),
+        "esql.block_loader.size.ordinals",
+        DEFAULT_ORDINALS_BYTE_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -80,12 +83,11 @@ public class PlannerSettings {
      * script itself will actually use.
      */
     public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_SCRIPT = Setting.byteSizeSetting(
-        "esql.block_loader.size.",
-        ByteSizeValue.ofKb(300),
+        "esql.block_loader.size.script",
+        DEFAULT_SCRIPT_BYTE_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
 
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;

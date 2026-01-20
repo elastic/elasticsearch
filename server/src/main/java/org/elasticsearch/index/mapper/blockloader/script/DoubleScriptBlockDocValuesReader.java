@@ -11,13 +11,12 @@ package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.DoubleFieldScript;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader.ESTIMATED_SIZE;
 
 /**
  * {@link BlockDocValuesReader} implementation for {@code double} scripts.
@@ -25,9 +24,12 @@ import static org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlo
 public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
     public static class DoubleScriptBlockLoader extends DocValuesBlockLoader {
         private final DoubleFieldScript.LeafFactory factory;
+        private final long byteSize;
 
-        public DoubleScriptBlockLoader(DoubleFieldScript.LeafFactory factory) {
+        public DoubleScriptBlockLoader(DoubleFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
+            this.byteSize = byteSize.getBytes();
+
         }
 
         @Override
@@ -37,17 +39,21 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
 
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-            return new DoubleScriptBlockDocValuesReader(breaker, factory.newInstance(context));
+            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+            // NOCOMMIT tests for creation failing
+            return new DoubleScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final DoubleFieldScript script;
+    private final long byteSize;
     private int docId;
 
-    DoubleScriptBlockDocValuesReader(CircuitBreaker breaker, DoubleFieldScript script) {
+    DoubleScriptBlockDocValuesReader(CircuitBreaker breaker, DoubleFieldScript script, long byteSize) {
         super(breaker);
         this.script = script;
+        this.byteSize = byteSize;
+
     }
 
     @Override
@@ -95,6 +101,6 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public void close() {
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        breaker.addWithoutBreaking(-byteSize);
     }
 }

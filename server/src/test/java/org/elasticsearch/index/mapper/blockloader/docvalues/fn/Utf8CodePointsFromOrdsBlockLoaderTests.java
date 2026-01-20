@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -47,15 +48,15 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
         }
 
         var warnings = new MockWarnings();
-        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", randomLongBetween(1, 1000));
-        var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
+        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofKb(randomLongBetween(1, 1000)));
+        var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(randomLongBetween(1, 1000)));
         BlockLoader.Docs docs = TestBlock.docs(ctx);
 
-        try (var stringsReader = stringsLoader.reader(breaker, ctx); var codePointsReader = codePointsLoader.reader(breaker, ctx);) {
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var codePointsReader = codePointsLoader.reader(breaker, ctx)) {
             assertThat(codePointsReader, readerMatcher());
             try (
-                TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
+                TestBlock strings = read(stringsLoader, stringsReader, docs);
+                TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
             ) {
                 checkBlocks(strings, codePoints);
             }
@@ -71,8 +72,8 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
                 }
                 docs = TestBlock.docs(docsArray);
                 try (
-                    TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                    TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
+                    TestBlock strings = read(stringsLoader, stringsReader, docs);
+                    TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
                 ) {
                     checkBlocks(strings, codePoints);
                 }

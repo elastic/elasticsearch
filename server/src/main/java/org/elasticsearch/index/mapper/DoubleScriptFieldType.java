@@ -124,7 +124,10 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         } else {
-            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(
+                leafFactory(blContext.lookup()),
+                blContext.scriptByteSize()
+            );
         }
     }
 

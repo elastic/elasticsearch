@@ -673,6 +673,9 @@ public abstract class MappedFieldType {
      * Arguments for {@link #blockLoader}.
      */
     public interface BlockLoaderContext {
+        ByteSizeValue DEFAULT_ORDINALS_BYTE_SIZE = ByteSizeValue.ofKb(100);
+        ByteSizeValue DEFAULT_SCRIPT_BYTE_SIZE = ByteSizeValue.ofKb(300);
+
         /**
          * The name of the index.
          */

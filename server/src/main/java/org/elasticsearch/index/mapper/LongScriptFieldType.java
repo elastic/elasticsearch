@@ -124,7 +124,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         } else {
-            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
         }
     }
 

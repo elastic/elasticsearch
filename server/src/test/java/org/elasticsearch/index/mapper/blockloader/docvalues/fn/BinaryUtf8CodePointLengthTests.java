@@ -93,7 +93,7 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
 
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(between(1, 100)));
 
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (

@@ -129,7 +129,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         }
-        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()));
+        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
 
     private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

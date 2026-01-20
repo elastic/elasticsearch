@@ -25,9 +25,11 @@ import java.io.IOException;
 public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
     public static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
         private final StringFieldScript.LeafFactory factory;
+        private final long byteSize;
 
-        public KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory) {
+        public KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
+            this.byteSize = byteSize.getBytes();
         }
 
         @Override
@@ -37,18 +39,21 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
 
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-            return new KeywordScriptBlockDocValuesReader(breaker, factory.newInstance(context));
+            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+            // NOCOMMIT tests for creation failing
+            return new KeywordScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
-    private final BytesRefBuilder bytesBuild = new BytesRefBuilder();
+    private final BytesRefBuilder bytesBuild = new BytesRefBuilder(); // NOCOMMIT breaking builder
     private final StringFieldScript script;
+    private final long byteSize;
     private int docId;
 
-    KeywordScriptBlockDocValuesReader(CircuitBreaker breaker, StringFieldScript script) {
+    KeywordScriptBlockDocValuesReader(CircuitBreaker breaker, StringFieldScript script, long byteSize) {
         super(breaker);
         this.script = script;
+        this.byteSize = byteSize;
     }
 
     @Override
@@ -100,6 +105,6 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public void close() {
-        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        breaker.addWithoutBreaking(-byteSize);
     }
 }

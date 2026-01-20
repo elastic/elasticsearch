@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ClearScrollRequest extends LegacyActionRequest implements ToXContentObject {
+public class ClearScrollRequest extends LegacyActionRequest implements ToXContentObject, IndicesRequest.CrossProjectCandidate {
 
     private List<String> scrollIds;
 
@@ -120,5 +121,10 @@ public class ClearScrollRequest extends LegacyActionRequest implements ToXConten
                 }
             }
         }
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

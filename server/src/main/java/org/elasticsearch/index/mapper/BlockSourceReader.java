@@ -18,6 +18,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -124,7 +125,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         public final RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
             DocIdSetIterator iter = lookup.lookup(context);
             if (iter == null) {
-                return new ConstantNullsReader();
+                return ConstantNull.READER;
             }
             return rowStrideReader(context, iter);
         }

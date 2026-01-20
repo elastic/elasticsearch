@@ -9,6 +9,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -34,15 +35,18 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
 
   private final TemporalAmount temporalAmount;
 
+  private final ZoneId zoneId;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public SubDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator dateNanos,
-      TemporalAmount temporalAmount, DriverContext driverContext) {
+      TemporalAmount temporalAmount, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.dateNanos = dateNanos;
     this.temporalAmount = temporalAmount;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -80,7 +84,7 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
         }
         long dateNanos = dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount));
+          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount, this.zoneId));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,7 +99,7 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
       position: for (int p = 0; p < positionCount; p++) {
         long dateNanos = dateNanosVector.getLong(p);
         try {
-          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount));
+          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount, this.zoneId));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,7 +111,7 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "SubDateNanosEvaluator[" + "dateNanos=" + dateNanos + ", temporalAmount=" + temporalAmount + "]";
+    return "SubDateNanosEvaluator[" + "dateNanos=" + dateNanos + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -134,21 +138,24 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
 
     private final TemporalAmount temporalAmount;
 
+    private final ZoneId zoneId;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory dateNanos,
-        TemporalAmount temporalAmount) {
+        TemporalAmount temporalAmount, ZoneId zoneId) {
       this.source = source;
       this.dateNanos = dateNanos;
       this.temporalAmount = temporalAmount;
+      this.zoneId = zoneId;
     }
 
     @Override
     public SubDateNanosEvaluator get(DriverContext context) {
-      return new SubDateNanosEvaluator(source, dateNanos.get(context), temporalAmount, context);
+      return new SubDateNanosEvaluator(source, dateNanos.get(context), temporalAmount, zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "SubDateNanosEvaluator[" + "dateNanos=" + dateNanos + ", temporalAmount=" + temporalAmount + "]";
+      return "SubDateNanosEvaluator[" + "dateNanos=" + dateNanos + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
     }
   }
 }

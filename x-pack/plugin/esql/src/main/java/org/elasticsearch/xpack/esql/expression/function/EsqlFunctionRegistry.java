@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -86,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -195,6 +195,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
@@ -235,6 +236,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -420,6 +422,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
+                def(Chicken.class, Chicken::new, "chicken", Chicken.CHICKEN_EMOJI),
                 def(Concat.class, Concat::new, "concat"),
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
@@ -588,9 +591,9 @@ public class EsqlFunctionRegistry {
                 def(AllFirst.class, bi(AllFirst::new), "all_first"),
                 def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
-                def(Term.class, bi(Term::new), "term"),
                 // dense vector functions
-                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
+                def(Magnitude.class, Magnitude::new, "v_magnitude"),
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -745,7 +748,7 @@ public class EsqlFunctionRegistry {
     public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
         @Override
         public String toString() {
-            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
+            return "name='" + name + "', values=" + valueHint + ", description='" + description + "', type=" + type;
         }
     }
 
@@ -798,7 +801,7 @@ public class EsqlFunctionRegistry {
 
         return types.stream()
             .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
-            .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
+            .min(Comparator.comparing(DATA_TYPE_CASTING_PRIORITY::get))
             .orElse(UNSUPPORTED);
     }
 

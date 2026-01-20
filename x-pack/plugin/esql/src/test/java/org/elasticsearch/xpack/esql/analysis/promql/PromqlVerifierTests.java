@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PromqlVerifierTests extends ESTestCase {
@@ -28,23 +29,17 @@ public class PromqlVerifierTests extends ESTestCase {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
     }
 
-    public void testPromqlMissingAcrossSeriesAggregation() {
+    public void testPromqlRangeVector() {
         assertThat(
-            error("""
-                PROMQL index=test step=5m (
-                  rate(network.bytes_in[5m])
-                )""", tsdb),
-            equalTo("2:3: only aggregations across timeseries are supported at this time (found [rate(network.bytes_in[5m])])")
+            error("PROMQL index=test step=5m network.bytes_in[5m]", tsdb),
+            equalTo("1:27: invalid expression type \"range vector\" for range query, must be scalar or instant vector")
         );
     }
 
-    public void testPromqlStepAndRangeMisaligned() {
+    public void testPromqlRangeVectorBinaryExpression() {
         assertThat(
-            error("""
-                PROMQL index=test step=1m (
-                  avg(rate(network.bytes_in[5m]))
-                )""", tsdb),
-            equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
+            error("PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])", tsdb),
+            equalTo("1:31: binary expression must contain only scalar and instant vector types")
         );
     }
 
@@ -58,34 +53,11 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlSubquery() {
         assertThat(
             error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:])))", tsdb),
-            equalTo("1:37: subqueries are not supported at this time [network.bytes_in[5m:]]")
+            equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:]]")
         );
         assertThat(
             error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
-            equalTo("1:37: subqueries are not supported at this time [network.bytes_in[5m:1m]]")
-        );
-    }
-
-    @AwaitsFix(
-        bugUrl = "Doesn't parse: line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; "
-            + "expected LogicalPlan but found VectorBinaryArithmetic"
-    )
-    public void testPromqlArithmetricOperators() {
-        assertThat(
-            error("PROMQL index=test step=5m (1+1)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
-        );
-        assertThat(
-            error("PROMQL index=test step=5m (foo+1)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
-        );
-        assertThat(
-            error("PROMQL index=test step=5m (1+foo)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
-        );
-        assertThat(
-            error("PROMQL index=test step=5m (foo+bar)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
+            equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:1m]]")
         );
     }
 
@@ -115,21 +87,47 @@ public class PromqlVerifierTests extends ESTestCase {
             error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m] offset 5m)))", tsdb),
             equalTo("1:37: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
         );
-        /* TODO
         assertThat(
-            error("PROMQL index=test step=5m (foo @ start())", tsdb),
-            equalTo("1:27: @ modifiers are not supported at this time [foo @ start()]")
-        );*/
+            error("PROMQL index=test step=5m start=0 end=1 (avg(foo @ start()))", tsdb),
+            equalTo("1:46: @ modifiers are not supported at this time [foo @ start()]")
+        );
     }
 
-    @AwaitsFix(
-        bugUrl = "Doesn't parse: line 1:27: Invalid query 'foo and bar'[LogicalBinaryContext] given; "
-            + "expected Expression but found InstantSelector"
-    )
     public void testLogicalSetBinaryOperators() {
-        assertThat(error("PROMQL index=test step=5m (foo and bar)", tsdb), equalTo(""));
-        assertThat(error("PROMQL index=test step=5m (foo or bar)", tsdb), equalTo(""));
-        assertThat(error("PROMQL index=test step=5m (foo unless bar)", tsdb), equalTo(""));
+        List.of("and", "or", "unless").forEach(op -> {
+            assertThat(
+                error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
+                containsString("VectorBinarySet queries are not supported at this time")
+            );
+        });
+    }
+
+    public void testPromqlInstantQuery() {
+        assertThat(
+            error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
+            equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+        );
+    }
+
+    public void testNoMetricNameMatcherNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+            containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
+        );
+    }
+
+    public void testWithoutNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
+            containsString("'without' grouping is not supported at this time")
+        );
+    }
+
+    public void groupModifiersNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+            containsString("queries with group modifiers are not supported at this time")
+        );
     }
 
     @Override

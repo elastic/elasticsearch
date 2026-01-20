@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -758,39 +759,52 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private final TestCase testCase;
+    private final BlockLoaderTestRunner blockLoaderTestRunner;
 
     private static final int ROUTING_HASH = 7;
 
     public TsidExtractingIdFieldMapperTests(@Named("testCase") TestCase testCase) {
         this.testCase = testCase;
+        this.blockLoaderTestRunner = new BlockLoaderTestRunner(
+            new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values())),
+            false
+        );
     }
 
     public void testExpectedIdWithRoutingPath() throws IOException {
-        assertThat(parse(mapperService(false), testCase.source).id(), equalTo(testCase.expectedIdWithRoutingPath));
+        MapperService mapperService = mapperService(false);
+        ParsedDocument parsed = parse(mapperService, testCase.source);
+        assertThat(parsed.id(), equalTo(testCase.expectedIdWithRoutingPath));
+        verifyIdFromBlockLoader(mapperService, parsed, testCase.expectedIdWithRoutingPath);
     }
 
     public void testExpectedIdWithIndexDimensions() throws IOException {
-        assertThat(parse(mapperService(true), testCase.source).id(), equalTo(testCase.expectedIdWithIndexDimensions));
+        MapperService mapperService = mapperService(true);
+        ParsedDocument parsed = parse(mapperService, testCase.source);
+        assertThat(parsed.id(), equalTo(testCase.expectedIdWithIndexDimensions));
+        verifyIdFromBlockLoader(mapperService, parsed, testCase.expectedIdWithIndexDimensions);
     }
 
     public void testProvideExpectedIdWithRoutingPath() throws IOException {
-        assertThat(
-            parse(testCase.expectedIdWithRoutingPath, mapperService(false), testCase.source).id(),
-            equalTo(testCase.expectedIdWithRoutingPath)
-        );
+        MapperService mapperService = mapperService(false);
+        ParsedDocument parsed = parse(testCase.expectedIdWithRoutingPath, mapperService, testCase.source);
+        assertThat(parsed.id(), equalTo(testCase.expectedIdWithRoutingPath));
+        verifyIdFromBlockLoader(mapperService, parsed, testCase.expectedIdWithRoutingPath);
     }
 
     public void testProvideExpectedIdWithIndexDimensions() throws IOException {
-        assertThat(
-            parse(testCase.expectedIdWithIndexDimensions, mapperService(true), testCase.source).id(),
-            equalTo(testCase.expectedIdWithIndexDimensions)
-        );
+        MapperService mapperService = mapperService(true);
+        ParsedDocument parsed = parse(testCase.expectedIdWithIndexDimensions, mapperService, testCase.source);
+        assertThat(parsed.id(), equalTo(testCase.expectedIdWithIndexDimensions));
+        verifyIdFromBlockLoader(mapperService, parsed, testCase.expectedIdWithIndexDimensions);
     }
 
     public void testEquivalentSourcesWithRoutingPath() throws IOException {
         MapperService mapperService = mapperService(false);
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
-            assertThat(parse(mapperService, equivalent).id(), equalTo(testCase.expectedIdWithRoutingPath));
+            ParsedDocument parsed = parse(mapperService, equivalent);
+            assertThat(parsed.id(), equalTo(testCase.expectedIdWithRoutingPath));
+            verifyIdFromBlockLoader(mapperService, parsed, testCase.expectedIdWithRoutingPath);
         }
     }
 
@@ -841,7 +855,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private MapperService mapperService(boolean indexDimensions) throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         return createMapperService(indexSettings(version, indexDimensions), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -975,5 +989,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                     + "]"
             )
         );
+    }
+
+    private void verifyIdFromBlockLoader(MapperService mapperService, ParsedDocument doc, String expectedId) throws IOException {
+        blockLoaderTestRunner.runTest(mapperService, doc, new BytesRef(expectedId), "_id");
     }
 }

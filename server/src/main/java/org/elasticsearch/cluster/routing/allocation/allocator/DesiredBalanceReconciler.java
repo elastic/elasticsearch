@@ -530,6 +530,14 @@ public class DesiredBalanceReconciler {
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
                         movedUndesiredShard = true;
+                    } else {
+                        logger.trace(
+                            "Cannot move shard [{}][{}] away from {}, and cannot remain because of [{}]",
+                            shardRouting.index(),
+                            shardRouting.shardId(),
+                            shardRouting.currentNodeId(),
+                            canRemainDecision
+                        );
                     }
                 } finally {
                     if (movedUndesiredShard) {

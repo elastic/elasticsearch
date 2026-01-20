@@ -15,7 +15,7 @@ import java.util.Objects;
 
 /**
  * A query for matching an exact BytesRef value for a specific field.
- * The equavalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
+ * The equivalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
  * but then for binary doc values.
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.

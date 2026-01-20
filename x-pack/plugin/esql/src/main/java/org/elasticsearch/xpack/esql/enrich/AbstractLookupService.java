@@ -290,7 +290,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
                 projectState,
                 request.shardId.getIndex().getName(),
-                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
+                indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(projectState.metadata(), request.indexPattern)
             );
 
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
@@ -301,7 +301,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 localBreakerSettings.maxOverReservedBytes()
             );
             releasables.add(localBreaker);
-            final DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
+            final DriverContext driverContext = new DriverContext(
+                bigArrays,
+                blockFactory.newChildFactory(localBreaker),
+                localBreakerSettings
+            );
             final ElementType[] mergingTypes = new ElementType[request.extractFields.size()];
             for (int i = 0; i < request.extractFields.size(); i++) {
                 mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
@@ -444,13 +448,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }
-                        return loader;
+                        return ValuesSourceReaderOperator.load(loader);
                     }
                 )
             );
         }
         return new ValuesSourceReaderOperator(
-            driverContext.blockFactory(),
+            driverContext,
             Long.MAX_VALUE,
             fields,
             new IndexedByShardIdFromSingleton<>(

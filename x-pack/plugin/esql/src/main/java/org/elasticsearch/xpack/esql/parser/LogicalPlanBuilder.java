@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -189,7 +190,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
         String name = visitIdentifier(ctx.identifier());
-        Expression value = expression(ctx.constant());
+        Expression value;
+        if (ctx.constant() != null) {
+            value = expression(ctx.constant());
+        } else {
+            value = visitMapExpression(ctx.mapExpression());
+        }
         return new Alias(source(ctx), name, value);
     }
 
@@ -466,7 +472,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             if (input.anyMatch(p -> p instanceof Aggregate) == false
                 && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
-                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
+                return new TimeSeriesAggregate(
+                    source(ctx),
+                    input,
+                    stats.groupings,
+                    stats.aggregates,
+                    null,
+                    new UnresolvedTimestamp(source(ctx))
+                );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
             }
@@ -1262,7 +1275,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 params.startLiteral(),
                 params.endLiteral(),
                 promqlStartLine,
-                promqlStartColumn
+                promqlStartColumn,
+                context.params()
             );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
@@ -1418,6 +1432,39 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }
+    }
+
+    public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
+        Expression queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
+        Expression limitValue = expression(ctx.limitValue);
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+
+        return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
+    }
+
+    private Expression visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
+        if (ctx == null || ctx.isEmpty()) {
+            return null;
+        }
+
+        var queryVectorParams = ctx.mmrQueryVectorParams();
+        if (queryVectorParams == null || queryVectorParams.isEmpty()) {
+            return null;
+        }
+
+        if (queryVectorParams.getChildCount() == 1) {
+            if (queryVectorParams.getChild(0) instanceof Expression asExpression) {
+                return asExpression;
+            } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorParameterContext
+                || queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorExpressionContext) {
+                    return expression(queryVectorParams.getChild(0));
+                }
+        }
+
+        throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
     }
 
     /**

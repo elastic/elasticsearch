@@ -351,15 +351,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         CagraIndexParams params;
 
         boolean useIvfPQ = false;
-        // Check if we should use IVF_PQ based on vector count and distance type
-        // IVF_PQ doesn't support Cosine distance in CUVS 25.10
-        // TODO: Remove this check on distance when updating to CUVS 25.12+
-        if ((distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) && (numVectors >= MAX_NUM_VECTORS_FOR_NN_DESCENT)) {
+        if (numVectors >= MAX_NUM_VECTORS_FOR_NN_DESCENT) {
             useIvfPQ = true;
-        }
-
-        // Check if we should use IVF_PQ due to insufficient GPU memory for NN_DESCENT
-        if ((useIvfPQ == false) && distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) {
+        } else {
+            // Check if we should use IVF_PQ due to insufficient GPU memory for NN_DESCENT
             long totalDeviceMemory = GPUSupport.getTotalGpuMemory();
             if (totalDeviceMemory > 0) {
                 long requiredMemoryForNnDescent = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
@@ -505,7 +500,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         };
     }
 
-    // TODO check with deleted documents
     @Override
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities

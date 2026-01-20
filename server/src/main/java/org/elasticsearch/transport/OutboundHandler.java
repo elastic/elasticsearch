@@ -368,9 +368,7 @@ public final class OutboundHandler {
     private static StreamOutput wrapCompressed(Compression.Scheme compressionScheme, RecyclerBytesStreamOutput bytesStream)
         throws IOException {
         if (compressionScheme == Compression.Scheme.DEFLATE) {
-            return new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(org.elasticsearch.core.Streams.noCloseStream(bytesStream))
-            );
+            return CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.noCloseStream(bytesStream));
         } else if (compressionScheme == Compression.Scheme.LZ4) {
             return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {

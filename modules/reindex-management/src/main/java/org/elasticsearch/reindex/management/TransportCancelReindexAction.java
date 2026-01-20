@@ -25,6 +25,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -80,7 +81,12 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
             task,
             CancelTasksRequest.DEFAULT_REASON,
             request.waitForCompletion(),
-            ActionListener.wrap(ignored -> listener.onResponse(new CancelReindexTaskResponse()), listener::onFailure)
+            ActionListener.wrap(ignored -> {
+                final TaskResult completedTaskResult = request.waitForCompletion()
+                    ? new TaskResult(true, task.taskInfo(clusterService.localNode().getId(), true))
+                    : null;
+                listener.onResponse(new CancelReindexTaskResponse(completedTaskResult));
+            }, listener::onFailure)
         );
     }
 
@@ -99,7 +105,10 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
             }
         }
 
-        final var response = new CancelReindexResponse(taskFailures, nodeExceptions);
+        final GetReindexResponse completedReindexResponse = tasks.isEmpty()
+            ? null
+            : tasks.getFirst().getCompletedTaskResult().map(GetReindexResponse::new).orElse(null);
+        final var response = new CancelReindexResponse(taskFailures, nodeExceptions, completedReindexResponse);
         response.rethrowFailures("cancel_reindex"); // if we haven't handled any exception already, throw here
         if (tasks.isEmpty()) {
             throw reindexWithTaskIdNotFoundException(request.getTargetTaskId());

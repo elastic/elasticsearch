@@ -71,7 +71,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
     public void testCategorize_withDriver() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
         BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(

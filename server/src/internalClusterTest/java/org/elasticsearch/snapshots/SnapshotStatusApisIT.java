@@ -48,6 +48,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -725,6 +726,62 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 assertThat(snapshotInfo.state(), oneOf(SnapshotState.IN_PROGRESS, SnapshotState.SUCCESS));
             }
         }
+    }
+
+    /**
+     * Explicitly tests the scenario where at least one shard of a snapshot is queued behind another. In this case, we expect both
+     * snapshot 1 and snapshot 2 to be in progress, and on the node where snapshot 1 has not finished snapshotting yet, we expect the
+     * shard for snapshot 2 to be in the INIT state while it waits for snapshot 1 to complete.
+     */
+    public void testOneSnapshotQueuedBehindAnother() throws Exception {
+        String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        String indexName = "test-idx";
+        createIndexWithContent(indexName);
+
+        // Block the data node for the index so the first snapshot will be stuck in INIT
+        String dataNode = blockNodeWithIndex(repoName, indexName);
+
+        // Start the first snapshot
+        final String snapshot1 = "snapshot_1";
+        final var snapshot1Future = startFullSnapshotBlockedOnDataNode(snapshot1, repoName, dataNode);
+
+        // Wait until the first snapshot is running and blocked
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repoName);
+
+        // Start the second snapshot which should be queued behind the first
+        final String snapshot2 = "snapshot_2";
+        final var snapshot2Future = startFullSnapshot(repoName, snapshot2);
+
+        // Wait until both snapshots are in progress
+        awaitNumberOfSnapshotsInProgress(2);
+
+        // Now check the status API for the second snapshot
+        SnapshotsStatusResponse statusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
+            .setSnapshots(snapshot2)
+            .get();
+
+        assertThat(statusResponse.getSnapshots(), hasSize(1));
+        SnapshotStatus snapshot2Status = statusResponse.getSnapshots().getFirst();
+
+        // This validates the payload from the SnapshotStatus API
+        // There can be further checks added here for other fields, but for now we just want to verify that at least one
+        // shard for the second snapshot is in the INIT state. This is correct since at least one shard for snapshot 2 is queued
+        // behind the shard blocked on the data node for snapshot 1 and therefore cannot be started. The behaviour of all other shards
+        // on the other nodes is not important
+        List<SnapshotIndexShardStatus> queuedShards = snapshot2Status.getShards()
+            .stream()
+            .filter(s -> s.getStage() == SnapshotIndexShardStage.INIT)
+            .collect(Collectors.toList());
+        assertThat("At least one shard should be QUEUED (INIT)", queuedShards, is(not(empty())));
+
+        // Unblock the data node so both snapshots can complete
+        unblockNode(repoName, dataNode);
+
+        // Wait for both snapshots to finish
+        assertSuccessful(snapshot1Future);
+        assertSuccessful(snapshot2Future);
     }
 
     public void testInfiniteTimeout() throws Exception {

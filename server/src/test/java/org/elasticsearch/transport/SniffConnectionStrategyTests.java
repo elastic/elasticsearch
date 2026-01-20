@@ -1123,7 +1123,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testGetNodePredicateNodeVersion() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategySettings.getNodePredicate(Settings.EMPTY);
-        Version version = VersionUtils.randomVersion(random());
+        Version version = VersionUtils.randomVersion();
         DiscoveryNode node = DiscoveryNodeUtils.builder("id")
             .address(address)
             .version(version, IndexVersions.ZERO, IndexVersion.current())

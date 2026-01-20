@@ -195,6 +195,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
@@ -235,6 +236,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -420,6 +422,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
+                def(Chicken.class, Chicken::new, "chicken", Chicken.CHICKEN_EMOJI),
                 def(Concat.class, Concat::new, "concat"),
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
@@ -798,7 +801,7 @@ public class EsqlFunctionRegistry {
 
         return types.stream()
             .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
-            .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
+            .min(Comparator.comparing(DATA_TYPE_CASTING_PRIORITY::get))
             .orElse(UNSUPPORTED);
     }
 

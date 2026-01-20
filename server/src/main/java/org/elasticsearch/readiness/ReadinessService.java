@@ -157,7 +157,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doStart() {
-        // Mark the service as active, we'll start the listener when ES is ready
+        // Mark the service as active, we'll start the tcp listener when ES is ready
         this.active = true;
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
             this.lastClusterState = clusterService.state();

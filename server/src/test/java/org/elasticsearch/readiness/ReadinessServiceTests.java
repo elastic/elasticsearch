@@ -115,6 +115,14 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     @After
     public void tearDown() throws Exception {
+        // make sure readiness service is shut down
+        if (readinessService.lifecycleState() == Lifecycle.State.STARTED) {
+            readinessService.stop();
+        }
+        if (readinessService.lifecycleState() == Lifecycle.State.STOPPED) {
+            readinessService.close();
+        }
+
         super.tearDown();
         threadpool.shutdownNow();
     }
@@ -195,9 +203,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         // test that we cannot connect to the socket anymore
         tcpReadinessProbeFalse(readinessService);
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testStatusChange() throws Exception {
@@ -280,9 +285,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testFileSettingsUpdateError() throws Exception {
@@ -302,9 +304,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         readinessService.clusterChanged(event);
         assertTrue(readinessService.ready());
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testAlreadyReadyWhenStarted() throws Exception {
@@ -312,9 +311,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         when(clusterService.state()).thenReturn(readyState);
         readinessService.start();
         assertTrue(readinessService.ready());
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     private ClusterState emptyState() {

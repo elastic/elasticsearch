@@ -14,7 +14,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 public interface Clusters {
     float[] getCentroid(int vectorOrdinal);
 
-    CentroidSupplier centroids();
+    CentroidSupplier centroidsSupplier();
 
     int[] assignments();
 
@@ -27,7 +27,7 @@ public interface Clusters {
         }
 
         @Override
-        public CentroidSupplier centroids() {
+        public CentroidSupplier centroidsSupplier() {
             return CentroidSupplier.empty(0);
         }
 
@@ -55,8 +55,8 @@ public interface Clusters {
         }
 
         @Override
-        public float[][] centroids() {
-            return centroid;
+        public CentroidSupplier centroidsSupplier() {
+            return CentroidSupplier.fromArray(centroid, Clusters.EMPTY, centroid[0].length);
         }
 
         @Override

@@ -148,11 +148,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             offsets.add(offset);
             // TODO ASYMMETRIC WRITE
             // PUT DOWN THE CENTROID ORDINAL SO WE CAN MAP IT TO THE PARENT DURING QUERYING
-            // TODO ASYMMETRIC REMOVE WE SHOULDN"T NEED THIS
-            // buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
-            // TODO ASYMMETRIC REMOVE WE SHOULDN"T NEED THIS
-            // postingsOutput.writeBytes(buffer.array(), buffer.array().length);
             // write centroid distance between parent centroid for query corrections
             // TODO ASYMMETRIC EUCLIDEAN
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
@@ -332,12 +328,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 offsets.add(offset);
                 // TODO ASYMMETRIC WRITE
                 // PUT DOWN THE CENTROID ORDINAL SO WE CAN MAP IT TO THE PARENT DURING QUERYING
-                // write raw centroid for quantizing the query vectors
-                // TODO ASYMMETRIC REMOVE
-                buffer.asFloatBuffer().put(centroid);
-                // TODO ASYMMETRIC REMOVE
-                postingsOutput.writeBytes(buffer.array(), buffer.array().length);
-                // write centroid dist from parent centroid for query corrections
                 // TODO ASYMMETRIC EUCLIDEAN
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
                 // write docIds
@@ -472,7 +462,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
-        if (centroidSupplier.secondLevelClusters().centroids().size() > 1) {
+        if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
             final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier);
             {
                 // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
@@ -605,13 +595,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     private CentroidGroups buildCentroidGroups(CentroidSupplier centroidSupplier) throws IOException {
         final Clusters kMeansResult = centroidSupplier.secondLevelClusters();
-        final int[] centroidVectorCount = new int[kMeansResult.centroids().size()];
+        final int[] centroidVectorCount = new int[kMeansResult.centroidsSupplier().size()];
         for (int i = 0; i < kMeansResult.assignments().length; i++) {
             centroidVectorCount[kMeansResult.assignments()[i]]++;
         }
-        final int[][] vectorsPerCentroid = new int[kMeansResult.centroids().size()][];
+        final int[][] vectorsPerCentroid = new int[kMeansResult.centroidsSupplier().size()][];
         int maxVectorsPerCentroidLength = 0;
-        for (int i = 0; i < kMeansResult.centroids().size(); i++) {
+        for (int i = 0; i < kMeansResult.centroidsSupplier().size(); i++) {
             vectorsPerCentroid[i] = new int[centroidVectorCount[i]];
             maxVectorsPerCentroidLength = Math.max(maxVectorsPerCentroidLength, centroidVectorCount[i]);
         }
@@ -620,7 +610,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             final int c = kMeansResult.assignments()[i];
             vectorsPerCentroid[c][centroidVectorCount[c]++] = i;
         }
-        return new CentroidGroups(kMeansResult.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
+        return new CentroidGroups(kMeansResult.centroidsSupplier(), vectorsPerCentroid, maxVectorsPerCentroidLength);
     }
 
     @Override

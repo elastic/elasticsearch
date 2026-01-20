@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
+
 /**
  * Output object for clustering (partitioning) a set of vectors
  */
@@ -31,9 +33,13 @@ public class KMeansResult implements Clusters {
         return centroids[assignments[vectorOrdinal]];
     }
 
-    @Override
     public float[][] centroids() {
         return centroids;
+    }
+
+    @Override
+    public CentroidSupplier centroidsSupplier() {
+        return CentroidSupplier.fromArray(centroids, Clusters.EMPTY, centroids[0].length);
     }
 
     void setCentroids(float[][] centroids) {

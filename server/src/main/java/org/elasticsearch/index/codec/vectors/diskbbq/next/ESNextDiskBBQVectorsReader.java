@@ -566,7 +566,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         int vectors;
         boolean quantized = false;
         float centroidDp;
-        final float[] centroid, queryCentroid;
+        final float[] queryCentroid;
         float centroidDistance;
         long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
@@ -596,7 +596,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             this.fieldInfo = fieldInfo;
             this.acceptDocs = acceptDocs;
             this.queryCentroid = queryCentroid;
-            centroid = new float[fieldInfo.getVectorDimension()];
             scratch = new float[target.length];
             final int discretizedDimensions = quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension());
             quantizationScratch = new int[discretizedDimensions];
@@ -618,9 +617,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         public int resetPostingsScorer(long offset, float score) throws IOException {
             quantized = false;
             indexInput.seek(offset);
-            // TODO ASSYMETRIC READ
-            // READ IN THE CENTROID ORDINAL INTEGER
-            indexInput.readFloats(centroid, 0, centroid.length);
             // TODO ASYMMETRIC THIS IS SQR
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();

@@ -32,7 +32,7 @@ public interface CentroidSupplier {
     FloatVectorValues asFloatVectorValues() throws IOException;
 
     static CentroidSupplier empty(int dims) {
-        return fromArray(new float[0][dims], Clusters.empty(), dims);
+        return fromArray(new float[0][dims], Clusters.EMPTY, dims);
     }
 
     static CentroidSupplier fromArray(float[][] centroids, Clusters secondLevelClusters, int dims) {

@@ -177,9 +177,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/126748
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test stop transform with force and wait_for_checkpoint true}
   issue: https://github.com/elastic/elasticsearch/issues/135135
@@ -306,9 +303,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/140624
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
@@ -324,9 +318,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields
   issue: https://github.com/elastic/elasticsearch/issues/140664
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testRecoveredOperations
-  issue: https://github.com/elastic/elasticsearch/issues/140665
 - class: org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampGroupingAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/140763
@@ -354,6 +345,15 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
   method: testFailsOnCopyAfterWrite
   issue: https://github.com/elastic/elasticsearch/issues/140819
+- class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
+  method: test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/140890
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testReadBlobWithPrematureConnectionClose
+  issue: https://github.com/elastic/elasticsearch/issues/140954
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/140941
 
 # Examples:
 #

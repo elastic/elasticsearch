@@ -18,6 +18,7 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
@@ -63,16 +64,11 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
                 }
                 closeable = null;
             } finally {
-                if (closeable != null) {
-                    IOUtils.close(closeable);
-                }
+                IOUtils.close(closeable);
             }
         }
 
-        TSDBStoredFieldsReader(
-            StoredFieldsReader storedFieldsReader,
-            @Nullable StoredFieldsReader syntheticIdStoredFieldsReader
-        ) {
+        TSDBStoredFieldsReader(StoredFieldsReader storedFieldsReader, @Nullable StoredFieldsReader syntheticIdStoredFieldsReader) {
             this.storedFieldsReader = storedFieldsReader;
             assert syntheticIdStoredFieldsReader == null || syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader;
             this.syntheticIdStoredFieldsReader = syntheticIdStoredFieldsReader;

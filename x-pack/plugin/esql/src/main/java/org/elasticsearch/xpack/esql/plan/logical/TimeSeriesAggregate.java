@@ -43,7 +43,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
-    private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
+    public static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
         "time_series_aggregate_timestamp_value_range"
     );
 

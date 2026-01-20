@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate.TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE;
+
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
  * The grouping must be `_tsid` and `tbucket` or just `_tsid`.
@@ -37,10 +39,6 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         PhysicalPlan.class,
         "TimeSeriesAggregateExec",
         TimeSeriesAggregateExec::new
-    );
-
-    private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
-        "time_series_aggregate_exec_timestamp_value_range"
     );
 
     private final Bucket timeBucket;
@@ -67,7 +65,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
-        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_TIMESTAMP_VALUE_RANGE)) {
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
             if (in.readBoolean()) {
                 this.timeRange = new TimeSeriesAggregate.TimeRange(in.readLong(), in.readLong());
             } else {
@@ -82,7 +80,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
-        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_TIMESTAMP_VALUE_RANGE)) {
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
             if (timeRange != null) {
                 out.writeBoolean(true);
                 out.writeLong(timeRange.min());

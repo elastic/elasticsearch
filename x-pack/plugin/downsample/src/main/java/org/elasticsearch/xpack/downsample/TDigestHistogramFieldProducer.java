@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -61,11 +61,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    tDigestState = TDigestState.createOfType(
-                        new NoopCircuitBreaker("downsampling-histograms"),
-                        TDigestState.Type.MERGING,
-                        COMPRESSION
-                    );
+                    tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), COMPRESSION);
                 }
                 final HistogramValue sketch = docValues.histogram();
                 while (sketch.next()) {
@@ -83,14 +79,13 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
-                Collection<Centroid> centroids = tDigestState.centroids();
-                final double[] values = new double[centroids.size()];
-                final long[] counts = new long[centroids.size()];
-                int i = 0;
-                for (Centroid centroid : centroids) {
-                    values[i] = centroid.mean();
-                    counts[i] = centroid.count();
-                    i++;
+                Iterator<Centroid> centroids = tDigestState.uniqueCentroids();
+                final List<Double> values = new ArrayList<>();
+                final List<Long> counts = new ArrayList<>();
+                while (centroids.hasNext()) {
+                    Centroid centroid = centroids.next();
+                    values.add(centroid.mean());
+                    counts.add(centroid.count());
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
                 tDigestState.close();

@@ -85,23 +85,10 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
         BiFunction<Integer, Block, T> getValue,
         Consumer<T> addValue,
         BiConsumer<Set<T>, Set<T>> combineOp,
-        boolean nullIfEitherEmpty,
         boolean nullIfResultEmpty
     ) {
         int firstCount = field1.getValueCount(position);
         int secondCount = field2.getValueCount(position);
-
-        if (nullIfEitherEmpty) {
-            if (firstCount == 0 || secondCount == 0) {
-                builder.appendNull();
-                return;
-            }
-        } else {
-            if (firstCount == 0 && secondCount == 0) {
-                builder.appendNull();
-                return;
-            }
-        }
 
         // Extract values
         Set<T> firstSet = new LinkedHashSet<>();

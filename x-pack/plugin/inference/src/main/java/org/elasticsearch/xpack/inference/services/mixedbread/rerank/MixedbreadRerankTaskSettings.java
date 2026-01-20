@@ -50,6 +50,10 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
             throw validationException;
         }
 
+        if (returnDocuments == null && topNDocumentsOnly == null) {
+            return EMPTY_SETTINGS;
+        }
+
         return of(topNDocumentsOnly, returnDocuments);
     }
 

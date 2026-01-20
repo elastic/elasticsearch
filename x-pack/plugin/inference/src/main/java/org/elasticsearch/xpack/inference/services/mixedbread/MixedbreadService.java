@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 public class MixedbreadService extends SenderService implements RerankingInferenceService {
@@ -69,11 +70,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-
-    // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
-    // the Cohere*RequestManager via the CohereActionCreator class
-    // The reason it needs to be done here is that the batching logic needs to hold state but the *RequestManagers are instantiated
-    // on every request
 
     public MixedbreadService(
         HttpRequestSender.Factory factory,
@@ -104,7 +100,11 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-
+            if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
             MixedbreadModel model = createModel(
                 inferenceEntityId,
                 taskType,
@@ -115,9 +115,9 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 ConfigurationParseContext.REQUEST
             );
 
-            // throwIfNotEmptyMap(config, NAME);
-            // throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            // throwIfNotEmptyMap(taskSettingsMap, NAME);
+            throwIfNotEmptyMap(config, NAME);
+            throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            throwIfNotEmptyMap(taskSettingsMap, NAME);
 
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
@@ -171,7 +171,9 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-
+        if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
             taskType,

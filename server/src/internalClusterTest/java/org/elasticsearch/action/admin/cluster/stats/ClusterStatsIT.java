@@ -72,7 +72,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         return false; // enable http
     }
 
-    public static class TestPlugin extends Plugin {
+    public static class TestIndexLimitTierPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
             return List.of(
@@ -86,7 +86,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), TestPlugin.class);
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), TestIndexLimitTierPlugin.class);
     }
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {

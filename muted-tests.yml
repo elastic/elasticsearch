@@ -351,6 +351,27 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadBlobWithPrematureConnectionClose
   issue: https://github.com/elastic/elasticsearch/issues/140954
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/140941
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<small positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/140999
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/141000
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<big positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/141001
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<small positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/141002
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/141003
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<big positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/141004
 
 # Examples:
 #

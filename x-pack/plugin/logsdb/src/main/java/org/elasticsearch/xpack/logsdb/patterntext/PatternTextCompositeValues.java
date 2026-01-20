@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -20,31 +22,34 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * If there are values which exceed 32kb, they cannot be stored as doc values
- * and must be in a stored field. This class combines the doc values with the
- * larges values which are in stored fields. Despite being backed by stored
- * fields, this class implements a doc value interface.
+ * Values which exceeds 32kb cannot be stored as sorted set doc values. Such values must be stored separately in binary doc values, which
+ * do not have length limitations. This class combines the regular doc values with the raw values from binary doc values.
  */
 public final class PatternTextCompositeValues extends BinaryDocValues {
+
     private final LeafStoredFieldLoader storedTemplateLoader;
     private final String storedMessageFieldName;
     private final BinaryDocValues patternTextDocValues;
     private final SortedSetDocValues templateIdDocValues;
+    private final BinaryDocValues rawTextDocValues;
     private boolean hasDocValue = false;
+    private boolean hasRawTextDocValue = false;
 
     PatternTextCompositeValues(
         LeafStoredFieldLoader storedTemplateLoader,
         String storedMessageFieldName,
         BinaryDocValues patternTextDocValues,
-        SortedSetDocValues templateIdDocValues
+        SortedSetDocValues templateIdDocValues,
+        BinaryDocValues rawTextDocValues
     ) {
         this.storedTemplateLoader = storedTemplateLoader;
         this.storedMessageFieldName = storedMessageFieldName;
         this.patternTextDocValues = patternTextDocValues;
         this.templateIdDocValues = templateIdDocValues;
+        this.rawTextDocValues = rawTextDocValues;
     }
 
-    static PatternTextCompositeValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
+    static BinaryDocValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
         SortedSetDocValues templateIdDocValues = DocValues.getSortedSet(leafReader, fieldType.templateIdFieldName());
         if (templateIdDocValues.getValueCount() == 0) {
             return null;
@@ -57,9 +62,35 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
             fieldType.argsInfoFieldName(),
             fieldType.useBinaryDocValuesArgs()
         );
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
-        LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
-        return new PatternTextCompositeValues(storedTemplateLoader, fieldType.storedNamed(), docValues, templateIdDocValues);
+
+        FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldType.storedNamed());
+        if (fieldInfo == null) {
+            // If there is no stored subfield (either binary doc values or stored field),
+            // then there is no need to use PatternTextCompositeValues
+            return docValues;
+        }
+
+        // load binary doc values (for newer indices that store raw values in binary doc values)
+        LeafStoredFieldLoader storedTemplateLoader;
+        BinaryDocValues rawBinaryDocValues;
+        if (fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+            rawBinaryDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
+            storedTemplateLoader = StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
+        } else {
+            // use an empty object here to avoid making null checks later
+            rawBinaryDocValues = DocValues.emptyBinary();
+            // load stored field loader (for older indices that store raw values in stored fields)
+            StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
+            storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
+        }
+
+        return new PatternTextCompositeValues(
+            storedTemplateLoader,
+            fieldType.storedNamed(),
+            docValues,
+            templateIdDocValues,
+            rawBinaryDocValues
+        );
     }
 
     public BytesRef binaryValue() throws IOException {
@@ -67,7 +98,14 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
             return patternTextDocValues.binaryValue();
         }
 
-        // If there is no doc value, the value was too large and was put in a stored field
+        // if there is no doc value, then the value was too large to be analyzed or templating was disabled
+
+        // for newer indices, the value is stored in binary doc values
+        if (hasRawTextDocValue) {
+            return rawTextDocValues.binaryValue();
+        }
+
+        // for older indices, it's stored in stored fields
         var storedFields = storedTemplateLoader.storedFields();
         List<Object> storedValues = storedFields.get(storedMessageFieldName);
         assert storedValues != null && storedValues.size() == 1 && storedValues.getFirst() instanceof BytesRef;
@@ -81,7 +119,8 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
     public boolean advanceExact(int i) throws IOException {
         boolean hasValue = templateIdDocValues.advanceExact(i);
         hasDocValue = patternTextDocValues.advanceExact(i);
-        if (hasValue && hasDocValue == false) {
+        hasRawTextDocValue = rawTextDocValues.advanceExact(i);
+        if (hasValue && hasDocValue == false && hasRawTextDocValue == false) {
             storedTemplateLoader.advanceTo(i);
         }
         return hasValue;
@@ -100,6 +139,6 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
 
     @Override
     public long cost() {
-        return templateIdDocValues.cost() + patternTextDocValues.cost();
+        return templateIdDocValues.cost() + patternTextDocValues.cost() + rawTextDocValues.cost();
     }
 }

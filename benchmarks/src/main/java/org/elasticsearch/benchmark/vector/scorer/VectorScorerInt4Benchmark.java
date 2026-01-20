@@ -57,13 +57,14 @@ public class VectorScorerInt4Benchmark {
     @Param({ "384", "782", "1024" })
     int dims;
 
-    int numVectors = 20 * ES91Int4VectorsScorer.BULK_SIZE;
+    int bulkSize = 16;
+    int numVectors = 20 * bulkSize;
     int numQueries = 5;
 
     byte[] scratch;
     byte[][] binaryVectors;
     byte[][] binaryQueries;
-    float[] scores = new float[ES91Int4VectorsScorer.BULK_SIZE];
+    float[] scores = new float[bulkSize];
 
     float[] scratchFloats = new float[3];
 
@@ -108,7 +109,7 @@ public class VectorScorerInt4Benchmark {
         }
 
         scratch = new byte[dims];
-        scorer = ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(in, dims);
+        scorer = ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(in, dims, bulkSize);
     }
 
     @TearDown
@@ -169,7 +170,7 @@ public class VectorScorerInt4Benchmark {
     public void scoreFromMemorySegmentBulk(Blackhole bh) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
-            for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
+            for (int i = 0; i < numVectors; i += bulkSize) {
                 scorer.scoreBulk(
                     binaryQueries[j],
                     queryCorrections.lowerInterval(),

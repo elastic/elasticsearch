@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -77,6 +78,7 @@ public class PerFieldFormatSupplier {
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
+    private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
@@ -85,6 +87,11 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(
+            bigArrays,
+            ES94BloomFilterDocValuesFormat.DEFAULT_BLOOM_FILTER_SIZE,
+            IdFieldMapper.NAME
+        );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -183,11 +190,16 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            return idBloomFilterDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
                 ? tsdbDocValuesFormatLargeNumericBlock
                 : tsdbDocValuesFormat;
         }
+
         return docValuesFormat;
     }
 

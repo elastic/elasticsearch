@@ -305,6 +305,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         Settings mergeSchedulerSettings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
             .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
+            .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true)
             .build();
         TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
@@ -673,9 +674,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void testAutoIOThrottleForMergeTasks() throws Exception {
         final Settings.Builder settingsBuilder = Settings.builder();
         // merge scheduler configured with auto IO throttle enabled
-        if (randomBoolean()) {
-            settingsBuilder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true);
-        }
+        settingsBuilder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settingsBuilder.build());
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         OneMerge oneMerge = mock(OneMerge.class);

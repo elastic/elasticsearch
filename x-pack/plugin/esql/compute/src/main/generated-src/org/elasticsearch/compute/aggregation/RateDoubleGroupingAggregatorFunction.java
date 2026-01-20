@@ -108,8 +108,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         this.isRateOverTime = isRateOverTime;
         LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
             driverContext.bigArrays().breakerService(),
-            ByteSizeValue.ofKb(8).getBytes(),
-            ByteSizeValue.ofKb(512).getBytes()
+            driverContext.localBreakerSettings()
         );
         this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;

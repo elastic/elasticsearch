@@ -280,8 +280,9 @@ PromQL documentation is generated separately and stored in:
 ```
 docs/reference/query-languages/promql/kibana/definitions/*.json
 ```
+For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/
 
-### Generating PromQL Definitions
+### Generating PromQL Function Definitions
 
 To generate the PromQL definition files, run:
 
@@ -290,13 +291,3 @@ To generate the PromQL definition files, run:
 ```
 The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
 
-### PromQL Function Types
-
-| Type | Input | Output | Description |
-|------|-------|--------|-------------|
-| `promql_within_series` | `range_vector` | `instant_vector` | Aggregates within each time series over time |
-| `promql_across_series` | `instant_vector` | `instant_vector` | Aggregates across multiple time series |
-| `promql_value_transformation` | `instant_vector` | `instant_vector` | Transforms values element-wise |
-| `promql_vector` | `scalar` | `instant_vector` | Converts scalar to vector |
-
-For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/

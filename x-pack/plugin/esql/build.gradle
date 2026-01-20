@@ -116,22 +116,22 @@ tasks.named("test").configure {
   // https://github.com/elastic/elasticsearch/issues/135009
   jvmArgs '-XX:-OmitStackTraceInFastThrow'
 
-  ['esql', 'promql'].forEach {lang ->
+  ['esql', 'promql'].forEach {folder ->
     def injected = project.objects.newInstance(Injected)
     // Define the folder to delete and recreate
-    def tempDir = file("build/testrun/test/temp/${lang}")
+    def tempDir = file("build/testrun/test/temp/${folder}")
     def commandsExamplesFile = new File(tempDir, "commands.examples")
     // Find all matching .md files for commands examples
-    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/${lang}/_snippets/commands/examples/") {
+    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/${folder}/_snippets/commands/examples/") {
       include("**/*.csv-spec/*.md")
     }
-    def docFolder = file("${rootDir}/docs/reference/query-languages/${lang}").toPath()
+    def docFolder = file("${rootDir}/docs/reference/query-languages/${folder}").toPath()
     def imagesDocFolder = file("${docFolder}/images")
     def snippetsDocFolder = file("${docFolder}/_snippets")
     def kibanaDocFolder = file("${docFolder}/kibana")
-    File imagesFolder = file("build/testrun/test/temp/${lang}/images")
-    File snippetsFolder = file("build/testrun/test/temp/${lang}/_snippets")
-    File kibanaFolder = file("build/testrun/test/temp/${lang}/kibana")
+    File imagesFolder = file("build/testrun/test/temp/${folder}/images")
+    File snippetsFolder = file("build/testrun/test/temp/${folder}/_snippets")
+    File kibanaFolder = file("build/testrun/test/temp/${folder}/kibana")
 
     // BuildParams isn't available inside doFirst with --configuration-cache
     def buildParams = buildParams
@@ -192,9 +192,9 @@ tasks.named("test").configure {
         def commandsExamples = commandsExamplesTree.files.collect { it.name }
         int countCommandsExamples = commandsExamples.size()
         if (countSnippets == 0 && countCommandsExamples == 0 && countQuerySettings == 0) {
-          logger.quiet("${lang.toUpperCase()} Docs: No function/operator snippets created. Skipping sync.")
+          logger.quiet("${folder.toUpperCase()} Docs: No function/operator snippets created. Skipping sync.")
         } else {
-          logger.quiet("${lang.toUpperCase()} Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
+          logger.quiet("${folder.toUpperCase()} Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
           injected.fs.sync {
             from snippetsFolder
             into snippetsDocFolder
@@ -226,9 +226,9 @@ tasks.named("test").configure {
           )
         }
         if (countImages == 0) {
-          logger.quiet("${lang.toUpperCase()} Docs: No function signatures created. Skipping sync.")
+          logger.quiet("${folder.toUpperCase()} Docs: No function signatures created. Skipping sync.")
         } else {
-          logger.quiet("${lang.toUpperCase()} Docs: Found $countImages generated SVG files to patch into docs")
+          logger.quiet("${folder.toUpperCase()} Docs: Found $countImages generated SVG files to patch into docs")
           injected.fs.sync {
             from imagesFolder
             into imagesDocFolder
@@ -254,9 +254,9 @@ tasks.named("test").configure {
           )
         }
         if (countKibana == 0) {
-          logger.quiet("${lang.toUpperCase()} Docs: No function/operator kibana docs created. Skipping sync.")
+          logger.quiet("${folder.toUpperCase()} Docs: No function/operator kibana docs created. Skipping sync.")
         } else {
-          logger.quiet("${lang.toUpperCase()} Docs: Found $countKibana generated kibana markdown files to patch into docs")
+          logger.quiet("${folder.toUpperCase()} Docs: Found $countKibana generated kibana markdown files to patch into docs")
           injected.fs.sync {
             from kibanaFolder
             into kibanaDocFolder
@@ -273,7 +273,6 @@ tasks.named("test").configure {
       }
     }
   }
-
 }
 
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task

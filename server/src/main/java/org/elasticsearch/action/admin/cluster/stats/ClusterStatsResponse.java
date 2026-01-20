@@ -40,7 +40,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final CCSTelemetrySnapshot esqlMetrics;
     final long timestamp;
     final String clusterUUID;
-    final int totalUserIndices;
+    final IndexLimitTier indexLimitTier;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
 
     public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
@@ -58,7 +58,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         ClusterSnapshotStats clusterSnapshotStats,
         Map<String, RemoteClusterStats> remoteClustersStats,
         boolean skipMRT,
-        int totalUserIndices
+        IndexLimitTier indexLimitTier
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -90,7 +90,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             .findAny()
             .orElse(RepositoryUsageStats.EMPTY);
         this.remoteClustersStats = remoteClustersStats;
-        this.totalUserIndices = totalUserIndices;
+        this.indexLimitTier = indexLimitTier;
     }
 
     public String getClusterUUID() {
@@ -170,7 +170,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.endObject();
         }
 
-        IndexLimitTier.parse(totalUserIndices).toXContent(builder, params);
+        indexLimitTier.toXContent(builder, params);
         builder.endObject();
 
         return builder;
@@ -260,57 +260,46 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     }
 
     public enum IndexLimitTier implements ToXContentFragment {
-        PASS(0, 11_249, ""),
+        PASS(""),
         NUDGE(
-            11_250,
-            13_499,
             "To ensure the best performance, we recommend grouping related data into fewer, "
                 + "larger indices. For time-based data, consider using a data stream."
         ),
         WARN(
-            13_500,
-            14_699,
             "Your project is approaching an operational limit due to a high number of indices. "
                 + "To avoid service interruptions, please review your indexing strategy."
         ),
         CRITICAL(
-            14_701,
-            14_999,
             "CRITICAL: Your project is about to reach its index limit. "
                 + "Further index creation may be blocked. You must reduce your number of indices immediately."
         ),
         BLOCK(
-            15_000,
-            Integer.MAX_VALUE,
             "Too Many Indices. Your project has reached its operational limit for the number of indices it can contain. "
                 + "Please consolidate smaller indices or delete unused ones."
         );
 
-        private final int minInclusive;
-        private final int maxInclusive;
         private final String message;
 
-        IndexLimitTier(int minInclusive, int maxInclusive, String message) {
-            this.minInclusive = minInclusive;
-            this.maxInclusive = maxInclusive;
+        IndexLimitTier(String message) {
             this.message = message;
         }
 
-        public boolean matches(int value) {
-            return value >= minInclusive && value <= maxInclusive;
+        public String getMessage() {
+            return this.message;
         }
 
-        public boolean matches(String name) {
-            return this.name().equals(name);
-        }
-
-        public static IndexLimitTier parse(int value) {
-            for (IndexLimitTier tier : values()) {
-                if (tier.matches(value)) {
-                    return tier;
-                }
+        public static IndexLimitTier parse(int totalUserIndices, int nudge, int warn, int critical, int block) {
+            if (totalUserIndices < nudge) {
+                return PASS;
+            } else if (totalUserIndices < warn) {
+                return NUDGE;
+            } else if (totalUserIndices < critical) {
+                return WARN;
+            } else if (totalUserIndices < block) {
+                return CRITICAL;
+            } else {
+                return BLOCK;
             }
-            throw new IllegalArgumentException("Value out of range: " + value);
         }
 
         @Override
@@ -321,5 +310,4 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             return builder;
         }
     }
-
 }

@@ -733,6 +733,6 @@ public class AggregatorBenchmark {
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
     }
 }

@@ -1170,7 +1170,13 @@ public abstract class DocsV3Support {
             builder.append(setting.preview() ? "preview`" : "ga`");
             if (setting.serverlessOnly() == false) {
                 builder.append(" {applies_to}`stack: ");
-                builder.append(setting.preview() ? "preview`" : "ga`");
+                builder.append(setting.preview() ? "preview" : "ga");
+                String since = param != null ? param.since() : mapParam.since();
+                if (since.length() > 0) {
+                    builder.append(" ");
+                    builder.append(since);
+                }
+                builder.append("`");
             }
             builder.append("\n");
 

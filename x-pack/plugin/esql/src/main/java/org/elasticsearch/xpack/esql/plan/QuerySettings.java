@@ -77,6 +77,7 @@ public class QuerySettings {
     @Param(
         name = "unmapped_fields",
         type = { "keyword" },
+        since = "9.4+",
         description = "Defines how unmapped fields are treated. Possible values are: "
             + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "

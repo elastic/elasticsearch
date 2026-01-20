@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -83,10 +84,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     protected void preconditionQuery(LeafReaderContext context) throws IOException {
         if (isQueryPreconditioned) {
-            return; // already preconditioned
+            // already preconditioned
+            return;
         }
         LeafReader reader = context.reader();
-        KnnVectorsReader fieldsReader = Lucene.segmentReader(reader).getVectorReader();
+        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(reader);
+        if (segmentReader == null) {
+            // ignore and continue to the next leaf context to see if we can get a segment reader there
+            return;
+        }
+        KnnVectorsReader fieldsReader = segmentReader.getVectorReader();
         if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
             KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
             if (knnVectorsReader instanceof VectorPreconditioner) {

@@ -137,7 +137,7 @@ public class CommandLicenseTests extends ESTestCase {
             "INLINE_STATS"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
-        Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
+        Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row", "Mmr");
 
         for (Method method : EsqlBaseParserVisitor.class.getMethods()) {
             String methodName = method.getName();

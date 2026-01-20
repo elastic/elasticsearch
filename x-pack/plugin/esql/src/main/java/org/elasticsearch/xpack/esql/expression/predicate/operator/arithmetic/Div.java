@@ -33,7 +33,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
         then the result is `null`.
         note = "Division of two integer types will yield an integer result, rounding towards 0. "
         + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
-        For dense_vector operations, both arguments should be dense_vectors. Unequal vector dimensions generate null result.
+        For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
         """)
     public Div(
         Source source,

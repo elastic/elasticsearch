@@ -53,7 +53,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             "dense_vector" },
         description = """
             Add two values. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.
-            For dense_vector operations, both arguments should be dense_vectors. Unequal vector dimensions generate null result.
+            For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
             """
     )
     public Add(

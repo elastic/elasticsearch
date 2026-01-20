@@ -139,7 +139,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MulDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DENSE_VECTOR,
-                equalTo(expected) // Random vectors should have cosine similarity close to 0
+                equalTo(expected)
             );
         }));
 
@@ -153,7 +153,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MulDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DENSE_VECTOR,
-                equalTo(null) // Random vectors should have cosine similarity close to 0
+                equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line 1:1: java.lang.IllegalArgumentException: dense_vector dimensions do not match");
         }));
@@ -170,7 +170,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MulDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DENSE_VECTOR,
-                equalTo(null) // Random vectors should have cosine similarity close to 0
+                equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity");
         }));

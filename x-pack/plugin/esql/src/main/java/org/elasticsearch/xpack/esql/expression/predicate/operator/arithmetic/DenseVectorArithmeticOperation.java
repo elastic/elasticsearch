@@ -19,10 +19,13 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
+/**
+ * Adds support for dense_vector data types. Specifically provides the logic when either left or right type is a dense_vector.
+ */
 public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOperation {
     private final BinaryEvaluator denseVectors;
 
-    DenseVectorArithmeticOperation(
+    protected DenseVectorArithmeticOperation(
         Source source,
         Expression left,
         Expression right,

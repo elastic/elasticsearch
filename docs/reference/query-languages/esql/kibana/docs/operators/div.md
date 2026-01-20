@@ -5,5 +5,5 @@ Divide one value by another. For numeric operands, if either field is [multivalu
 then the result is `null`.
 note = "Division of two integer types will yield an integer result, rounding towards 0. "
 + "If you need floating point division, [`Cast (::)`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/operators#esql-cast-operator) one of the arguments to a `DOUBLE`.
-For dense_vector operations, both arguments should be dense_vectors. If the dimensions are not equal, the result is null
+For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
 

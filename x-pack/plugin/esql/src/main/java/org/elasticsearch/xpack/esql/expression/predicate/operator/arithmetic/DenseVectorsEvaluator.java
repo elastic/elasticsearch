@@ -18,10 +18,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
+import java.util.function.BiFunction;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
@@ -34,7 +31,7 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
     private static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
     private static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
 
-    private final EsqlArithmeticOperation.OperationSymbol op;
+    private final BiFunction<Float, Float, Float> op;
     private final String name;
     private final Source source;
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -43,7 +40,7 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
     private Warnings warnings;
 
     DenseVectorsEvaluator(
-        EsqlArithmeticOperation.OperationSymbol op,
+        BiFunction<Float, Float, Float> op,
         String name,
         Source source,
         EvalOperator.ExpressionEvaluator lhs,
@@ -91,25 +88,17 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
                         for (int i = 0; i < lhsValueCount; i++) {
                             float l = lhsBlock.getFloat(lhsStart + i);
                             float r = rhsBlock.getFloat(rhsStart + i);
-                            buffer[i] = switch (op) {
-                                case ADD -> processAdd(l, r);
-                                case SUB -> processSub(l, r);
-                                case MUL -> processMul(l, r);
-                                case DIV -> processDiv(l, r);
-                                case MOD -> throw new IllegalArgumentException("unsupported");
-                            };
+                            buffer[i] = op.apply(l, r);
                         }
-                    } catch (ArithmeticException e) {
-                        warnings().registerException(e);
-                        resultBlock.appendNull();
-                        success = false;
-                    }
-                    if (success) {
                         resultBlock.beginPositionEntry();
                         for (int i = 0; i < lhsValueCount; i++) {
                             resultBlock.appendFloat(buffer[i]);
                         }
                         resultBlock.endPositionEntry();
+                    } catch (ArithmeticException e) {
+                        warnings().registerException(e);
+                        resultBlock.appendNull();
+                        success = false;
                     }
                 }
                 return resultBlock.build();
@@ -177,7 +166,14 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(ADD, ADD_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DenseVectorsEvaluator(
+                DenseVectorsEvaluator::processAdd,
+                ADD_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs.get(context),
+                rhs.get(context),
+                context
+            );
         }
 
         @Override
@@ -199,7 +195,14 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(SUB, SUB_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DenseVectorsEvaluator(
+                DenseVectorsEvaluator::processSub,
+                SUB_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs.get(context),
+                rhs.get(context),
+                context
+            );
         }
 
         @Override
@@ -221,7 +224,14 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(MUL, MUL_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DenseVectorsEvaluator(
+                DenseVectorsEvaluator::processMul,
+                MUL_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs.get(context),
+                rhs.get(context),
+                context
+            );
         }
 
         @Override
@@ -243,7 +253,14 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(DIV, DIV_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DenseVectorsEvaluator(
+                DenseVectorsEvaluator::processDiv,
+                DIV_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs.get(context),
+                rhs.get(context),
+                context
+            );
         }
 
         @Override

@@ -306,13 +306,14 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                 ),
                 "AddDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DENSE_VECTOR,
-                equalTo(expected) // Random vectors should have cosine similarity close to 0
+                equalTo(expected)
             );
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
-            List<Float> left = randomDenseVector(64);
-            List<Float> right = randomDenseVector(128);
+            int dimensions = between(64, 128);
+            List<Float> left = randomDenseVector(dimensions);
+            List<Float> right = randomDenseVector(randomValueOtherThan(dimensions, () -> between(64, 128)));
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
@@ -320,14 +321,15 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                 ),
                 "AddDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DENSE_VECTOR,
-                equalTo(null) // Random vectors should have cosine similarity close to 0
+                equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line 1:1: java.lang.IllegalArgumentException: dense_vector dimensions do not match");
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
-            List<Float> left = randomDenseVector(64);
-            List<Float> right = randomDenseVector(64);
+            int dimensions = between(64, 128);
+            List<Float> left = randomDenseVector(dimensions);
+            List<Float> right = randomDenseVector(dimensions);
             left.set(32, Float.MAX_VALUE);
             right.set(32, Float.MAX_VALUE);
             return new TestCaseSupplier.TestCase(
@@ -337,7 +339,7 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                 ),
                 "AddDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DENSE_VECTOR,
-                equalTo(null) // Random vectors should have cosine similarity close to 0
+                equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity");
         }));

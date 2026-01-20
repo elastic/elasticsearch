@@ -2,6 +2,6 @@
 
 ### MULTIPLY `*`
 Multiply two values together. For numeric fields, if either field is [multivalued](https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields)
-then the result is `null`. For dense_vector operations, both arguments should be dense_vectors. If the dimensions are not same,
-the result is null
+then the result is `null`. For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate
+null result.
 

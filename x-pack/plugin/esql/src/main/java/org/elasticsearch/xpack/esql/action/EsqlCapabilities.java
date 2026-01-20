@@ -1680,9 +1680,12 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
-         * "time_zone" parameter in request body and in {@code SET time_zone="x"}
+         * "time_zone" parameter in request body and in {@code SET time_zone="x"}.
+         * <p>
+         *     Originally `GLOBAL_TIMEZONE_PARAMETER`, but changed to "_WITH_OUTPUT" so tests don't fail after formatting the _query output.
+         * </p>
          */
-        GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
+        GLOBAL_TIMEZONE_PARAMETER_WITH_OUTPUT(Build.current().isSnapshot()),
 
         /**
          * Optional options argument for DATE_PARSE
@@ -1802,10 +1805,12 @@ public class EsqlCapabilities {
          * PromQL support in ESQL, before it is released into tech preview.
          * When implementing new functionality or breaking changes,
          * we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * As soon as we move into tech preview, we'll replace this capability with a "PROMQL_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
         PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
+
+        PROMQL_MULTIPLE_FILTERS_FOR_SAME_LABEL(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1912,6 +1917,11 @@ public class EsqlCapabilities {
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
+
+        /**
+         * MMR result diversification command
+         */
+        MMR(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

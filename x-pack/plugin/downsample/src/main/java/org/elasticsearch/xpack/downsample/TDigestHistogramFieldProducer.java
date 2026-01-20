@@ -61,7 +61,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    // MeringDigest is the best fit because we have pre-constructed histograms
+                    // MergingDigest is the best fit because we have pre-constructed histograms
                     tDigestState = TDigestState.createOfType(
                         new NoopCircuitBreaker("downsampling-histograms"),
                         TDigestState.Type.MERGING,

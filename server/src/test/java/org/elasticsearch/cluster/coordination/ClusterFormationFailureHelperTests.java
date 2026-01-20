@@ -1099,7 +1099,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             clusterFormationState,
-            history -> copyWriteable(clusterFormationState, writableRegistry(), ClusterFormationState::new),
+            history -> copyWriteable(clusterFormationState, writableRegistry(), ClusterFormationState::readFrom),
             this::mutateClusterFormationState
         );
     }
@@ -1123,17 +1123,17 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         Settings settings = Settings.builder()
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), originalClusterFormationState.initialMasterNodesSetting())
             .build();
-        final DiscoveryNode localNode = originalClusterFormationState.localNode();
+        final DiscoveryNode localNode = originalClusterFormationState.clusterFormationClusterStateView().localNode();
         List<TransportAddress> resolvedAddresses = originalClusterFormationState.resolvedAddresses();
         List<DiscoveryNode> foundPeers = originalClusterFormationState.foundPeers();
         Set<DiscoveryNode> mastersOfPeers = originalClusterFormationState.mastersOfPeers();
-        long currentTerm = originalClusterFormationState.currentTerm();
+        long currentTerm = originalClusterFormationState.clusterFormationClusterStateView().currentTerm();
         StatusInfo statusInfo = originalClusterFormationState.statusInfo();
         List<JoinStatus> joinStatuses = originalClusterFormationState.inFlightJoinStatuses();
         ClusterState clusterState = state(
             localNode,
-            originalClusterFormationState.lastAcceptedConfiguration(),
-            originalClusterFormationState.lastCommittedConfiguration()
+            originalClusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+            originalClusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration()
         );
         switch (randomIntBetween(1, 6)) {
             case 1 -> {

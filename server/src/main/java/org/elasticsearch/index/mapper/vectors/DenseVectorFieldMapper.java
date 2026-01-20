@@ -77,6 +77,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
@@ -305,7 +306,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.isExcludeSourceVectors = isExcludeSourceVectors;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
-            final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+            final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -335,7 +336,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
-                () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQ8Hnsw),
+                () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw),
                 (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
@@ -359,8 +360,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         || Objects.equals(previous, current)
                         || previous.updatableTo(current)
                 );
-            if (defaultInt8Hnsw || defaultBBQ8Hnsw) {
-                if (defaultBBQ8Hnsw == false || (dims != null && dims.isConfigured())) {
+            if (defaultInt8Hnsw || defaultBBQHnsw) {
+                if (defaultBBQHnsw == false || (dims != null && dims.isConfigured())) {
                     this.indexOptions.alwaysSerialize();
                 }
             }
@@ -2421,14 +2422,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore
+                    onDiskRescore,
+                    mergingExecutorService,
+                    numMergeWorkers
                 );
             }
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
-                onDiskRescore
+                onDiskRescore,
+                mergingExecutorService,
+                numMergeWorkers
             );
         }
 
@@ -2604,8 +2609,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            // TODO we should add DENSE_VECTOR_BINARY?
-            return DocValueFormat.DENSE_VECTOR;
+            return switch (format) {
+                case null -> DocValueFormat.DENSE_VECTOR;
+                case "array" -> DocValueFormat.DENSE_VECTOR;
+                case "binary" -> DocValueFormat.BINARY;
+                default -> throw new IllegalArgumentException(
+                    "Field ["
+                        + name()
+                        + "] of type ["
+                        + typeName()
+                        + "] doesn't support format ["
+                        + format
+                        + "]. Supported formats are [array, binary]."
+                );
+            };
         }
 
         @Override
@@ -2985,7 +3002,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             if (dims == null) {
                 // No data has been indexed yet
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
 
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
@@ -3308,7 +3325,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    elementType
+                    elementType,
+                    mergingExecutorService,
+                    maxMergingWorkers
                 );
                 if (extraKnnFormat != null) {
                     break;

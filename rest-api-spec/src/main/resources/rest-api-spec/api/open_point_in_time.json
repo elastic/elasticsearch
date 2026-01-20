@@ -57,7 +57,7 @@
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "keep_alive": {
-        "type": "string",
+        "type": "time",
         "description": "Specific the time to live for the point in time",
         "required": true
       },

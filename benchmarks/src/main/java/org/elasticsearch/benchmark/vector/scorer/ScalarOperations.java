@@ -17,10 +17,27 @@ package org.elasticsearch.benchmark.vector.scorer;
  */
 class ScalarOperations {
 
+    static float dotProduct(float[] a, float[] b) {
+        float res = 0;
+        for (int i = 0; i < a.length; i++) {
+            res += a[i] * b[i];
+        }
+        return res;
+    }
+
     static int dotProduct(byte[] a, byte[] b) {
         int res = 0;
         for (int i = 0; i < a.length; i++) {
             res += a[i] * b[i];
+        }
+        return res;
+    }
+
+    static float squareDistance(float[] a, float[] b) {
+        float res = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            res += diff * diff;
         }
         return res;
     }

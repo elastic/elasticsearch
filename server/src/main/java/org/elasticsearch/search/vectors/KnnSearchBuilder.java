@@ -534,7 +534,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return new KnnVectorQueryBuilder(
             field,
             queryVector,
-            numCands,
+            k,
             numCands,
             visitPercentage,
             rescoreVectorBuilder,

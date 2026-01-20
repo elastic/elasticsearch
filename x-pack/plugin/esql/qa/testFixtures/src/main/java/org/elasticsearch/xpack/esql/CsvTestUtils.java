@@ -58,6 +58,7 @@ import java.io.StringReader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -490,9 +491,9 @@ public final class CsvTestUtils {
             BytesRef.class
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
-        DATE_RANGE(EsqlDataTypeConverter::parseDateRange, LongRangeBlockBuilder.LongRange.class),
+        DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
-        NULL(s -> null, Void.class),
+        NULL(s -> s, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
             (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),

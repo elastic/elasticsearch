@@ -10,7 +10,6 @@
 package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
@@ -45,14 +44,15 @@ record TestConfiguration(
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
-    VectorEncoding vectorEncoding,
+    KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
-    List<SearchParameters> searchParams
+    List<SearchParameters> searchParams,
+    int numMergeWorkers
 ) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -83,6 +83,7 @@ record TestConfiguration(
     static final ParseField POST_FILTERING_THRESHOLD = new ParseField("post_filtering_threshold");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
+    static final ParseField MERGE_WORKERS_FIELD = new ParseField("merge_workers");
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
@@ -141,6 +142,7 @@ record TestConfiguration(
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareFloatArray(Builder::setPostFilteringThresholds, POST_FILTERING_THRESHOLD);
+        PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -178,7 +180,7 @@ record TestConfiguration(
         private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
         private int quantizeBits = 8;
-        private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
+        private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
         private List<Float> filterSelectivity = List.of(1f);
@@ -189,6 +191,7 @@ record TestConfiguration(
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private List<Float> postFilteringThresholds = List.of(1f);
+        private int numMergeWorkers = 1;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -202,6 +205,11 @@ record TestConfiguration(
             }
             // Convert list of strings to list of Paths
             this.docVectors = docVectors.stream().map(PathUtils::get).toList();
+            return this;
+        }
+
+        public Builder setMergeWorkers(int numMergeWorkers) {
+            this.numMergeWorkers = numMergeWorkers;
             return this;
         }
 
@@ -237,11 +245,6 @@ record TestConfiguration(
 
         public Builder setVisitPercentages(List<Double> visitPercentages) {
             this.visitPercentages = visitPercentages;
-            return this;
-        }
-
-        public Builder setPostFilteringThresholds(List<Float> postFilteringThresholds) {
-            this.postFilteringThresholds = postFilteringThresholds;
             return this;
         }
 
@@ -301,7 +304,7 @@ record TestConfiguration(
         }
 
         public Builder setVectorEncoding(String vectorEncoding) {
-            this.vectorEncoding = VectorEncoding.valueOf(vectorEncoding.toUpperCase(Locale.ROOT));
+            this.vectorEncoding = KnnIndexTester.VectorEncoding.valueOf(vectorEncoding.toUpperCase(Locale.ROOT));
             return this;
         }
 
@@ -398,8 +401,7 @@ record TestConfiguration(
                     filterSelectivity.getFirst(),
                     filterCached.getFirst(),
                     earlyTermination.getFirst(),
-                    seed.getFirst(),
-                    postFilteringThresholds.getFirst()
+                    seed.getFirst()
                 );
 
                 for (var so : searchParams) {
@@ -428,7 +430,8 @@ record TestConfiguration(
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
-                searchRuns
+                searchRuns,
+                numMergeWorkers
             );
         }
 

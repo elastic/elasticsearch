@@ -153,7 +153,7 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
 
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-           double currentLastValue = Double.NaN;
+            double currentLastValue = Double.NaN;
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
                 if (docValues.advanceExact(docId) == false) {
@@ -195,7 +195,7 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         }
 
         public void writeResetOffsetValue(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
+            if (hasResetValue()) {
                 builder.field(name(), resetValue());
             }
         }
@@ -210,6 +210,10 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
 
         double resetValue() {
             return firstValue + delta - lastValue;
+        }
+
+        boolean hasResetValue() {
+            return isEmpty() == false && resetValue() > 0;
         }
     }
 }

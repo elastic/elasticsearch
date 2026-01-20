@@ -222,7 +222,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         var producer = new NumericMetricFieldProducer.AggregateCounter(field);
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(IntStream.range(0, 6).toArray());
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1,  2,  3,  6,  10,  11);
+        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1, 2, 3, 6, 10, 11);
 
         producer.collect(valuesInstance, docIdBuffer.reverse());
 
@@ -248,7 +248,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertTrue(producer.isEmpty());
         // Last value greater than first
         var docIdBuffer = IntArrayList.from(IntStream.range(0, 8).toArray());
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1,  2,  5,  8,  3,  6,  10,  11);
+        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1, 2, 5, 8, 3, 6, 10, 11);
 
         producer.collect(valuesInstance, docIdBuffer.reverse());
 
@@ -271,7 +271,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         producer.reset();
         assertTrue(producer.isEmpty());
         docIdBuffer = IntArrayList.from(IntStream.range(0, 10).toArray());
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 1000,  1003,  1010,  1040,  1060,  20,  30,  40, 70 , 80);
+        valuesInstance = createNumericValuesInstance(docIdBuffer, 1000, 1003, 1010, 1040, 1060, 20, 30, 40, 70, 80);
 
         producer.collect(valuesInstance, docIdBuffer.reverse());
 
@@ -296,7 +296,27 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         var producer = new NumericMetricFieldProducer.AggregateCounter(field);
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(IntStream.range(0, 18).toArray());
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1000,  1003,  1010,  1040,  1060,  20,  30,  40, 70 , 80, 20, 10, 20, 40, 60, 5, 10, 20);
+        var valuesInstance = createNumericValuesInstance(
+            docIdBuffer,
+            1000,
+            1003,
+            1010,
+            1040,
+            1060,
+            20,
+            30,
+            40,
+            70,
+            80,
+            20,
+            10,
+            20,
+            40,
+            60,
+            5,
+            10,
+            20
+        );
 
         producer.collect(valuesInstance, docIdBuffer.reverse());
 

@@ -342,6 +342,7 @@ class DownsampleShardIndexer {
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
+        private static final DimensionFieldProducer[] EMPTY_DIMENSION_PRODUCER_ARRAY = new DimensionFieldProducer[0];
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
         private LeafDownsampleCollector currentLeafCollector;
@@ -355,7 +356,18 @@ class DownsampleShardIndexer {
             AbstractDownsampleFieldProducer<?>[] fieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::fieldProducer)
                 .toArray(AbstractDownsampleFieldProducer[]::new);
-            this.downsampleBucketBuilder = new DownsampleBucketBuilder(fieldProducers, dimensions);
+            NumericMetricFieldProducer.AggregateCounter[] aggregateCounterProducers = Arrays.stream(fieldProducers)
+                .filter(p -> p instanceof NumericMetricFieldProducer.AggregateCounter)
+                .toArray(NumericMetricFieldProducer.AggregateCounter[]::new);
+            DimensionFieldProducer[] dimensionFieldProducers = aggregateCounterProducers.length == 0
+                ? EMPTY_DIMENSION_PRODUCER_ARRAY
+                : Arrays.stream(fieldProducers).filter(p -> p instanceof DimensionFieldProducer).toArray(DimensionFieldProducer[]::new);
+            this.downsampleBucketBuilder = new DownsampleBucketBuilder(
+                fieldProducers,
+                dimensionFieldProducers,
+                aggregateCounterProducers,
+                dimensions
+            );
         }
 
         @Override
@@ -465,12 +477,7 @@ class DownsampleShardIndexer {
                     bulkCollection();
                     // Flush downsample doc if not empty
                     if (downsampleBucketBuilder.isEmpty() == false) {
-                        XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
-                        indexBucket(doc);
-                        XContentBuilder secondaryDoc = downsampleBucketBuilder.buildSecondaryDownsampleDocument();
-                        if (secondaryDoc != null) {
-                            indexBucket(secondaryDoc);
-                        }
+                        downsampleBucketBuilder.buildDownsampleDocuments().forEach(TimeSeriesBucketCollector.this::indexBucket);
                     }
 
                     // Create new downsample bucket
@@ -565,12 +572,7 @@ class DownsampleShardIndexer {
             // Flush downsample doc if not empty
             bulkCollection();
             if (downsampleBucketBuilder.isEmpty() == false) {
-                XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
-                indexBucket(doc);
-                XContentBuilder secondaryDoc = downsampleBucketBuilder.buildSecondaryDownsampleDocument();
-                if (secondaryDoc != null) {
-                    indexBucket(secondaryDoc);
-                }
+                downsampleBucketBuilder.buildDownsampleDocuments().forEach(this::indexBucket);
             }
 
             // check cancel after the flush all data
@@ -598,11 +600,20 @@ class DownsampleShardIndexer {
         private int docCount;
         private final AbstractDownsampleFieldProducer<?>[] fieldProducers;
         private final DownsampleFieldSerializer[] groupedProducers;
+        private final DimensionFieldProducer[] dimensionProducers;
+        private final NumericMetricFieldProducer.AggregateCounter[] aggregateCounterProducers;
         private final String[] dimensions;
 
-        DownsampleBucketBuilder(AbstractDownsampleFieldProducer<?>[] fieldProducers, String[] dimensions) {
+        DownsampleBucketBuilder(
+            AbstractDownsampleFieldProducer<?>[] fieldProducers,
+            DimensionFieldProducer[] dimensionFieldProducers,
+            NumericMetricFieldProducer.AggregateCounter[] aggregateCounterProducers,
+            String[] dimensions
+        ) {
             this.fieldProducers = fieldProducers;
             this.dimensions = dimensions;
+            this.dimensionProducers = dimensionFieldProducers;
+            this.aggregateCounterProducers = aggregateCounterProducers;
             /*
              * The downsample field producers for aggregate_metric_double all share the same name (this is
              * the name they will be serialized in the target index). We group all field producers by
@@ -662,19 +673,49 @@ class DownsampleShardIndexer {
             }
         }
 
-        public XContentBuilder buildDownsampleDocument() throws IOException {
+        public List<XContentBuilder> buildDownsampleDocuments() throws IOException {
+            if (isEmpty()) {
+                return List.of();
+            }
+            List<XContentBuilder> docs = new ArrayList<>(4); // We expect max of 4 documents per bucket
+            docs.add(buildDownsampleDocument());
+            XContentBuilder lastCounterDocument = buildLastCounterDocument();
+            if (lastCounterDocument != null) {
+                docs.add(lastCounterDocument);
+            }
+            docs.addAll(buildResetCounterDocuments());
+            return docs;
+        }
+
+        private XContentBuilder buildDownsampleDocument() throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
-            if (isEmpty()) {
-                builder.endObject();
-                return builder;
-            }
             builder.field(timestampField.name(), timestampFormat.format(bucketTimestamp));
             builder.field(DocCountFieldMapper.NAME, docCount);
 
             // Serialize fields
             for (DownsampleFieldSerializer fieldProducer : groupedProducers) {
                 fieldProducer.write(builder);
+            }
+
+            extractDimensionsFromLegacyTsid(builder);
+            return builder.endObject();
+        }
+
+        private XContentBuilder buildLastCounterDocument() throws IOException {
+            if (aggregateCounterProducers.length == 0) {
+                return null;
+            }
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
+            builder.startObject();
+            builder.field(timestampField.name(), timestampFormat.format(lastDocTimestamp));
+
+            // Serialize fields
+            for (NumericMetricFieldProducer.AggregateCounter producer : aggregateCounterProducers) {
+                producer.writeLastValue(builder);
+            }
+            for (DimensionFieldProducer producer : dimensionProducers) {
+                producer.write(builder);
             }
 
             if (dimensions.length == 0) {
@@ -690,21 +731,51 @@ class DownsampleShardIndexer {
             return builder;
         }
 
-        public XContentBuilder buildSecondaryDownsampleDocument() throws IOException {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
-            builder.startObject();
-            builder.field(timestampField.name(), timestampFormat.format(lastDocTimestamp));
+        private List<XContentBuilder> buildResetCounterDocuments() throws IOException {
+            long resetValueTimestamp = bucketTimestamp + 1000;
+            long zeroValueTimestamp = resetValueTimestamp + 1000;
 
-            // Serialize fields
-            boolean hasSecondaryValues = false;
-            for (DownsampleFieldSerializer fieldProducer : groupedProducers) {
-                fieldProducer.writeSecondaryValue(builder);
-                hasSecondaryValues |= fieldProducer.hasSecondaryValue();
+            XContentBuilder resetDocBuilder = XContentFactory.contentBuilder(XContentType.SMILE);
+            resetDocBuilder.startObject();
+
+            resetDocBuilder.field(timestampField.name(), timestampFormat.format(resetValueTimestamp));
+
+            List<String> resetCounterNames = new ArrayList<>(aggregateCounterProducers.length);
+            for (NumericMetricFieldProducer.AggregateCounter producer : aggregateCounterProducers) {
+                if (producer.hasResetValue()) {
+                    producer.writeResetOffsetValue(resetDocBuilder);
+                    resetCounterNames.add(producer.name());
+                }
             }
-            if (hasSecondaryValues == false) {
-                return null;
+            if (resetCounterNames.isEmpty()) {
+                return List.of();
+            }
+            List<XContentBuilder> docs = new ArrayList<>(2);
+            for (DimensionFieldProducer producer : dimensionProducers) {
+                producer.write(resetDocBuilder);
             }
 
+            extractDimensionsFromLegacyTsid(resetDocBuilder);
+            docs.add(resetDocBuilder.endObject());
+
+            XContentBuilder zeroDocBuilder = XContentFactory.contentBuilder(XContentType.SMILE);
+            zeroDocBuilder.startObject();
+
+            zeroDocBuilder.field(timestampField.name(), timestampFormat.format(zeroValueTimestamp));
+
+            for (String counterName : resetCounterNames) {
+                zeroDocBuilder.field(counterName, 0);
+            }
+            for (DimensionFieldProducer producer : dimensionProducers) {
+                producer.write(zeroDocBuilder);
+            }
+
+            extractDimensionsFromLegacyTsid(zeroDocBuilder);
+            docs.add(zeroDocBuilder.endObject());
+            return docs;
+        }
+
+        private void extractDimensionsFromLegacyTsid(XContentBuilder builder) throws IOException {
             if (dimensions.length == 0) {
                 logger.debug("extracting dimensions from legacy tsid");
                 Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
@@ -713,9 +784,6 @@ class DownsampleShardIndexer {
                     builder.field((String) e.getKey(), e.getValue());
                 }
             }
-
-            builder.endObject();
-            return builder;
         }
 
         public long timestamp() {

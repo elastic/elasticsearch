@@ -114,13 +114,31 @@ public final class TDigestStates {
         private final BigArrays bigArrays;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.states = bigArrays.newObjectArray(1);
-            this.minima = bigArrays.newDoubleArray(1);
-            this.maxima = bigArrays.newDoubleArray(1);
-            this.sums = bigArrays.newDoubleArray(1);
-            this.counts = bigArrays.newLongArray(1);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
+            ObjectArray<TDigestState> states = null;
+            DoubleArray minima = null;
+            DoubleArray maxima = null;
+            DoubleArray sums = null;
+            LongArray counts = null;
+            boolean success = false;
+            try {
+                states = bigArrays.newObjectArray(1);
+                minima = bigArrays.newDoubleArray(1);
+                maxima = bigArrays.newDoubleArray(1);
+                sums = bigArrays.newDoubleArray(1);
+                counts = bigArrays.newLongArray(1);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(states, minima, maxima, sums, counts);
+                }
+            }
+            this.states = states;
+            this.minima = minima;
+            this.maxima = maxima;
+            this.sums = sums;
+            this.counts = counts;
         }
 
         TDigestState getOrNull(int position) {

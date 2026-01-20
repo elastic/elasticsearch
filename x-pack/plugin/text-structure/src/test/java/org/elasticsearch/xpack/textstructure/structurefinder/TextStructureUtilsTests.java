@@ -1131,7 +1131,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             recordsMap,
             NOOP_TIMEOUT_CHECKER,
             ecsCompatibility,
-            timestampFormatOverride
+            timestampFormatOverride,
+            1
         );
 
         if (mappings.v1().isEmpty()) {

@@ -87,8 +87,9 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                 );
         }
 
+        // TODO read depth parameter from settings
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat(), 10);
 
         Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {

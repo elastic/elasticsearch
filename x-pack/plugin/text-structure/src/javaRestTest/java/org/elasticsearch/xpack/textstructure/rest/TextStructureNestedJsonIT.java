@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TextStructureNestedJsonIT extends ESRestTestCase {
@@ -145,6 +145,62 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         var explanation = responseMap.get("explanation");
         assertThat(explanation, notNullValue());
+    }
+
+    public void testNestedJsonDepthLimit() throws IOException {
+        int maxDepth = 10;
+        int testDepthBeyondLimit = maxDepth + 3;
+
+        // Generate deeply nested JSON samples
+        StringBuilder sample = new StringBuilder();
+        for (int i = 1; i <= 3; i++) {
+            sample.append(generateDeeplyNestedJson(testDepthBeyondLimit, i)).append("\n");
+        }
+
+        Map<String, Object> responseMap = executeAndVerifyRequest(sample.toString());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+
+        String withinLimitKey = buildNestedKey(maxDepth);
+        String beyondLimitKey = buildNestedKey(maxDepth + 1);
+        assertThat("Key within depth limit should exist", properties, hasKey(withinLimitKey));
+        assertThat("Key beyond depth limit should not exist", properties, not(hasKey(beyondLimitKey)));
+        assertKeyValue(withinLimitKey, "object", responseMap);
+
+    }
+
+    /**
+     * Generates a deeply nested JSON object.
+     * Example for depth=3, id=1: {"level1": {"level2": {"level3": {"value": 1}}}}
+     */
+    private String generateDeeplyNestedJson(int depth, int id) {
+        StringBuilder json = new StringBuilder();
+        for (int i = 1; i <= depth; i++) {
+            json.append("{\"level").append(i).append("\": ");
+        }
+        json.append("{\"value\": ").append(id).append("}");
+        for (int i = 0; i < depth; i++) {
+            json.append("}");
+        }
+        return json.toString();
+    }
+
+    /**
+     * Builds a dot-notation key for nested levels.
+     * Example for depth=3: "level1.level2.level3"
+     */
+    private String buildNestedKey(int depth) {
+        StringBuilder key = new StringBuilder();
+        for (int i = 1; i <= depth; i++) {
+            if (i > 1) {
+                key.append(".");
+            }
+            key.append("level").append(i);
+        }
+        return key.toString();
     }
 
     private static Map<String, Object> executeAndVerifyRequest(String sample) throws IOException {

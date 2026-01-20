@@ -257,7 +257,7 @@ public class EsqlSession {
             configuration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(configuration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -457,7 +457,13 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                                new Result(
+                                    finalResult.schema(),
+                                    finalResult.pages(),
+                                    configuration,
+                                    completionInfoAccumulator.finish(),
+                                    executionInfo
+                                )
                             );
                         })
                     );
@@ -732,7 +738,7 @@ public class EsqlSession {
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.planningProfile().incFieldCapsCalls();
-        indexResolver.resolveIndices(
+        indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
@@ -995,7 +1001,7 @@ public class EsqlSession {
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
             executionInfo.planningProfile().incFieldCapsCalls();
-            indexResolver.resolveIndicesVersioned(
+            indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
@@ -1035,7 +1041,7 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.planningProfile().incFieldCapsCalls();
-        indexResolver.resolveFlatWorldIndicesVersioned(
+        indexResolver.resolveMainFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,
@@ -1049,6 +1055,7 @@ public class EsqlSession {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
                 );

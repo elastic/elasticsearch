@@ -116,7 +116,11 @@ public class StYMin extends SpatialUnaryDocValuesFunction {
     }
 
     static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
-        results.appendDouble(rectangle.getMinY());
+        results.appendDouble(CARTESIAN.decodeY(CARTESIAN.pointAsLong(0, rectangle.getMinY())));
+    }
+
+    static void buildGeoEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+        results.appendDouble(GEO.decodeY(GEO.pointAsLong(0, rectangle.getMinY())));
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
@@ -128,7 +132,7 @@ public class StYMin extends SpatialUnaryDocValuesFunction {
     @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinaryGeo(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StYMin::buildEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StYMin::buildGeoEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })

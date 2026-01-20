@@ -116,7 +116,11 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
     }
 
     static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
-        results.appendDouble(rectangle.getMaxX());
+        results.appendDouble(CARTESIAN.decodeX(CARTESIAN.pointAsLong(rectangle.getMaxX(), 0)));
+    }
+
+    static void buildGeoEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+        results.appendDouble(GEO.decodeX(GEO.pointAsLong(rectangle.getMaxX(), 0)));
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
@@ -128,7 +132,7 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
     @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinaryGeo(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildGeoEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
@@ -139,6 +143,6 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
     @Evaluator(extraName = "FromDocValuesGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromDocValuesGeo(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMax::buildEnvelopeResults);
+        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMax::buildGeoEnvelopeResults);
     }
 }

@@ -137,6 +137,24 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     }
 
     static void buildEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
+        long encodedMin = CARTESIAN.pointAsLong(rectangle.getMinX(), rectangle.getMinY());
+        long encodedMax = CARTESIAN.pointAsLong(rectangle.getMaxX(), rectangle.getMaxY());
+        double minX = CARTESIAN.decodeX(encodedMin);
+        double minY = CARTESIAN.decodeY(encodedMin);
+        double maxX = CARTESIAN.decodeX(encodedMax);
+        double maxY = CARTESIAN.decodeY(encodedMax);
+        rectangle = new Rectangle(minX, maxX, maxY, minY);
+        results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
+    }
+
+    static void buildGeoEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
+        long encodedMin = GEO.pointAsLong(rectangle.getMinX(), rectangle.getMinY());
+        long encodedMax = GEO.pointAsLong(rectangle.getMaxX(), rectangle.getMaxY());
+        double minX = GEO.decodeX(encodedMin);
+        double minY = GEO.decodeY(encodedMin);
+        double maxX = GEO.decodeX(encodedMax);
+        double maxY = GEO.decodeY(encodedMax);
+        rectangle = new Rectangle(minX, maxX, maxY, minY);
         results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
     }
 
@@ -149,7 +167,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinaryGeo(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StEnvelope::buildEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StEnvelope::buildGeoEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
